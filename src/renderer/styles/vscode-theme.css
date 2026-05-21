@@ -1,0 +1,61 @@
+/**
+ * VS Code Dark+ theme tokens (fallback when webview-playground is not loaded).
+ * @see https://code.visualstudio.com/api/references/theme-color
+ */
+:root {
+  --vscode-font-family: 'Source Han Sans SC', 'Source Han Sans CN',
+    'Noto Sans CJK SC', '思源黑体', sans-serif;
+  --vscode-font-size: 14px;
+  --vscode-foreground: #cccccc;
+  --vscode-descriptionForeground: #9d9d9d;
+  --vscode-icon-foreground: #c5c5c5;
+  --vscode-focusBorder: #007fd4;
+
+  --vscode-sideBar-background: #252526;
+  --vscode-sideBar-border: #3e3e42;
+  --vscode-sideBarTitle-foreground: #bbbbbb;
+  --vscode-sideBarSectionHeader-background: #252526;
+  --vscode-sideBarSectionHeader-border: #3e3e42;
+
+  --vscode-activityBar-background: #333333;
+  --vscode-activityBar-border: #3e3e42;
+  --vscode-activityBar-foreground: #ffffff;
+  --vscode-activityBar-inactiveForeground: #858585;
+
+  --vscode-editor-background: #1e1e1e;
+  --vscode-editor-foreground: #d4d4d4;
+  --vscode-editorGroup-border: #3e3e42;
+  --vscode-editorGroupHeader-tabsBackground: #252526;
+
+  --vscode-panel-background: #252526;
+  --vscode-panel-border: #3e3e42;
+
+  --vscode-button-background: #0e639c;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hoverBackground: #1177bb;
+  --vscode-button-secondaryBackground: #3a3d41;
+  --vscode-button-secondaryForeground: #cccccc;
+  --vscode-button-secondaryHoverBackground: #45494e;
+
+  --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
+  --vscode-toolbar-activeBackground: rgba(99, 102, 103, 0.31);
+
+  --vscode-list-activeSelectionBackground: #094771;
+  --vscode-list-activeSelectionForeground: #ffffff;
+  --vscode-list-hoverBackground: #2a2d2e;
+  --vscode-list-focusOutline: #007fd4;
+
+  --vscode-separator-border: #3e3e42;
+  --vscode-sash-hoverBorder: #007fd4;
+
+  --vscode-scrollbar-shadow: #000000;
+  --vscode-scrollbarSlider-background: rgba(121, 121, 121, 0.4);
+  --vscode-scrollbarSlider-hoverBackground: rgba(100, 100, 100, 0.7);
+}
+
+body {
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
