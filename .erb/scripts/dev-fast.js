@@ -41,16 +41,18 @@ detectPort(PORT, (err, available) => {
   }
 
   if (available === PORT) {
-    console.log(`[dev:open] 端口 ${PORT} 空闲 → 启动完整开发链 (renderer + Electron)`);
-    console.log('提示: 下次若 dev server 未关，可直接 npm run dev:open 只开窗口\n');
+    console.log(
+      `[dev:open] 端口 ${PORT} 空闲 → 启动完整开发链 (renderer + Electron)`,
+    );
+    console.log(
+      '提示: 下次若 dev server 未关，可直接 npm run dev:open 只开窗口\n',
+    );
     runNpm('dev');
     return;
   }
 
   if (!dllReady()) {
-    const missing = REQUIRED.filter(
-      (f) => !fs.existsSync(path.join(DLL, f)),
-    );
+    const missing = REQUIRED.filter((f) => !fs.existsSync(path.join(DLL, f)));
     console.error(
       '[dev:open] 缺少 .erb/dll 产物，请先执行一次: npm run dev\n' +
         `缺少: ${missing.join(', ')}`,
@@ -58,6 +60,8 @@ detectPort(PORT, (err, available) => {
     process.exit(1);
   }
 
-  console.log(`[dev:open] 端口 ${PORT} 已就绪 → 仅启动 Electron (main/preload watch)`);
+  console.log(
+    `[dev:open] 端口 ${PORT} 已就绪 → 仅启动 Electron (main/preload watch)`,
+  );
   runNpm('start:main');
 });

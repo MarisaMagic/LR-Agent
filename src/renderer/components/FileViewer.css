@@ -9,7 +9,7 @@
   padding: 6px 12px;
   background: var(--vscode-editorGroupHeader-tabsBackground, #252526);
   border-bottom: 1px solid var(--vscode-editorGroup-border, #3e3e42);
-  font-size: var(--vscode-font-size, 14px);
+  font-size: var(--vscode-font-size, 15px);
   color: var(--vscode-foreground, #cccccc);
   display: flex;
   align-items: center;
@@ -72,7 +72,7 @@
 
 .empty-icon,
 .error-icon {
-  font-size: 48px;
+  font-size: 50px;
   margin-bottom: 16px;
 }
 
@@ -109,7 +109,7 @@
 .markdown-content {
   padding: 20px;
   color: #cccccc;
-  font-size: var(--vscode-font-size, 14px);
+  font-size: var(--vscode-font-size, 15px);
   line-height: 1.6;
 }
 
@@ -125,17 +125,17 @@
 }
 
 .markdown-content h1 {
-  font-size: 28px;
+  font-size: 30px;
   border-bottom: 1px solid #3e3e42;
   padding-bottom: 8px;
 }
 
 .markdown-content h2 {
-  font-size: 22px;
+  font-size: 24px;
 }
 
 .markdown-content h3 {
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .markdown-content p {
@@ -147,7 +147,7 @@
   padding: 2px 6px;
   border-radius: 3px;
   font-family: 'Consolas', 'Monaco', monospace;
-  font-size: var(--vscode-font-size, 14px);
+  font-size: var(--vscode-font-size, 15px);
 }
 
 .markdown-content pre {
@@ -174,7 +174,7 @@
 }
 
 .markdown-content a {
-  color: #3794ff;
+  color: var(--vscode-textLink-foreground, #e2c08d);
   text-decoration: none;
 }
 
@@ -245,7 +245,7 @@
   margin: 0;
   padding: 16px;
   font-family: 'Consolas', 'Monaco', monospace;
-  font-size: var(--vscode-font-size, 14px);
+  font-size: var(--vscode-font-size, 15px);
   line-height: 1.5;
   color: #d4d4d4;
   white-space: pre-wrap;

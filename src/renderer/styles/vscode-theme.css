@@ -2,14 +2,29 @@
  * VS Code Dark+ theme tokens (fallback when webview-playground is not loaded).
  * @see https://code.visualstudio.com/api/references/theme-color
  */
+
+/* Latin → Microsoft YaHei; CJK → Noto Sans SC (思源黑体同源，随应用打包) */
+@font-face {
+  font-family: 'LR-Agent UI';
+  src: local('Microsoft YaHei'), local('微软雅黑');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F, U+2190-21FF,
+    U+2200-22FF, U+FEFF, U+FFFD;
+}
+
 :root {
-  --vscode-font-family: 'Source Han Sans SC', 'Source Han Sans CN',
-    'Noto Sans CJK SC', '思源黑体', sans-serif;
-  --vscode-font-size: 14px;
+  --lr-accent: #dbb018;
+  --lr-accent-hover: #ecc948;
+  --lr-accent-muted: #f0d970;
+
+  --vscode-font-family: 'LR-Agent UI', 'Noto Sans SC', 'Source Han Sans SC', '思源黑体',
+    sans-serif;
+  --vscode-font-size: 15px;
   --vscode-foreground: #cccccc;
   --vscode-descriptionForeground: #9d9d9d;
   --vscode-icon-foreground: #c5c5c5;
-  --vscode-focusBorder: #007fd4;
+  --vscode-focusBorder: var(--lr-accent);
 
   --vscode-sideBar-background: #252526;
   --vscode-sideBar-border: #3e3e42;
@@ -30,9 +45,9 @@
   --vscode-panel-background: #252526;
   --vscode-panel-border: #3e3e42;
 
-  --vscode-button-background: #0e639c;
-  --vscode-button-foreground: #ffffff;
-  --vscode-button-hoverBackground: #1177bb;
+  --vscode-button-background: #dbb018;
+  --vscode-button-foreground: #1e1e1e;
+  --vscode-button-hoverBackground: #ecc948;
   --vscode-button-secondaryBackground: #3a3d41;
   --vscode-button-secondaryForeground: #cccccc;
   --vscode-button-secondaryHoverBackground: #45494e;
@@ -40,13 +55,19 @@
   --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
   --vscode-toolbar-activeBackground: rgba(99, 102, 103, 0.31);
 
-  --vscode-list-activeSelectionBackground: #094771;
+  --vscode-list-activeSelectionBackground: rgba(204, 167, 0, 0.22);
   --vscode-list-activeSelectionForeground: #ffffff;
   --vscode-list-hoverBackground: #2a2d2e;
-  --vscode-list-focusOutline: #007fd4;
+  --vscode-list-focusOutline: var(--lr-accent);
+
+  --vscode-menu-background: #252526;
+  --vscode-menu-foreground: #cccccc;
+  --vscode-menu-selectionBackground: rgba(204, 167, 0, 0.28);
+
+  --vscode-textLink-foreground: var(--lr-accent-muted);
 
   --vscode-separator-border: #3e3e42;
-  --vscode-sash-hoverBorder: #007fd4;
+  --vscode-sash-hoverBorder: var(--lr-accent);
 
   --vscode-scrollbar-shadow: #000000;
   --vscode-scrollbarSlider-background: rgba(121, 121, 121, 0.4);
@@ -58,4 +79,23 @@ body {
   color: var(--vscode-foreground);
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
+}
+
+/* VS Code Web Components 默认回退到系统 sans-serif（Windows 常为雅黑） */
+vscode-tree,
+vscode-panel-header,
+vscode-label,
+vscode-button,
+vscode-textfield,
+vscode-textarea,
+vscode-single-select,
+vscode-multi-select,
+vscode-checkbox,
+vscode-radio,
+vscode-tabs,
+vscode-tab-header,
+vscode-toolbar-button,
+vscode-badge,
+vscode-divider {
+  font-family: var(--vscode-font-family) !important;
 }

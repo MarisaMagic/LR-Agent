@@ -93,7 +93,10 @@ const configuration: webpack.Configuration = {
       {
         test: /\.s?css$/,
         use: ['style-loader', 'css-loader', 'sass-loader'],
-        exclude: [/\.module\.s?(c|a)ss$/, /node_modules[\\/]@vscode[\\/]codicons/],
+        exclude: [
+          /\.module\.s?(c|a)ss$/,
+          /node_modules[\\/]@vscode[\\/]codicons/,
+        ],
       },
       // Fonts
       {
@@ -154,6 +157,7 @@ const configuration: webpack.Configuration = {
      */
     new webpack.EnvironmentPlugin({
       NODE_ENV: 'development',
+      API_BASE_URL: 'http://localhost:8000/api/v1',
     }),
 
     new webpack.LoaderOptionsPlugin({
@@ -183,6 +187,7 @@ const configuration: webpack.Configuration = {
   },
 
   devServer: {
+    host: '0.0.0.0',
     port,
     compress: true,
     hot: true,

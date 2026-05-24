@@ -31,13 +31,13 @@
 }
 
 .placeholder-title {
-  font-size: calc(var(--vscode-font-size, 14px) + 1px);
+  font-size: calc(var(--vscode-font-size, 15px) + 1px);
   font-weight: 600;
   margin-bottom: 8px;
 }
 
 .placeholder-desc {
-  font-size: var(--vscode-font-size, 14px);
+  font-size: var(--vscode-font-size, 15px);
   margin: 0;
   line-height: 1.5;
   color: var(--vscode-descriptionForeground, #858585);

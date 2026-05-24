@@ -10,7 +10,17 @@ export type Channels =
   | 'shell:openPath'
   | 'menu:openFolder'
   | 'menu:toggleLeftSidebar'
-  | 'menu:toggleRightSidebar';
+  | 'menu:toggleRightSidebar'
+  | 'auth:getRefreshToken'
+  | 'auth:setRefreshToken'
+  | 'auth:clearRefreshToken'
+  | 'window:minimize'
+  | 'window:maximize'
+  | 'window:close'
+  | 'window:reload'
+  | 'window:toggleDevTools'
+  | 'window:toggleFullScreen'
+  | 'window:maximize-change';
 
 export interface DirectoryItem {
   name: string;
@@ -25,6 +35,7 @@ export interface FileStats {
 }
 
 const electronHandler = {
+  platform: process.platform as NodeJS.Platform,
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {
       ipcRenderer.send(channel, ...args);
@@ -41,9 +52,37 @@ const electronHandler = {
     once(channel: Channels, func: (...args: unknown[]) => void) {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
     },
-    invoke: <T = unknown>(channel: Channels, ...args: unknown[]) => {
+    invoke: <T = unknown>(channel: string, ...args: unknown[]) => {
       return ipcRenderer.invoke(channel, ...args) as Promise<T>;
     },
+  },
+  window: {
+    minimize: (): void => {
+      ipcRenderer.send('window:minimize');
+    },
+    maximize: (): void => {
+      ipcRenderer.send('window:maximize');
+    },
+    close: (): void => {
+      ipcRenderer.send('window:close');
+    },
+    reload: (): void => {
+      ipcRenderer.send('window:reload');
+    },
+    toggleDevTools: (): void => {
+      ipcRenderer.send('window:toggleDevTools');
+    },
+    toggleFullScreen: (): void => {
+      ipcRenderer.send('window:toggleFullScreen');
+    },
+    isMaximized: (): Promise<boolean> =>
+      ipcRenderer.invoke('window:isMaximized'),
+    openExternal: (url: string): Promise<void> =>
+      ipcRenderer.invoke('window:openExternal', url),
+    onMaximizeChange: (callback: (isMaximized: boolean) => void): (() => void) =>
+      electronHandler.ipcRenderer.on('window:maximize-change', (value) => {
+        callback(Boolean(value));
+      }),
   },
   fileSystem: {
     openDirectory: (): Promise<string | null> =>
@@ -58,6 +97,14 @@ const electronHandler = {
       ipcRenderer.invoke('fs:getFileStats', filePath),
     openPath: (filePath: string): Promise<string> =>
       ipcRenderer.invoke('shell:openPath', filePath),
+  },
+  auth: {
+    getRefreshToken: (): Promise<string | null> =>
+      ipcRenderer.invoke('auth:getRefreshToken'),
+    setRefreshToken: (token: string): Promise<void> =>
+      ipcRenderer.invoke('auth:setRefreshToken', token),
+    clearRefreshToken: (): Promise<void> =>
+      ipcRenderer.invoke('auth:clearRefreshToken'),
   },
 };
 

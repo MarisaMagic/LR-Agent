@@ -1,16 +1,30 @@
 .activity-bar {
   width: 48px;
   flex-shrink: 0;
+  align-self: stretch;
   background: var(--vscode-activityBar-background, #333333);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
   padding: 8px 0;
+}
+
+.activity-bar-left {
+  justify-content: space-between;
+  min-height: 100%;
+}
+
+.activity-bar-top,
+.activity-bar-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 4px;
+  width: 100%;
 }
 
 .activity-icon-wrap {
+  position: relative;
   width: 48px;
   height: 48px;
   display: flex;
@@ -26,4 +40,53 @@
 
 .activity-icon-active vscode-icon {
   color: var(--vscode-activityBar-foreground, #ffffff);
+}
+
+.activity-icon-active::before,
+.activity-avatar-btn.activity-icon-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--lr-accent, #dbb018);
+}
+
+.activity-avatar-btn {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.activity-avatar-btn:hover .user-avatar {
+  border-color: var(--lr-accent-muted, #f0d970);
+}
+
+.activity-avatar-btn.activity-icon-active .user-avatar,
+.activity-avatar-btn.activity-icon-active .user-avatar-placeholder,
+.activity-avatar-btn.activity-icon-active .activity-avatar-fallback {
+  border-color: var(--lr-accent, #dbb018);
+  box-shadow: 0 0 0 1px rgba(204, 167, 0, 0.35);
+}
+
+.activity-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  background: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-activityBar-inactiveForeground, #858585);
+  font-size: 18px;
 }

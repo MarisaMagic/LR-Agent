@@ -89,7 +89,8 @@
       "\\.(css|less|sass|scss)$": "identity-obj-proxy"
     },
     "setupFiles": [
-      "./.erb/scripts/check-build-exists.ts"
+      "./.erb/scripts/check-build-exists.ts",
+      "./.erb/mocks/setupElectronMock.ts"
     ],
     "testEnvironment": "jsdom",
     "testEnvironmentOptions": {
@@ -105,14 +106,17 @@
   },
   "dependencies": {
     "@electron/notarize": "^3.0.0",
+    "@fontsource/noto-sans-sc": "^5.2.9",
     "@vscode-elements/react-elements": "^2.4.0",
     "@vscode/codicons": "^0.0.45",
     "electron-debug": "^4.1.0",
     "electron-log": "^5.3.2",
     "electron-updater": "^6.3.9",
+    "framer-motion": "^12.40.0",
     "fs-extra": "^11.3.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-easy-crop": "^5.5.7",
     "react-markdown": "^10.1.0",
     "react-pdf": "^10.4.1",
     "react-router-dom": "^7.3.0",

@@ -1,11 +1,12 @@
 import path from 'path';
 import fs from 'fs-extra';
-import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, Menu } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import { DirectoryItem, FileStats } from './preload';
+import registerAuthHandlers from './auth/authHandlers';
 
 class AppUpdater {
   constructor() {
@@ -124,6 +125,65 @@ ipcMain.handle(
   },
 );
 
+let windowIpcRegistered = false;
+
+function registerWindowIpcHandlers(): void {
+  if (windowIpcRegistered) {
+    return;
+  }
+  windowIpcRegistered = true;
+
+  ipcMain.on('window:minimize', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize();
+  });
+
+  ipcMain.on('window:maximize', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return;
+    if (window.isMaximized()) {
+      window.unmaximize();
+    } else {
+      window.maximize();
+    }
+  });
+
+  ipcMain.on('window:close', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close();
+  });
+
+  ipcMain.on('window:reload', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.webContents.reload();
+  });
+
+  ipcMain.on('window:toggleDevTools', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.webContents.toggleDevTools();
+  });
+
+  ipcMain.on('window:toggleFullScreen', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return;
+    window.setFullScreen(!window.isFullScreen());
+  });
+
+  ipcMain.handle('window:isMaximized', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    return window?.isMaximized() ?? false;
+  });
+
+  ipcMain.handle('window:openExternal', async (_event, url: string) => {
+    await shell.openExternal(url);
+  });
+}
+
+function attachWindowStateEvents(window: BrowserWindow): void {
+  const notifyMaximizeChange = (isMaximized: boolean) => {
+    window.webContents.send('window:maximize-change', isMaximized);
+  };
+
+  window.on('maximize', () => notifyMaximizeChange(true));
+  window.on('unmaximize', () => notifyMaximizeChange(false));
+}
+
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
   sourceMapSupport.install();
@@ -162,11 +222,21 @@ const createWindow = async () => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
+  const isMac = process.platform === 'darwin';
+
+  registerWindowIpcHandlers();
+
   mainWindow = new BrowserWindow({
     show: false,
     width: 1400,
     height: 900,
     icon: getAssetPath('icon.png'),
+    ...(isMac
+      ? {
+          titleBarStyle: 'hiddenInset',
+          trafficLightPosition: { x: 12, y: 8 },
+        }
+      : { frame: false }),
     webPreferences: {
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
@@ -175,6 +245,8 @@ const createWindow = async () => {
       contextIsolation: true,
     },
   });
+
+  attachWindowStateEvents(mainWindow);
 
   mainWindow.loadURL(resolveHtmlPath('index.html'));
 
@@ -193,8 +265,12 @@ const createWindow = async () => {
     mainWindow = null;
   });
 
-  const menuBuilder = new MenuBuilder(mainWindow);
-  menuBuilder.buildMenu();
+  Menu.setApplicationMenu(null);
+
+  if (isDebug) {
+    const menuBuilder = new MenuBuilder(mainWindow);
+    menuBuilder.setupDevelopmentEnvironment();
+  }
 
   mainWindow.webContents.setWindowOpenHandler((edata) => {
     shell.openExternal(edata.url);
@@ -213,6 +289,7 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(() => {
+    registerAuthHandlers();
     createWindow();
     app.on('activate', () => {
       if (mainWindow === null) createWindow();

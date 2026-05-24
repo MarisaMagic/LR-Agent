@@ -1,7 +1,7 @@
 .layout {
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   overflow: hidden;
 }
 
@@ -11,7 +11,13 @@
   flex-direction: column;
   background: var(--vscode-editor-background, #1e1e1e);
   overflow: hidden;
-  min-width: 0;
+  min-width: 480px;
+}
+
+.main-content-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .resizer {
@@ -49,11 +55,11 @@
 .resizer-left:hover::after,
 .layout.is-resizing-left .resizer-left::after {
   width: 2px;
-  background: var(--vscode-sash-hoverBorder, #007fd4);
+  background: var(--vscode-sash-hoverBorder, #dbb018);
 }
 
 .resizer-right:hover::after,
 .layout.is-resizing-right .resizer-right::after {
   width: 2px;
-  background: var(--vscode-sash-hoverBorder, #007fd4);
+  background: var(--vscode-sash-hoverBorder, #dbb018);
 }

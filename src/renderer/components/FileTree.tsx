@@ -4,9 +4,9 @@ import {
   VscodeTree,
   VscodeTreeItem,
 } from '@vscode-elements/react-elements';
-import FileTypeIcon from './FileTypeIcon';
 import type { VscTreeSelectEvent } from '@vscode-elements/elements/dist/vscode-tree/vscode-tree.js';
 import { useCallback, useLayoutEffect, useRef } from 'react';
+import FileTypeIcon from './FileTypeIcon';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
 import { useApp } from '../context/AppContext';
 import { basename } from '../types/file';

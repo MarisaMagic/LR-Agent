@@ -1,20 +1,26 @@
-import { useCallback, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useApp } from '../context/AppContext';
-import ActivityBar from './ActivityBar';
+import { useAuth } from '../context/AuthContext';
+import ActivityBar, { type LeftPanel } from './ActivityBar';
 import AgentPanel from './AgentPanel';
+import EmailVerifyBanner from './EmailVerifyBanner';
 import FileTree from './FileTree';
 import FileViewer from './FileViewer';
+import SettingsPanel from './SettingsPanel';
 import Sidebar from './Sidebar';
+import PanelTransition from '../motion/PanelTransition';
 import './Layout.css';
 
 const ACTIVITY_BAR_WIDTH = 48;
 const RIGHT_ACTIVITY_BAR_WIDTH = 48;
+const RESIZER_WIDTH = 4;
 
 export default function Layout() {
   const {
     layout,
     minSidebarWidth,
     maxSidebarWidth,
+    minMainContentWidth,
     setLeftWidth,
     setRightWidth,
     toggleLeftSidebar,
@@ -23,6 +29,7 @@ export default function Layout() {
     expandRightSidebar,
     activeFilePath,
   } = useApp();
+  const { refreshUser } = useAuth();
 
   const leftSidebarRef = useRef<HTMLElement>(null);
   const rightSidebarRef = useRef<HTMLElement>(null);
@@ -30,14 +37,71 @@ export default function Layout() {
   const [resizingSide, setResizingSide] = useState<'left' | 'right' | null>(
     null,
   );
+  const [leftPanel, setLeftPanel] = useState<LeftPanel>('explorer');
+
+  useEffect(() => {
+    refreshUser().catch(() => undefined);
+  }, [refreshUser]);
 
   const { leftWidth, rightWidth, leftCollapsed, rightCollapsed } = layout;
 
-  const clampWidth = useCallback(
+  const getMaxLeftWidth = useCallback(() => {
+    const rightOccupied = rightCollapsed
+      ? RIGHT_ACTIVITY_BAR_WIDTH
+      : rightWidth + RESIZER_WIDTH;
+    return Math.min(
+      maxSidebarWidth,
+      window.innerWidth -
+        ACTIVITY_BAR_WIDTH -
+        RESIZER_WIDTH -
+        minMainContentWidth -
+        rightOccupied,
+    );
+  }, [rightCollapsed, rightWidth, maxSidebarWidth, minMainContentWidth]);
+
+  const getMaxRightWidth = useCallback(() => {
+    const leftOccupied = leftCollapsed
+      ? ACTIVITY_BAR_WIDTH
+      : ACTIVITY_BAR_WIDTH + leftWidth + RESIZER_WIDTH;
+    return Math.min(
+      maxSidebarWidth,
+      window.innerWidth - leftOccupied - RESIZER_WIDTH - minMainContentWidth,
+    );
+  }, [leftCollapsed, leftWidth, maxSidebarWidth, minMainContentWidth]);
+
+  const clampLeftWidth = useCallback(
     (width: number) =>
-      Math.min(Math.max(width, minSidebarWidth), maxSidebarWidth),
-    [minSidebarWidth, maxSidebarWidth],
+      Math.min(Math.max(width, minSidebarWidth), getMaxLeftWidth()),
+    [minSidebarWidth, getMaxLeftWidth],
   );
+
+  const clampRightWidth = useCallback(
+    (width: number) =>
+      Math.min(Math.max(width, minSidebarWidth), getMaxRightWidth()),
+    [minSidebarWidth, getMaxRightWidth],
+  );
+
+  useEffect(() => {
+    const onResize = () => {
+      if (!leftCollapsed) {
+        setLeftWidth(clampLeftWidth(leftWidth));
+      }
+      if (!rightCollapsed) {
+        setRightWidth(clampRightWidth(rightWidth));
+      }
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [
+    leftCollapsed,
+    rightCollapsed,
+    leftWidth,
+    rightWidth,
+    clampLeftWidth,
+    clampRightWidth,
+    setLeftWidth,
+    setRightWidth,
+  ]);
 
   const applySidebarWidth = useCallback(
     (side: 'left' | 'right', width: number) => {
@@ -67,14 +131,14 @@ export default function Layout() {
         if (resizeSideRef.current === 'left') {
           applySidebarWidth(
             'left',
-            clampWidth(ev.clientX - ACTIVITY_BAR_WIDTH),
+            clampLeftWidth(ev.clientX - ACTIVITY_BAR_WIDTH),
           );
         }
         if (resizeSideRef.current === 'right') {
           const rightOffset = rightCollapsed ? RIGHT_ACTIVITY_BAR_WIDTH : 0;
           applySidebarWidth(
             'right',
-            clampWidth(window.innerWidth - ev.clientX - rightOffset),
+            clampRightWidth(window.innerWidth - ev.clientX - rightOffset),
           );
         }
       };
@@ -118,20 +182,27 @@ export default function Layout() {
     [
       leftCollapsed,
       rightCollapsed,
-      clampWidth,
+      clampLeftWidth,
+      clampRightWidth,
       applySidebarWidth,
       setLeftWidth,
       setRightWidth,
     ],
   );
 
-  const handleExplorerClick = () => {
-    if (leftCollapsed) {
-      expandLeftSidebar();
-    } else {
-      toggleLeftSidebar();
-    }
-  };
+  const openLeftPanel = useCallback(
+    (panel: LeftPanel) => {
+      if (!leftCollapsed && leftPanel === panel) {
+        toggleLeftSidebar();
+        return;
+      }
+      setLeftPanel(panel);
+      if (leftCollapsed) {
+        expandLeftSidebar();
+      }
+    },
+    [leftCollapsed, leftPanel, toggleLeftSidebar, expandLeftSidebar],
+  );
 
   const handleAgentClick = () => {
     if (rightCollapsed) {
@@ -141,8 +212,9 @@ export default function Layout() {
     }
   };
 
-  const leftPanelActive = !leftCollapsed ? 'explorer' : null;
+  const leftPanelActive = !leftCollapsed ? leftPanel : null;
   const rightPanelActive = !rightCollapsed ? 'agent' : null;
+  const leftSidebarTitle = leftPanel === 'settings' ? '账户设置' : '资源管理器';
 
   return (
     <div
@@ -151,8 +223,8 @@ export default function Layout() {
       <ActivityBar
         side="left"
         activePanel={leftPanelActive}
-        onExplorerClick={handleExplorerClick}
-        onAgentClick={() => undefined}
+        onExplorerClick={() => openLeftPanel('explorer')}
+        onSettingsClick={() => openLeftPanel('settings')}
       />
 
       <Sidebar
@@ -160,10 +232,12 @@ export default function Layout() {
         side="left"
         width={leftWidth}
         collapsed={leftCollapsed}
-        title="资源管理器"
+        title={leftSidebarTitle}
         onToggleCollapse={toggleLeftSidebar}
       >
-        <FileTree />
+        <PanelTransition panelKey={leftPanel} className="sidebar-panel-motion">
+          {leftPanel === 'settings' ? <SettingsPanel /> : <FileTree />}
+        </PanelTransition>
       </Sidebar>
 
       {!leftCollapsed && (
@@ -176,7 +250,10 @@ export default function Layout() {
       )}
 
       <main className="main-content">
-        <FileViewer filePath={activeFilePath} />
+        <EmailVerifyBanner />
+        <div className="main-content-body">
+          <FileViewer filePath={activeFilePath} />
+        </div>
       </main>
 
       {!rightCollapsed && (
@@ -203,7 +280,6 @@ export default function Layout() {
         <ActivityBar
           side="right"
           activePanel={rightPanelActive}
-          onExplorerClick={() => undefined}
           onAgentClick={handleAgentClick}
         />
       )}

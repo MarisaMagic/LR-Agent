@@ -18,11 +18,14 @@ const STORAGE_KEYS = {
   lastWorkspace: 'lr-agent:lastWorkspace',
 };
 
-const MIN_SIDEBAR_WIDTH = 150;
+const MIN_SIDEBAR_WIDTH = 240;
 const MAX_SIDEBAR_WIDTH = 500;
+const MIN_MAIN_CONTENT_WIDTH = 480;
+const RESIZER_WIDTH = 4;
 const DEFAULT_LEFT_WIDTH = 250;
 const DEFAULT_RIGHT_WIDTH = 350;
 const ACTIVITY_BAR_WIDTH = 48;
+const RIGHT_ACTIVITY_BAR_WIDTH = 48;
 
 function readNumber(key: string, fallback: number): number {
   const raw = localStorage.getItem(key);
@@ -153,6 +156,7 @@ interface WorkspaceState {
 interface AppContextValue {
   layout: LayoutState;
   activityBarWidth: number;
+  minMainContentWidth: number;
   minSidebarWidth: number;
   maxSidebarWidth: number;
   setLeftWidth: (width: number) => void;
@@ -425,6 +429,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => ({
       layout,
       activityBarWidth: ACTIVITY_BAR_WIDTH,
+      minMainContentWidth: MIN_MAIN_CONTENT_WIDTH,
       minSidebarWidth: MIN_SIDEBAR_WIDTH,
       maxSidebarWidth: MAX_SIDEBAR_WIDTH,
       setLeftWidth,

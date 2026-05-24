@@ -69,7 +69,10 @@ const configuration: webpack.Configuration = {
       {
         test: /\.s?(a|c)ss$/,
         use: [MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader'],
-        exclude: [/\.module\.s?(c|a)ss$/, /node_modules[\\/]@vscode[\\/]codicons/],
+        exclude: [
+          /\.module\.s?(c|a)ss$/,
+          /node_modules[\\/]@vscode[\\/]codicons/,
+        ],
       },
       // Fonts
       {
@@ -122,6 +125,7 @@ const configuration: webpack.Configuration = {
     new webpack.EnvironmentPlugin({
       NODE_ENV: 'production',
       DEBUG_PROD: false,
+      API_BASE_URL: 'http://localhost:8000/api/v1',
     }),
 
     new MiniCssExtractPlugin({

@@ -1,5 +1,6 @@
 import './styles/vscode-theme.css';
 import './styles/overlay-scroll.css';
+import '@fontsource/noto-sans-sc/chinese-simplified-400.css';
 import codiconStylesheetHref from '@vscode/codicons/dist/codicon.css';
 import '@vscode/codicons/dist/codicon.ttf';
 

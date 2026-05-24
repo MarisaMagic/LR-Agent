@@ -37,6 +37,7 @@
 /* 仅作区块标题栏，正文在下方 sidebar-body */
 .sidebar-panel-header {
   flex-shrink: 0;
+  font-size: 13px;
 }
 
 .sidebar-panel-header::part(body) {
