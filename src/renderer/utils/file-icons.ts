@@ -12,6 +12,8 @@ const EXT_ICON: Record<string, string> = {
   scss: 'css',
   html: 'html',
   pdf: 'file-pdf',
+  doc: 'file-text',
+  docx: 'file-text',
   png: 'file-media',
   jpg: 'file-media',
   jpeg: 'file-media',

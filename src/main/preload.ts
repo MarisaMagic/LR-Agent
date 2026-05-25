@@ -20,7 +20,8 @@ export type Channels =
   | 'window:reload'
   | 'window:toggleDevTools'
   | 'window:toggleFullScreen'
-  | 'window:maximize-change';
+  | 'window:maximize-change'
+  | 'menu:createAnnotationProject';
 
 export interface DirectoryItem {
   name: string;
@@ -79,7 +80,9 @@ const electronHandler = {
       ipcRenderer.invoke('window:isMaximized'),
     openExternal: (url: string): Promise<void> =>
       ipcRenderer.invoke('window:openExternal', url),
-    onMaximizeChange: (callback: (isMaximized: boolean) => void): (() => void) =>
+    onMaximizeChange: (
+      callback: (isMaximized: boolean) => void,
+    ): (() => void) =>
       electronHandler.ipcRenderer.on('window:maximize-change', (value) => {
         callback(Boolean(value));
       }),
@@ -105,6 +108,25 @@ const electronHandler = {
       ipcRenderer.invoke('auth:setRefreshToken', token),
     clearRefreshToken: (): Promise<void> =>
       ipcRenderer.invoke('auth:clearRefreshToken'),
+  },
+  annotation: {
+    getProjects: (): Promise<unknown[]> =>
+      ipcRenderer.invoke('annotation:getProjects'),
+    saveProjects: (projects: unknown[]): Promise<void> =>
+      ipcRenderer.invoke('annotation:saveProjects', projects),
+    writeProjectConfig: (
+      directoryPath: string,
+      project: unknown,
+    ): Promise<void> =>
+      ipcRenderer.invoke(
+        'annotation:writeProjectConfig',
+        directoryPath,
+        project,
+      ),
+    removeProjectConfig: (directoryPath: string): Promise<void> =>
+      ipcRenderer.invoke('annotation:removeProjectConfig', directoryPath),
+    showItemInFolder: (itemPath: string): Promise<void> =>
+      ipcRenderer.invoke('annotation:showItemInFolder', itemPath),
   },
 };
 

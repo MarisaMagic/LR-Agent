@@ -9,6 +9,7 @@ import { useCallback, useLayoutEffect, useRef } from 'react';
 import FileTypeIcon from './FileTypeIcon';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
 import { useApp } from '../context/AppContext';
+import { useAnnotation } from '../context/AnnotationContext';
 import { basename } from '../types/file';
 import {
   clearAncestorIndentGuides,
@@ -35,15 +36,27 @@ export default function FileTree() {
     selectFile,
     refreshTree,
   } = useApp();
+  const { clearActiveProject } = useAnnotation();
+
+  const handleOpenFolder = useCallback(() => {
+    clearActiveProject();
+    openFolder();
+  }, [clearActiveProject, openFolder]);
 
   const scrollableRef = useRef<HTMLElement>(null);
 
   useLayoutEffect(() => {
-    const tree = scrollableRef.current?.querySelector('vscode-tree');
-    if (tree) {
-      syncTreeOpenState(tree, expandedPaths);
-      syncActiveFileSelection(tree, activeFilePath);
-    }
+    const treeEl = scrollableRef.current?.querySelector('vscode-tree');
+    if (!treeEl) return undefined;
+
+    const sync = () => {
+      syncTreeOpenState(treeEl, expandedPaths);
+      syncActiveFileSelection(treeEl, activeFilePath);
+    };
+
+    sync();
+    const frameId = requestAnimationFrame(sync);
+    return () => cancelAnimationFrame(frameId);
   }, [activeFilePath, expandedPaths, tree, rootPath]);
 
   const onTreeSelect = useCallback(
@@ -79,7 +92,7 @@ export default function FileTree() {
         <VscodeClickableToolbarButton
           icon="folder-opened"
           label="打开文件夹"
-          onClick={() => openFolder()}
+          onClick={handleOpenFolder}
         />
         <VscodeClickableToolbarButton
           icon="refresh"
@@ -106,14 +119,16 @@ export default function FileTree() {
               selected={activeFilePath === rootPath}
             >
               <FileTypeIcon
-                slot={
-                  expandedPaths.has(rootPath)
-                    ? 'icon-branch-opened'
-                    : 'icon-branch'
-                }
+                slot="icon-branch"
                 path={rootPath}
                 isFolder
-                isOpen={expandedPaths.has(rootPath)}
+                isOpen={false}
+              />
+              <FileTypeIcon
+                slot="icon-branch-opened"
+                path={rootPath}
+                isFolder
+                isOpen
               />
               <span className="file-tree-item-label" data-file-path={rootPath}>
                 {basename(rootPath)}

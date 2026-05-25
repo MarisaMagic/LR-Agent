@@ -4,13 +4,14 @@ import { useAuth } from '../context/AuthContext';
 import UserAvatar from './UserAvatar';
 import './ActivityBar.css';
 
-export type LeftPanel = 'explorer' | 'settings';
+export type LeftPanel = 'explorer' | 'annotations' | 'settings';
 export type RightPanel = 'agent';
 
 interface ActivityBarProps {
   side: 'left' | 'right';
   activePanel: LeftPanel | RightPanel | null;
   onExplorerClick?: () => void;
+  onAnnotationsClick?: () => void;
   onSettingsClick?: () => void;
   onAgentClick?: () => void;
 }
@@ -76,6 +77,7 @@ export default function ActivityBar({
   side,
   activePanel,
   onExplorerClick,
+  onAnnotationsClick,
   onSettingsClick,
   onAgentClick,
 }: ActivityBarProps) {
@@ -88,6 +90,12 @@ export default function ActivityBar({
             label="资源管理器"
             active={activePanel === 'explorer'}
             onClick={onExplorerClick ?? (() => undefined)}
+          />
+          <ActivityIcon
+            name="tag"
+            label="标注任务"
+            active={activePanel === 'annotations'}
+            onClick={onAnnotationsClick ?? (() => undefined)}
           />
         </div>
         <div className="activity-bar-bottom">

@@ -1,0 +1,85 @@
+.label-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.label-editor-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.label-editor-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.label-editor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label-editor-color {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--vscode-input-border, #3c3c3c);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.label-editor-name {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--vscode-input-border, #3c3c3c);
+  border-radius: 2px;
+  background: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-input-foreground, #cccccc);
+  font-size: 13px;
+}
+
+.label-editor-name:focus {
+  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+  border-color: var(--vscode-focusBorder, #007fd4);
+}
+
+.label-editor-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-foreground, #cccccc);
+  cursor: pointer;
+}
+
+.label-editor-remove:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}

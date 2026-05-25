@@ -17,6 +17,18 @@
   flex-shrink: 0;
 }
 
+.file-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.file-header-nav--disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 .file-header-icon {
   flex-shrink: 0;
   width: 22px;
@@ -250,4 +262,57 @@
   color: #d4d4d4;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+/* Word 文档预览 */
+.docx-viewer {
+  background: #1e1e1e;
+}
+
+.docx-content {
+  padding: 20px;
+  color: #cccccc;
+  font-size: var(--vscode-font-size, 15px);
+  line-height: 1.6;
+}
+
+.docx-html {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.docx-html p {
+  margin: 0 0 12px;
+}
+
+.docx-html h1,
+.docx-html h2,
+.docx-html h3,
+.docx-html h4,
+.docx-html h5,
+.docx-html h6 {
+  color: #ffffff;
+  margin: 20px 0 12px;
+}
+
+.docx-html ul,
+.docx-html ol {
+  margin: 0 0 12px 24px;
+}
+
+.docx-html table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.docx-html th,
+.docx-html td {
+  border: 1px solid #3e3e42;
+  padding: 8px 12px;
+}
+
+.docx-html img {
+  max-width: 100%;
+  height: auto;
 }

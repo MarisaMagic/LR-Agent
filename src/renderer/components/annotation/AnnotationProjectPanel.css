@@ -1,0 +1,19 @@
+.annotation-project-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.annotation-project-toolbar {
+  flex-shrink: 0;
+}
+
+.annotation-project-scroll-host {
+  flex: 1;
+  min-height: 0;
+}
+
+.annotation-project-scrollable {
+  height: 100%;
+}

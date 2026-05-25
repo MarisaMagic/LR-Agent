@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAnnotation } from '../context/AnnotationContext';
 import appIcon from '../../../assets/icon.png';
 import './TitleBar.css';
 
@@ -73,10 +74,11 @@ function MenuDropdown({
 
 export default function TitleBar() {
   const { openFolder, toggleLeftSidebar, toggleRightSidebar } = useApp();
+  const { openCreateWizard, clearActiveProject } = useAnnotation();
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
   const barRef = useRef<HTMLElement>(null);
-  const platform = window.electron.platform;
+  const { platform } = window.electron;
   const showWindowControls = platform !== 'darwin';
 
   useEffect(() => {
@@ -101,11 +103,20 @@ export default function TitleBar() {
     setOpenMenu(null);
   }, []);
 
+  const handleOpenFolder = useCallback(() => {
+    clearActiveProject();
+    openFolder();
+  }, [clearActiveProject, openFolder]);
+
   const fileItems: MenuItemConfig[] = [
     {
       label: '打开文件夹…',
       accelerator: 'CommandOrControl+O',
-      action: () => runMenuAction(() => openFolder()),
+      action: () => runMenuAction(handleOpenFolder),
+    },
+    {
+      label: '新建标注任务…',
+      action: () => runMenuAction(openCreateWizard),
     },
     { separator: true, label: '' },
     {
@@ -193,7 +204,7 @@ export default function TitleBar() {
       const key = event.key.toLowerCase();
       if (key === 'o') {
         event.preventDefault();
-        openFolder();
+        handleOpenFolder();
       } else if (key === 'b' && event.shiftKey) {
         event.preventDefault();
         toggleRightSidebar();
@@ -211,7 +222,7 @@ export default function TitleBar() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [openFolder, toggleLeftSidebar, toggleRightSidebar]);
+  }, [handleOpenFolder, toggleLeftSidebar, toggleRightSidebar]);
 
   const toggleMenu = (menu: MenuId) => {
     setOpenMenu((current) => (current === menu ? null : menu));
@@ -222,10 +233,7 @@ export default function TitleBar() {
   };
 
   return (
-    <header
-      ref={barRef}
-      className={`title-bar title-bar-${platform}`}
-    >
+    <header ref={barRef} className={`title-bar title-bar-${platform}`}>
       <div className="title-bar-left">
         <img src={appIcon} alt="" className="title-bar-app-icon" />
         <nav className="title-bar-menus" aria-label="应用菜单">
@@ -271,7 +279,10 @@ export default function TitleBar() {
             aria-label="最小化"
             onClick={() => window.electron.window.minimize()}
           >
-            <span className="codicon codicon-chrome-minimize" aria-hidden="true" />
+            <span
+              className="codicon codicon-chrome-minimize"
+              aria-hidden="true"
+            />
           </button>
           <button
             type="button"
@@ -281,7 +292,9 @@ export default function TitleBar() {
           >
             <span
               className={`codicon ${
-                isMaximized ? 'codicon-chrome-restore' : 'codicon-chrome-maximize'
+                isMaximized
+                  ? 'codicon-chrome-restore'
+                  : 'codicon-chrome-maximize'
               }`}
               aria-hidden="true"
             />

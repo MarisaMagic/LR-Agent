@@ -7,6 +7,12 @@ import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import { DirectoryItem, FileStats } from './preload';
 import registerAuthHandlers from './auth/authHandlers';
+import {
+  getAnnotationProjects,
+  removeProjectDirConfig,
+  saveAnnotationProjects,
+  writeProjectDirConfig,
+} from './annotation/annotationStore';
 
 class AppUpdater {
   constructor() {
@@ -65,6 +71,38 @@ ipcMain.handle('dialog:openDirectory', async () => {
   });
   return result.filePaths[0] || null;
 });
+
+ipcMain.handle('annotation:getProjects', async () => {
+  return getAnnotationProjects();
+});
+
+ipcMain.handle(
+  'annotation:saveProjects',
+  async (_event, projects: unknown[]) => {
+    await saveAnnotationProjects(projects);
+  },
+);
+
+ipcMain.handle(
+  'annotation:writeProjectConfig',
+  async (_event, directoryPath: string, project: unknown) => {
+    await writeProjectDirConfig(directoryPath, project);
+  },
+);
+
+ipcMain.handle(
+  'annotation:removeProjectConfig',
+  async (_event, directoryPath: string) => {
+    await removeProjectDirConfig(directoryPath);
+  },
+);
+
+ipcMain.handle(
+  'annotation:showItemInFolder',
+  async (_event, itemPath: string) => {
+    shell.showItemInFolder(itemPath);
+  },
+);
 
 ipcMain.handle(
   'fs:readDir',

@@ -90,6 +90,86 @@ function setNodeLoading(
   });
 }
 
+function collectFolderPaths(nodes: FileNode[]): Set<string> {
+  const paths = new Set<string>();
+  const walk = (list: FileNode[]) => {
+    for (const node of list) {
+      if (node.type === 'folder') {
+        paths.add(node.path);
+        if (node.children) walk(node.children);
+      }
+    }
+  };
+  walk(nodes);
+  return paths;
+}
+
+function pruneExpandedPaths(
+  expandedPaths: Set<string>,
+  tree: FileNode[],
+  rootPath: string,
+): Set<string> {
+  const validFolders = collectFolderPaths(tree);
+  validFolders.add(rootPath);
+  const next = new Set<string>();
+  for (const path of expandedPaths) {
+    if (validFolders.has(path)) next.add(path);
+  }
+  return next;
+}
+
+function nodeMetaEqual(a: FileNode, b: FileNode): boolean {
+  return a.path === b.path && a.name === b.name && a.type === b.type;
+}
+
+function childrenSameReferences(
+  next: FileNode[] | undefined,
+  prev: FileNode[] | undefined,
+): boolean {
+  if (!next && !prev) return true;
+  if (!next || !prev || next.length !== prev.length) return false;
+  return next.every((node, index) => node === prev[index]);
+}
+
+async function refreshNodesAtLevel(
+  oldNodes: FileNode[] | undefined,
+  freshNodes: FileNode[],
+  expandedPaths: Set<string>,
+  loadDirectory: (dirPath: string) => Promise<FileNode[]>,
+): Promise<FileNode[]> {
+  return Promise.all(
+    freshNodes.map(async (fresh) => {
+      const oldNode = oldNodes?.find((node) => node.path === fresh.path);
+
+      if (fresh.type !== 'folder' || !expandedPaths.has(fresh.path)) {
+        if (oldNode && nodeMetaEqual(oldNode, fresh)) {
+          return oldNode;
+        }
+        return fresh;
+      }
+
+      const childFresh = await loadDirectory(fresh.path);
+      const children = await refreshNodesAtLevel(
+        oldNode?.children,
+        childFresh,
+        expandedPaths,
+        loadDirectory,
+      );
+
+      if (
+        oldNode &&
+        nodeMetaEqual(oldNode, fresh) &&
+        childrenSameReferences(children, oldNode.children)
+      ) {
+        return oldNode;
+      }
+
+      const base = oldNode && nodeMetaEqual(oldNode, fresh) ? oldNode : fresh;
+      return { ...base, children, isLoading: false };
+    }),
+  );
+}
+
 interface LayoutState {
   leftWidth: number;
   rightWidth: number;
@@ -327,9 +407,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshTree = useCallback(async () => {
-    if (!workspace.rootPath) return;
-    await loadWorkspace(workspace.rootPath);
-  }, [workspace.rootPath, loadWorkspace]);
+    const { rootPath, expandedPaths, activeFilePath, tree } = workspace;
+    if (!rootPath) return;
+
+    const freshRoot = await loadDirectory(rootPath);
+    const newTree = await refreshNodesAtLevel(
+      tree,
+      freshRoot,
+      expandedPaths,
+      loadDirectory,
+    );
+    const nextExpanded = pruneExpandedPaths(expandedPaths, newTree, rootPath);
+
+    let nextActive = activeFilePath;
+    if (nextActive) {
+      const stats = await window.electron.fileSystem?.getFileStats(nextActive);
+      if (!stats) nextActive = null;
+    }
+
+    const treeUnchanged = childrenSameReferences(newTree, tree);
+    setWorkspace({
+      tree: treeUnchanged ? tree : newTree,
+      expandedPaths: nextExpanded,
+      activeFilePath: nextActive,
+    });
+  }, [workspace, loadDirectory]);
 
   const setLeftWidth = useCallback((width: number) => {
     const clamped = Math.min(

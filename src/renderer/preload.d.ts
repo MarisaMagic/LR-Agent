@@ -34,6 +34,16 @@ declare global {
         setRefreshToken(token: string): Promise<void>;
         clearRefreshToken(): Promise<void>;
       };
+      annotation: {
+        getProjects(): Promise<unknown[]>;
+        saveProjects(projects: unknown[]): Promise<void>;
+        writeProjectConfig(
+          directoryPath: string,
+          project: unknown,
+        ): Promise<void>;
+        removeProjectConfig(directoryPath: string): Promise<void>;
+        showItemInFolder(itemPath: string): Promise<void>;
+      };
     };
   }
 }

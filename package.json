@@ -114,6 +114,8 @@
     "electron-updater": "^6.3.9",
     "framer-motion": "^12.40.0",
     "fs-extra": "^11.3.5",
+    "highlight.js": "^11.11.1",
+    "mammoth": "^1.12.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-easy-crop": "^5.5.7",

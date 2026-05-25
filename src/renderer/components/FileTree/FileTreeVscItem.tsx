@@ -28,12 +28,20 @@ export default function FileTreeVscItem({
       selected={isSelected}
     >
       {isFolder ? (
-        <FileTypeIcon
-          slot={isExpanded ? 'icon-branch-opened' : 'icon-branch'}
-          path={node.path}
-          isFolder
-          isOpen={isExpanded}
-        />
+        <>
+          <FileTypeIcon
+            slot="icon-branch"
+            path={node.path}
+            isFolder
+            isOpen={false}
+          />
+          <FileTypeIcon
+            slot="icon-branch-opened"
+            path={node.path}
+            isFolder
+            isOpen
+          />
+        </>
       ) : (
         <FileTypeIcon slot="icon-leaf" path={node.path} />
       )}

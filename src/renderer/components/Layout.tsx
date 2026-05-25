@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import ActivityBar, { type LeftPanel } from './ActivityBar';
@@ -9,11 +15,29 @@ import FileViewer from './FileViewer';
 import SettingsPanel from './SettingsPanel';
 import Sidebar from './Sidebar';
 import PanelTransition from '../motion/PanelTransition';
+import AnnotationProjectPanel from './annotation/AnnotationProjectPanel';
+import CreateAnnotationProjectWizard from './annotation/CreateAnnotationProjectWizard';
+import EditAnnotationProjectModal from './annotation/EditAnnotationProjectModal';
+import { useAnnotation } from '../context/AnnotationContext';
 import './Layout.css';
 
 const ACTIVITY_BAR_WIDTH = 48;
 const RIGHT_ACTIVITY_BAR_WIDTH = 48;
 const RESIZER_WIDTH = 4;
+
+const LEFT_PANEL_TITLES: Record<LeftPanel, string> = {
+  explorer: '资源管理器',
+  annotations: '标注任务',
+  settings: '账户设置',
+};
+
+function renderLeftPanel(panel: LeftPanel, onProjectOpened: () => void) {
+  if (panel === 'settings') return <SettingsPanel />;
+  if (panel === 'annotations') {
+    return <AnnotationProjectPanel onProjectOpened={onProjectOpened} />;
+  }
+  return <FileTree />;
+}
 
 export default function Layout() {
   const {
@@ -30,6 +54,12 @@ export default function Layout() {
     activeFilePath,
   } = useApp();
   const { refreshUser } = useAuth();
+  const {
+    createWizardOpen,
+    closeCreateWizard,
+    editingProject,
+    closeEditProject,
+  } = useAnnotation();
 
   const leftSidebarRef = useRef<HTMLElement>(null);
   const rightSidebarRef = useRef<HTMLElement>(null);
@@ -212,9 +242,16 @@ export default function Layout() {
     }
   };
 
+  const handleProjectOpened = useCallback(() => {
+    setLeftPanel('explorer');
+    if (leftCollapsed) {
+      expandLeftSidebar();
+    }
+  }, [leftCollapsed, expandLeftSidebar]);
+
   const leftPanelActive = !leftCollapsed ? leftPanel : null;
   const rightPanelActive = !rightCollapsed ? 'agent' : null;
-  const leftSidebarTitle = leftPanel === 'settings' ? '账户设置' : '资源管理器';
+  const leftSidebarTitle = LEFT_PANEL_TITLES[leftPanel];
 
   return (
     <div
@@ -224,6 +261,7 @@ export default function Layout() {
         side="left"
         activePanel={leftPanelActive}
         onExplorerClick={() => openLeftPanel('explorer')}
+        onAnnotationsClick={() => openLeftPanel('annotations')}
         onSettingsClick={() => openLeftPanel('settings')}
       />
 
@@ -236,7 +274,7 @@ export default function Layout() {
         onToggleCollapse={toggleLeftSidebar}
       >
         <PanelTransition panelKey={leftPanel} className="sidebar-panel-motion">
-          {leftPanel === 'settings' ? <SettingsPanel /> : <FileTree />}
+          {renderLeftPanel(leftPanel, handleProjectOpened)}
         </PanelTransition>
       </Sidebar>
 
@@ -281,6 +319,19 @@ export default function Layout() {
           side="right"
           activePanel={rightPanelActive}
           onAgentClick={handleAgentClick}
+        />
+      )}
+
+      <CreateAnnotationProjectWizard
+        open={createWizardOpen}
+        onClose={closeCreateWizard}
+        onCreated={handleProjectOpened}
+      />
+
+      {editingProject && (
+        <EditAnnotationProjectModal
+          project={editingProject}
+          onClose={closeEditProject}
         />
       )}
     </div>

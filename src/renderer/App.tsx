@@ -7,6 +7,7 @@ import {
 } from 'react-router-dom';
 import AppShell from './components/AppShell';
 import { AppProvider } from './context/AppContext';
+import { AnnotationProvider } from './context/AnnotationContext';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import Layout from './components/Layout';
@@ -25,16 +26,21 @@ function MainAppRoutes() {
     <AuthProvider>
       <ToastProvider>
         <AppProvider>
-          <AppShell>
-            <PageTransition routeKey={location.pathname} className="app-shell-transition">
-              <Routes location={location}>
-                <Route path="/auth" element={<AuthPage />} />
-                <Route element={<RequireAuth />}>
-                  <Route path="/" element={<Layout />} />
-                </Route>
-              </Routes>
-            </PageTransition>
-          </AppShell>
+          <AnnotationProvider>
+            <AppShell>
+              <PageTransition
+                routeKey={location.pathname}
+                className="app-shell-transition"
+              >
+                <Routes location={location}>
+                  <Route path="/auth" element={<AuthPage />} />
+                  <Route element={<RequireAuth />}>
+                    <Route path="/" element={<Layout />} />
+                  </Route>
+                </Routes>
+              </PageTransition>
+            </AppShell>
+          </AnnotationProvider>
         </AppProvider>
       </ToastProvider>
     </AuthProvider>
