@@ -80,14 +80,14 @@ export default function DeleteAccountModal({
             <div className="delete-account-actions">
               <button
                 type="button"
-                className="delete-account-button delete-account-button-secondary"
+                className="app-btn app-btn-secondary"
                 onClick={onCancel}
               >
                 取消
               </button>
               <button
                 type="button"
-                className="delete-account-button delete-account-button-danger"
+                className="app-btn app-btn-danger"
                 onClick={() => setStep('password')}
               >
                 继续注销
@@ -129,7 +129,7 @@ export default function DeleteAccountModal({
             <div className="delete-account-actions">
               <button
                 type="button"
-                className="delete-account-button delete-account-button-secondary"
+                className="app-btn app-btn-secondary"
                 onClick={() => {
                   setError(null);
                   setPassword('');
@@ -141,7 +141,7 @@ export default function DeleteAccountModal({
               </button>
               <button
                 type="submit"
-                className="delete-account-button delete-account-button-danger"
+                className="app-btn app-btn-danger"
                 disabled={loading}
               >
                 {loading ? '注销中…' : '确认注销'}

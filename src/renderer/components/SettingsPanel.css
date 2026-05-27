@@ -72,7 +72,7 @@
   border: 1px solid var(--vscode-panel-border, #3c3c3c);
   border-radius: 4px;
   background: var(--vscode-menu-background, #252526);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px var(--lr-menu-shadow);
 }
 
 .settings-avatar-menu-item {
@@ -92,7 +92,7 @@
 }
 
 .settings-avatar-menu-item-danger {
-  color: #f48771;
+  color: var(--vscode-errorForeground);
 }
 
 .settings-field label,
@@ -150,37 +150,6 @@
 .settings-badge-unverified {
   background: rgba(204, 167, 0, 0.15);
   color: var(--lr-accent-muted, #f0d970);
-}
-
-.settings-button {
-  appearance: none;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 6px 10px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.settings-button-primary {
-  background: var(--vscode-button-background, #dbb018);
-  color: var(--vscode-button-foreground, #ffffff);
-}
-
-.settings-button-secondary {
-  background: transparent;
-  border-color: var(--vscode-panel-border, #3c3c3c);
-  color: var(--vscode-foreground, #cccccc);
-}
-
-.settings-button-danger {
-  background: transparent;
-  border-color: rgba(244, 71, 71, 0.45);
-  color: #f48771;
-}
-
-.settings-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .settings-actions {

@@ -90,3 +90,41 @@
   color: var(--vscode-activityBar-inactiveForeground, #858585);
   font-size: 18px;
 }
+
+.activity-theme-toggle {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--vscode-activityBar-inactiveForeground, #858585);
+  border-radius: 6px;
+}
+
+.activity-theme-toggle:hover {
+  color: var(--vscode-activityBar-foreground, #ffffff);
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.activity-theme-toggle:active {
+  transform: scale(0.94);
+}
+
+.activity-theme-toggle-icon {
+  display: block;
+  flex-shrink: 0;
+  line-height: 0;
+  transition:
+    transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.2s ease;
+}
+
+.activity-theme-toggle:hover .activity-theme-toggle-icon {
+  transform: rotate(-12deg) scale(1.06);
+}

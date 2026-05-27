@@ -21,7 +21,9 @@ export type Channels =
   | 'window:toggleDevTools'
   | 'window:toggleFullScreen'
   | 'window:maximize-change'
-  | 'menu:createAnnotationProject';
+  | 'menu:createAnnotationProject'
+  | 'theme:systemChanged'
+  | 'theme:notifyEffectiveTheme';
 
 export interface DirectoryItem {
   name: string;
@@ -109,6 +111,19 @@ const electronHandler = {
     clearRefreshToken: (): Promise<void> =>
       ipcRenderer.invoke('auth:clearRefreshToken'),
   },
+  theme: {
+    getSystemDark: (): Promise<boolean> =>
+      ipcRenderer.invoke('theme:getSystemDark'),
+    notifyEffectiveTheme: (theme: 'dark' | 'light'): void => {
+      ipcRenderer.send('theme:notifyEffectiveTheme', theme);
+    },
+    onSystemChanged: (
+      callback: (isDark: boolean) => void,
+    ): (() => void) =>
+      electronHandler.ipcRenderer.on('theme:systemChanged', (value) => {
+        callback(Boolean(value));
+      }),
+  },
   annotation: {
     getProjects: (): Promise<unknown[]> =>
       ipcRenderer.invoke('annotation:getProjects'),
@@ -127,6 +142,28 @@ const electronHandler = {
       ipcRenderer.invoke('annotation:removeProjectConfig', directoryPath),
     showItemInFolder: (itemPath: string): Promise<void> =>
       ipcRenderer.invoke('annotation:showItemInFolder', itemPath),
+    readFileAnnotationDoc: (
+      projectDir: string,
+      relativePath: string,
+    ): Promise<unknown | null> =>
+      ipcRenderer.invoke(
+        'annotation:readFileAnnotationDoc',
+        projectDir,
+        relativePath,
+      ),
+    writeFileAnnotationDoc: (
+      projectDir: string,
+      relativePath: string,
+      doc: unknown,
+      sourceHint?: { mtimeMs?: number; size?: number },
+    ): Promise<void> =>
+      ipcRenderer.invoke(
+        'annotation:writeFileAnnotationDoc',
+        projectDir,
+        relativePath,
+        doc,
+        sourceHint,
+      ),
   },
 };
 

@@ -87,7 +87,7 @@ export default function AvatarCropModal({
       <div className="avatar-crop-actions">
         <button
           type="button"
-          className="avatar-crop-button avatar-crop-button-secondary"
+          className="app-btn app-btn-secondary"
           onClick={onCancel}
           disabled={submitting}
         >
@@ -95,7 +95,7 @@ export default function AvatarCropModal({
         </button>
         <button
           type="button"
-          className="avatar-crop-button avatar-crop-button-primary"
+          className="app-btn app-btn-primary"
           onClick={handleConfirm}
           disabled={submitting || !croppedAreaPixels}
         >

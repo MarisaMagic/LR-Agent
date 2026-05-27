@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import { createResizeObserver } from '../utils/resizeObserver';
 
 /** 测量 flex 滚动宿主的可视高度，供 VscodeScrollable 使用固定像素高度 */
 export function useScrollHostHeight() {
@@ -15,7 +16,8 @@ export function useScrollHostHeight() {
     };
 
     update();
-    const ro = new ResizeObserver(update);
+    const ro = createResizeObserver(update);
+    if (!ro) return undefined;
     ro.observe(el);
     return () => ro.disconnect();
   }, []);

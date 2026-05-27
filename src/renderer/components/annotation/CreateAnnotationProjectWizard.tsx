@@ -181,7 +181,10 @@ export default function CreateAnnotationProjectWizard({
       {step === 1 && (
         <div className="create-annotation-body">
           <div className="create-annotation-field">
-            <label className="create-annotation-label" htmlFor="project-directory">
+            <label
+              className="create-annotation-label"
+              htmlFor="project-directory"
+            >
               项目目录 <span className="required">*</span>
             </label>
             <div className="create-annotation-directory-row">
@@ -217,7 +220,10 @@ export default function CreateAnnotationProjectWizard({
           </div>
 
           <div className="create-annotation-field">
-            <label className="create-annotation-label" htmlFor="project-description">
+            <label
+              className="create-annotation-label"
+              htmlFor="project-description"
+            >
               任务概述
             </label>
             <textarea
@@ -258,7 +264,10 @@ export default function CreateAnnotationProjectWizard({
           </fieldset>
 
           <div className="create-annotation-field">
-            <label className="create-annotation-label" htmlFor="annotation-type">
+            <label
+              className="create-annotation-label"
+              htmlFor="annotation-type"
+            >
               标注类型 <span className="required">*</span>
             </label>
             <select

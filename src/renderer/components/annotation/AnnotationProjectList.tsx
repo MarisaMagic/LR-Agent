@@ -6,6 +6,10 @@ import {
   TASK_TYPE_CONFIG,
 } from '../../types/annotation';
 import { getLabelChipStyle } from '../../utils/labelColor';
+import {
+  AnnotationMotionList,
+  AnnotationMotionListItem,
+} from '../../motion/AnnotationListMotion';
 import AnnotationProjectMenuPortal from './AnnotationProjectMenuPortal';
 import './AnnotationProjectList.css';
 
@@ -91,14 +95,16 @@ export default function AnnotationProjectList({
 
   return (
     <>
-      <ul className="annotation-project-list">
+      <AnnotationMotionList as="ul" className="annotation-project-list">
         {sorted.map((project) => {
           const isActive = project.id === activeProjectId;
           const menuOpen = menuProjectId === project.id;
 
           return (
-            <li
+            <AnnotationMotionListItem
               key={project.id}
+              as="li"
+              layoutKey={project.id}
               className={`annotation-project-card${
                 isActive ? ' annotation-project-card-active' : ''
               }${menuOpen ? ' annotation-project-card-menu-open' : ''}`}
@@ -183,10 +189,10 @@ export default function AnnotationProjectList({
                   <VscodeIcon name="kebab-vertical" size={16} />
                 </button>
               </div>
-            </li>
+            </AnnotationMotionListItem>
           );
         })}
-      </ul>
+      </AnnotationMotionList>
 
       {menuProject && menuAnchorRef.current && (
         <AnnotationProjectMenuPortal

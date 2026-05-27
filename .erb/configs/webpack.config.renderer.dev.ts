@@ -75,6 +75,12 @@ const configuration: webpack.Configuration = {
         generator: { filename: 'static/codicons/[name][ext]' },
       },
       {
+        test: /\.css$/,
+        include: /node_modules[\\/]highlight\.js[\\/]styles/,
+        type: 'asset/resource',
+        generator: { filename: 'static/hljs/[name][ext]' },
+      },
+      {
         test: /\.s?(c|a)ss$/,
         use: [
           'style-loader',
@@ -96,6 +102,7 @@ const configuration: webpack.Configuration = {
         exclude: [
           /\.module\.s?(c|a)ss$/,
           /node_modules[\\/]@vscode[\\/]codicons/,
+          /node_modules[\\/]highlight\.js[\\/]styles/,
         ],
       },
       // Fonts

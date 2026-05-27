@@ -51,7 +51,7 @@
 
 .title-bar-menu-trigger:hover,
 .title-bar-menu-trigger-active {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--lr-titlebar-menu-hover, rgba(255, 255, 255, 0.08));
 }
 
 .title-bar-menu-dropdown {
@@ -64,7 +64,7 @@
   border: 1px solid var(--vscode-menu-border, #454545);
   border-radius: 4px;
   background: var(--vscode-menu-background, #252526);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 16px var(--lr-menu-shadow, rgba(0, 0, 0, 0.4));
 }
 
 .title-bar-menu-item {
@@ -143,7 +143,7 @@
 }
 
 .title-bar-control:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--lr-titlebar-menu-hover, rgba(255, 255, 255, 0.08));
 }
 
 .title-bar-control-close:hover {

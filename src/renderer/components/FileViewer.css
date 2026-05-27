@@ -55,6 +55,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  background: var(--vscode-editor-background, #1e1e1e);
 }
 
 .viewer-body.error-state {
@@ -90,13 +91,13 @@
 
 .loading {
   padding: 20px;
-  color: #858585;
+  color: var(--vscode-descriptionForeground, #858585);
   text-align: center;
 }
 
 /* PDF 查看器 */
 .pdf-viewer {
-  background: #1e1e1e;
+  background: var(--vscode-editor-background, #1e1e1e);
 }
 
 .pdf-container {
@@ -108,19 +109,19 @@
 }
 
 .pdf-container canvas {
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 10px var(--lr-menu-shadow, rgba(0, 0, 0, 0.3));
   margin-bottom: 16px;
 }
 
 /* Markdown 查看器 */
 .markdown-viewer {
-  background: #1e1e1e;
+  background: var(--vscode-editor-background, #1e1e1e);
 }
 
 .markdown-viewer .markdown-content,
 .markdown-content {
   padding: 20px;
-  color: #cccccc;
+  color: var(--vscode-editor-foreground, #d4d4d4);
   font-size: var(--vscode-font-size, 15px);
   line-height: 1.6;
 }
@@ -131,14 +132,14 @@
 .markdown-content h4,
 .markdown-content h5,
 .markdown-content h6 {
-  color: #ffffff;
+  color: var(--vscode-foreground, #cccccc);
   margin-top: 24px;
   margin-bottom: 16px;
 }
 
 .markdown-content h1 {
   font-size: 30px;
-  border-bottom: 1px solid #3e3e42;
+  border-bottom: 1px solid var(--vscode-panel-border, #3e3e42);
   padding-bottom: 8px;
 }
 
@@ -155,7 +156,7 @@
 }
 
 .markdown-content code {
-  background: #2d2d2d;
+  background: var(--lr-viewer-code-background, #2d2d2d);
   padding: 2px 6px;
   border-radius: 3px;
   font-family: 'Consolas', 'Monaco', monospace;
@@ -163,7 +164,7 @@
 }
 
 .markdown-content pre {
-  background: #2d2d2d;
+  background: var(--lr-viewer-code-background, #2d2d2d);
   padding: 12px;
   border-radius: 6px;
   overflow-x: auto;
@@ -195,11 +196,11 @@
 }
 
 .markdown-content blockquote {
-  border-left: 4px solid #007acc;
+  border-left: 4px solid var(--vscode-focusBorder, #007acc);
   padding-left: 16px;
   margin-left: 0;
   margin-bottom: 16px;
-  color: #858585;
+  color: var(--vscode-descriptionForeground, #858585);
 }
 
 .markdown-content table {
@@ -210,12 +211,12 @@
 
 .markdown-content th,
 .markdown-content td {
-  border: 1px solid #3e3e42;
+  border: 1px solid var(--vscode-panel-border, #3e3e42);
   padding: 8px 12px;
 }
 
 .markdown-content th {
-  background: #2d2d2d;
+  background: var(--lr-viewer-table-header-background, #2d2d2d);
 }
 
 .markdown-content img {
@@ -225,7 +226,7 @@
 
 /* 图片查看器 */
 .image-viewer {
-  background: #1e1e1e;
+  background: var(--vscode-editor-background, #1e1e1e);
 }
 
 .image-viewer .image-container,
@@ -243,9 +244,28 @@
   object-fit: contain;
 }
 
+.image-container--fabric {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.image-container--fabric .image-fabric-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+.image-preview-only {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
 /* 文本查看器 */
 .text-viewer {
-  background: #1e1e1e;
+  background: var(--vscode-editor-background, #1e1e1e);
 }
 
 .text-viewer .text-content,
@@ -259,19 +279,19 @@
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: var(--vscode-font-size, 15px);
   line-height: 1.5;
-  color: #d4d4d4;
+  color: var(--vscode-editor-foreground, #d4d4d4);
   white-space: pre-wrap;
   word-wrap: break-word;
 }
 
 /* Word 文档预览 */
 .docx-viewer {
-  background: #1e1e1e;
+  background: var(--vscode-editor-background, #1e1e1e);
 }
 
 .docx-content {
   padding: 20px;
-  color: #cccccc;
+  color: var(--vscode-editor-foreground, #d4d4d4);
   font-size: var(--vscode-font-size, 15px);
   line-height: 1.6;
 }
@@ -291,7 +311,7 @@
 .docx-html h4,
 .docx-html h5,
 .docx-html h6 {
-  color: #ffffff;
+  color: var(--vscode-foreground, #cccccc);
   margin: 20px 0 12px;
 }
 
@@ -308,7 +328,7 @@
 
 .docx-html th,
 .docx-html td {
-  border: 1px solid #3e3e42;
+  border: 1px solid var(--vscode-panel-border, #3e3e42);
   padding: 8px 12px;
 }
 

@@ -8,6 +8,7 @@ import {
 import AppShell from './components/AppShell';
 import { AppProvider } from './context/AppContext';
 import { AnnotationProvider } from './context/AnnotationContext';
+import { AnnotationWorkspaceProvider } from './context/AnnotationWorkspaceContext';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import Layout from './components/Layout';
@@ -16,6 +17,7 @@ import AuthPage from './pages/AuthPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import MotionProvider from './motion/MotionProvider';
 import PageTransition from './motion/PageTransition';
+import { ThemeProvider } from './context/ThemeContext';
 import './vscode-setup';
 import './App.css';
 
@@ -27,19 +29,21 @@ function MainAppRoutes() {
       <ToastProvider>
         <AppProvider>
           <AnnotationProvider>
-            <AppShell>
-              <PageTransition
-                routeKey={location.pathname}
-                className="app-shell-transition"
-              >
-                <Routes location={location}>
-                  <Route path="/auth" element={<AuthPage />} />
-                  <Route element={<RequireAuth />}>
-                    <Route path="/" element={<Layout />} />
-                  </Route>
-                </Routes>
-              </PageTransition>
-            </AppShell>
+            <AnnotationWorkspaceProvider>
+              <AppShell>
+                <PageTransition
+                  routeKey={location.pathname}
+                  className="app-shell-transition"
+                >
+                  <Routes location={location}>
+                    <Route path="/auth" element={<AuthPage />} />
+                    <Route element={<RequireAuth />}>
+                      <Route path="/" element={<Layout />} />
+                    </Route>
+                  </Routes>
+                </PageTransition>
+              </AppShell>
+            </AnnotationWorkspaceProvider>
           </AnnotationProvider>
         </AppProvider>
       </ToastProvider>
@@ -74,10 +78,12 @@ export default function App() {
   const Router = isHttpApp ? BrowserRouter : MemoryRouter;
 
   return (
-    <MotionProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </MotionProvider>
+    <ThemeProvider>
+      <MotionProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </MotionProvider>
+    </ThemeProvider>
   );
 }

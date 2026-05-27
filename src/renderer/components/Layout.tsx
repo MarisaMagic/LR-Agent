@@ -7,13 +7,15 @@ import {
 } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import ActivityBar, { type LeftPanel } from './ActivityBar';
+import ActivityBar, { type LeftPanel, type RightPanel } from './ActivityBar';
+import AnnotationRightPanel from './annotation/AnnotationRightPanel';
 import AgentPanel from './AgentPanel';
 import EmailVerifyBanner from './EmailVerifyBanner';
 import FileTree from './FileTree';
 import FileViewer from './FileViewer';
 import SettingsPanel from './SettingsPanel';
 import Sidebar from './Sidebar';
+import { m } from 'framer-motion';
 import PanelTransition from '../motion/PanelTransition';
 import AnnotationProjectPanel from './annotation/AnnotationProjectPanel';
 import CreateAnnotationProjectWizard from './annotation/CreateAnnotationProjectWizard';
@@ -59,6 +61,8 @@ export default function Layout() {
     closeCreateWizard,
     editingProject,
     closeEditProject,
+    activeProject,
+    mode,
   } = useAnnotation();
 
   const leftSidebarRef = useRef<HTMLElement>(null);
@@ -68,6 +72,18 @@ export default function Layout() {
     null,
   );
   const [leftPanel, setLeftPanel] = useState<LeftPanel>('explorer');
+
+  const [rightPanel, setRightPanel] = useState<RightPanel>('agent');
+  const annotationToolbarActive =
+    Boolean(activeProject) && mode === 'annotation';
+
+  useEffect(() => {
+    if (annotationToolbarActive) {
+      setRightPanel('annotation');
+    } else {
+      setRightPanel('agent');
+    }
+  }, [annotationToolbarActive]);
 
   useEffect(() => {
     refreshUser().catch(() => undefined);
@@ -234,13 +250,15 @@ export default function Layout() {
     [leftCollapsed, leftPanel, toggleLeftSidebar, expandLeftSidebar],
   );
 
-  const handleAgentClick = () => {
-    if (rightCollapsed) {
-      expandRightSidebar();
-    } else {
-      toggleRightSidebar();
-    }
-  };
+  const handleCollapsedRightActivity = useCallback(
+    (panel: RightPanel) => {
+      setRightPanel(panel);
+      if (rightCollapsed) {
+        expandRightSidebar();
+      }
+    },
+    [rightCollapsed, expandRightSidebar],
+  );
 
   const handleProjectOpened = useCallback(() => {
     setLeftPanel('explorer');
@@ -250,8 +268,18 @@ export default function Layout() {
   }, [leftCollapsed, expandLeftSidebar]);
 
   const leftPanelActive = !leftCollapsed ? leftPanel : null;
-  const rightPanelActive = !rightCollapsed ? 'agent' : null;
+  /** Collapsed right activity bar highlighted tab */
+  const collapsedRightHighlight: RightPanel = annotationToolbarActive
+    ? rightPanel
+    : 'agent';
+
+  const rightActivityActive = rightCollapsed ? collapsedRightHighlight : null;
+
   const leftSidebarTitle = LEFT_PANEL_TITLES[leftPanel];
+  const rightSidebarTitle =
+    annotationToolbarActive && rightPanel === 'annotation'
+      ? '标注列表'
+      : 'AI Agent';
 
   return (
     <div
@@ -308,17 +336,79 @@ export default function Layout() {
         side="right"
         width={rightWidth}
         collapsed={rightCollapsed}
-        title="AI Agent"
+        title={rightSidebarTitle}
         onToggleCollapse={toggleRightSidebar}
       >
-        <AgentPanel />
+        {annotationToolbarActive ? (
+          <>
+            <div className="right-panel-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={rightPanel === 'annotation'}
+                className={`right-panel-tab${rightPanel === 'annotation' ? ' right-panel-tab--active' : ''}`}
+                onClick={() => setRightPanel('annotation')}
+              >
+                标注列表
+                {rightPanel === 'annotation' && (
+                  <m.span
+                    layoutId="right-panel-tab-indicator"
+                    className="right-panel-tab-indicator"
+                    transition={{
+                      type: 'spring',
+                      stiffness: 420,
+                      damping: 32,
+                    }}
+                  />
+                )}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={rightPanel === 'agent'}
+                className={`right-panel-tab${rightPanel === 'agent' ? ' right-panel-tab--active' : ''}`}
+                onClick={() => setRightPanel('agent')}
+              >
+                AI Agent
+                {rightPanel === 'agent' && (
+                  <m.span
+                    layoutId="right-panel-tab-indicator"
+                    className="right-panel-tab-indicator"
+                    transition={{
+                      type: 'spring',
+                      stiffness: 420,
+                      damping: 32,
+                    }}
+                  />
+                )}
+              </button>
+            </div>
+            <PanelTransition
+              panelKey={rightPanel}
+              className="sidebar-panel-motion"
+              direction="up"
+            >
+              {rightPanel === 'annotation' ? (
+                <AnnotationRightPanel />
+              ) : (
+                <AgentPanel />
+              )}
+            </PanelTransition>
+          </>
+        ) : (
+          <AgentPanel />
+        )}
       </Sidebar>
 
       {rightCollapsed && (
         <ActivityBar
           side="right"
-          activePanel={rightPanelActive}
-          onAgentClick={handleAgentClick}
+          activePanel={rightActivityActive}
+          showAnnotationToolbar={annotationToolbarActive}
+          onAnnotationPanelClick={() =>
+            handleCollapsedRightActivity('annotation')
+          }
+          onAgentClick={() => handleCollapsedRightActivity('agent')}
         />
       )}
 

@@ -1,0 +1,90 @@
+.image-annotation-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--vscode-editorGroup-border, #3e3e42);
+  background: var(--vscode-editorGroupHeader-tabsBackground, #252526);
+  flex-shrink: 0;
+}
+
+.image-annotation-tool-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.image-annotation-toolbar-divider {
+  width: 1px;
+  align-self: stretch;
+  min-height: 24px;
+  margin: 0 2px;
+  background: var(--vscode-editorGroup-border, #3e3e42);
+}
+
+.image-annotation-tool-btn {
+  transition:
+    box-shadow var(--annotation-motion-duration) var(--annotation-motion-ease),
+    opacity var(--annotation-motion-duration) var(--annotation-motion-ease);
+}
+
+.image-annotation-tool-btn--active {
+  outline: none;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--vscode-focusBorder, #007fd4);
+}
+
+.image-annotation-toolbar-labels {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.image-annotation-toolbar-hint {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground, #858585);
+}
+
+.image-annotation-toolbar-empty {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #858585);
+}
+
+.image-annotation-toolbar-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.image-annotation-toolbar-chip {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.75;
+  transition:
+    opacity var(--annotation-motion-duration) var(--annotation-motion-ease),
+    outline var(--annotation-motion-duration) var(--annotation-motion-ease),
+    box-shadow var(--annotation-motion-duration) var(--annotation-motion-ease);
+}
+
+.image-annotation-toolbar-chip:hover {
+  opacity: 0.95;
+}
+
+.image-annotation-toolbar-chip--active {
+  opacity: 1;
+  font-weight: 600;
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 127, 212, 0.3);
+}

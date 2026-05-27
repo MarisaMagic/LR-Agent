@@ -1,0 +1,238 @@
+.annotation-right-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.annotation-right-scroll-host {
+  flex: 1;
+  min-height: 0;
+}
+
+.annotation-right-scrollable {
+  padding: 14px;
+}
+
+.annotation-right-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--vscode-descriptionForeground, #858585);
+}
+
+.annotation-right-placeholder-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.annotation-right-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--vscode-sideBar-border, #3e3e42);
+  flex-shrink: 0;
+}
+
+.annotation-right-header-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.annotation-right-status {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #858585);
+}
+
+.annotation-right-warning {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 193, 7, 0.15);
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.annotation-right-section {
+  padding: 10px 12px;
+  flex-shrink: 0;
+}
+
+.annotation-right-section--grow {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.annotation-right-heading {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-sideBarSectionHeader-foreground, #bdbdbd);
+}
+
+.annotation-right-muted {
+  margin: 0;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #858585);
+  line-height: 1.5;
+}
+
+.annotation-right-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.annotation-right-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.annotation-right-label-btn {
+  appearance: none;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.72;
+  transition:
+    opacity var(--annotation-motion-duration) var(--annotation-motion-ease),
+    outline var(--annotation-motion-duration) var(--annotation-motion-ease),
+    box-shadow var(--annotation-motion-duration) var(--annotation-motion-ease);
+}
+
+.annotation-right-label-btn:hover {
+  opacity: 0.92;
+  filter: brightness(1.06);
+}
+
+.annotation-right-label-btn--picked {
+  opacity: 1;
+  font-weight: 600;
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 2px;
+  box-shadow:
+    0 0 0 1px rgba(0, 127, 212, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.annotation-right-list-host {
+  flex: 1;
+  min-height: 120px;
+}
+
+.annotation-right-list-scroll {
+  max-height: 100%;
+}
+
+.annotation-right-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.annotation-right-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-widget-border, #3e3e42);
+  background: var(--vscode-sideBar-background, #252526);
+  transition:
+    border-color var(--annotation-motion-duration) var(--annotation-motion-ease),
+    background-color var(--annotation-motion-duration) var(--annotation-motion-ease),
+    box-shadow var(--annotation-motion-duration) var(--annotation-motion-ease);
+}
+
+.annotation-right-summary-btn {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.annotation-right-summary-btn:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 2px;
+}
+
+.annotation-right-item--active {
+  border-color: var(--vscode-focusBorder, #007fd4);
+  background: var(
+    --vscode-list-activeSelectionBackground,
+    rgba(0, 127, 212, 0.12)
+  );
+  box-shadow:
+    0 0 0 1px rgba(0, 127, 212, 0.35),
+    inset 3px 0 0 var(--annotation-accent, var(--vscode-focusBorder, #007fd4));
+}
+
+.annotation-right-item-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.annotation-right-index {
+  color: var(--vscode-descriptionForeground, #858585);
+  font-variant-numeric: tabular-nums;
+}
+
+.annotation-right-chip {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.annotation-right-unknown {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.annotation-right-coords {
+  color: var(--vscode-descriptionForeground);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.annotation-right-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.annotation-right-select {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 4px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-selectBorder, #3e3e42);
+  background: var(--vscode-sideBar-background, #252526);
+  color: var(--vscode-sideBar-foreground, #cccccc);
+}
+
+.annotation-right-delete {
+  flex-shrink: 0;
+}

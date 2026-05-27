@@ -1,5 +1,18 @@
 import { createRoot } from 'react-dom/client';
+import { isResizeObserverLoopError } from './utils/resizeObserver';
 import App from './App';
+
+if (process.env.NODE_ENV === 'development') {
+  window.addEventListener(
+    'error',
+    (event) => {
+      if (isResizeObserverLoopError(event.message)) {
+        event.stopImmediatePropagation();
+      }
+    },
+    true,
+  );
+}
 
 const container = document.getElementById('root') as HTMLElement;
 const root = createRoot(container);

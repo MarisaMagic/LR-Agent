@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs-extra';
-import { app, BrowserWindow, shell, ipcMain, dialog, Menu } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, Menu, nativeTheme } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
@@ -13,6 +13,10 @@ import {
   saveAnnotationProjects,
   writeProjectDirConfig,
 } from './annotation/annotationStore';
+import {
+  readAnnotationDocJson,
+  writeAnnotationDocJson,
+} from './annotation/annotationDataStore';
 
 class AppUpdater {
   constructor() {
@@ -23,6 +27,34 @@ class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let themeIpcRegistered = false;
+
+function themeWindowBackground(isDark: boolean): string {
+  return isDark ? '#1e1e1e' : '#ffffff';
+}
+
+function syncWindowBackground(window: BrowserWindow, isDark: boolean): void {
+  window.setBackgroundColor(themeWindowBackground(isDark));
+}
+
+function registerThemeIpcHandlers(): void {
+  if (themeIpcRegistered) return;
+  themeIpcRegistered = true;
+
+  ipcMain.handle('theme:getSystemDark', () => nativeTheme.shouldUseDarkColors);
+
+  ipcMain.on('theme:notifyEffectiveTheme', (event, theme: unknown) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return;
+    syncWindowBackground(window, theme === 'dark');
+  });
+
+  nativeTheme.on('updated', () => {
+    BrowserWindow.getAllWindows().forEach((window) => {
+      window.webContents.send('theme:systemChanged', nativeTheme.shouldUseDarkColors);
+    });
+  });
+}
 
 const DEFAULT_IGNORE_DIRS = new Set([
   '.git',
@@ -101,6 +133,30 @@ ipcMain.handle(
   'annotation:showItemInFolder',
   async (_event, itemPath: string) => {
     shell.showItemInFolder(itemPath);
+  },
+);
+
+ipcMain.handle(
+  'annotation:readFileAnnotationDoc',
+  async (_event, projectDir: string, relativePath: string) => {
+    try {
+      return await readAnnotationDocJson(projectDir, relativePath);
+    } catch {
+      return null;
+    }
+  },
+);
+
+ipcMain.handle(
+  'annotation:writeFileAnnotationDoc',
+  async (
+    _event,
+    projectDir: string,
+    relativePath: string,
+    doc: unknown,
+    sourceHint?: { mtimeMs?: number; size?: number },
+  ) => {
+    await writeAnnotationDocJson(projectDir, relativePath, doc, sourceHint);
   },
 );
 
@@ -263,11 +319,15 @@ const createWindow = async () => {
   const isMac = process.platform === 'darwin';
 
   registerWindowIpcHandlers();
+  registerThemeIpcHandlers();
+
+  const initialDark = nativeTheme.shouldUseDarkColors;
 
   mainWindow = new BrowserWindow({
     show: false,
     width: 1400,
     height: 900,
+    backgroundColor: themeWindowBackground(initialDark),
     icon: getAssetPath('icon.png'),
     ...(isMac
       ? {

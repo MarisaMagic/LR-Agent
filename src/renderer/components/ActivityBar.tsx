@@ -1,11 +1,13 @@
 import { VscodeIcon } from '@vscode-elements/react-elements';
 import { useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import UserAvatar from './UserAvatar';
+import { MoonIcon, SunIcon } from './ThemeToggleIcons';
 import './ActivityBar.css';
 
 export type LeftPanel = 'explorer' | 'annotations' | 'settings';
-export type RightPanel = 'agent';
+export type RightPanel = 'agent' | 'annotation';
 
 interface ActivityBarProps {
   side: 'left' | 'right';
@@ -14,6 +16,9 @@ interface ActivityBarProps {
   onAnnotationsClick?: () => void;
   onSettingsClick?: () => void;
   onAgentClick?: () => void;
+  /** When open, render an extra 「标注列表」icon on the right bar */
+  showAnnotationToolbar?: boolean;
+  onAnnotationPanelClick?: () => void;
 }
 
 function ActivityIcon({
@@ -44,6 +49,28 @@ function ActivityIcon({
     >
       <VscodeIcon ref={ref} name={name} size={24} actionIcon label={label} />
     </div>
+  );
+}
+
+function ThemeToggleButton({ onClick }: { onClick: () => void }) {
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === 'dark';
+  const label = isDark ? '切换到浅色主题' : '切换到深色主题';
+
+  return (
+    <button
+      type="button"
+      className="activity-theme-toggle"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      {isDark ? (
+        <SunIcon className="activity-theme-toggle-icon" />
+      ) : (
+        <MoonIcon className="activity-theme-toggle-icon" />
+      )}
+    </button>
   );
 }
 
@@ -80,7 +107,11 @@ export default function ActivityBar({
   onAnnotationsClick,
   onSettingsClick,
   onAgentClick,
+  showAnnotationToolbar,
+  onAnnotationPanelClick,
 }: ActivityBarProps) {
+  const { toggleDarkLight } = useTheme();
+
   if (side === 'left') {
     return (
       <nav className="activity-bar activity-bar-left" aria-label="主活动栏">
@@ -92,13 +123,14 @@ export default function ActivityBar({
             onClick={onExplorerClick ?? (() => undefined)}
           />
           <ActivityIcon
-            name="tag"
+            name="list-unordered"
             label="标注任务"
             active={activePanel === 'annotations'}
             onClick={onAnnotationsClick ?? (() => undefined)}
           />
         </div>
         <div className="activity-bar-bottom">
+          <ThemeToggleButton onClick={toggleDarkLight} />
           <AccountAvatarButton
             active={activePanel === 'settings'}
             onClick={onSettingsClick ?? (() => undefined)}
@@ -110,6 +142,14 @@ export default function ActivityBar({
 
   return (
     <nav className="activity-bar activity-bar-right" aria-label="辅助活动栏">
+      {showAnnotationToolbar && (
+        <ActivityIcon
+          name="tag"
+          label="标注列表"
+          active={activePanel === 'annotation'}
+          onClick={onAnnotationPanelClick ?? (() => undefined)}
+        />
+      )}
       <ActivityIcon
         name="comment-discussion"
         label="AI Agent"

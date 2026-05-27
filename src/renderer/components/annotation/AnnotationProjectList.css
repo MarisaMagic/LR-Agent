@@ -29,6 +29,10 @@
   border-radius: 6px;
   background: var(--vscode-sideBar-background, #252526);
   overflow: visible;
+  transition:
+    border-color var(--annotation-motion-duration) var(--annotation-motion-ease),
+    box-shadow var(--annotation-motion-duration) var(--annotation-motion-ease),
+    background-color var(--annotation-motion-duration) var(--annotation-motion-ease);
 }
 
 .annotation-project-card-body {

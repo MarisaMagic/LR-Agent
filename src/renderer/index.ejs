@@ -7,6 +7,21 @@
       content="script-src 'self' 'unsafe-inline'; connect-src 'self' http: ws: http://localhost:8000 http://127.0.0.1:8000; img-src 'self' data: blob: http://localhost:9000 http://127.0.0.1:9000"
     />
     <title>LR-Agent</title>
+    <script>
+      (function () {
+        var KEY = 'lr-agent:colorTheme';
+        var pref = localStorage.getItem(KEY) || 'system';
+        var dark =
+          pref === 'dark' ||
+          (pref === 'system' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+        var theme = dark ? 'dark' : 'light';
+        var root = document.documentElement;
+        root.dataset.theme = theme;
+        root.style.colorScheme = theme;
+        root.style.backgroundColor = dark ? '#1e1e1e' : '#ffffff';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -11,13 +11,18 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { useApp } from '../context/AppContext';
+import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
 import { basename, getExtension } from '../types/file';
 import { getHighlightLanguage } from '../utils/syntaxHighlight';
-import { getAdjacentSiblingFile, listSiblingFiles } from '../utils/siblingFiles';
+import {
+  getAdjacentSiblingFile,
+  listSiblingFiles,
+} from '../utils/siblingFiles';
 import HighlightedCodeBlock from './preview/HighlightedCodeBlock';
+import ImageFabricAnnotationEditor from './annotation/ImageFabricAnnotationEditor';
 import FileTypeIcon from './FileTypeIcon';
+import 'react-pdf/dist/Page/TextLayer.css';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
-import 'highlight.js/styles/vs2015.min.css';
 import './FileViewer.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -108,7 +113,9 @@ function FileHeader({
 
   return (
     <div className="file-header">
-      <div className={`file-header-nav${canNavigate ? '' : ' file-header-nav--disabled'}`}>
+      <div
+        className={`file-header-nav${canNavigate ? '' : ' file-header-nav--disabled'}`}
+      >
         <VscodeClickableToolbarButton
           icon="chevron-left"
           label="上一个文件"
@@ -147,6 +154,8 @@ interface FileViewerProps {
 
 export default function FileViewer({ filePath }: FileViewerProps) {
   const { selectFile } = useApp();
+  const annotationWorkspace = useAnnotationWorkspace();
+  const showBboxAnnotator = annotationWorkspace.workspaceEnabled;
   const viewerType = useMemo(() => getViewerType(filePath), [filePath]);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [docxHtml, setDocxHtml] = useState<string | null>(null);
@@ -321,8 +330,16 @@ export default function FileViewer({ filePath }: FileViewerProps) {
     return (
       <div className="file-viewer image-viewer">
         <FileHeader {...fileHeaderProps} />
-        <div className="viewer-body image-container">
-          <img src={binaryUrl} alt={fileName} />
+        <div className="viewer-body image-container image-container--fabric">
+          {showBboxAnnotator ? (
+            <ImageFabricAnnotationEditor imageUrl={binaryUrl} />
+          ) : (
+            <img
+              src={binaryUrl}
+              alt={fileName}
+              className="image-preview-only"
+            />
+          )}
         </div>
       </div>
     );

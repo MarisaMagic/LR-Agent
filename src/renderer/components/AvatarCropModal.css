@@ -4,7 +4,7 @@
   border-radius: 8px;
   background: var(--vscode-editor-background, #1e1e1e);
   border: 1px solid var(--vscode-panel-border, #3c3c3c);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 32px var(--lr-menu-shadow);
 }
 
 .avatar-crop-title {
@@ -43,7 +43,7 @@
 .avatar-crop-error {
   margin: 8px 0 0;
   font-size: 14px;
-  color: #f48771;
+  color: var(--vscode-errorForeground);
 }
 
 .avatar-crop-actions {
@@ -53,27 +53,6 @@
   margin-top: 16px;
 }
 
-.avatar-crop-button {
-  appearance: none;
-  border: 1px solid transparent;
-  border-radius: 4px;
+.avatar-crop-actions .app-btn {
   padding: 6px 14px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.avatar-crop-button-primary {
-  background: var(--vscode-button-background, #dbb018);
-  color: var(--vscode-button-foreground, #1e1e1e);
-}
-
-.avatar-crop-button-secondary {
-  background: transparent;
-  border-color: var(--vscode-panel-border, #3c3c3c);
-  color: var(--vscode-foreground, #cccccc);
-}
-
-.avatar-crop-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }

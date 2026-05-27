@@ -82,7 +82,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         required
       />
 
-      <button type="submit" className="auth-submit" disabled={loading}>
+      <button type="submit" className="app-btn app-btn-primary auth-submit" disabled={loading}>
         {loading ? '注册中…' : '注册'}
       </button>
 

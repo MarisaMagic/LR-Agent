@@ -31,6 +31,12 @@ function relativeLuminance(r: number, g: number, b: number): number {
   return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
 }
 
+export function hexToRgba(hex: string, alpha: number): string {
+  const rgb = parseHexColor(hex);
+  if (!rgb) return `rgba(79, 195, 247, ${alpha})`;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
 export function getLabelTextColor(
   backgroundColor: string,
 ): '#ffffff' | '#000000' {

@@ -45,6 +45,15 @@
   --internal-highlightedIndentGuideDisplay: none;
   --vscode-list-focusOutline: transparent;
   --vscode-list-focusAndSelectionOutline: transparent;
+  --internal-selectionBackground: var(
+    --vscode-list-inactiveSelectionBackground,
+    #37373d
+  );
+  --internal-selectionForeground: var(
+    --vscode-list-inactiveSelectionForeground,
+    var(--vscode-foreground, #cccccc)
+  );
+  --internal-selectionIconForeground: var(--vscode-icon-foreground, #cccccc);
 }
 
 .file-tree-scrollable vscode-tree-item {
@@ -96,7 +105,10 @@
     --vscode-list-inactiveSelectionBackground,
     #37373d
   );
-  --internal-selectionForeground: var(--vscode-foreground, #cccccc);
+  --internal-selectionForeground: var(
+    --vscode-list-inactiveSelectionForeground,
+    var(--vscode-foreground, #cccccc)
+  );
   --internal-selectionIconForeground: var(--vscode-icon-foreground, #cccccc);
 }
 
