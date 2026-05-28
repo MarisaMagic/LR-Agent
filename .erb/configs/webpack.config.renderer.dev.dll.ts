@@ -12,6 +12,9 @@ import checkNodeEnv from '../scripts/check-node-env';
 
 checkNodeEnv('development');
 
+/** CSS/font-only packages have no JS entry for DllPlugin; loaded via renderer webpack. */
+const dllExcludedDependencies = new Set(['@vscode/codicons']);
+
 const dist = webpackPaths.dllPath;
 
 const configuration: webpack.Configuration = {
@@ -31,7 +34,9 @@ const configuration: webpack.Configuration = {
   module: require('./webpack.config.renderer.dev').default.module,
 
   entry: {
-    renderer: Object.keys(dependencies || {}),
+    renderer: Object.keys(dependencies || {}).filter(
+      (name) => !dllExcludedDependencies.has(name),
+    ),
   },
 
   output: {
