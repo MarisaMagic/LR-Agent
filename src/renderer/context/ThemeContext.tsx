@@ -85,9 +85,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    const unsubElectron = window.electron?.theme?.onSystemChanged?.((isDark) => {
-      setSystemIsDark(isDark);
-    });
+    const unsubElectron = window.electron?.theme?.onSystemChanged?.(
+      (isDark) => {
+        setSystemIsDark(isDark);
+      },
+    );
 
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const onMediaChange = (event: MediaQueryListEvent) => {

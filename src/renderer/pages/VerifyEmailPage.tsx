@@ -58,7 +58,8 @@ export default function VerifyEmailPage() {
         </p>
         {state === 'success' && (
           <p className="verify-email-hint">
-            请回到 LR-Agent 客户端，账户资料会自动刷新；若仍显示未验证，重新打开账户设置即可。
+            请回到 LR-Agent
+            客户端，账户资料会自动刷新；若仍显示未验证，重新打开账户设置即可。
           </p>
         )}
       </div>

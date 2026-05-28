@@ -117,9 +117,7 @@ const electronHandler = {
     notifyEffectiveTheme: (theme: 'dark' | 'light'): void => {
       ipcRenderer.send('theme:notifyEffectiveTheme', theme);
     },
-    onSystemChanged: (
-      callback: (isDark: boolean) => void,
-    ): (() => void) =>
+    onSystemChanged: (callback: (isDark: boolean) => void): (() => void) =>
       electronHandler.ipcRenderer.on('theme:systemChanged', (value) => {
         callback(Boolean(value));
       }),

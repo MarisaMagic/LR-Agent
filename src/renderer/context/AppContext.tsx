@@ -21,11 +21,9 @@ const STORAGE_KEYS = {
 const MIN_SIDEBAR_WIDTH = 240;
 const MAX_SIDEBAR_WIDTH = 500;
 const MIN_MAIN_CONTENT_WIDTH = 480;
-const RESIZER_WIDTH = 4;
 const DEFAULT_LEFT_WIDTH = 250;
 const DEFAULT_RIGHT_WIDTH = 350;
 const ACTIVITY_BAR_WIDTH = 48;
-const RIGHT_ACTIVITY_BAR_WIDTH = 48;
 
 function readNumber(key: string, fallback: number): number {
   const raw = localStorage.getItem(key);

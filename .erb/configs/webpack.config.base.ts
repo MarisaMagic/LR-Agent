@@ -15,7 +15,8 @@ const configuration: webpack.Configuration = {
   ignoreWarnings: [
     {
       module: /node_modules[\\/]framer-motion/,
-      message: /Critical dependency: the request of a dependency is an expression/,
+      message:
+        /Critical dependency: the request of a dependency is an expression/,
     },
   ],
 

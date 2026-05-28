@@ -135,11 +135,7 @@ export default function ImageFabricAnnotationEditor({
     const zDisplay = animator?.getDisplayZoom() ?? viewZoomRef.current;
     // Canvas size follows target zoom so setDimensions is not called every animation frame.
     const zLayout = animator?.getTargetZoom() ?? viewZoomRef.current;
-    const { maxX, maxY } = getSceneExtents(
-      nw,
-      nh,
-      bboxAnnotationsRef.current,
-    );
+    const { maxX, maxY } = getSceneExtents(nw, nh, bboxAnnotationsRef.current);
     const contentW = VIEWPORT_EDGE_PAD * 2 + maxX * zLayout;
     const contentH = VIEWPORT_EDGE_PAD * 2 + maxY * zLayout;
     const cw = Math.max(vw, Math.ceil(contentW));
@@ -152,13 +148,10 @@ export default function ImageFabricAnnotationEditor({
     }
   }, []);
 
-  const setViewZoomTarget = useCallback(
-    (targetZ: number, animate = true) => {
-      viewZoomRef.current = targetZ;
-      zoomAnimatorRef.current?.setTargetZoom(targetZ, { animate });
-    },
-    [],
-  );
+  const setViewZoomTarget = useCallback((targetZ: number, animate = true) => {
+    viewZoomRef.current = targetZ;
+    zoomAnimatorRef.current?.setTargetZoom(targetZ, { animate });
+  }, []);
 
   const fitImageToView = useCallback(
     (animate = true) => {
@@ -198,7 +191,10 @@ export default function ImageFabricAnnotationEditor({
   );
 
   const zoomIn = useCallback(() => {
-    if (naturalSizeRef.current.width <= 0 || naturalSizeRef.current.height <= 0) {
+    if (
+      naturalSizeRef.current.width <= 0 ||
+      naturalSizeRef.current.height <= 0
+    ) {
       return;
     }
     setViewZoomTarget(
@@ -208,7 +204,10 @@ export default function ImageFabricAnnotationEditor({
   }, [setViewZoomTarget]);
 
   const zoomOut = useCallback(() => {
-    if (naturalSizeRef.current.width <= 0 || naturalSizeRef.current.height <= 0) {
+    if (
+      naturalSizeRef.current.width <= 0 ||
+      naturalSizeRef.current.height <= 0
+    ) {
       return;
     }
     setViewZoomTarget(
@@ -265,7 +264,8 @@ export default function ImageFabricAnnotationEditor({
       const ptrId = pointerCaptureIdRef.current;
       if (upper && ptrId !== null) {
         try {
-          if (upper.hasPointerCapture(ptrId)) upper.releasePointerCapture(ptrId);
+          if (upper.hasPointerCapture(ptrId))
+            upper.releasePointerCapture(ptrId);
         } catch {
           /* ignore */
         }
@@ -397,7 +397,13 @@ export default function ImageFabricAnnotationEditor({
         showToast('无法加载图片到标注画布', { type: 'error' });
       }
     }
-  }, [applyCanvasLayout, disposeCanvas, fitImageToView, loadBackgroundImage, showToast]);
+  }, [
+    applyCanvasLayout,
+    disposeCanvas,
+    fitImageToView,
+    loadBackgroundImage,
+    showToast,
+  ]);
 
   useEffect(() => {
     if (!imageUrl) return undefined;
@@ -491,7 +497,11 @@ export default function ImageFabricAnnotationEditor({
 
     const onModified = (opt: { target?: FabricObject }) => {
       const { target } = opt;
-      if (!target || syncingToFabricRef.current || !isAnnotationBoxObject(target)) {
+      if (
+        !target ||
+        syncingToFabricRef.current ||
+        !isAnnotationBoxObject(target)
+      ) {
         return;
       }
 
@@ -550,12 +560,7 @@ export default function ImageFabricAnnotationEditor({
       canvas.off('selection:updated', onSelectionChanged);
       canvas.off('selection:cleared', onSelectionCleared);
     };
-  }, [
-    canvasReady,
-    selectAnnotation,
-    updateBboxGeometry,
-    applyCanvasLayout,
-  ]);
+  }, [canvasReady, selectAnnotation, updateBboxGeometry, applyCanvasLayout]);
 
   const finishDraw = useCallback(() => {
     const canvas = fabricRef.current;
@@ -622,9 +627,7 @@ export default function ImageFabricAnnotationEditor({
     if (!added) {
       const err = loadErrorRef.current;
       showToast(
-        err
-          ? `无法保存标注：${err}`
-          : '标注数据尚未加载完成，请稍后再试',
+        err ? `无法保存标注：${err}` : '标注数据尚未加载完成，请稍后再试',
         { type: 'error' },
       );
       return;

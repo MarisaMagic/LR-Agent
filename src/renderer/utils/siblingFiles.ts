@@ -8,9 +8,7 @@ function sortSiblingFiles(items: DirectoryItem[]): string[] {
     .map((item) => item.path);
 }
 
-export async function listSiblingFiles(
-  filePath: string,
-): Promise<string[]> {
+export async function listSiblingFiles(filePath: string): Promise<string[]> {
   const parentDir = dirname(filePath);
   if (!parentDir) return [filePath];
 

@@ -13,9 +13,7 @@ import {
   ANNOTATION_BOX_KEY,
   attachBoxAndLabel,
   BG_IMAGE_NAME,
-  getAnnotationBoxMeta,
   isAnnotationBoxRect,
-  removeBoxFromCanvas,
   updateBoxRectStyle,
   type AnnotatedBoxRect,
 } from './fabricBoxObjects';
@@ -65,7 +63,9 @@ export function hitTopAnnotationBoxAtScenePoint(
   scenePoint: Point | { x: number; y: number },
 ): AnnotatedBoxRect | undefined {
   const pt =
-    scenePoint instanceof Point ? scenePoint : new Point(scenePoint.x, scenePoint.y);
+    scenePoint instanceof Point
+      ? scenePoint
+      : new Point(scenePoint.x, scenePoint.y);
   const objs = canvas.getObjects();
   for (let i = objs.length - 1; i >= 0; i--) {
     const o = objs[i];
@@ -103,7 +103,9 @@ export function syncBoxesFromAnnotations(
 
   const bg = canvas
     .getObjects()
-    .find((o) => (o as FabricObject & { name?: string }).name === BG_IMAGE_NAME);
+    .find(
+      (o) => (o as FabricObject & { name?: string }).name === BG_IMAGE_NAME,
+    );
   if (bg) canvas.sendObjectToBack(bg);
   canvas.requestRenderAll();
 }
@@ -114,7 +116,11 @@ export function extractNormFromBoxRect(
   naturalHeight: number,
 ) {
   bakeFabricRectScale(rect);
-  return sceneRectToNorm(fabricRectToScenePixels(rect), naturalWidth, naturalHeight);
+  return sceneRectToNorm(
+    fabricRectToScenePixels(rect),
+    naturalWidth,
+    naturalHeight,
+  );
 }
 
 export function patchAnnotationBoxStyles(

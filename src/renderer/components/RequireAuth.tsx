@@ -12,7 +12,9 @@ export default function RequireAuth() {
     return (
       <motion.div
         className="auth-loading"
-        initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: motionDistance.y }}
+        initial={
+          reducedMotion ? { opacity: 0 } : { opacity: 0, y: motionDistance.y }
+        }
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: motionDuration.enter, ease: motionEase }}
       >

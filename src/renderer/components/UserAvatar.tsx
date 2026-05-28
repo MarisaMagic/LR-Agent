@@ -27,9 +27,7 @@ export default function UserAvatar({
   );
 
   useEffect(() => {
-    setAvatarSrc(
-      user.avatar_url ? getAvatarDisplayUrl(user.avatar_url) : null,
-    );
+    setAvatarSrc(user.avatar_url ? getAvatarDisplayUrl(user.avatar_url) : null);
   }, [user.avatar_url]);
 
   const handleError = () => {
@@ -39,15 +37,15 @@ export default function UserAvatar({
   };
 
   const sizeClass = `user-avatar-${size}`;
-  const classes = ['user-avatar', sizeClass, className].filter(Boolean).join(' ');
+  const classes = ['user-avatar', sizeClass, className]
+    .filter(Boolean)
+    .join(' ');
 
   if (avatarSrc) {
     return (
       <img
         src={avatarSrc}
-        srcSet={
-          user.avatar_url ? getAvatarSrcSet(user.avatar_url) : undefined
-        }
+        srcSet={user.avatar_url ? getAvatarSrcSet(user.avatar_url) : undefined}
         sizes={size === 'sm' ? '32px' : '72px'}
         width={size === 'sm' ? 32 : 72}
         height={size === 'sm' ? 32 : 72}
@@ -59,7 +57,10 @@ export default function UserAvatar({
   }
 
   return (
-    <div className={`${classes} user-avatar-placeholder`} aria-hidden={alt === ''}>
+    <div
+      className={`${classes} user-avatar-placeholder`}
+      aria-hidden={alt === ''}
+    >
       {getInitials(user)}
     </div>
   );

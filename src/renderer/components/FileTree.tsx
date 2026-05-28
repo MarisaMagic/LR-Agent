@@ -64,10 +64,10 @@ export default function FileTree() {
       const item = Array.isArray(event.detail)
         ? event.detail[0]
         : event.detail?.selectedItems?.[0];
-      const tree = item ? getTreeFromItem(item) : null;
+      const itemTree = item ? getTreeFromItem(item) : null;
 
-      if (item && isTreeItemBranch(item) && tree) {
-        clearTreeSelections(tree);
+      if (item && isTreeItemBranch(item) && itemTree) {
+        clearTreeSelections(itemTree);
       }
 
       const folderPath =

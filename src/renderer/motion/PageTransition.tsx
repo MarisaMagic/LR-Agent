@@ -22,9 +22,7 @@ export default function PageTransition({
         key={routeKey}
         className={`page-transition-root ${className}`.trim()}
         initial={
-          reducedMotion
-            ? { opacity: 0 }
-            : { opacity: 0, y: motionDistance.y }
+          reducedMotion ? { opacity: 0 } : { opacity: 0, y: motionDistance.y }
         }
         animate={{ opacity: 1, y: 0 }}
         exit={

@@ -26,7 +26,11 @@ export default function ToastContainer({
   const reducedMotion = useReducedMotion();
 
   return (
-    <div className="toast-viewport" aria-live="polite" aria-relevant="additions">
+    <div
+      className="toast-viewport"
+      aria-live="polite"
+      aria-relevant="additions"
+    >
       <AnimatePresence initial={false}>
         {toasts.map((toast) => (
           <motion.div
@@ -35,16 +39,10 @@ export default function ToastContainer({
             role="status"
             layout={!reducedMotion}
             initial={
-              reducedMotion
-                ? { opacity: 0 }
-                : { opacity: 0, y: -8, x: 0 }
+              reducedMotion ? { opacity: 0 } : { opacity: 0, y: -8, x: 0 }
             }
             animate={{ opacity: 1, y: 0, x: 0 }}
-            exit={
-              reducedMotion
-                ? { opacity: 0 }
-                : { opacity: 0, y: -4, x: 8 }
-            }
+            exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4, x: 8 }}
             transition={{
               duration: reducedMotion ? 0.1 : motionDuration.tab,
               ease: motionEase,

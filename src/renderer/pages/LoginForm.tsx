@@ -82,7 +82,11 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
         记住邮箱
       </label>
 
-      <button type="submit" className="app-btn app-btn-primary auth-submit" disabled={loading}>
+      <button
+        type="submit"
+        className="app-btn app-btn-primary auth-submit"
+        disabled={loading}
+      >
         {loading ? '登录中…' : '登录'}
       </button>
 

@@ -103,9 +103,6 @@ export function createLabelForBox(
 export function syncLabelFromBoxRect(rect: AnnotatedBoxRect): void {
   const t = rect._labelObj;
   if (!t || !rect._boxId) return;
-  const labelName =
-    (t.text as string) ||
-    displayLabelName((t.text as string) ?? BBOX_THEME.labelEmptyText);
   t.set({
     left: (rect.left ?? 0) + BBOX_THEME.labelTextOffsetX,
     top: (rect.top ?? 0) + BBOX_THEME.labelTextOffsetY,

@@ -39,7 +39,6 @@ function BboxAnnotationRow({
 }) {
   const activeLabel = labels.find((l) => l.id === ann.labelId);
   const unknown = !activeLabel;
-  const accentColor = activeLabel?.color;
 
   return (
     <>

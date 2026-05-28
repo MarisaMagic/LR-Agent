@@ -26,9 +26,7 @@ export default function PanelTransition({
       <motion.div
         key={panelKey}
         className={className}
-        initial={
-          reducedMotion ? { opacity: 0 } : { opacity: 0, ...offset }
-        }
+        initial={reducedMotion ? { opacity: 0 } : { opacity: 0, ...offset }}
         animate={{ opacity: 1, x: 0, y: 0 }}
         exit={
           reducedMotion

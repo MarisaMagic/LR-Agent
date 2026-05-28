@@ -15,7 +15,9 @@ function AuthLoadingCard() {
   return (
     <motion.div
       className="auth-card"
-      initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: motionDistance.y }}
+      initial={
+        reducedMotion ? { opacity: 0 } : { opacity: 0, y: motionDistance.y }
+      }
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: motionDuration.enter, ease: motionEase }}
     >
@@ -46,9 +48,7 @@ export default function AuthPage() {
       ? { opacity: 0 }
       : { opacity: 0, x: -motionDistance.x },
     animate: { opacity: 1, x: 0 },
-    exit: reducedMotion
-      ? { opacity: 0 }
-      : { opacity: 0, x: motionDistance.x },
+    exit: reducedMotion ? { opacity: 0 } : { opacity: 0, x: motionDistance.x },
   };
 
   const registerVariants = {
@@ -56,9 +56,7 @@ export default function AuthPage() {
       ? { opacity: 0 }
       : { opacity: 0, x: motionDistance.x },
     animate: { opacity: 1, x: 0 },
-    exit: reducedMotion
-      ? { opacity: 0 }
-      : { opacity: 0, x: -motionDistance.x },
+    exit: reducedMotion ? { opacity: 0 } : { opacity: 0, x: -motionDistance.x },
   };
 
   return (

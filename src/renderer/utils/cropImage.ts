@@ -45,16 +45,13 @@ export async function getCroppedImageBlob(
   );
 
   return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(new Error('crop_failed'));
-          return;
-        }
-        resolve(blob);
-      },
-      'image/png',
-    );
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('crop_failed'));
+        return;
+      }
+      resolve(blob);
+    }, 'image/png');
   });
 }
 

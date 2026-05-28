@@ -27,13 +27,9 @@ export default function ModalMotion({
   const reducedMotion = useReducedMotion();
 
   const dialogMotion = {
-    initial: reducedMotion
-      ? { opacity: 0 }
-      : { opacity: 0, scale: 0.96, y: 8 },
+    initial: reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 },
     animate: { opacity: 1, scale: 1, y: 0 },
-    exit: reducedMotion
-      ? { opacity: 0 }
-      : { opacity: 0, scale: 0.96, y: 8 },
+    exit: reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 },
     transition: {
       duration: reducedMotion ? 0.1 : motionDuration.modal,
       ease: motionEase,

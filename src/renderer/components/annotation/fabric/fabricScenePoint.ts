@@ -1,4 +1,9 @@
-import { Point, type Canvas, type TPointerEvent, type TPointerEventInfo } from 'fabric';
+import {
+  Point,
+  type Canvas,
+  type TPointerEvent,
+  type TPointerEventInfo,
+} from 'fabric';
 
 /**
  * Scene coordinates for pointer events.

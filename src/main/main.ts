@@ -1,6 +1,14 @@
 import path from 'path';
 import fs from 'fs-extra';
-import { app, BrowserWindow, shell, ipcMain, dialog, Menu, nativeTheme } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  shell,
+  ipcMain,
+  dialog,
+  Menu,
+  nativeTheme,
+} from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
@@ -51,7 +59,10 @@ function registerThemeIpcHandlers(): void {
 
   nativeTheme.on('updated', () => {
     BrowserWindow.getAllWindows().forEach((window) => {
-      window.webContents.send('theme:systemChanged', nativeTheme.shouldUseDarkColors);
+      window.webContents.send(
+        'theme:systemChanged',
+        nativeTheme.shouldUseDarkColors,
+      );
     });
   });
 }

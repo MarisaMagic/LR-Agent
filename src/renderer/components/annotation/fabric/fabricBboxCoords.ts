@@ -1,5 +1,5 @@
-import type { BboxAnnotation } from '../../../types/annotationDocument';
 import type { Rect } from 'fabric';
+import type { BboxAnnotation } from '../../../types/annotationDocument';
 
 export const MIN_BOX_PX = 5;
 export const VIEWPORT_EDGE_PAD = 8;

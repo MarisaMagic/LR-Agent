@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react';
 
-function parseHexColor(hex: string): { r: number; g: number; b: number } | null {
+function parseHexColor(
+  hex: string,
+): { r: number; g: number; b: number } | null {
   const normalized = hex.trim().replace(/^#/, '');
   if (!/^[0-9a-f]{6}$/i.test(normalized)) return null;
   const n = parseInt(normalized, 16);

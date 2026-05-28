@@ -423,7 +423,12 @@ export function AnnotationWorkspaceProvider({
   }, []);
 
   const addBboxAnnotation = useCallback(
-    (rect: { x: number; y: number; width: number; height: number }): boolean => {
+    (rect: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }): boolean => {
       if (!activeLabelId) return false;
       if (!loadedDocMeta) return false;
 

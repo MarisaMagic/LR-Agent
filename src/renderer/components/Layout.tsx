@@ -5,6 +5,7 @@ import {
   useState,
   type MouseEvent,
 } from 'react';
+import { m } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import ActivityBar, { type LeftPanel, type RightPanel } from './ActivityBar';
@@ -15,7 +16,6 @@ import FileTree from './FileTree';
 import FileViewer from './FileViewer';
 import SettingsPanel from './SettingsPanel';
 import Sidebar from './Sidebar';
-import { m } from 'framer-motion';
 import PanelTransition from '../motion/PanelTransition';
 import AnnotationProjectPanel from './annotation/AnnotationProjectPanel';
 import CreateAnnotationProjectWizard from './annotation/CreateAnnotationProjectWizard';
