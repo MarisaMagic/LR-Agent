@@ -17,6 +17,7 @@ import AuthPage from './pages/AuthPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import MotionProvider from './motion/MotionProvider';
 import PageTransition from './motion/PageTransition';
+import { PretrainedModelsProvider } from './context/PretrainedModelsContext';
 import { ThemeProvider } from './context/ThemeContext';
 import './vscode-setup';
 import './App.css';
@@ -28,23 +29,25 @@ function MainAppRoutes() {
     <AuthProvider>
       <ToastProvider>
         <AppProvider>
-          <AnnotationProvider>
-            <AnnotationWorkspaceProvider>
-              <AppShell>
-                <PageTransition
-                  routeKey={location.pathname}
-                  className="app-shell-transition"
-                >
-                  <Routes location={location}>
-                    <Route path="/auth" element={<AuthPage />} />
-                    <Route element={<RequireAuth />}>
-                      <Route path="/" element={<Layout />} />
-                    </Route>
-                  </Routes>
-                </PageTransition>
-              </AppShell>
-            </AnnotationWorkspaceProvider>
-          </AnnotationProvider>
+          <PretrainedModelsProvider>
+            <AnnotationProvider>
+              <AnnotationWorkspaceProvider>
+                <AppShell>
+                  <PageTransition
+                    routeKey={location.pathname}
+                    className="app-shell-transition"
+                  >
+                    <Routes location={location}>
+                      <Route path="/auth" element={<AuthPage />} />
+                      <Route element={<RequireAuth />}>
+                        <Route path="/" element={<Layout />} />
+                      </Route>
+                    </Routes>
+                  </PageTransition>
+                </AppShell>
+              </AnnotationWorkspaceProvider>
+            </AnnotationProvider>
+          </PretrainedModelsProvider>
         </AppProvider>
       </ToastProvider>
     </AuthProvider>

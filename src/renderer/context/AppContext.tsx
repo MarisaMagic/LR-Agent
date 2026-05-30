@@ -140,6 +140,10 @@ async function refreshNodesAtLevel(
       const oldNode = oldNodes?.find((node) => node.path === fresh.path);
 
       if (fresh.type !== 'folder' || !expandedPaths.has(fresh.path)) {
+        // Drop cached children for collapsed folders so the next expand re-reads disk.
+        if (fresh.type === 'folder') {
+          return { ...fresh, isLoading: false };
+        }
         if (oldNode && nodeMetaEqual(oldNode, fresh)) {
           return oldNode;
         }
@@ -370,7 +374,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const node = findInTree(workspace.tree);
       const isRoot = folderPath === workspace.rootPath;
 
-      if (!isRoot && node?.type === 'folder' && !node.children) {
+      if (!isRoot && node?.type === 'folder') {
         dispatchWorkspace({
           type: 'SET',
           payload: { expandedPaths: expanded },

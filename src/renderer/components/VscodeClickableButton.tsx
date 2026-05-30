@@ -1,5 +1,5 @@
 import { VscodeToolbarButton } from '@vscode-elements/react-elements';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ComponentRef } from 'react';
 
 interface VscodeClickableToolbarButtonProps {
   icon: string;
@@ -13,7 +13,7 @@ export default function VscodeClickableToolbarButton({
   label,
   onClick,
 }: VscodeClickableToolbarButtonProps) {
-  const ref = useRef<HTMLElement>(null);
+  const ref = useRef<ComponentRef<typeof VscodeToolbarButton>>(null);
 
   useEffect(() => {
     const el = ref.current;

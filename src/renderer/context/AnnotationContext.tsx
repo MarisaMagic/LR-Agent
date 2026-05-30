@@ -172,7 +172,14 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
 
   const openProject = useCallback(
     async (projectId: string) => {
-      const project = projects.find((item) => item.id === projectId);
+      let project = projects.find((item) => item.id === projectId);
+      if (!project) {
+        const list = await loadAnnotationProjects();
+        project = list.find((item) => item.id === projectId);
+        if (project) {
+          setProjects(list);
+        }
+      }
       if (!project) {
         showToast('标注任务不存在或已被删除', { type: 'error' });
         await refreshProjects();

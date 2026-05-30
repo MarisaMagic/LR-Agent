@@ -30,6 +30,8 @@ import {
   applyCanvasDimensions,
   applyViewportTransform,
   createViewportZoomAnimator,
+  MIN_CANVAS_PX,
+  resolveContentCanvasSize,
   type ViewportZoomAnimator,
 } from './fabric/fabricViewportZoom';
 import { createResizeObserver } from '../../utils/resizeObserver';
@@ -122,15 +124,12 @@ export default function ImageFabricAnnotationEditor({
 
   const applyCanvasLayout = useCallback(() => {
     const canvas = fabricRef.current;
-    const scroll = scrollRef.current;
-    if (!canvas || !scroll) return;
+    if (!canvas) return;
 
     const nw = naturalSizeRef.current.width;
     const nh = naturalSizeRef.current.height;
     if (nw <= 0 || nh <= 0) return;
 
-    const vw = Math.max(scroll.clientWidth || 0, 2);
-    const vh = Math.max(scroll.clientHeight || 0, 2);
     const animator = zoomAnimatorRef.current;
     const zDisplay = animator?.getDisplayZoom() ?? viewZoomRef.current;
     // Canvas size follows target zoom so setDimensions is not called every animation frame.
@@ -138,8 +137,10 @@ export default function ImageFabricAnnotationEditor({
     const { maxX, maxY } = getSceneExtents(nw, nh, bboxAnnotationsRef.current);
     const contentW = VIEWPORT_EDGE_PAD * 2 + maxX * zLayout;
     const contentH = VIEWPORT_EDGE_PAD * 2 + maxY * zLayout;
-    const cw = Math.max(vw, Math.ceil(contentW));
-    const ch = Math.max(vh, Math.ceil(contentH));
+    const { width: cw, height: ch } = resolveContentCanvasSize(
+      contentW,
+      contentH,
+    );
 
     const dimsChanged = applyCanvasDimensions(canvas, cw, ch);
     const vptChanged = applyViewportTransform(canvas, zDisplay);
@@ -364,8 +365,8 @@ export default function ImageFabricAnnotationEditor({
     setImageNatural({ w: 0, h: 0 });
 
     const canvas = new Canvas(el, {
-      width: Math.max(scroll.clientWidth || 800, 2),
-      height: Math.max(scroll.clientHeight || 560, 2),
+      width: MIN_CANVAS_PX,
+      height: MIN_CANVAS_PX,
       selection: false,
     });
     fabricRef.current = canvas;
@@ -466,12 +467,11 @@ export default function ImageFabricAnnotationEditor({
     if (!canvas || !canvasReady) return;
     cancelDrawingPreview();
     syncBoxInteraction(canvas, tool);
-    if (tool === 'select') {
-      selectAnnotation(null);
+    if (tool === 'draw') {
       canvas.discardActiveObject();
       canvas.requestRenderAll();
     }
-  }, [tool, canvasReady, selectAnnotation, cancelDrawingPreview]);
+  }, [tool, canvasReady, cancelDrawingPreview]);
 
   useEffect(() => {
     const canvas = fabricRef.current;

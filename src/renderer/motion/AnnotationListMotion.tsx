@@ -1,5 +1,11 @@
 import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
-import type { CSSProperties, ReactNode } from 'react';
+import type {
+  AriaRole,
+  CSSProperties,
+  KeyboardEventHandler,
+  MouseEventHandler,
+  ReactNode,
+} from 'react';
 import { motionDuration, motionEase } from './tokens';
 
 const listItemVariants = {
@@ -54,6 +60,12 @@ interface AnnotationMotionListItemProps {
   skipEnterAnimation?: boolean;
   children: ReactNode;
   as?: 'div' | 'li';
+  onClick?: MouseEventHandler<HTMLElement>;
+  onKeyDown?: KeyboardEventHandler<HTMLElement>;
+  role?: AriaRole;
+  tabIndex?: number;
+  'aria-pressed'?: boolean;
+  'aria-label'?: string;
 }
 
 export function AnnotationMotionListItem({
@@ -63,6 +75,12 @@ export function AnnotationMotionListItem({
   skipEnterAnimation,
   children,
   as = 'div',
+  onClick,
+  onKeyDown,
+  role,
+  tabIndex,
+  'aria-pressed': ariaPressed,
+  'aria-label': ariaLabel,
 }: AnnotationMotionListItemProps) {
   const reducedMotion = useReducedMotion();
   const Component = as === 'li' ? m.li : m.div;
@@ -77,6 +95,12 @@ export function AnnotationMotionListItem({
       initial={skipEnterAnimation || reducedMotion ? false : 'initial'}
       animate="animate"
       exit="exit"
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+      role={role}
+      tabIndex={tabIndex}
+      aria-pressed={ariaPressed}
+      aria-label={ariaLabel}
     >
       {children}
     </Component>

@@ -4,10 +4,11 @@ import {
   useAnnotationWorkspace,
   type ImageCanvasTool,
 } from '../../context/AnnotationWorkspaceContext';
-import { getLabelChipStyle } from '../../utils/labelColor';
+import AnnotationDrawLabelPicker from './AnnotationDrawLabelPicker';
 import './ImageAnnotationToolbar.css';
 
 export interface ImageAnnotationToolbarProps {
+  mode?: 'bbox' | 'rotated_bbox' | 'polygon';
   canvasReady?: boolean;
   imageNatural?: { w: number; h: number };
   onZoomIn?: () => void;
@@ -16,6 +17,7 @@ export interface ImageAnnotationToolbarProps {
 }
 
 export default function ImageAnnotationToolbar({
+  mode = 'bbox',
   canvasReady = false,
   imageNatural = { w: 0, h: 0 },
   onZoomIn,
@@ -23,7 +25,7 @@ export default function ImageAnnotationToolbar({
   onZoomFit,
 }: ImageAnnotationToolbarProps) {
   const { activeProject } = useAnnotation();
-  const { tool, setTool, activeLabelId, setActiveLabelId } =
+  const { tool, setTool, activeLabelId, setActiveLabelId, labelUsage } =
     useAnnotationWorkspace();
 
   if (!activeProject) return null;
@@ -75,14 +77,25 @@ export default function ImageAnnotationToolbar({
         role="group"
         aria-label="画布工具"
       >
-        <VscodeButton
-          secondary
-          className={`image-annotation-tool-btn${tool === 'draw' ? ' image-annotation-tool-btn--active' : ''}`}
-          aria-pressed={tool === 'draw'}
-          onClick={() => setToolAndFocus('draw')}
-        >
-          画框 (B)
-        </VscodeButton>
+        {mode === 'bbox' || mode === 'rotated_bbox' ? (
+          <VscodeButton
+            secondary
+            className={`image-annotation-tool-btn${tool === 'draw' ? ' image-annotation-tool-btn--active' : ''}`}
+            aria-pressed={tool === 'draw'}
+            onClick={() => setToolAndFocus('draw')}
+          >
+            {mode === 'rotated_bbox' ? '画旋转框 (B)' : '画框 (B)'}
+          </VscodeButton>
+        ) : (
+          <VscodeButton
+            secondary
+            className={`image-annotation-tool-btn${tool === 'polygon' ? ' image-annotation-tool-btn--active' : ''}`}
+            aria-pressed={tool === 'polygon'}
+            onClick={() => setToolAndFocus('polygon')}
+          >
+            多边形 (P)
+          </VscodeButton>
+        )}
         <VscodeButton
           secondary
           className={`image-annotation-tool-btn${tool === 'select' ? ' image-annotation-tool-btn--active' : ''}`}
@@ -99,19 +112,14 @@ export default function ImageAnnotationToolbar({
             请先在任务中定义标签
           </span>
         ) : (
-          <div className="image-annotation-toolbar-chips">
-            {activeProject.labels.map((lab) => (
-              <button
-                key={lab.id}
-                type="button"
-                className={`image-annotation-toolbar-chip${lab.id === activeLabelId ? ' image-annotation-toolbar-chip--active' : ''}`}
-                style={getLabelChipStyle(lab.color)}
-                onClick={() => setActiveLabelId(lab.id)}
-              >
-                {lab.name}
-              </button>
-            ))}
-          </div>
+          <AnnotationDrawLabelPicker
+            className="image-annotation-toolbar-chips"
+            variant="toolbar"
+            labels={activeProject.labels}
+            labelUsage={labelUsage}
+            activeLabelId={activeLabelId}
+            onSelect={setActiveLabelId}
+          />
         )}
       </div>
     </div>

@@ -1,12 +1,12 @@
 import { VscodeIcon } from '@vscode-elements/react-elements';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ComponentRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import UserAvatar from './UserAvatar';
 import { MoonIcon, SunIcon } from './ThemeToggleIcons';
 import './ActivityBar.css';
 
-export type LeftPanel = 'explorer' | 'annotations' | 'settings';
+export type LeftPanel = 'explorer' | 'annotations' | 'models' | 'settings';
 export type RightPanel = 'agent' | 'annotation';
 
 interface ActivityBarProps {
@@ -14,6 +14,7 @@ interface ActivityBarProps {
   activePanel: LeftPanel | RightPanel | null;
   onExplorerClick?: () => void;
   onAnnotationsClick?: () => void;
+  onModelsClick?: () => void;
   onSettingsClick?: () => void;
   onAgentClick?: () => void;
   /** When open, render an extra 「标注列表」icon on the right bar */
@@ -32,7 +33,7 @@ function ActivityIcon({
   active: boolean;
   onClick: () => void;
 }) {
-  const ref = useRef<HTMLElement>(null);
+  const ref = useRef<ComponentRef<typeof VscodeIcon>>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -105,6 +106,7 @@ export default function ActivityBar({
   activePanel,
   onExplorerClick,
   onAnnotationsClick,
+  onModelsClick,
   onSettingsClick,
   onAgentClick,
   showAnnotationToolbar,
@@ -127,6 +129,12 @@ export default function ActivityBar({
             label="标注任务"
             active={activePanel === 'annotations'}
             onClick={onAnnotationsClick ?? (() => undefined)}
+          />
+          <ActivityIcon
+            name="layers"
+            label="预训练模型"
+            active={activePanel === 'models'}
+            onClick={onModelsClick ?? (() => undefined)}
           />
         </div>
         <div className="activity-bar-bottom">

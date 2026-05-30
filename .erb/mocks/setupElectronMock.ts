@@ -1,3 +1,17 @@
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: jest.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  })),
+});
+
 Object.defineProperty(window, 'electron', {
   writable: true,
   value: {
@@ -31,6 +45,20 @@ Object.defineProperty(window, 'electron', {
       getRefreshToken: jest.fn().mockResolvedValue(null),
       setRefreshToken: jest.fn().mockResolvedValue(undefined),
       clearRefreshToken: jest.fn().mockResolvedValue(undefined),
+    },
+    annotation: {
+      getProjects: jest.fn().mockResolvedValue([]),
+      saveProjects: jest.fn().mockResolvedValue(undefined),
+      writeProjectConfig: jest.fn().mockResolvedValue(undefined),
+      removeProjectConfig: jest.fn().mockResolvedValue(undefined),
+      showItemInFolder: jest.fn().mockResolvedValue(undefined),
+      readFileAnnotationDoc: jest.fn().mockResolvedValue(null),
+      writeFileAnnotationDoc: jest.fn().mockResolvedValue(undefined),
+    },
+    theme: {
+      getSystemDark: jest.fn().mockResolvedValue(false),
+      onSystemChanged: jest.fn(() => jest.fn()),
+      notifyEffectiveTheme: jest.fn(),
     },
   },
 });

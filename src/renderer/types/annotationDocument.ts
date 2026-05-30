@@ -26,9 +26,21 @@ export interface BboxAnnotation extends AnnotationBase {
   height: number;
 }
 
+export interface RotatedBboxAnnotation extends AnnotationBase {
+  kind: 'rotated_bbox';
+  /** Center point, normalized 0–1 vs natural image dimensions */
+  cx: number;
+  cy: number;
+  width: number;
+  height: number;
+  /** Rotation in degrees */
+  angle: number;
+}
+
 /** Placeholders for upcoming modalities — stored but not editable in bbox UI yet */
 export interface PolygonAnnotation extends AnnotationBase {
   kind: 'polygon';
+  /** Normalized vertices 0–1 vs natural image dimensions */
   points: { x: number; y: number }[];
 }
 
@@ -40,6 +52,7 @@ export interface SpanAnnotation extends AnnotationBase {
 
 export type AnnotationInstance =
   | BboxAnnotation
+  | RotatedBboxAnnotation
   | PolygonAnnotation
   | SpanAnnotation;
 
@@ -61,13 +74,73 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object');
 }
 
-function isAnnotBase(record: Record<string, unknown>): boolean {
+function isAnnotBase(
+  record: Record<string, unknown>,
+): record is Record<string, unknown> & {
+  id: string;
+  labelId: string;
+  createdAt: string;
+  updatedAt: string;
+} {
   return (
     typeof record.id === 'string' &&
     typeof record.labelId === 'string' &&
     typeof record.createdAt === 'string' &&
     typeof record.updatedAt === 'string'
   );
+}
+
+export function parsePolygonAnnotation(
+  raw: Record<string, unknown>,
+): PolygonAnnotation | null {
+  if (raw.kind !== 'polygon' || !isAnnotBase(raw)) return null;
+  if (!Array.isArray(raw.points) || raw.points.length < 3) return null;
+  const points: { x: number; y: number }[] = [];
+  for (const pt of raw.points) {
+    if (!isRecord(pt) || typeof pt.x !== 'number' || typeof pt.y !== 'number') {
+      return null;
+    }
+    if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return null;
+    points.push({ x: pt.x, y: pt.y });
+  }
+  return {
+    id: raw.id,
+    labelId: raw.labelId,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+    note: typeof raw.note === 'string' ? raw.note : undefined,
+    kind: 'polygon',
+    points,
+  };
+}
+
+export function parseRotatedBboxAnnotation(
+  raw: Record<string, unknown>,
+): RotatedBboxAnnotation | null {
+  if (
+    raw.kind !== 'rotated_bbox' ||
+    typeof raw.cx !== 'number' ||
+    typeof raw.cy !== 'number' ||
+    typeof raw.width !== 'number' ||
+    typeof raw.height !== 'number' ||
+    typeof raw.angle !== 'number'
+  ) {
+    return null;
+  }
+  if (!isAnnotBase(raw)) return null;
+  return {
+    id: raw.id,
+    labelId: raw.labelId,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+    note: typeof raw.note === 'string' ? raw.note : undefined,
+    kind: 'rotated_bbox',
+    cx: raw.cx,
+    cy: raw.cy,
+    width: raw.width,
+    height: raw.height,
+    angle: raw.angle,
+  };
 }
 
 export function parseBboxAnnotation(
@@ -104,20 +177,24 @@ export function parseAnnotationInstance(
   if (!isRecord(item)) return null;
   if (typeof item.kind === 'string') {
     if (item.kind === 'bbox') return parseBboxAnnotation(item);
-    if (
-      item.kind === 'polygon' &&
-      Array.isArray(item.points) &&
-      isAnnotBase(item)
-    ) {
-      return item as PolygonAnnotation;
-    }
+    if (item.kind === 'rotated_bbox') return parseRotatedBboxAnnotation(item);
+    if (item.kind === 'polygon') return parsePolygonAnnotation(item);
     if (
       item.kind === 'span_ner' &&
       typeof item.start === 'number' &&
       typeof item.end === 'number' &&
       isAnnotBase(item)
     ) {
-      return item as SpanAnnotation;
+      return {
+        id: item.id,
+        labelId: item.labelId,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        note: typeof item.note === 'string' ? item.note : undefined,
+        kind: 'span_ner',
+        start: item.start,
+        end: item.end,
+      };
     }
   }
   return null;

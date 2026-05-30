@@ -16,11 +16,20 @@ import {
   type AnnotationInstance,
   type BboxAnnotation,
   type FileAnnotationDocument,
+  type PolygonAnnotation,
+  type RotatedBboxAnnotation,
 } from '../types/annotationDocument';
 import {
   readFileAnnotationDoc,
   writeFileAnnotationDoc,
 } from '../services/annotationDataService';
+import {
+  bumpLabelUsage,
+  loadLabelUsage,
+  pruneLabelUsage,
+  saveLabelUsage,
+  type LabelUsageMap,
+} from '../utils/annotationLabelUsage';
 import { getRelativeProjectPath, normalizeFsPath } from '../utils/projectPaths';
 
 const DEBOUNCE_MS = 450;
@@ -55,9 +64,19 @@ function isBBoxInstance(a: AnnotationInstance): a is BboxAnnotation {
   return a.kind === 'bbox';
 }
 
+function isRotatedBBoxInstance(
+  a: AnnotationInstance,
+): a is RotatedBboxAnnotation {
+  return a.kind === 'rotated_bbox';
+}
+
+function isPolygonInstance(a: AnnotationInstance): a is PolygonAnnotation {
+  return a.kind === 'polygon';
+}
+
 type DocMeta = Omit<FileAnnotationDocument, 'annotations'>;
 
-export type ImageCanvasTool = 'draw' | 'select';
+export type ImageCanvasTool = 'draw' | 'select' | 'polygon';
 
 export interface AnnotationWorkspaceContextValue {
   workspaceEnabled: boolean;
@@ -66,11 +85,15 @@ export interface AnnotationWorkspaceContextValue {
   relativeFilePath: string | null;
   annotations: AnnotationInstance[];
   bboxAnnotations: BboxAnnotation[];
+  rotatedBboxAnnotations: RotatedBboxAnnotation[];
+  polygonAnnotations: PolygonAnnotation[];
+  imageAnnotationType: 'bbox' | 'rotated_bbox' | 'polygon' | null;
   selectedAnnotationId: string | null;
   tool: ImageCanvasTool;
   setTool: (tool: ImageCanvasTool) => void;
   activeLabelId: string | null;
   setActiveLabelId: (id: string | null) => void;
+  labelUsage: LabelUsageMap;
   selectAnnotation: (id: string | null) => void;
   addBboxAnnotation: (rect: {
     x: number;
@@ -78,9 +101,28 @@ export interface AnnotationWorkspaceContextValue {
     width: number;
     height: number;
   }) => boolean;
+  addRotatedBboxAnnotation: (rect: {
+    cx: number;
+    cy: number;
+    width: number;
+    height: number;
+    angle: number;
+  }) => boolean;
+  addPolygonAnnotation: (points: { x: number; y: number }[]) => boolean;
   updateBboxGeometry: (
     id: string,
     patch: Pick<BboxAnnotation, 'x' | 'y' | 'width' | 'height'>,
+  ) => void;
+  updateRotatedBboxGeometry: (
+    id: string,
+    patch: Pick<
+      RotatedBboxAnnotation,
+      'cx' | 'cy' | 'width' | 'height' | 'angle'
+    >,
+  ) => void;
+  updatePolygonGeometry: (
+    id: string,
+    points: { x: number; y: number }[],
   ) => void;
   deleteAnnotation: (id: string) => void;
   updateAnnotationLabel: (id: string, labelId: string) => void;
@@ -152,11 +194,18 @@ export function AnnotationWorkspaceProvider({
     return workspacesMatch(rootPath, activeProject.directoryPath);
   }, [activeProject, annotationPanelVisible, rootPath]);
 
+  const imageAnnotationType =
+    activeProject?.modality === 'image' &&
+    (activeProject.annotationType === 'bbox' ||
+      activeProject.annotationType === 'rotated_bbox' ||
+      activeProject.annotationType === 'polygon')
+      ? activeProject.annotationType
+      : null;
+
   const workspaceEnabled = Boolean(
     projectRootMatched &&
       activeProject &&
-      activeProject.modality === 'image' &&
-      activeProject.annotationType === 'bbox' &&
+      imageAnnotationType &&
       activeFilePath &&
       IMAGE_EXT.has(getExtensionLower(activeFilePath)),
   );
@@ -180,6 +229,7 @@ export function AnnotationWorkspaceProvider({
   >(null);
   const [tool, setToolState] = useState<ImageCanvasTool>('draw');
   const [activeLabelId, setActiveLabelId] = useState<string | null>(null);
+  const [labelUsage, setLabelUsage] = useState<LabelUsageMap>({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -200,6 +250,9 @@ export function AnnotationWorkspaceProvider({
   });
 
   const saveTimerRef = useRef<number | undefined>(undefined);
+  const labelUsageSaveTimerRef = useRef<number | undefined>(undefined);
+  const labelUsageRef = useRef(labelUsage);
+  labelUsageRef.current = labelUsage;
 
   const activeProjectDirectory = activeProject?.directoryPath;
   const activeProjectDirectoryRef = useRef(activeProjectDirectory);
@@ -251,6 +304,16 @@ export function AnnotationWorkspaceProvider({
     [annotations],
   );
 
+  const rotatedBboxAnnotations = useMemo(
+    () => annotations.filter(isRotatedBBoxInstance),
+    [annotations],
+  );
+
+  const polygonAnnotations = useMemo(
+    () => annotations.filter(isPolygonInstance),
+    [annotations],
+  );
+
   useEffect(() => {
     if (!activeProject?.labels.length) {
       setActiveLabelId(null);
@@ -261,6 +324,53 @@ export function AnnotationWorkspaceProvider({
       return activeProject.labels[0]?.id ?? null;
     });
   }, [activeProject?.id, activeProject?.labels]);
+
+  useEffect(() => {
+    if (!activeProject?.id) {
+      setLabelUsage({});
+      return;
+    }
+    const validIds = new Set(activeProject.labels.map((l) => l.id));
+    const loaded = loadLabelUsage(activeProject.id);
+    setLabelUsage(pruneLabelUsage(loaded, validIds));
+  }, [activeProject?.id, activeProject?.labels]);
+
+  const scheduleLabelUsageSave = useCallback((projectId: string) => {
+    if (labelUsageSaveTimerRef.current) {
+      window.clearTimeout(labelUsageSaveTimerRef.current);
+    }
+    labelUsageSaveTimerRef.current = window.setTimeout(() => {
+      labelUsageSaveTimerRef.current = undefined;
+      saveLabelUsage(projectId, labelUsageRef.current);
+    }, 300);
+  }, []);
+
+  const recordLabelUsage = useCallback(
+    (labelId: string) => {
+      const projectId = activeProjectRef.current?.id;
+      if (!projectId) return;
+      const validIds = activeProjectRef.current?.labels.map((l) => l.id) ?? [];
+      if (!validIds.includes(labelId)) return;
+
+      setLabelUsage((prev) => {
+        const next = bumpLabelUsage(prev, labelId);
+        scheduleLabelUsageSave(projectId);
+        return next;
+      });
+    },
+    [scheduleLabelUsageSave],
+  );
+
+  useEffect(() => {
+    if (activeProject?.annotationType === 'polygon') {
+      setToolState((prev) => (prev === 'draw' ? 'polygon' : prev));
+    } else if (
+      activeProject?.annotationType === 'bbox' ||
+      activeProject?.annotationType === 'rotated_bbox'
+    ) {
+      setToolState((prev) => (prev === 'polygon' ? 'draw' : prev));
+    }
+  }, [activeProject?.annotationType]);
 
   const saveNow = useCallback(async () => {
     if (saveTimerRef.current) {
@@ -301,7 +411,9 @@ export function AnnotationWorkspaceProvider({
 
     if (
       activeProject.modality !== 'image' ||
-      activeProject.annotationType !== 'bbox' ||
+      (activeProject.annotationType !== 'bbox' &&
+        activeProject.annotationType !== 'rotated_bbox' &&
+        activeProject.annotationType !== 'polygon') ||
       !relativeFilePath
     ) {
       currentPairRef.current = { rel: null, abs: null };
@@ -417,9 +529,6 @@ export function AnnotationWorkspaceProvider({
 
   const setTool = useCallback((next: ImageCanvasTool) => {
     setToolState(next);
-    if (next === 'select') {
-      setSelectedAnnotationId(null);
-    }
   }, []);
 
   const addBboxAnnotation = useCallback(
@@ -447,9 +556,90 @@ export function AnnotationWorkspaceProvider({
 
       setAnnotations((prev) => [...prev, next]);
       touchDirty();
+      recordLabelUsage(activeLabelId);
       return true;
     },
-    [activeLabelId, loadedDocMeta, touchDirty],
+    [activeLabelId, loadedDocMeta, touchDirty, recordLabelUsage],
+  );
+
+  const addPolygonAnnotation = useCallback(
+    (points: { x: number; y: number }[]): boolean => {
+      if (!activeLabelId || points.length < 3) return false;
+      if (!loadedDocMeta) return false;
+
+      const now = new Date().toISOString();
+      const next: PolygonAnnotation = {
+        id: crypto.randomUUID(),
+        kind: 'polygon',
+        labelId: activeLabelId,
+        createdAt: now,
+        updatedAt: now,
+        points,
+      };
+
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      recordLabelUsage(activeLabelId);
+      return true;
+    },
+    [activeLabelId, loadedDocMeta, touchDirty, recordLabelUsage],
+  );
+
+  const addRotatedBboxAnnotation = useCallback(
+    (rect: {
+      cx: number;
+      cy: number;
+      width: number;
+      height: number;
+      angle: number;
+    }): boolean => {
+      if (!activeLabelId) return false;
+      if (!loadedDocMeta) return false;
+
+      const now = new Date().toISOString();
+      const next: RotatedBboxAnnotation = {
+        id: crypto.randomUUID(),
+        kind: 'rotated_bbox',
+        labelId: activeLabelId,
+        createdAt: now,
+        updatedAt: now,
+        cx: rect.cx,
+        cy: rect.cy,
+        width: rect.width,
+        height: rect.height,
+        angle: rect.angle,
+      };
+
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      recordLabelUsage(activeLabelId);
+      return true;
+    },
+    [activeLabelId, loadedDocMeta, touchDirty, recordLabelUsage],
+  );
+
+  const updateRotatedBboxGeometry = useCallback(
+    (
+      id: string,
+      patch: Pick<
+        RotatedBboxAnnotation,
+        'cx' | 'cy' | 'width' | 'height' | 'angle'
+      >,
+    ) => {
+      setAnnotations((prev) =>
+        prev.map((item) =>
+          item.kind === 'rotated_bbox' && item.id === id
+            ? {
+                ...item,
+                ...patch,
+                updatedAt: new Date().toISOString(),
+              }
+            : item,
+        ),
+      );
+      touchDirty();
+    },
+    [touchDirty],
   );
 
   const updateBboxGeometry = useCallback(
@@ -463,6 +653,25 @@ export function AnnotationWorkspaceProvider({
             ? {
                 ...item,
                 ...patch,
+                updatedAt: new Date().toISOString(),
+              }
+            : item,
+        ),
+      );
+      touchDirty();
+    },
+    [touchDirty],
+  );
+
+  const updatePolygonGeometry = useCallback(
+    (id: string, points: { x: number; y: number }[]) => {
+      if (points.length < 3) return;
+      setAnnotations((prev) =>
+        prev.map((item) =>
+          item.kind === 'polygon' && item.id === id
+            ? {
+                ...item,
+                points,
                 updatedAt: new Date().toISOString(),
               }
             : item,
@@ -492,8 +701,9 @@ export function AnnotationWorkspaceProvider({
         ),
       );
       touchDirty();
+      recordLabelUsage(labelId);
     },
-    [touchDirty],
+    [touchDirty, recordLabelUsage],
   );
 
   const reportImageNaturalSize = useCallback(
@@ -527,14 +737,22 @@ export function AnnotationWorkspaceProvider({
       relativeFilePath,
       annotations,
       bboxAnnotations,
+      rotatedBboxAnnotations,
+      polygonAnnotations,
+      imageAnnotationType,
       selectedAnnotationId,
       tool,
       setTool,
       activeLabelId,
       setActiveLabelId,
+      labelUsage,
       selectAnnotation,
       addBboxAnnotation,
+      addRotatedBboxAnnotation,
+      addPolygonAnnotation,
       updateBboxGeometry,
+      updateRotatedBboxGeometry,
+      updatePolygonGeometry,
       deleteAnnotation,
       updateAnnotationLabel,
       reportImageNaturalSize,
@@ -551,13 +769,21 @@ export function AnnotationWorkspaceProvider({
     relativeFilePath,
     annotations,
     bboxAnnotations,
+    rotatedBboxAnnotations,
+    polygonAnnotations,
+    imageAnnotationType,
     selectedAnnotationId,
     tool,
     setTool,
     activeLabelId,
+    labelUsage,
     selectAnnotation,
     addBboxAnnotation,
+    addRotatedBboxAnnotation,
+    addPolygonAnnotation,
     updateBboxGeometry,
+    updateRotatedBboxGeometry,
+    updatePolygonGeometry,
     deleteAnnotation,
     updateAnnotationLabel,
     reportImageNaturalSize,

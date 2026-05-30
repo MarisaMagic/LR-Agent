@@ -1,11 +1,11 @@
 import { VscodeScrollable } from '@vscode-elements/react-elements';
-import { type ReactNode, type Ref } from 'react';
+import { type ComponentRef, type ReactNode, type Ref } from 'react';
 import { useScrollHostHeight } from '../hooks/useScrollHostHeight';
 
 interface VscodeScrollHostProps {
   className?: string;
   scrollableClassName?: string;
-  scrollRef?: Ref<HTMLElement>;
+  scrollRef?: Ref<ComponentRef<typeof VscodeScrollable>>;
   children: ReactNode;
 }
 

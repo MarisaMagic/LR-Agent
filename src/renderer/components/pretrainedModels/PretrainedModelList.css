@@ -1,0 +1,100 @@
+.pretrained-model-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pretrained-model-list-empty {
+  padding: 16px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.pretrained-model-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--vscode-panel-border, #3c3c3c);
+}
+
+.pretrained-model-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pretrained-model-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #cccccc);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pretrained-model-item-badges {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.pretrained-model-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.pretrained-model-badge-default {
+  background: rgba(78, 201, 176, 0.15);
+  color: #4ec9b0;
+}
+
+.pretrained-model-badge-disabled {
+  background: rgba(128, 128, 128, 0.2);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.pretrained-model-item-type {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.pretrained-model-item-path {
+  margin-top: 4px;
+  font-size: 12px;
+  font-family: var(--vscode-editor-font-family, Consolas, monospace);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pretrained-model-item-path-sub {
+  opacity: 0.85;
+}
+
+.pretrained-model-item-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pretrained-model-action-btn {
+  padding: 2px 8px;
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-foreground, #cccccc);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pretrained-model-action-btn:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.pretrained-model-action-btn-danger {
+  color: var(--vscode-errorForeground, #f48771);
+}

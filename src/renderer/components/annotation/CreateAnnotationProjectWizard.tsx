@@ -146,6 +146,7 @@ export default function CreateAnnotationProjectWizard({
     <ModalMotion
       open={open}
       onClose={onClose}
+      closeOnBackdropClick={false}
       dialogClassName="create-annotation-wizard"
       dialogRole="form"
       labelledBy="create-annotation-title"
@@ -294,9 +295,6 @@ export default function CreateAnnotationProjectWizard({
       )}
 
       <div className="create-annotation-actions">
-        <VscodeButton secondary type="button" onClick={onClose}>
-          取消
-        </VscodeButton>
         <div className="create-annotation-actions-right">
           {step > 1 && (
             <VscodeButton secondary type="button" onClick={goBack}>

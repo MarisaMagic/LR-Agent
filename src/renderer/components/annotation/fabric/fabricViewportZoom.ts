@@ -3,6 +3,20 @@ import { VIEWPORT_EDGE_PAD } from './fabricBboxCoords';
 
 const ZOOM_ANIM_MS = 150;
 
+/** Minimum Fabric backing-store size (px). */
+export const MIN_CANVAS_PX = 2;
+
+/** Canvas pixel size from scene content only (not the scroll viewport). */
+export function resolveContentCanvasSize(
+  contentW: number,
+  contentH: number,
+): { width: number; height: number } {
+  return {
+    width: Math.max(MIN_CANVAS_PX, Math.ceil(contentW)),
+    height: Math.max(MIN_CANVAS_PX, Math.ceil(contentH)),
+  };
+}
+
 function easeOutCubic(t: number): number {
   return 1 - (1 - t) ** 3;
 }

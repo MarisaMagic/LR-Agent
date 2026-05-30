@@ -12,6 +12,8 @@ interface ModalMotionProps {
   labelledBy?: string;
   dialogRole?: 'dialog' | 'form';
   onSubmit?: (event: FormEvent<HTMLFormElement>) => void;
+  /** When false, clicking the backdrop does not call onClose. Default true. */
+  closeOnBackdropClick?: boolean;
 }
 
 export default function ModalMotion({
@@ -23,6 +25,7 @@ export default function ModalMotion({
   labelledBy,
   dialogRole = 'dialog',
   onSubmit,
+  closeOnBackdropClick = true,
 }: ModalMotionProps) {
   const reducedMotion = useReducedMotion();
 
@@ -53,7 +56,7 @@ export default function ModalMotion({
             duration: reducedMotion ? 0.1 : motionDuration.modal,
             ease: motionEase,
           }}
-          onClick={onClose}
+          onClick={closeOnBackdropClick ? onClose : undefined}
         >
           {dialogRole === 'form' ? (
             <motion.form

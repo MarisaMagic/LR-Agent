@@ -122,6 +122,32 @@ const electronHandler = {
         callback(Boolean(value));
       }),
   },
+  pretrainedModels: {
+    getAll: (): Promise<import('./pretrainedModels/pretrainedModelStore').PretrainedModelConfig[]> =>
+      ipcRenderer.invoke('pretrainedModels:getAll'),
+    saveAll: (
+      models: import('./pretrainedModels/pretrainedModelStore').PretrainedModelConfig[],
+    ): Promise<void> => ipcRenderer.invoke('pretrainedModels:saveAll', models),
+    validate: (
+      model: Pick<
+        import('./pretrainedModels/pretrainedModelStore').PretrainedModelConfig,
+        'modelType' | 'checkpointPath' | 'configPath'
+      >,
+    ): Promise<
+      import('./pretrainedModels/pretrainedModelStore').PretrainedModelValidationResult
+    > => ipcRenderer.invoke('pretrainedModels:validate', model),
+    scanSam2Directory: (
+      rootDir: string,
+    ): Promise<
+      import('./pretrainedModels/pretrainedModelStore').Sam2ScanResult[]
+    > => ipcRenderer.invoke('pretrainedModels:scanSam2Directory', rootDir),
+  },
+  dialog: {
+    openFile: (options?: {
+      title?: string;
+      filters?: { name: string; extensions: string[] }[];
+    }): Promise<string | null> => ipcRenderer.invoke('dialog:openFile', options),
+  },
   annotation: {
     getProjects: (): Promise<unknown[]> =>
       ipcRenderer.invoke('annotation:getProjects'),

@@ -2,7 +2,7 @@ import {
   VscodeCollapsible,
   VscodeToolbarContainer,
 } from '@vscode-elements/react-elements';
-import { forwardRef, ReactNode } from 'react';
+import { ReactNode } from 'react';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
 import './Sidebar.css';
 
@@ -10,21 +10,26 @@ interface SidebarProps {
   side: 'left' | 'right';
   width: number;
   collapsed: boolean;
+  isResizing?: boolean;
   title: string;
   onToggleCollapse: () => void;
   children: ReactNode;
 }
 
-const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
-  { side, width, collapsed, title, onToggleCollapse, children },
-  ref,
-) {
+export default function Sidebar({
+  side,
+  width,
+  collapsed,
+  isResizing = false,
+  title,
+  onToggleCollapse,
+  children,
+}: SidebarProps) {
   const collapseIcon = side === 'left' ? 'chevron-left' : 'chevron-right';
 
   return (
     <aside
-      ref={ref}
-      className={`sidebar sidebar-${side} ${collapsed ? 'collapsed' : ''}`}
+      className={`sidebar sidebar-${side}${collapsed ? ' collapsed' : ''}${isResizing ? ' is-resizing' : ''}`}
       style={{ width: collapsed ? 0 : width }}
     >
       <div className="sidebar-inner">
@@ -46,6 +51,4 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
       </div>
     </aside>
   );
-});
-
-export default Sidebar;
+}

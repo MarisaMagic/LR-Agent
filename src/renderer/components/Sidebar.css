@@ -10,7 +10,8 @@
   flex-direction: column;
 }
 
-.layout.is-resizing .sidebar {
+.layout.is-resizing .sidebar,
+.sidebar.is-resizing {
   transition: none;
 }
 

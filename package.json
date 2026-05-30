@@ -86,7 +86,12 @@
     ],
     "moduleNameMapper": {
       "\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$": "<rootDir>/.erb/mocks/fileMock.js",
-      "\\.(css|less|sass|scss)$": "identity-obj-proxy"
+      "\\.(css|less|sass|scss)$": "identity-obj-proxy",
+      "^@vscode-elements/react-elements$": "<rootDir>/.erb/mocks/vscodeElementsMock.tsx",
+      "^react-markdown$": "<rootDir>/.erb/mocks/reactMarkdownMock.tsx",
+      "^remark-gfm$": "<rootDir>/.erb/mocks/remarkGfmMock.js",
+      "^react-pdf$": "<rootDir>/.erb/mocks/reactPdfMock.tsx",
+      "^mammoth$": "<rootDir>/.erb/mocks/mammothMock.js"
     },
     "setupFiles": [
       "./.erb/scripts/check-build-exists.ts",
@@ -99,6 +104,12 @@
     "testPathIgnorePatterns": [
       "release/app/dist",
       ".erb/dll"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/release/"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!(@vscode-elements|@lit|lit-html|lit-element)/)"
     ],
     "transform": {
       "\\.(ts|tsx|js|jsx)$": "ts-jest"

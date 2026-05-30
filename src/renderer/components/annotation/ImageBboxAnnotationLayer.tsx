@@ -191,7 +191,6 @@ function BboxAnnotationGraphic({
         height={labelBarH}
       >
         <div
-          xmlns="http://www.w3.org/1999/xhtml"
           className="image-bbox-label-tag"
           style={{
             backgroundColor: stroke,

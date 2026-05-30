@@ -1,4 +1,5 @@
 import path from 'path';
+import { open } from 'fs/promises';
 import fs from 'fs-extra';
 import {
   app,
@@ -15,6 +16,7 @@ import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import { DirectoryItem, FileStats } from './preload';
 import registerAuthHandlers from './auth/authHandlers';
+import registerPretrainedModelHandlers from './pretrainedModels/pretrainedModelHandlers';
 import {
   getAnnotationProjects,
   removeProjectDirConfig,
@@ -36,6 +38,10 @@ class AppUpdater {
 
 let mainWindow: BrowserWindow | null = null;
 let themeIpcRegistered = false;
+
+/** Fits both sidebars expanded + main content minimum (48+240+4+480+4+240+48). */
+const WINDOW_MIN_WIDTH = 1064;
+const WINDOW_MIN_HEIGHT = 640;
 
 function themeWindowBackground(isDark: boolean): string {
   return isDark ? '#1e1e1e' : '#ffffff';
@@ -197,13 +203,16 @@ ipcMain.handle(
       const stats = await fs.stat(filePath);
       const maxPreviewBytes = 512 * 1024;
       if (stats.size > 5 * 1024 * 1024) {
-        const handle = await fs.open(filePath, 'r');
-        const buffer = Buffer.alloc(Math.min(maxPreviewBytes, stats.size));
-        await handle.read(buffer, 0, buffer.length, 0);
-        await handle.close();
-        const content = buffer.toString('utf-8');
-        const lines = content.split('\n').slice(0, 2000);
-        return `${lines.join('\n')}\n\n... [文件过大，仅显示部分内容]`;
+        const handle = await open(filePath, 'r');
+        try {
+          const buffer = Buffer.alloc(Math.min(maxPreviewBytes, stats.size));
+          await handle.read(buffer, 0, buffer.length, 0);
+          const content = buffer.toString('utf-8');
+          const lines = content.split('\n').slice(0, 2000);
+          return `${lines.join('\n')}\n\n... [文件过大，仅显示部分内容]`;
+        } finally {
+          await handle.close();
+        }
       }
       return await fs.readFile(filePath, 'utf-8');
     } catch (error) {
@@ -338,6 +347,8 @@ const createWindow = async () => {
     show: false,
     width: 1400,
     height: 900,
+    minWidth: WINDOW_MIN_WIDTH,
+    minHeight: WINDOW_MIN_HEIGHT,
     backgroundColor: themeWindowBackground(initialDark),
     icon: getAssetPath('icon.png'),
     ...(isMac
@@ -399,6 +410,7 @@ app
   .whenReady()
   .then(() => {
     registerAuthHandlers();
+    registerPretrainedModelHandlers();
     createWindow();
     app.on('activate', () => {
       if (mainWindow === null) createWindow();

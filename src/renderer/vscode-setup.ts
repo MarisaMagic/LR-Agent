@@ -19,8 +19,10 @@ function ensureCodiconStylesheet(): void {
     document.head.appendChild(link);
   }
 
-  if (codiconStylesheetHref && link.href !== codiconStylesheetHref) {
-    link.href = codiconStylesheetHref;
+  const href =
+    typeof codiconStylesheetHref === 'string' ? codiconStylesheetHref : '';
+  if (href && link.href !== href) {
+    link.href = href;
   }
 }
 

@@ -66,9 +66,11 @@
 
 .annotation-right-section--grow {
   flex: 1;
+  flex-shrink: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding-bottom: 16px;
 }
 
 .annotation-right-heading {
@@ -130,7 +132,7 @@
 
 .annotation-right-list-host {
   flex: 1;
-  min-height: 120px;
+  min-height: 0;
 }
 
 .annotation-right-list-scroll {
@@ -140,57 +142,67 @@
 .annotation-right-items {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+  padding-bottom: 16px;
 }
 
 .annotation-right-item {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  margin-bottom: 6px;
+  flex-direction: row;
+  align-items: center;
+  padding: 6px 8px 6px 12px;
   border-radius: 6px;
-  border: 1px solid var(--vscode-widget-border, #3e3e42);
-  background: var(--vscode-sideBar-background, #252526);
+  border: none;
+  background: var(--annotation-accent-bg, rgba(255, 255, 255, 0.03));
+  box-shadow: inset 3px 0 0
+    var(--annotation-accent-bar, rgba(255, 255, 255, 0.12));
+  cursor: pointer;
   transition:
-    border-color var(--annotation-motion-duration) var(--annotation-motion-ease),
     background-color var(--annotation-motion-duration) var(--annotation-motion-ease),
     box-shadow var(--annotation-motion-duration) var(--annotation-motion-ease);
 }
 
-.annotation-right-summary-btn {
-  display: block;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-  font: inherit;
-}
-
-.annotation-right-summary-btn:focus-visible {
+.annotation-right-item:focus-visible {
   outline: 1px solid var(--vscode-focusBorder, #007fd4);
   outline-offset: 2px;
 }
 
+.annotation-right-item-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.annotation-right-item-label-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.annotation-right-item:hover:not(.annotation-right-item--active) {
+  background: var(--annotation-accent-bg-hover, rgba(255, 255, 255, 0.06));
+}
+
 .annotation-right-item--active {
-  border-color: var(--vscode-focusBorder, #007fd4);
   background: var(
-    --vscode-list-activeSelectionBackground,
-    rgba(0, 127, 212, 0.12)
+    --annotation-accent-bg-active,
+    var(--vscode-list-activeSelectionBackground, rgba(0, 127, 212, 0.12))
   );
   box-shadow:
-    0 0 0 1px rgba(0, 127, 212, 0.35),
-    inset 3px 0 0 var(--annotation-accent, var(--vscode-focusBorder, #007fd4));
+    inset 3px 0 0 var(--annotation-accent, var(--vscode-focusBorder, #007fd4)),
+    0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .annotation-right-item-main {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   font-size: 12px;
 }
 
@@ -199,40 +211,37 @@
   font-variant-numeric: tabular-nums;
 }
 
+.annotation-right-suffix {
+  color: var(--vscode-descriptionForeground, #858585);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .annotation-right-chip {
   display: inline-block;
   padding: 2px 6px;
   border-radius: 4px;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .annotation-right-unknown {
   color: var(--vscode-errorForeground, #f48771);
 }
 
-.annotation-right-coords {
-  color: var(--vscode-descriptionForeground);
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
+.annotation-right-item-label-more-btn {
+  width: 24px;
+  height: 24px;
 }
 
-.annotation-right-item-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.annotation-right-select {
-  flex: 1;
-  min-width: 0;
-  font-size: 12px;
-  padding: 4px;
-  border-radius: 4px;
-  border: 1px solid var(--vscode-selectBorder, #3e3e42);
-  background: var(--vscode-sideBar-background, #252526);
-  color: var(--vscode-sideBar-foreground, #cccccc);
+.annotation-right-item-label-more-btn .codicon {
+  font-size: 14px;
 }
 
 .annotation-right-delete {
   flex-shrink: 0;
+  margin-left: auto;
 }

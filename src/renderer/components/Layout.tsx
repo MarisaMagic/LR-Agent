@@ -3,7 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
-  type MouseEvent,
+  type MouseEvent as ReactMouseEvent,
 } from 'react';
 import { m } from 'framer-motion';
 import { useApp } from '../context/AppContext';
@@ -14,6 +14,7 @@ import AgentPanel from './AgentPanel';
 import EmailVerifyBanner from './EmailVerifyBanner';
 import FileTree from './FileTree';
 import FileViewer from './FileViewer';
+import PretrainedModelsPanel from './pretrainedModels/PretrainedModelsPanel';
 import SettingsPanel from './SettingsPanel';
 import Sidebar from './Sidebar';
 import PanelTransition from '../motion/PanelTransition';
@@ -30,11 +31,13 @@ const RESIZER_WIDTH = 4;
 const LEFT_PANEL_TITLES: Record<LeftPanel, string> = {
   explorer: '资源管理器',
   annotations: '标注任务',
+  models: '预训练模型',
   settings: '账户设置',
 };
 
 function renderLeftPanel(panel: LeftPanel, onProjectOpened: () => void) {
   if (panel === 'settings') return <SettingsPanel />;
+  if (panel === 'models') return <PretrainedModelsPanel />;
   if (panel === 'annotations') {
     return <AnnotationProjectPanel onProjectOpened={onProjectOpened} />;
   }
@@ -65,12 +68,15 @@ export default function Layout() {
     mode,
   } = useAnnotation();
 
-  const leftSidebarRef = useRef<HTMLElement>(null);
-  const rightSidebarRef = useRef<HTMLElement>(null);
   const resizeSideRef = useRef<'left' | 'right' | null>(null);
+  const resizeDraftRef = useRef<number | null>(null);
   const [resizingSide, setResizingSide] = useState<'left' | 'right' | null>(
     null,
   );
+  const [resizeDraft, setResizeDraft] = useState<{
+    side: 'left' | 'right';
+    width: number;
+  } | null>(null);
   const [leftPanel, setLeftPanel] = useState<LeftPanel>('explorer');
 
   const [rightPanel, setRightPanel] = useState<RightPanel>('agent');
@@ -90,6 +96,11 @@ export default function Layout() {
   }, [refreshUser]);
 
   const { leftWidth, rightWidth, leftCollapsed, rightCollapsed } = layout;
+
+  const displayLeftWidth =
+    resizeDraft?.side === 'left' ? resizeDraft.width : leftWidth;
+  const displayRightWidth =
+    resizeDraft?.side === 'right' ? resizeDraft.width : rightWidth;
 
   const getMaxLeftWidth = useCallback(() => {
     const rightOccupied = rightCollapsed
@@ -149,50 +160,49 @@ export default function Layout() {
     setRightWidth,
   ]);
 
-  const applySidebarWidth = useCallback(
-    (side: 'left' | 'right', width: number) => {
-      const el =
-        side === 'left' ? leftSidebarRef.current : rightSidebarRef.current;
-      if (!el || el.classList.contains('collapsed')) return;
-      const w = `${width}px`;
-      el.style.width = w;
-    },
-    [],
-  );
-
   const startResize = useCallback(
-    (side: 'left' | 'right') => (e: MouseEvent) => {
+    (side: 'left' | 'right') => (e: ReactMouseEvent) => {
       if (side === 'left' && leftCollapsed) return;
       if (side === 'right' && rightCollapsed) return;
 
-      const el =
-        side === 'left' ? leftSidebarRef.current : rightSidebarRef.current;
-      if (!el) return;
-
       e.preventDefault();
-      resizeSideRef.current = side;
-      setResizingSide(side);
+      const initialWidth =
+        side === 'left'
+          ? clampLeftWidth(leftWidth)
+          : clampRightWidth(rightWidth);
 
-      const onMove = (ev: MouseEvent) => {
+      resizeSideRef.current = side;
+      resizeDraftRef.current = initialWidth;
+      setResizingSide(side);
+      setResizeDraft({ side, width: initialWidth });
+
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.body.classList.add('is-resizing', `is-resizing-${side}`);
+
+      const onMove = (ev: { clientX: number }) => {
         if (resizeSideRef.current === 'left') {
-          applySidebarWidth(
-            'left',
-            clampLeftWidth(ev.clientX - ACTIVITY_BAR_WIDTH),
-          );
+          const width = clampLeftWidth(ev.clientX - ACTIVITY_BAR_WIDTH);
+          resizeDraftRef.current = width;
+          setResizeDraft({ side: 'left', width });
         }
         if (resizeSideRef.current === 'right') {
           const rightOffset = rightCollapsed ? RIGHT_ACTIVITY_BAR_WIDTH : 0;
-          applySidebarWidth(
-            'right',
-            clampRightWidth(window.innerWidth - ev.clientX - rightOffset),
+          const width = clampRightWidth(
+            window.innerWidth - ev.clientX - rightOffset,
           );
+          resizeDraftRef.current = width;
+          setResizeDraft({ side: 'right', width });
         }
       };
 
       const onUp = () => {
         const activeSide = resizeSideRef.current;
+        const finalWidth = resizeDraftRef.current;
         resizeSideRef.current = null;
+        resizeDraftRef.current = null;
         setResizingSide(null);
+        setResizeDraft(null);
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         document.body.style.cursor = '';
@@ -203,34 +213,24 @@ export default function Layout() {
           'is-resizing-right',
         );
 
-        if (activeSide === 'left' && leftSidebarRef.current) {
-          const finalWidth = Math.round(
-            leftSidebarRef.current.getBoundingClientRect().width,
-          );
-          leftSidebarRef.current.style.width = '';
+        if (activeSide === 'left' && finalWidth != null) {
           setLeftWidth(finalWidth);
         }
-        if (activeSide === 'right' && rightSidebarRef.current) {
-          const finalWidth = Math.round(
-            rightSidebarRef.current.getBoundingClientRect().width,
-          );
-          rightSidebarRef.current.style.width = '';
+        if (activeSide === 'right' && finalWidth != null) {
           setRightWidth(finalWidth);
         }
       };
 
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-      document.body.classList.add('is-resizing', `is-resizing-${side}`);
     },
     [
       leftCollapsed,
       rightCollapsed,
+      leftWidth,
+      rightWidth,
       clampLeftWidth,
       clampRightWidth,
-      applySidebarWidth,
       setLeftWidth,
       setRightWidth,
     ],
@@ -290,14 +290,15 @@ export default function Layout() {
         activePanel={leftPanelActive}
         onExplorerClick={() => openLeftPanel('explorer')}
         onAnnotationsClick={() => openLeftPanel('annotations')}
+        onModelsClick={() => openLeftPanel('models')}
         onSettingsClick={() => openLeftPanel('settings')}
       />
 
       <Sidebar
-        ref={leftSidebarRef}
         side="left"
-        width={leftWidth}
+        width={displayLeftWidth}
         collapsed={leftCollapsed}
+        isResizing={resizingSide === 'left'}
         title={leftSidebarTitle}
         onToggleCollapse={toggleLeftSidebar}
       >
@@ -332,10 +333,10 @@ export default function Layout() {
       )}
 
       <Sidebar
-        ref={rightSidebarRef}
         side="right"
-        width={rightWidth}
+        width={displayRightWidth}
         collapsed={rightCollapsed}
+        isResizing={resizingSide === 'right'}
         title={rightSidebarTitle}
         onToggleCollapse={toggleRightSidebar}
       >

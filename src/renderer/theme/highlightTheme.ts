@@ -5,8 +5,8 @@ import type { EffectiveTheme } from './themeConstants';
 const HLJS_LINK_ID = 'hljs-theme-stylesheet';
 
 const HLJS_THEME_HREF: Record<EffectiveTheme, string> = {
-  dark: darkHljsHref,
-  light: lightHljsHref,
+  dark: typeof darkHljsHref === 'string' ? darkHljsHref : '',
+  light: typeof lightHljsHref === 'string' ? lightHljsHref : '',
 };
 
 let activeTheme: EffectiveTheme | null = null;
@@ -24,5 +24,7 @@ export function applyHighlightTheme(theme: EffectiveTheme): void {
     document.head.appendChild(link);
   }
 
-  link.href = HLJS_THEME_HREF[theme];
+  const href = HLJS_THEME_HREF[theme];
+  if (!href) return;
+  link.href = href;
 }

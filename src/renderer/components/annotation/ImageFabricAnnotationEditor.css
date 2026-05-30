@@ -44,12 +44,15 @@
   background: transparent;
 }
 
-.image-fabric-canvas-scroll--draw {
+.image-fabric-canvas-scroll--draw,
+.image-fabric-canvas-scroll--polygon {
   cursor: crosshair;
 }
 
 .image-fabric-canvas-scroll--draw .upper-canvas,
-.image-fabric-canvas-scroll--draw .lower-canvas {
+.image-fabric-canvas-scroll--draw .lower-canvas,
+.image-fabric-canvas-scroll--polygon .upper-canvas,
+.image-fabric-canvas-scroll--polygon .lower-canvas {
   cursor: crosshair !important;
 }
 

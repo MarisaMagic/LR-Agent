@@ -20,6 +20,8 @@ import {
 } from '../utils/siblingFiles';
 import HighlightedCodeBlock from './preview/HighlightedCodeBlock';
 import ImageFabricAnnotationEditor from './annotation/ImageFabricAnnotationEditor';
+import ImageFabricRotatedBboxAnnotationEditor from './annotation/ImageFabricRotatedBboxAnnotationEditor';
+import ImageFabricPolygonAnnotationEditor from './annotation/ImageFabricPolygonAnnotationEditor';
 import FileTypeIcon from './FileTypeIcon';
 import 'react-pdf/dist/Page/TextLayer.css';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
@@ -155,7 +157,11 @@ interface FileViewerProps {
 export default function FileViewer({ filePath }: FileViewerProps) {
   const { selectFile } = useApp();
   const annotationWorkspace = useAnnotationWorkspace();
-  const showBboxAnnotator = annotationWorkspace.workspaceEnabled;
+  const showImageAnnotator = annotationWorkspace.workspaceEnabled;
+  const isPolygonAnnotator =
+    annotationWorkspace.imageAnnotationType === 'polygon';
+  const isRotatedBboxAnnotator =
+    annotationWorkspace.imageAnnotationType === 'rotated_bbox';
   const viewerType = useMemo(() => getViewerType(filePath), [filePath]);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [docxHtml, setDocxHtml] = useState<string | null>(null);
@@ -331,8 +337,14 @@ export default function FileViewer({ filePath }: FileViewerProps) {
       <div className="file-viewer image-viewer">
         <FileHeader {...fileHeaderProps} />
         <div className="viewer-body image-container image-container--fabric">
-          {showBboxAnnotator ? (
-            <ImageFabricAnnotationEditor imageUrl={binaryUrl} />
+          {showImageAnnotator ? (
+            isPolygonAnnotator ? (
+              <ImageFabricPolygonAnnotationEditor imageUrl={binaryUrl} />
+            ) : isRotatedBboxAnnotator ? (
+              <ImageFabricRotatedBboxAnnotationEditor imageUrl={binaryUrl} />
+            ) : (
+              <ImageFabricAnnotationEditor imageUrl={binaryUrl} />
+            )
           ) : (
             <img
               src={binaryUrl}
