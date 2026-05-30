@@ -49,7 +49,9 @@ export default function PretrainedModelFormModal({
     setForm((prev) => ({ ...prev, ...patch }));
   };
 
-  const updateParams = (patch: NonNullable<PretrainedModelConfig['params']>) => {
+  const updateParams = (
+    patch: NonNullable<PretrainedModelConfig['params']>,
+  ) => {
     setForm((prev) => ({
       ...prev,
       params: { ...prev.params, ...patch },
@@ -60,7 +62,10 @@ export default function PretrainedModelFormModal({
     setForm((prev) => ({
       ...prev,
       modelType,
-      configPath: modelType === 'image_segmentation' ? prev.configPath ?? '' : undefined,
+      configPath:
+        modelType === 'image_segmentation'
+          ? (prev.configPath ?? '')
+          : undefined,
       params: defaultParamsForType(modelType),
     }));
   };
@@ -72,7 +77,10 @@ export default function PretrainedModelFormModal({
   };
 
   const handlePickConfig = async () => {
-    const path = await pickModelFile(['yaml', 'yml'], '选择 SAM2 配置文件 (.yaml)');
+    const path = await pickModelFile(
+      ['yaml', 'yml'],
+      '选择 SAM2 配置文件 (.yaml)',
+    );
     if (!path) return;
     updateForm({ configPath: path });
   };
@@ -160,7 +168,10 @@ export default function PretrainedModelFormModal({
       dialogRole="form"
       onSubmit={handleSubmit}
     >
-      <h3 id="pretrained-model-form-title" className="pretrained-model-form-title">
+      <h3
+        id="pretrained-model-form-title"
+        className="pretrained-model-form-title"
+      >
         {isNew ? '添加预训练模型' : '编辑预训练模型'}
       </h3>
 
@@ -230,8 +241,8 @@ export default function PretrainedModelFormModal({
               </VscodeButton>
             </div>
             <span className="pretrained-model-form-hint">
-              SAM2 需要权重与 yaml 架构配置成对使用，变体必须一致（如 base_plus 配
-              sam2.1_hiera_b+.yaml）。
+              SAM2 需要权重与 yaml 架构配置成对使用，变体必须一致（如 base_plus
+              配 sam2.1_hiera_b+.yaml）。
             </span>
           </div>
 
@@ -245,7 +256,8 @@ export default function PretrainedModelFormModal({
               {scanning ? '扫描中…' : '从 SAM2 目录导入'}
             </VscodeButton>
             <span className="pretrained-model-form-hint">
-              选择含 checkpoints/ 与 configs/sam2.1/ 的根目录，自动配对第一个可用变体。
+              选择含 checkpoints/ 与 configs/sam2.1/
+              的根目录，自动配对第一个可用变体。
             </span>
           </div>
         </>

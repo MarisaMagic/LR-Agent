@@ -96,7 +96,11 @@ export class PolygonCanvasInteraction {
     dragStartScenePoints: ScenePoint[];
   } | null = null;
 
-  constructor(private deps: PolygonInteractionDeps) {}
+  private deps: PolygonInteractionDeps;
+
+  constructor(deps: PolygonInteractionDeps) {
+    this.deps = deps;
+  }
 
   private setCanvasCursor(cursor: string): void {
     const canvas = this.deps.getCanvas();
@@ -167,11 +171,7 @@ export class PolygonCanvasInteraction {
       insertIdx >= 0 &&
       insertIdx <= ann.points.length
     ) {
-      const newNorm = scenePointToNorm(
-        roundScenePoint(insertedScene),
-        nw,
-        nh,
-      );
+      const newNorm = scenePointToNorm(roundScenePoint(insertedScene), nw, nh);
       norm = [
         ...ann.points.slice(0, insertIdx),
         newNorm,
@@ -242,9 +242,10 @@ export class PolygonCanvasInteraction {
 
   showVertexHandles(
     obj: AnnotatedPolygon,
-    activeVertexIndex: number | null = null,
+    activeVertexIndex?: number | null,
     scenePoints?: ScenePoint[],
   ): void {
+    const resolvedActive = activeVertexIndex ?? null;
     const canvas = this.deps.getCanvas();
     if (!canvas || !obj._polygonId || this.deps.getTool() !== 'select') return;
 
@@ -257,9 +258,6 @@ export class PolygonCanvasInteraction {
     const points = scenePoints ?? getPolygonScenePoints(obj);
     const currentId = this.vertexHandles[0]?._polygonVertexHandle?.polygonId;
     const radius = this.screenStableSize(POLYGON_VERTEX_HANDLE_RADIUS);
-    const activeRadius = this.screenStableSize(
-      POLYGON_VERTEX_ACTIVE_HANDLE_RADIUS,
-    );
 
     if (
       currentId !== obj._polygonId ||
@@ -273,7 +271,7 @@ export class PolygonCanvasInteraction {
       });
     }
 
-    this.syncVertexHandlePositions(obj, points, activeVertexIndex);
+    this.syncVertexHandlePositions(obj, points, resolvedActive);
     canvas.requestRenderAll();
   }
 
@@ -513,7 +511,9 @@ export class PolygonCanvasInteraction {
     const norm = scenePointsToNorm(this.draft, nw, nh);
     const added = this.deps.addPolygonAnnotation(norm);
     if (!added) {
-      this.deps.showToast('标注数据尚未加载完成，请稍后再试', { type: 'error' });
+      this.deps.showToast('标注数据尚未加载完成，请稍后再试', {
+        type: 'error',
+      });
       return;
     }
 
@@ -544,11 +544,7 @@ export class PolygonCanvasInteraction {
     }
     idx = Math.max(0, Math.min(idx, vertexCount));
 
-    const clamped = clampScenePoint(
-      { x: scenePt.x, y: scenePt.y },
-      nw,
-      nh,
-    );
+    const clamped = clampScenePoint({ x: scenePt.x, y: scenePt.y }, nw, nh);
     this.hideGhostVertex(false);
     insertPolygonVertexAt(obj, idx, clamped);
 
@@ -581,7 +577,10 @@ export class PolygonCanvasInteraction {
       });
     }
 
-    const nextActive = Math.min(index, Math.max(0, (obj.points?.length ?? 1) - 1));
+    const nextActive = Math.min(
+      index,
+      Math.max(0, (obj.points?.length ?? 1) - 1),
+    );
     this.showVertexHandles(obj, nextActive);
     canvas?.requestRenderAll();
   }
@@ -623,14 +622,10 @@ export class PolygonCanvasInteraction {
     if (!this.draggingVertex) return;
     const canvas = this.deps.getCanvas();
     const { width: nw, height: nh } = this.deps.getNaturalSize();
-    const obj = this.draggingVertex.obj;
+    const { obj } = this.draggingVertex;
     const { vertexIndex, scenePoints } = this.draggingVertex;
 
-    const clamped = clampScenePoint(
-      { x: scenePt.x, y: scenePt.y },
-      nw,
-      nh,
-    );
+    const clamped = clampScenePoint({ x: scenePt.x, y: scenePt.y }, nw, nh);
     scenePoints[vertexIndex] = clamped;
 
     updateSinglePolygonVertex(obj, vertexIndex, clamped);
@@ -654,7 +649,7 @@ export class PolygonCanvasInteraction {
     const canvas = this.deps.getCanvas();
     if (!canvas) return;
     const scenePt = getScenePointFromEvent(canvas, opt);
-    const target = opt.target;
+    const { target } = opt;
     const tool = this.deps.getTool();
 
     if (tool === 'select') {

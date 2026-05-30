@@ -74,9 +74,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object');
 }
 
-function isAnnotBase(
-  record: Record<string, unknown>,
-): record is Record<string, unknown> & {
+function isAnnotBase(record: Record<string, unknown>): record is Record<
+  string,
+  unknown
+> & {
   id: string;
   labelId: string;
   createdAt: string;

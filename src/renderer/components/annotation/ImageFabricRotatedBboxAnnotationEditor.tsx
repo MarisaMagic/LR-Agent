@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Canvas, FabricImage, Rect, type FabricObject, type TPointerEvent } from 'fabric';
+import {
+  Canvas,
+  FabricImage,
+  Rect,
+  type FabricObject,
+  type TPointerEvent,
+} from 'fabric';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import { useToast } from '../../context/ToastContext';
 import type { RotatedBboxAnnotation } from '../../types/annotationDocument';
 import { BBOX_THEME } from './annotationBboxTheme';
-import {
-  VIEWPORT_EDGE_PAD,
-  isBoxTooSmall,
-} from './fabric/fabricBboxCoords';
+import { VIEWPORT_EDGE_PAD, isBoxTooSmall } from './fabric/fabricBboxCoords';
 import { BG_IMAGE_NAME } from './fabric/fabricBoxObjects';
 import {
   normToSceneRotatedRect,

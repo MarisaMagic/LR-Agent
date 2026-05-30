@@ -68,8 +68,10 @@ export default function AnnotationItemLabelMenu({
         <div
           className="annotation-right-label-more-menu"
           role="listbox"
+          tabIndex={0}
           aria-label={ariaLabel}
-          onClick={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
         >
           {labels.map((lab) => {
             const active = lab.id === value;

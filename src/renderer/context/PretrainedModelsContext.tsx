@@ -31,7 +31,11 @@ interface PretrainedModelsContextValue {
 const PretrainedModelsContext =
   createContext<PretrainedModelsContextValue | null>(null);
 
-export function PretrainedModelsProvider({ children }: { children: ReactNode }) {
+export function PretrainedModelsProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const [models, setModels] = useState<PretrainedModelConfig[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -115,7 +119,9 @@ export function PretrainedModelsProvider({ children }: { children: ReactNode }) 
 export function usePretrainedModels(): PretrainedModelsContextValue {
   const ctx = useContext(PretrainedModelsContext);
   if (!ctx) {
-    throw new Error('usePretrainedModels must be used within PretrainedModelsProvider');
+    throw new Error(
+      'usePretrainedModels must be used within PretrainedModelsProvider',
+    );
   }
   return ctx;
 }

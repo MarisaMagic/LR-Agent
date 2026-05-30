@@ -123,8 +123,9 @@ const electronHandler = {
       }),
   },
   pretrainedModels: {
-    getAll: (): Promise<import('./pretrainedModels/pretrainedModelStore').PretrainedModelConfig[]> =>
-      ipcRenderer.invoke('pretrainedModels:getAll'),
+    getAll: (): Promise<
+      import('./pretrainedModels/pretrainedModelStore').PretrainedModelConfig[]
+    > => ipcRenderer.invoke('pretrainedModels:getAll'),
     saveAll: (
       models: import('./pretrainedModels/pretrainedModelStore').PretrainedModelConfig[],
     ): Promise<void> => ipcRenderer.invoke('pretrainedModels:saveAll', models),
@@ -146,7 +147,8 @@ const electronHandler = {
     openFile: (options?: {
       title?: string;
       filters?: { name: string; extensions: string[] }[];
-    }): Promise<string | null> => ipcRenderer.invoke('dialog:openFile', options),
+    }): Promise<string | null> =>
+      ipcRenderer.invoke('dialog:openFile', options),
   },
   annotation: {
     getProjects: (): Promise<unknown[]> =>

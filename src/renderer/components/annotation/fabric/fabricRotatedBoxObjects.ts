@@ -13,6 +13,13 @@ import {
 
 export const ROTATED_BOX_ROTATE_CURSOR = 'grab';
 
+export type AnnotatedRotatedBoxRect = Rect & {
+  lrRotatedAnnotationBox?: boolean;
+  data?: { boxId: string; labelId: string };
+  _boxId?: string;
+  _labelObj?: FabricText;
+};
+
 export function applyRotatedBoxRotateHandleCursor(
   rect: AnnotatedRotatedBoxRect,
 ): void {
@@ -22,13 +29,6 @@ export function applyRotatedBoxRotateHandleCursor(
   }
 }
 
-export type AnnotatedRotatedBoxRect = Rect & {
-  lrRotatedAnnotationBox?: boolean;
-  data?: { boxId: string; labelId: string };
-  _boxId?: string;
-  _labelObj?: FabricText;
-};
-
 function displayLabelName(name: string): string {
   const trimmed = name.trim();
   return trimmed.length > 0 ? trimmed : BBOX_THEME.labelEmptyText;
@@ -37,7 +37,9 @@ function displayLabelName(name: string): string {
 export function isAnnotationRotatedBoxRect(
   obj: FabricObject | undefined | null,
 ): obj is AnnotatedRotatedBoxRect {
-  return Boolean(obj && (obj as AnnotatedRotatedBoxRect).lrRotatedAnnotationBox);
+  return Boolean(
+    obj && (obj as AnnotatedRotatedBoxRect).lrRotatedAnnotationBox,
+  );
 }
 
 export function getRotatedBoxRectStyle(labelColor: string) {
@@ -85,7 +87,9 @@ export function createLabelForRotatedBox(
   return t;
 }
 
-export function syncLabelFromRotatedBoxRect(rect: AnnotatedRotatedBoxRect): void {
+export function syncLabelFromRotatedBoxRect(
+  rect: AnnotatedRotatedBoxRect,
+): void {
   const t = rect._labelObj;
   if (!t || !rect._boxId) return;
   const scene = {

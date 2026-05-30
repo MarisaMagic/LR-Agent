@@ -6,6 +6,7 @@ import {
   normToScenePoints,
   scenePointsEqual,
   scenePointsToNorm,
+  roundScenePoints,
 } from './fabricPolygonCoords';
 import {
   applyScenePointsToPolygon,
@@ -16,7 +17,7 @@ import {
   updatePolygonStyle,
   type AnnotatedPolygon,
 } from './fabricPolygonObjects';
-import { roundScenePoints } from './fabricPolygonCoords';
+
 import { BG_IMAGE_NAME } from './fabricBoxObjects';
 
 export function getAnnotationPolygons(canvas: Canvas): AnnotatedPolygon[] {
@@ -31,11 +32,13 @@ export function findAnnotationPolygonById(
 }
 
 export function removeAllAnnotationPolygons(canvas: Canvas): void {
-  const toRemove = canvas.getObjects().filter(
-    (o) =>
-      isAnnotationPolygon(o) ||
-      (o as FabricObject & { lrAnnotationLabel?: boolean }).lrAnnotationLabel,
-  );
+  const toRemove = canvas
+    .getObjects()
+    .filter(
+      (o) =>
+        isAnnotationPolygon(o) ||
+        (o as FabricObject & { lrAnnotationLabel?: boolean }).lrAnnotationLabel,
+    );
   toRemove.forEach((o) => canvas.remove(o));
 }
 
@@ -140,7 +143,9 @@ export function syncPolygonsFromAnnotations(
 
   const bg = canvas
     .getObjects()
-    .find((o) => (o as FabricObject & { name?: string }).name === BG_IMAGE_NAME);
+    .find(
+      (o) => (o as FabricObject & { name?: string }).name === BG_IMAGE_NAME,
+    );
   if (bg) canvas.sendObjectToBack(bg);
   canvas.requestRenderAll();
 }

@@ -12,7 +12,6 @@ import { BG_IMAGE_NAME } from './fabricBoxObjects';
 import {
   attachRotatedBoxAndLabel,
   isAnnotationRotatedBoxRect,
-  syncLabelFromRotatedBoxRect,
   updateRotatedBoxRectStyle,
   type AnnotatedRotatedBoxRect,
 } from './fabricRotatedBoxObjects';

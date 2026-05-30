@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Canvas, FabricImage, Point, type FabricObject } from 'fabric';
+import { Canvas, FabricImage, type FabricObject } from 'fabric';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import { useToast } from '../../context/ToastContext';
@@ -412,7 +412,6 @@ export default function ImageFabricPolygonAnnotationEditor({
   useEffect(() => {
     polygonInteractionRef.current?.syncSelection(selectedAnnotationId);
   }, [selectedAnnotationId, canvasReady, tool]);
-
 
   useEffect(() => {
     const onKeyDown = (ev: KeyboardEvent) => {

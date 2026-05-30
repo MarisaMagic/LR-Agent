@@ -50,14 +50,6 @@ export function scenePointsEqual(
   return true;
 }
 
-export function scenePointToNorm(
-  pt: ScenePoint,
-  naturalWidth: number,
-  naturalHeight: number,
-): { x: number; y: number } {
-  return scenePointsToNorm([pt], naturalWidth, naturalHeight)[0]!;
-}
-
 export function scenePointsToNorm(
   points: ScenePoint[],
   naturalWidth: number,
@@ -69,6 +61,14 @@ export function scenePointsToNorm(
     x: clamp01(pt.x / nw),
     y: clamp01(pt.y / nh),
   }));
+}
+
+export function scenePointToNorm(
+  pt: ScenePoint,
+  naturalWidth: number,
+  naturalHeight: number,
+): { x: number; y: number } {
+  return scenePointsToNorm([pt], naturalWidth, naturalHeight)[0]!;
 }
 
 export function pointBounds(points: ScenePoint[]) {

@@ -28,8 +28,9 @@ export default function registerPretrainedModelHandlers(): void {
     ) => validatePretrainedModel(model),
   );
 
-  ipcMain.handle('pretrainedModels:scanSam2Directory', async (_event, rootDir: string) =>
-    scanSam2Directory(rootDir),
+  ipcMain.handle(
+    'pretrainedModels:scanSam2Directory',
+    async (_event, rootDir: string) => scanSam2Directory(rootDir),
   );
 
   ipcMain.handle(

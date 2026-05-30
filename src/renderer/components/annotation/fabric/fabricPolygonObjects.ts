@@ -77,6 +77,18 @@ export function scenePointToFabricPoint(
   );
 }
 
+export function syncLabelFromPolygon(poly: AnnotatedPolygon): void {
+  const t = poly._labelObj;
+  if (!t) return;
+  const bbox = pointBounds(getPolygonScenePoints(poly));
+  t.set({
+    left: bbox.x + BBOX_THEME.labelTextOffsetX,
+    top: bbox.y + BBOX_THEME.labelTextOffsetY,
+    ...boxLabelFabricTextProps(),
+  });
+  t.setCoords();
+}
+
 /**
  * Move one vertex in Fabric native space without recomputing bbox/pathOffset.
  * Other vertices stay fixed in scene coordinates.
@@ -86,7 +98,7 @@ export function updateSinglePolygonVertex(
   vertexIndex: number,
   scenePt: ScenePoint,
 ): void {
-  const points = poly.points;
+  const { points } = poly;
   if (!points || vertexIndex < 0 || vertexIndex >= points.length) return;
 
   const fabricPt = scenePointToFabricPoint(poly, scenePt);
@@ -101,7 +113,7 @@ export function insertPolygonVertexAt(
   insertIndex: number,
   scenePt: ScenePoint,
 ): void {
-  const points = poly.points;
+  const { points } = poly;
   if (!points || insertIndex < 0 || insertIndex > points.length) return;
 
   const fabricPt = scenePointToFabricPoint(poly, scenePt);
@@ -115,7 +127,7 @@ export function removePolygonVertexAt(
   poly: AnnotatedPolygon,
   vertexIndex: number,
 ): void {
-  const points = poly.points;
+  const { points } = poly;
   if (!points || vertexIndex < 0 || vertexIndex >= points.length) return;
   if (points.length <= MIN_POLYGON_VERTICES) return;
 
@@ -171,16 +183,35 @@ function createLabelForPolygon(
   return t;
 }
 
-export function syncLabelFromPolygon(poly: AnnotatedPolygon): void {
-  const t = poly._labelObj;
-  if (!t) return;
-  const bbox = pointBounds(getPolygonScenePoints(poly));
-  t.set({
-    left: bbox.x + BBOX_THEME.labelTextOffsetX,
-    top: bbox.y + BBOX_THEME.labelTextOffsetY,
-    ...boxLabelFabricTextProps(),
+/**
+ * Apply scene vertices with Fabric pathOffset round-trip:
+ * bootstrap bbox layout, then per-vertex native update so read/write stay consistent.
+ */
+export function applyScenePointsToPolygon(
+  poly: AnnotatedPolygon,
+  scenePoints: ScenePoint[],
+): void {
+  if (scenePoints.length < MIN_POLYGON_VERTICES) return;
+
+  const { bbox, localPoints } = toFabricPolygonGeometry(scenePoints);
+  poly.set({
+    points: localPoints.map((p) => new Point(p.x, p.y)),
+    left: bbox.x,
+    top: bbox.y,
+    scaleX: 1,
+    scaleY: 1,
+    angle: 0,
   });
-  t.setCoords();
+  poly.setDimensions();
+  poly.setCoords();
+
+  for (let i = 0; i < scenePoints.length; i++) {
+    updateSinglePolygonVertex(poly, i, scenePoints[i]);
+  }
+
+  poly.setDimensions();
+  poly.setCoords();
+  syncLabelFromPolygon(poly);
 }
 
 export function attachPolygonAndLabel(
@@ -199,16 +230,13 @@ export function attachPolygonAndLabel(
   const bbox = pointBounds(scenePoints);
   const w = Math.max(bbox.width, 1);
   const h = Math.max(bbox.height, 1);
-  const p = new Polygon(
-    [new Point(0, 0), new Point(w, 0), new Point(0, h)],
-    {
-      left: bbox.x,
-      top: bbox.y,
-      ...getPolygonStyle(labelColor),
-      selectable,
-      evented: selectable,
-    },
-  ) as AnnotatedPolygon;
+  const p = new Polygon([new Point(0, 0), new Point(w, 0), new Point(0, h)], {
+    left: bbox.x,
+    top: bbox.y,
+    ...getPolygonStyle(labelColor),
+    selectable,
+    evented: selectable,
+  }) as AnnotatedPolygon;
 
   p.lrAnnotationPolygon = true;
   p._polygonId = ann.id;
@@ -252,37 +280,6 @@ export function updatePolygonStyle(
     syncLabelFromPolygon(poly);
   }
   poly.setCoords();
-}
-
-/**
- * Apply scene vertices with Fabric pathOffset round-trip:
- * bootstrap bbox layout, then per-vertex native update so read/write stay consistent.
- */
-export function applyScenePointsToPolygon(
-  poly: AnnotatedPolygon,
-  scenePoints: ScenePoint[],
-): void {
-  if (scenePoints.length < MIN_POLYGON_VERTICES) return;
-
-  const { bbox, localPoints } = toFabricPolygonGeometry(scenePoints);
-  poly.set({
-    points: localPoints.map((p) => new Point(p.x, p.y)),
-    left: bbox.x,
-    top: bbox.y,
-    scaleX: 1,
-    scaleY: 1,
-    angle: 0,
-  });
-  poly.setDimensions();
-  poly.setCoords();
-
-  for (let i = 0; i < scenePoints.length; i++) {
-    updateSinglePolygonVertex(poly, i, scenePoints[i]);
-  }
-
-  poly.setDimensions();
-  poly.setCoords();
-  syncLabelFromPolygon(poly);
 }
 
 export function createPolygonVertexHandle(
@@ -342,7 +339,8 @@ export function removePolygonFromCanvas(canvas: Canvas, polygonId: string) {
     .getObjects()
     .find(
       (o) =>
-        isAnnotationPolygon(o) && (o as AnnotatedPolygon)._polygonId === polygonId,
+        isAnnotationPolygon(o) &&
+        (o as AnnotatedPolygon)._polygonId === polygonId,
     ) as AnnotatedPolygon | undefined;
   if (poly) {
     if (poly._labelObj) canvas.remove(poly._labelObj);

@@ -101,7 +101,9 @@ async function readRegistry(): Promise<RegistryFile> {
   }
 }
 
-function normalizeDefaultFlags(models: PretrainedModelConfig[]): PretrainedModelConfig[] {
+function normalizeDefaultFlags(
+  models: PretrainedModelConfig[],
+): PretrainedModelConfig[] {
   const byType = new Map<PretrainedModelType, PretrainedModelConfig[]>();
   for (const model of models) {
     const list = byType.get(model.modelType) ?? [];
@@ -146,7 +148,9 @@ export async function savePretrainedModels(
   );
 }
 
-function matchSam2Variant(checkpointName: string): (typeof SAM2_VARIANTS)[number] | null {
+function matchSam2Variant(
+  checkpointName: string,
+): (typeof SAM2_VARIANTS)[number] | null {
   const lower = checkpointName.toLowerCase();
   for (const variant of SAM2_VARIANTS) {
     if (variant.checkpointHints.some((hint) => lower.includes(hint))) {
@@ -156,7 +160,9 @@ function matchSam2Variant(checkpointName: string): (typeof SAM2_VARIANTS)[number
   return null;
 }
 
-export async function scanSam2Directory(rootDir: string): Promise<Sam2ScanResult[]> {
+export async function scanSam2Directory(
+  rootDir: string,
+): Promise<Sam2ScanResult[]> {
   const resolvedRoot = path.resolve(rootDir);
   if (!(await fs.pathExists(resolvedRoot))) {
     return [];
@@ -184,7 +190,7 @@ export async function scanSam2Directory(rootDir: string): Promise<Sam2ScanResult
     const variant = matchSam2Variant(checkpointFile);
     if (!variant) continue;
 
-    const configFile = variant.configFile;
+    const { configFile } = variant;
     if (!configFiles.includes(configFile)) continue;
 
     results.push({

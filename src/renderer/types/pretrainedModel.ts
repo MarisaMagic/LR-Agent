@@ -95,10 +95,7 @@ export function normalizeModelsOnSave(
 
   if (changed?.isDefault) {
     for (const model of next) {
-      if (
-        model.modelType === changed.modelType &&
-        model.id !== changed.id
-      ) {
+      if (model.modelType === changed.modelType && model.id !== changed.id) {
         model.isDefault = false;
       }
     }
@@ -114,10 +111,7 @@ export function normalizeModelsOnSave(
   for (const list of byType.values()) {
     const enabledDefaults = list.filter((m) => m.enabled && m.isDefault);
     if (enabledDefaults.length === 1) continue;
-    const pick =
-      enabledDefaults[0] ??
-      list.find((m) => m.enabled) ??
-      list[0];
+    const pick = enabledDefaults[0] ?? list.find((m) => m.enabled) ?? list[0];
     if (!pick) continue;
     for (const model of list) {
       model.isDefault = model.id === pick.id;

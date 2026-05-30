@@ -155,7 +155,9 @@ function renderBboxWorkspaceBody(
         <AnnotationMotionList className="annotation-right-items">
           {bboxAnnotations.map((ann, idx) => {
             const selected = ann.id === selectedAnnotationId;
-            const activeLabel = project.labels.find((l) => l.id === ann.labelId);
+            const activeLabel = project.labels.find(
+              (l) => l.id === ann.labelId,
+            );
             const selectItem = () => selectAnnotation(ann.id);
             return (
               <AnnotationMotionListItem
@@ -224,7 +226,9 @@ function renderRotatedBboxWorkspaceBody(
         <AnnotationMotionList className="annotation-right-items">
           {rotatedBboxAnnotations.map((ann, idx) => {
             const selected = ann.id === selectedAnnotationId;
-            const activeLabel = project.labels.find((l) => l.id === ann.labelId);
+            const activeLabel = project.labels.find(
+              (l) => l.id === ann.labelId,
+            );
             const selectItem = () => {
               setTool('select');
               selectAnnotation(ann.id);
@@ -297,7 +301,9 @@ function renderPolygonWorkspaceBody(
         <AnnotationMotionList className="annotation-right-items">
           {polygonAnnotations.map((ann, idx) => {
             const selected = ann.id === selectedAnnotationId;
-            const activeLabel = project.labels.find((l) => l.id === ann.labelId);
+            const activeLabel = project.labels.find(
+              (l) => l.id === ann.labelId,
+            );
             const selectItem = () => {
               setTool('select');
               selectAnnotation(ann.id);

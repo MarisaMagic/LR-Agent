@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { VscodeButton } from '@vscode-elements/react-elements';
-import { VscodeToolbarContainer } from '@vscode-elements/react-elements';
+import {
+  VscodeButton,
+  VscodeToolbarContainer,
+} from '@vscode-elements/react-elements';
+
 import VscodeClickableToolbarButton from '../VscodeClickableButton';
 import VscodeScrollHost from '../VscodeScrollHost';
 import ModalMotion from '../../motion/ModalMotion';
@@ -25,9 +28,8 @@ export default function PretrainedModelsPanel() {
 
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [formOpen, setFormOpen] = useState(false);
-  const [editingModel, setEditingModel] = useState<PretrainedModelConfig | null>(
-    null,
-  );
+  const [editingModel, setEditingModel] =
+    useState<PretrainedModelConfig | null>(null);
   const [deleteTarget, setDeleteTarget] =
     useState<PretrainedModelConfig | null>(null);
 
@@ -73,7 +75,11 @@ export default function PretrainedModelsPanel() {
         />
       </VscodeToolbarContainer>
 
-      <div className="pretrained-models-filter" role="tablist" aria-label="模型类型筛选">
+      <div
+        className="pretrained-models-filter"
+        role="tablist"
+        aria-label="模型类型筛选"
+      >
         {(
           [
             ['all', '全部'],
@@ -87,7 +93,9 @@ export default function PretrainedModelsPanel() {
             role="tab"
             aria-selected={filterType === value}
             className={`pretrained-models-filter-btn${
-              filterType === value ? ' pretrained-models-filter-btn--active' : ''
+              filterType === value
+                ? ' pretrained-models-filter-btn--active'
+                : ''
             }`}
             onClick={() => setFilterType(value)}
           >
@@ -128,7 +136,8 @@ export default function PretrainedModelsPanel() {
         >
           <h3 id="pretrained-model-delete-title">删除模型配置？</h3>
           <p>
-            将删除本地配置「{getModelDisplayName(deleteTarget)}」，不会删除磁盘上的权重文件。
+            将删除本地配置「{getModelDisplayName(deleteTarget)}
+            」，不会删除磁盘上的权重文件。
           </p>
           <div className="pretrained-model-delete-actions">
             <VscodeButton secondary onClick={() => setDeleteTarget(null)}>

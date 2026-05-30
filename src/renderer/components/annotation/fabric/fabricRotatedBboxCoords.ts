@@ -16,10 +16,7 @@ export interface FabricRotatedRectPixels {
 
 /** Normalized rotated bbox → scene pixels (natural image coordinate system). */
 export function normToSceneRotatedRect(
-  ann: Pick<
-    RotatedBboxAnnotation,
-    'cx' | 'cy' | 'width' | 'height' | 'angle'
-  >,
+  ann: Pick<RotatedBboxAnnotation, 'cx' | 'cy' | 'width' | 'height' | 'angle'>,
   naturalWidth: number,
   naturalHeight: number,
 ): FabricRotatedRectPixels {
@@ -37,10 +34,7 @@ export function sceneRotatedRectToNorm(
   rect: FabricRotatedRectPixels,
   naturalWidth: number,
   naturalHeight: number,
-): Pick<
-  RotatedBboxAnnotation,
-  'cx' | 'cy' | 'width' | 'height' | 'angle'
-> {
+): Pick<RotatedBboxAnnotation, 'cx' | 'cy' | 'width' | 'height' | 'angle'> {
   const nw = naturalWidth > 0 ? naturalWidth : 1;
   const nh = naturalHeight > 0 ? naturalHeight : 1;
   return {
@@ -57,10 +51,7 @@ export function sceneRectToRotatedNorm(
   rect: FabricRectPixels,
   naturalWidth: number,
   naturalHeight: number,
-): Pick<
-  RotatedBboxAnnotation,
-  'cx' | 'cy' | 'width' | 'height' | 'angle'
-> {
+): Pick<RotatedBboxAnnotation, 'cx' | 'cy' | 'width' | 'height' | 'angle'> {
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
   return sceneRotatedRectToNorm(
@@ -70,7 +61,9 @@ export function sceneRectToRotatedNorm(
   );
 }
 
-export function fabricRectToSceneRotatedPixels(rect: Rect): FabricRotatedRectPixels {
+export function fabricRectToSceneRotatedPixels(
+  rect: Rect,
+): FabricRotatedRectPixels {
   const width = (rect.width ?? 0) * (rect.scaleX ?? 1);
   const height = (rect.height ?? 0) * (rect.scaleY ?? 1);
   return {
