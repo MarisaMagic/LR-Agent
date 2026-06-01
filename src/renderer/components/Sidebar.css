@@ -2,7 +2,7 @@
   flex-shrink: 0;
   align-self: stretch;
   min-height: 0;
-  height: 100vh;
+  height: 100%;
   background: var(--vscode-sideBar-background, #252526);
   overflow: hidden;
   transition: width 0.2s ease;
@@ -35,14 +35,22 @@
   overflow: hidden;
 }
 
-/* 仅作区块标题栏，正文在下方 sidebar-body */
 .sidebar-panel-header {
   flex-shrink: 0;
-  font-size: 13px;
-}
-
-.sidebar-panel-header::part(body) {
-  display: none;
+  display: flex;
+  align-items: center;
+  height: 22px;
+  line-height: 22px;
+  padding: 0 8px;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--vscode-sideBarTitle-foreground, #cccccc);
+  background: var(--vscode-sideBarSectionHeader-background, #181818);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-body {

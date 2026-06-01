@@ -85,6 +85,7 @@ export default function PretrainedModelsPanel() {
             ['all', '全部'],
             ['object_detection', 'YOLO'],
             ['image_segmentation', 'SAM2'],
+            ['keypoint_estimation', '关键点'],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -114,6 +115,7 @@ export default function PretrainedModelsPanel() {
           filterType={filterType}
           onEdit={openEdit}
           onDelete={setDeleteTarget}
+          onSetDefault={(model) => upsertModel({ ...model, isDefault: true })}
         />
       </VscodeScrollHost>
 

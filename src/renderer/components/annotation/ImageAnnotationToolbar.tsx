@@ -5,10 +5,13 @@ import {
   type ImageCanvasTool,
 } from '../../context/AnnotationWorkspaceContext';
 import AnnotationDrawLabelPicker from './AnnotationDrawLabelPicker';
+import KeypointTemplateSelector from './KeypointTemplateSelector';
+import PreAnnotToolbarSection from './PreAnnotToolbarSection';
 import './ImageAnnotationToolbar.css';
 
 export interface ImageAnnotationToolbarProps {
-  mode?: 'bbox' | 'rotated_bbox' | 'polygon';
+  mode?: 'bbox' | 'rotated_bbox' | 'polygon' | 'keypoint';
+  imagePath?: string;
   canvasReady?: boolean;
   imageNatural?: { w: number; h: number };
   onZoomIn?: () => void;
@@ -18,6 +21,7 @@ export interface ImageAnnotationToolbarProps {
 
 export default function ImageAnnotationToolbar({
   mode = 'bbox',
+  imagePath = '',
   canvasReady = false,
   imageNatural = { w: 0, h: 0 },
   onZoomIn,
@@ -77,7 +81,26 @@ export default function ImageAnnotationToolbar({
         role="group"
         aria-label="画布工具"
       >
-        {mode === 'bbox' || mode === 'rotated_bbox' ? (
+        {mode === 'keypoint' ? (
+          <>
+            <VscodeButton
+              secondary
+              className={`image-annotation-tool-btn${tool === 'place_pose' ? ' image-annotation-tool-btn--active' : ''}`}
+              aria-pressed={tool === 'place_pose'}
+              onClick={() => setToolAndFocus('place_pose')}
+            >
+              放置骨架 (P)
+            </VscodeButton>
+            <VscodeButton
+              secondary
+              className={`image-annotation-tool-btn${tool === 'place_point' ? ' image-annotation-tool-btn--active' : ''}`}
+              aria-pressed={tool === 'place_point'}
+              onClick={() => setToolAndFocus('place_point')}
+            >
+              单点 (D)
+            </VscodeButton>
+          </>
+        ) : mode === 'bbox' || mode === 'rotated_bbox' ? (
           <VscodeButton
             secondary
             className={`image-annotation-tool-btn${tool === 'draw' ? ' image-annotation-tool-btn--active' : ''}`}
@@ -105,23 +128,35 @@ export default function ImageAnnotationToolbar({
           选择 (V)
         </VscodeButton>
       </div>
-      <div className="image-annotation-toolbar-labels">
-        <span className="image-annotation-toolbar-hint">绘制标签</span>
-        {activeProject.labels.length === 0 ? (
-          <span className="image-annotation-toolbar-empty">
-            请先在任务中定义标签
-          </span>
-        ) : (
-          <AnnotationDrawLabelPicker
-            className="image-annotation-toolbar-chips"
-            variant="toolbar"
-            labels={activeProject.labels}
-            labelUsage={labelUsage}
-            activeLabelId={activeLabelId}
-            onSelect={setActiveLabelId}
-          />
-        )}
-      </div>
+      {mode === 'keypoint' ? (
+        <div className="image-annotation-toolbar-labels">
+          <KeypointTemplateSelector />
+        </div>
+      ) : (
+        <div className="image-annotation-toolbar-labels">
+          {activeProject.labels.length === 0 ? (
+            <span className="image-annotation-toolbar-empty">
+              请先在任务中定义标签
+            </span>
+          ) : (
+            <AnnotationDrawLabelPicker
+              className="image-annotation-toolbar-chips"
+              variant="toolbar"
+              labels={activeProject.labels}
+              labelUsage={labelUsage}
+              activeLabelId={activeLabelId}
+              onSelect={setActiveLabelId}
+            />
+          )}
+        </div>
+      )}
+      {imagePath ? (
+        <PreAnnotToolbarSection
+          mode={mode}
+          imagePath={imagePath}
+          disabled={!canvasReady}
+        />
+      ) : null}
     </div>
   );
 }

@@ -23,6 +23,29 @@
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
+.label-editor-keypoint-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  line-height: 1.45;
+}
+
+.label-editor-name-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label-editor-template-badge {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground, #858585);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .label-editor-list {
   list-style: none;
   margin: 0;

@@ -6,7 +6,7 @@ import UserAvatar from './UserAvatar';
 import { MoonIcon, SunIcon } from './ThemeToggleIcons';
 import './ActivityBar.css';
 
-export type LeftPanel = 'explorer' | 'annotations' | 'models' | 'settings';
+export type LeftPanel = 'explorer' | 'annotations' | 'models' | 'llmProviders' | 'settings';
 export type RightPanel = 'agent' | 'annotation';
 
 interface ActivityBarProps {
@@ -15,6 +15,7 @@ interface ActivityBarProps {
   onExplorerClick?: () => void;
   onAnnotationsClick?: () => void;
   onModelsClick?: () => void;
+  onLlmProvidersClick?: () => void;
   onSettingsClick?: () => void;
   onAgentClick?: () => void;
   /** When open, render an extra 「标注列表」icon on the right bar */
@@ -107,6 +108,7 @@ export default function ActivityBar({
   onExplorerClick,
   onAnnotationsClick,
   onModelsClick,
+  onLlmProvidersClick,
   onSettingsClick,
   onAgentClick,
   showAnnotationToolbar,
@@ -135,6 +137,12 @@ export default function ActivityBar({
             label="预训练模型"
             active={activePanel === 'models'}
             onClick={onModelsClick ?? (() => undefined)}
+          />
+          <ActivityIcon
+            name="copilot"
+            label="大模型配置"
+            active={activePanel === 'llmProviders'}
+            onClick={onLlmProvidersClick ?? (() => undefined)}
           />
         </div>
         <div className="activity-bar-bottom">

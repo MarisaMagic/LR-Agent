@@ -2,6 +2,8 @@ import {
   PretrainedModelConfig,
   PretrainedModelValidationResult,
   Sam2ScanResult,
+  KeypointAssetScanResult,
+  KeypointBundleScanResult,
   normalizeModelsOnSave,
 } from '../types/pretrainedModel';
 
@@ -22,7 +24,12 @@ export async function persistPretrainedModels(
 export async function validatePretrainedModelPaths(
   model: Pick<
     PretrainedModelConfig,
-    'modelType' | 'checkpointPath' | 'configPath'
+    | 'modelType'
+    | 'checkpointPath'
+    | 'configPath'
+    | 'keypointBackend'
+    | 'keypointTemplateIds'
+    | 'auxiliaryPaths'
   >,
 ): Promise<PretrainedModelValidationResult> {
   if (!window.electron?.pretrainedModels) {
@@ -38,6 +45,20 @@ export async function scanSam2Directory(
   return window.electron.pretrainedModels.scanSam2Directory(rootDir);
 }
 
+export async function scanFaceAlignmentDirectory(
+  rootDir: string,
+): Promise<KeypointAssetScanResult | null> {
+  if (!window.electron?.pretrainedModels) return null;
+  return window.electron.pretrainedModels.scanFaceAlignmentDirectory(rootDir);
+}
+
+export async function scanKeypointBundleDirectory(
+  rootDir: string,
+): Promise<KeypointBundleScanResult> {
+  if (!window.electron?.pretrainedModels) return { models: [] };
+  return window.electron.pretrainedModels.scanKeypointBundleDirectory(rootDir);
+}
+
 export async function pickModelFile(
   extensions: string[],
   title: string,
@@ -50,5 +71,9 @@ export async function pickModelFile(
 }
 
 export async function pickSam2RootDirectory(): Promise<string | null> {
+  return window.electron.fileSystem.openDirectory();
+}
+
+export async function pickKeypointRootDirectory(): Promise<string | null> {
   return window.electron.fileSystem.openDirectory();
 }

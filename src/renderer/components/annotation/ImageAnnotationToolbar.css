@@ -41,15 +41,7 @@
   gap: 8px;
   flex: 1;
   min-width: 0;
-  flex-wrap: wrap;
-}
-
-.image-annotation-toolbar-hint {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--vscode-descriptionForeground, #858585);
+  flex-wrap: nowrap;
 }
 
 .image-annotation-toolbar-empty {
@@ -58,22 +50,29 @@
 }
 
 .image-annotation-toolbar-chips {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  overflow: visible;
 }
 
 .image-annotation-toolbar-chip {
   appearance: none;
+  flex-shrink: 0;
   border: 1px solid transparent;
   border-radius: 4px;
   padding: 3px 8px;
   font-size: 12px;
   cursor: pointer;
+  white-space: nowrap;
   opacity: 0.75;
   transition:
     opacity var(--annotation-motion-duration) var(--annotation-motion-ease),
-    outline var(--annotation-motion-duration) var(--annotation-motion-ease),
     box-shadow var(--annotation-motion-duration) var(--annotation-motion-ease);
 }
 
@@ -84,9 +83,9 @@
 .image-annotation-toolbar-chip--active {
   opacity: 1;
   font-weight: 600;
-  outline: 2px solid var(--vscode-focusBorder, #007fd4);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 1px rgba(0, 127, 212, 0.3);
+  box-shadow:
+    0 0 0 1px rgba(0, 127, 212, 0.3),
+    0 0 0 2px var(--vscode-focusBorder, #007fd4);
 }
 
 .image-annotation-toolbar-more-wrap {
@@ -124,25 +123,6 @@
 
 .image-annotation-toolbar-more-btn .codicon {
   font-size: 16px;
-}
-
-.image-annotation-toolbar-more-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 120px;
-  max-width: 220px;
-  max-height: 220px;
-  overflow-y: auto;
-  padding: 4px;
-  border: 1px solid var(--vscode-menu-border, #454545);
-  border-radius: 4px;
-  background: var(--vscode-menu-background, #252526);
-  box-shadow: 0 4px 12px var(--lr-menu-shadow, rgba(0, 0, 0, 0.4));
 }
 
 .image-annotation-toolbar-chip--menu {

@@ -127,6 +127,7 @@
     "framer-motion": "^12.40.0",
     "fs-extra": "^11.3.5",
     "highlight.js": "^11.11.1",
+    "katex": "^0.17.0",
     "mammoth": "^1.12.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -134,7 +135,9 @@
     "react-markdown": "^10.1.0",
     "react-pdf": "^10.4.1",
     "react-router-dom": "^7.3.0",
+    "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "seti-icons": "^0.0.4"
   },
   "devDependencies": {

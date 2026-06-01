@@ -10,10 +10,11 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import ActivityBar, { type LeftPanel, type RightPanel } from './ActivityBar';
 import AnnotationRightPanel from './annotation/AnnotationRightPanel';
-import AgentPanel from './AgentPanel';
+import AgentPanel from './agent/AgentPanel';
 import EmailVerifyBanner from './EmailVerifyBanner';
 import FileTree from './FileTree';
 import FileViewer from './FileViewer';
+import LlmProvidersPanel from './llmProviders/LlmProvidersPanel';
 import PretrainedModelsPanel from './pretrainedModels/PretrainedModelsPanel';
 import SettingsPanel from './SettingsPanel';
 import Sidebar from './Sidebar';
@@ -21,6 +22,7 @@ import PanelTransition from '../motion/PanelTransition';
 import AnnotationProjectPanel from './annotation/AnnotationProjectPanel';
 import CreateAnnotationProjectWizard from './annotation/CreateAnnotationProjectWizard';
 import EditAnnotationProjectModal from './annotation/EditAnnotationProjectModal';
+import ExportAnnotationWizard from './annotation/ExportAnnotationWizard';
 import { useAnnotation } from '../context/AnnotationContext';
 import './Layout.css';
 
@@ -32,11 +34,13 @@ const LEFT_PANEL_TITLES: Record<LeftPanel, string> = {
   explorer: '资源管理器',
   annotations: '标注任务',
   models: '预训练模型',
+  llmProviders: '大模型配置',
   settings: '账户设置',
 };
 
 function renderLeftPanel(panel: LeftPanel, onProjectOpened: () => void) {
   if (panel === 'settings') return <SettingsPanel />;
+  if (panel === 'llmProviders') return <LlmProvidersPanel />;
   if (panel === 'models') return <PretrainedModelsPanel />;
   if (panel === 'annotations') {
     return <AnnotationProjectPanel onProjectOpened={onProjectOpened} />;
@@ -53,7 +57,6 @@ export default function Layout() {
     setLeftWidth,
     setRightWidth,
     toggleLeftSidebar,
-    toggleRightSidebar,
     expandLeftSidebar,
     expandRightSidebar,
     activeFilePath,
@@ -64,6 +67,8 @@ export default function Layout() {
     closeCreateWizard,
     editingProject,
     closeEditProject,
+    exportingProject,
+    closeExportProject,
     activeProject,
     mode,
   } = useAnnotation();
@@ -106,25 +111,33 @@ export default function Layout() {
     const rightOccupied = rightCollapsed
       ? RIGHT_ACTIVITY_BAR_WIDTH
       : rightWidth + RESIZER_WIDTH;
-    return Math.min(
-      maxSidebarWidth,
+    const spaceMax =
       window.innerWidth -
-        ACTIVITY_BAR_WIDTH -
-        RESIZER_WIDTH -
-        minMainContentWidth -
-        rightOccupied,
+      ACTIVITY_BAR_WIDTH -
+      RESIZER_WIDTH -
+      minMainContentWidth -
+      rightOccupied;
+    return Math.max(
+      minSidebarWidth,
+      Math.min(maxSidebarWidth, spaceMax),
     );
-  }, [rightCollapsed, rightWidth, maxSidebarWidth, minMainContentWidth]);
+  }, [
+    rightCollapsed,
+    rightWidth,
+    maxSidebarWidth,
+    minMainContentWidth,
+    minSidebarWidth,
+  ]);
 
   const getMaxRightWidth = useCallback(() => {
     const leftOccupied = leftCollapsed
       ? ACTIVITY_BAR_WIDTH
       : ACTIVITY_BAR_WIDTH + leftWidth + RESIZER_WIDTH;
-    return Math.min(
-      maxSidebarWidth,
-      window.innerWidth - leftOccupied - RESIZER_WIDTH - minMainContentWidth,
-    );
-  }, [leftCollapsed, leftWidth, maxSidebarWidth, minMainContentWidth]);
+    const spaceMax =
+      window.innerWidth - leftOccupied - RESIZER_WIDTH - minMainContentWidth;
+    const halfMax = Math.floor(window.innerWidth * 0.5);
+    return Math.max(minSidebarWidth, Math.min(halfMax, spaceMax));
+  }, [leftCollapsed, leftWidth, minMainContentWidth, minSidebarWidth]);
 
   const clampLeftWidth = useCallback(
     (width: number) =>
@@ -139,7 +152,37 @@ export default function Layout() {
   );
 
   useEffect(() => {
+    if (resizingSide) return;
+
+    if (!rightCollapsed) {
+      const nextRight = clampRightWidth(rightWidth);
+      if (nextRight !== rightWidth) {
+        setRightWidth(nextRight);
+        return;
+      }
+    }
+
+    if (!leftCollapsed) {
+      const nextLeft = clampLeftWidth(leftWidth);
+      if (nextLeft !== leftWidth) {
+        setLeftWidth(nextLeft);
+      }
+    }
+  }, [
+    resizingSide,
+    leftCollapsed,
+    rightCollapsed,
+    leftWidth,
+    rightWidth,
+    clampLeftWidth,
+    clampRightWidth,
+    setLeftWidth,
+    setRightWidth,
+  ]);
+
+  useEffect(() => {
     const onResize = () => {
+      if (resizingSide) return;
       if (!leftCollapsed) {
         setLeftWidth(clampLeftWidth(leftWidth));
       }
@@ -150,6 +193,7 @@ export default function Layout() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [
+    resizingSide,
     leftCollapsed,
     rightCollapsed,
     leftWidth,
@@ -291,6 +335,7 @@ export default function Layout() {
         onExplorerClick={() => openLeftPanel('explorer')}
         onAnnotationsClick={() => openLeftPanel('annotations')}
         onModelsClick={() => openLeftPanel('models')}
+        onLlmProvidersClick={() => openLeftPanel('llmProviders')}
         onSettingsClick={() => openLeftPanel('settings')}
       />
 
@@ -300,7 +345,6 @@ export default function Layout() {
         collapsed={leftCollapsed}
         isResizing={resizingSide === 'left'}
         title={leftSidebarTitle}
-        onToggleCollapse={toggleLeftSidebar}
       >
         <PanelTransition panelKey={leftPanel} className="sidebar-panel-motion">
           {renderLeftPanel(leftPanel, handleProjectOpened)}
@@ -338,7 +382,6 @@ export default function Layout() {
         collapsed={rightCollapsed}
         isResizing={resizingSide === 'right'}
         title={rightSidebarTitle}
-        onToggleCollapse={toggleRightSidebar}
       >
         {annotationToolbarActive ? (
           <>
@@ -397,7 +440,9 @@ export default function Layout() {
             </PanelTransition>
           </>
         ) : (
-          <AgentPanel />
+          <div className="sidebar-panel-motion">
+            <AgentPanel />
+          </div>
         )}
       </Sidebar>
 
@@ -425,6 +470,11 @@ export default function Layout() {
           onClose={closeEditProject}
         />
       )}
+
+      <ExportAnnotationWizard
+        project={exportingProject}
+        onClose={closeExportProject}
+      />
     </div>
   );
 }

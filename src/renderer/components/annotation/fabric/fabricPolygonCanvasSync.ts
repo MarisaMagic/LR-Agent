@@ -93,7 +93,7 @@ export function polygonCanvasMatchesAnnotation(
 export function syncPolygonsFromAnnotations(
   canvas: Canvas,
   annotations: PolygonAnnotation[],
-  labelResolver: (labelId: string) => { name: string; color: string } | null,
+  labelResolver: (labelId: string | null) => { name: string; color: string } | null,
   naturalWidth: number,
   naturalHeight: number,
   tool: ImageCanvasTool,
@@ -165,7 +165,7 @@ export function extractNormFromPolygon(
 export function patchAnnotationPolygonStyles(
   canvas: Canvas,
   annotations: PolygonAnnotation[],
-  labelResolver: (labelId: string) => { name: string; color: string } | null,
+  labelResolver: (labelId: string | null) => { name: string; color: string } | null,
 ): void {
   annotations.forEach((ann) => {
     const poly = findAnnotationPolygonById(canvas, ann.id);

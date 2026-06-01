@@ -10,8 +10,10 @@ import {
 import {
   PretrainedModelConfig,
   PretrainedModelType,
+  KeypointBackend,
   createModelId,
   defaultParamsForType,
+  KEYPOINT_BACKEND_PRESETS,
 } from '../types/pretrainedModel';
 import {
   loadPretrainedModels,
@@ -26,6 +28,9 @@ interface PretrainedModelsContextValue {
   deleteModel: (id: string) => Promise<void>;
   getModelsByType: (type: PretrainedModelType) => PretrainedModelConfig[];
   getDefaultModel: (type: PretrainedModelType) => PretrainedModelConfig | null;
+  getDefaultKeypointModel: (
+    templateId: string,
+  ) => PretrainedModelConfig | null;
 }
 
 const PretrainedModelsContext =
@@ -88,6 +93,19 @@ export function PretrainedModelsProvider({
     [models],
   );
 
+  const getDefaultKeypointModel = useCallback(
+    (templateId: string) => {
+      const enabled = models.filter(
+        (m) =>
+          m.modelType === 'keypoint_estimation' &&
+          m.enabled &&
+          m.keypointTemplateIds?.includes(templateId),
+      );
+      return enabled.find((m) => m.isDefault) ?? enabled[0] ?? null;
+    },
+    [models],
+  );
+
   const value = useMemo(
     () => ({
       models,
@@ -97,6 +115,7 @@ export function PretrainedModelsProvider({
       deleteModel,
       getModelsByType,
       getDefaultModel,
+      getDefaultKeypointModel,
     }),
     [
       models,
@@ -106,6 +125,7 @@ export function PretrainedModelsProvider({
       deleteModel,
       getModelsByType,
       getDefaultModel,
+      getDefaultKeypointModel,
     ],
   );
 
@@ -128,8 +148,11 @@ export function usePretrainedModels(): PretrainedModelsContextValue {
 
 export function buildEmptyModel(
   modelType: PretrainedModelType,
+  keypointBackend: KeypointBackend = 'yolo_pose',
 ): PretrainedModelConfig {
   const now = new Date().toISOString();
+  const preset = KEYPOINT_BACKEND_PRESETS[keypointBackend];
+
   return {
     id: createModelId(),
     name: '',
@@ -138,7 +161,17 @@ export function buildEmptyModel(
     isDefault: false,
     checkpointPath: '',
     configPath: modelType === 'image_segmentation' ? '' : undefined,
-    params: defaultParamsForType(modelType),
+    keypointBackend:
+      modelType === 'keypoint_estimation' ? keypointBackend : undefined,
+    keypointTemplateIds:
+      modelType === 'keypoint_estimation'
+        ? [...preset.defaultTemplateIds]
+        : undefined,
+    auxiliaryPaths:
+      modelType === 'keypoint_estimation' && keypointBackend === 'face_alignment'
+        ? { detector: '', torchHome: '' }
+        : undefined,
+    params: defaultParamsForType(modelType, keypointBackend),
     description: '',
     createdAt: now,
     updatedAt: now,

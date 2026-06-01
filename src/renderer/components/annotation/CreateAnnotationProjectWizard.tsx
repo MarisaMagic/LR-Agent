@@ -13,6 +13,7 @@ import {
 import { findProjectByDirectory } from '../../services/annotationProjectStore';
 import { useAnnotation } from '../../context/AnnotationContext';
 import LabelEditor, { normalizeLabels } from './LabelEditor';
+import { buildDefaultKeypointLabels } from '../../types/keypointTemplate';
 import './CreateAnnotationProjectWizard.css';
 
 interface CreateAnnotationProjectWizardProps {
@@ -65,6 +66,13 @@ export default function CreateAnnotationProjectWizard({
     setError(null);
     setSubmitting(false);
   }, [open]);
+
+  useEffect(() => {
+    if (annotationType !== 'keypoint') return;
+    setLabels((prev) =>
+      prev.length === 0 ? buildDefaultKeypointLabels() : prev,
+    );
+  }, [annotationType]);
 
   const handlePickDirectory = async () => {
     setError(null);
@@ -290,7 +298,11 @@ export default function CreateAnnotationProjectWizard({
 
       {step === 3 && (
         <div className="create-annotation-body">
-          <LabelEditor labels={labels} onChange={setLabels} />
+          <LabelEditor
+            labels={labels}
+            onChange={setLabels}
+            keypointMode={annotationType === 'keypoint'}
+          />
         </div>
       )}
 

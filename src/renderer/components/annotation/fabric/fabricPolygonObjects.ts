@@ -31,7 +31,7 @@ export type AnnotatedPolygon = Polygon & {
   lrAnnotationPolygon?: boolean;
   _polygonId?: string;
   _labelObj?: FabricText;
-  data?: { polygonId: string; labelId: string };
+  data?: { polygonId: string; labelId: string | null };
 };
 
 export type PolygonVertexHandle = Circle & {

@@ -18,6 +18,8 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import MotionProvider from './motion/MotionProvider';
 import PageTransition from './motion/PageTransition';
 import { PretrainedModelsProvider } from './context/PretrainedModelsContext';
+import { LlmProvidersProvider } from './context/LlmProvidersContext';
+import { AgentChatProvider } from './context/AgentChatContext';
 import { ThemeProvider } from './context/ThemeContext';
 import './vscode-setup';
 import './App.css';
@@ -30,23 +32,27 @@ function MainAppRoutes() {
       <ToastProvider>
         <AppProvider>
           <PretrainedModelsProvider>
-            <AnnotationProvider>
-              <AnnotationWorkspaceProvider>
-                <AppShell>
-                  <PageTransition
-                    routeKey={location.pathname}
-                    className="app-shell-transition"
-                  >
-                    <Routes location={location}>
-                      <Route path="/auth" element={<AuthPage />} />
-                      <Route element={<RequireAuth />}>
-                        <Route path="/" element={<Layout />} />
-                      </Route>
-                    </Routes>
-                  </PageTransition>
-                </AppShell>
-              </AnnotationWorkspaceProvider>
-            </AnnotationProvider>
+            <LlmProvidersProvider>
+              <AgentChatProvider>
+                <AnnotationProvider>
+                  <AnnotationWorkspaceProvider>
+                    <AppShell>
+                      <PageTransition
+                        routeKey={location.pathname}
+                        className="app-shell-transition"
+                      >
+                        <Routes location={location}>
+                          <Route path="/auth" element={<AuthPage />} />
+                          <Route element={<RequireAuth />}>
+                            <Route path="/" element={<Layout />} />
+                          </Route>
+                        </Routes>
+                      </PageTransition>
+                    </AppShell>
+                  </AnnotationWorkspaceProvider>
+                </AnnotationProvider>
+              </AgentChatProvider>
+            </LlmProvidersProvider>
           </PretrainedModelsProvider>
         </AppProvider>
       </ToastProvider>

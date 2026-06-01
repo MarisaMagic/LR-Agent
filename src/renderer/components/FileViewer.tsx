@@ -22,6 +22,7 @@ import HighlightedCodeBlock from './preview/HighlightedCodeBlock';
 import ImageFabricAnnotationEditor from './annotation/ImageFabricAnnotationEditor';
 import ImageFabricRotatedBboxAnnotationEditor from './annotation/ImageFabricRotatedBboxAnnotationEditor';
 import ImageFabricPolygonAnnotationEditor from './annotation/ImageFabricPolygonAnnotationEditor';
+import ImageFabricKeypointAnnotationEditor from './annotation/ImageFabricKeypointAnnotationEditor';
 import FileTypeIcon from './FileTypeIcon';
 import 'react-pdf/dist/Page/TextLayer.css';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
@@ -162,6 +163,8 @@ export default function FileViewer({ filePath }: FileViewerProps) {
     annotationWorkspace.imageAnnotationType === 'polygon';
   const isRotatedBboxAnnotator =
     annotationWorkspace.imageAnnotationType === 'rotated_bbox';
+  const isKeypointAnnotator =
+    annotationWorkspace.imageAnnotationType === 'keypoint';
   const viewerType = useMemo(() => getViewerType(filePath), [filePath]);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [docxHtml, setDocxHtml] = useState<string | null>(null);
@@ -338,12 +341,26 @@ export default function FileViewer({ filePath }: FileViewerProps) {
         <FileHeader {...fileHeaderProps} />
         <div className="viewer-body image-container image-container--fabric">
           {showImageAnnotator ? (
-            isPolygonAnnotator ? (
-              <ImageFabricPolygonAnnotationEditor imageUrl={binaryUrl} />
+            isKeypointAnnotator ? (
+              <ImageFabricKeypointAnnotationEditor
+                imageUrl={binaryUrl}
+                imagePath={filePath}
+              />
+            ) : isPolygonAnnotator ? (
+              <ImageFabricPolygonAnnotationEditor
+                imageUrl={binaryUrl}
+                imagePath={filePath}
+              />
             ) : isRotatedBboxAnnotator ? (
-              <ImageFabricRotatedBboxAnnotationEditor imageUrl={binaryUrl} />
+              <ImageFabricRotatedBboxAnnotationEditor
+                imageUrl={binaryUrl}
+                imagePath={filePath}
+              />
             ) : (
-              <ImageFabricAnnotationEditor imageUrl={binaryUrl} />
+              <ImageFabricAnnotationEditor
+                imageUrl={binaryUrl}
+                imagePath={filePath}
+              />
             )
           ) : (
             <img

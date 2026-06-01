@@ -9,7 +9,7 @@ export const BG_IMAGE_NAME = '__bg_image__';
 
 export interface AnnotationBoxData {
   boxId: string;
-  labelId: string;
+  labelId: string | null;
 }
 
 export type AnnotatedBoxRect = Rect & {
@@ -208,7 +208,7 @@ export function promoteDraftToBox(
   draft: Rect,
   options: {
     boxId: string;
-    labelId: string;
+    labelId: string | null;
     labelName: string;
     labelColor: string;
     tool: 'draw' | 'select';

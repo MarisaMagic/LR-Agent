@@ -79,7 +79,7 @@ export function hitTopAnnotationRotatedBoxAtScenePoint(
 export function syncRotatedBoxesFromAnnotations(
   canvas: Canvas,
   annotations: RotatedBboxAnnotation[],
-  labelResolver: (labelId: string) => { name: string; color: string } | null,
+  labelResolver: (labelId: string | null) => { name: string; color: string } | null,
   naturalWidth: number,
   naturalHeight: number,
   tool: ImageCanvasTool,
@@ -126,7 +126,7 @@ export function extractNormFromRotatedBoxRect(
 export function patchAnnotationRotatedBoxStyles(
   canvas: Canvas,
   annotations: RotatedBboxAnnotation[],
-  labelResolver: (labelId: string) => { name: string; color: string } | null,
+  labelResolver: (labelId: string | null) => { name: string; color: string } | null,
 ): void {
   annotations.forEach((ann) => {
     const rect = findAnnotationRotatedBoxById(canvas, ann.id);

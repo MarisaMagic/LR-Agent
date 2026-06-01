@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { getLabelChipStyle } from '../../utils/labelColor';
+import { useCallback, useRef, useState } from 'react';
+import AnnotationLabelOverflowMenuPortal from './AnnotationLabelOverflowMenuPortal';
 import './AnnotationDrawLabelPicker.css';
 
 interface LabelOption {
@@ -22,7 +22,7 @@ export default function AnnotationItemLabelMenu({
   ariaLabel = '切换标签',
 }: AnnotationItemLabelMenuProps) {
   const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const selectLabel = useCallback(
     (id: string) => {
@@ -32,23 +32,12 @@ export default function AnnotationItemLabelMenu({
     [onChange],
   );
 
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const onPointerDown = (event: MouseEvent) => {
-      if (wrapRef.current?.contains(event.target as Node)) return;
-      setOpen(false);
-    };
-
-    document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
-  }, [open]);
-
   if (labels.length === 0) return null;
 
   return (
-    <div ref={wrapRef} className="annotation-right-label-more-wrap">
+    <div className="annotation-right-label-more-wrap">
       <button
+        ref={buttonRef}
         type="button"
         className={`annotation-right-label-more-btn annotation-right-item-label-more-btn${
           open ? ' annotation-right-label-more-btn--open' : ''
@@ -64,35 +53,19 @@ export default function AnnotationItemLabelMenu({
       >
         <span className="codicon codicon-tag" aria-hidden />
       </button>
-      {open && (
-        <div
-          className="annotation-right-label-more-menu"
-          role="listbox"
-          tabIndex={0}
-          aria-label={ariaLabel}
-          onMouseDown={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
-          {labels.map((lab) => {
-            const active = lab.id === value;
-            return (
-              <button
-                key={lab.id}
-                type="button"
-                role="option"
-                aria-selected={active}
-                className={`annotation-right-label-btn annotation-right-label-btn--menu${
-                  active ? ' annotation-right-label-btn--picked' : ''
-                }`}
-                style={getLabelChipStyle(lab.color)}
-                onClick={() => selectLabel(lab.id)}
-              >
-                {lab.name}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {open && buttonRef.current ? (
+        <AnnotationLabelOverflowMenuPortal
+          anchorEl={buttonRef.current}
+          labels={labels}
+          activeLabelId={value}
+          onSelect={selectLabel}
+          onClose={() => setOpen(false)}
+          ariaLabel={ariaLabel}
+          chipClassName="annotation-right-label-btn"
+          chipActiveClassName="annotation-right-label-btn--picked"
+          chipMenuClassName="annotation-right-label-btn--menu"
+        />
+      ) : null}
     </div>
   );
 }

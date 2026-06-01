@@ -12,8 +12,13 @@
 }
 
 .pretrained-model-item {
-  padding: 10px 12px;
+  position: relative;
+  padding: 10px 36px 10px 12px;
   border-bottom: 1px solid var(--vscode-panel-border, #3c3c3c);
+}
+
+.pretrained-model-item-menu-open {
+  z-index: 2;
 }
 
 .pretrained-model-item-head {
@@ -55,6 +60,18 @@
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
+.pretrained-model-badge-template {
+  background: rgba(86, 156, 214, 0.15);
+  color: #569cd6;
+}
+
+.pretrained-model-item-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
 .pretrained-model-item-type {
   margin-top: 4px;
   font-size: 12px;
@@ -76,25 +93,55 @@
 }
 
 .pretrained-model-item-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  z-index: 1;
 }
 
-.pretrained-model-action-btn {
-  padding: 2px 8px;
-  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+.pretrained-model-menu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
   border-radius: 4px;
   background: transparent;
   color: var(--vscode-foreground, #cccccc);
-  font-size: 12px;
   cursor: pointer;
 }
 
-.pretrained-model-action-btn:hover {
+.pretrained-model-menu-trigger:hover {
   background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
-.pretrained-model-action-btn-danger {
-  color: var(--vscode-errorForeground, #f48771);
+.pretrained-model-menu {
+  min-width: 140px;
+  padding: 4px 0;
+  border: 1px solid var(--vscode-widget-border, #454545);
+  border-radius: 4px;
+  background: var(--vscode-menu-background, #252526);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.pretrained-model-menu button {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 12px;
+  color: var(--vscode-menu-foreground, #cccccc);
+  cursor: pointer;
+}
+
+.pretrained-model-menu button:hover {
+  background: var(--vscode-menu-selectionBackground, #094771);
+}
+
+.pretrained-model-menu button.danger {
+  color: #ff8a80;
 }

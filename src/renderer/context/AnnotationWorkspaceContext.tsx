@@ -16,9 +16,22 @@ import {
   type AnnotationInstance,
   type BboxAnnotation,
   type FileAnnotationDocument,
+  type ImagePointAnnotation,
   type PolygonAnnotation,
+  type PoseAnnotation,
   type RotatedBboxAnnotation,
 } from '../types/annotationDocument';
+import {
+  DEFAULT_KEYPOINT_TEMPLATE_ID,
+  getKeypointTemplate,
+  resolveLabelIdForTemplate,
+  type KeypointTemplate,
+} from '../types/keypointTemplate';
+import {
+  buildInitialPoseSceneGeometry,
+  sceneGeometryToPoseAnn,
+  type ScenePoint,
+} from '../components/annotation/fabric/fabricKeypointCoords';
 import {
   readFileAnnotationDoc,
   writeFileAnnotationDoc,
@@ -31,6 +44,10 @@ import {
   type LabelUsageMap,
 } from '../utils/annotationLabelUsage';
 import { getRelativeProjectPath, normalizeFsPath } from '../utils/projectPaths';
+import {
+  AnnotationHistory,
+  type AnnotationHistorySnapshot,
+} from '../utils/annotationHistory';
 
 const DEBOUNCE_MS = 450;
 
@@ -74,9 +91,24 @@ function isPolygonInstance(a: AnnotationInstance): a is PolygonAnnotation {
   return a.kind === 'polygon';
 }
 
+function isPoseInstance(a: AnnotationInstance): a is PoseAnnotation {
+  return a.kind === 'pose';
+}
+
+function isImagePointInstance(a: AnnotationInstance): a is ImagePointAnnotation {
+  return a.kind === 'point';
+}
+
 type DocMeta = Omit<FileAnnotationDocument, 'annotations'>;
 
-export type ImageCanvasTool = 'draw' | 'select' | 'polygon';
+export type ImageCanvasTool =
+  | 'draw'
+  | 'select'
+  | 'polygon'
+  | 'place_pose'
+  | 'place_point'
+  | 'preannot_sam_box'
+  | 'preannot_roi_box';
 
 export interface AnnotationWorkspaceContextValue {
   workspaceEnabled: boolean;
@@ -87,7 +119,17 @@ export interface AnnotationWorkspaceContextValue {
   bboxAnnotations: BboxAnnotation[];
   rotatedBboxAnnotations: RotatedBboxAnnotation[];
   polygonAnnotations: PolygonAnnotation[];
-  imageAnnotationType: 'bbox' | 'rotated_bbox' | 'polygon' | null;
+  poseAnnotations: PoseAnnotation[];
+  pointAnnotations: ImagePointAnnotation[];
+  imageAnnotationType:
+    | 'bbox'
+    | 'rotated_bbox'
+    | 'polygon'
+    | 'keypoint'
+    | null;
+  activeTemplateId: string;
+  setActiveTemplateId: (id: string) => void;
+  activeTemplate: KeypointTemplate;
   selectedAnnotationId: string | null;
   tool: ImageCanvasTool;
   setTool: (tool: ImageCanvasTool) => void;
@@ -109,6 +151,60 @@ export interface AnnotationWorkspaceContextValue {
     angle: number;
   }) => boolean;
   addPolygonAnnotation: (points: { x: number; y: number }[]) => boolean;
+  addPoseAnnotation: (
+    templateId: string,
+    centerScene: ScenePoint,
+    naturalWidth: number,
+    naturalHeight: number,
+  ) => string | null;
+  addPointAnnotation: (
+    x: number,
+    y: number,
+    labelId: string,
+  ) => string | null;
+  addPreAnnotBboxes: (
+    items: Array<{
+      labelId?: string | null;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }>,
+  ) => number;
+  addPreAnnotRotatedBboxes: (
+    items: Array<{
+      labelId?: string | null;
+      cx: number;
+      cy: number;
+      width: number;
+      height: number;
+      angle: number;
+    }>,
+  ) => number;
+  addPreAnnotPolygon: (
+    points: { x: number; y: number }[],
+    labelId?: string,
+  ) => boolean;
+  addPreAnnotPoses: (
+    items: Array<{
+      labelId: string;
+      templateId: string;
+      cx: number;
+      cy: number;
+      width: number;
+      height: number;
+      angle: number;
+      keypoints: { x: number; y: number; visibility: 0 | 1 | 2 }[];
+    }>,
+  ) => number;
+  clearPreAnnots: () => number;
+  updatePoseGeometry: (id: string, ann: PoseAnnotation) => void;
+  updatePointGeometry: (id: string, x: number, y: number) => void;
+  updateKeypointVisibility: (
+    poseId: string,
+    index: number,
+    visibility: 0 | 1 | 2,
+  ) => void;
   updateBboxGeometry: (
     id: string,
     patch: Pick<BboxAnnotation, 'x' | 'y' | 'width' | 'height'>,
@@ -132,6 +228,14 @@ export interface AnnotationWorkspaceContextValue {
   loadError: string | null;
   sourceStale: boolean;
   saveNow: () => Promise<void>;
+  undo: () => boolean;
+  redo: () => boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  beginHistoryBatch: () => void;
+  endHistoryBatch: () => void;
+  /** Polygon draft undo runs before workspace undo (Ctrl+Z). */
+  setLocalUndoHandler: (handler: (() => boolean) | null) => void;
 }
 
 const AnnotationWorkspaceContext =
@@ -198,7 +302,8 @@ export function AnnotationWorkspaceProvider({
     activeProject?.modality === 'image' &&
     (activeProject.annotationType === 'bbox' ||
       activeProject.annotationType === 'rotated_bbox' ||
-      activeProject.annotationType === 'polygon')
+      activeProject.annotationType === 'polygon' ||
+      activeProject.annotationType === 'keypoint')
       ? activeProject.annotationType
       : null;
 
@@ -228,20 +333,29 @@ export function AnnotationWorkspaceProvider({
     string | null
   >(null);
   const [tool, setToolState] = useState<ImageCanvasTool>('draw');
+  const [activeTemplateId, setActiveTemplateIdState] = useState(
+    DEFAULT_KEYPOINT_TEMPLATE_ID,
+  );
   const [activeLabelId, setActiveLabelId] = useState<string | null>(null);
   const [labelUsage, setLabelUsage] = useState<LabelUsageMap>({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceStale, setSourceStale] = useState(false);
+  const [historyTick, setHistoryTick] = useState(0);
 
   const annotationsRef = useRef(annotations);
   const dirtyRef = useRef(dirty);
   const loadedMetaRef = useRef<DocMeta | null>(null);
+  const selectedIdRef = useRef(selectedAnnotationId);
+  const historyRef = useRef(new AnnotationHistory());
+  const isApplyingHistoryRef = useRef(false);
+  const localUndoHandlerRef = useRef<(() => boolean) | null>(null);
 
   annotationsRef.current = annotations;
   dirtyRef.current = dirty;
   loadedMetaRef.current = loadedDocMeta;
+  selectedIdRef.current = selectedAnnotationId;
 
   /** Tracks file identity for flush-before-navigation */
   const currentPairRef = useRef<{ rel: string | null; abs: string | null }>({
@@ -314,6 +428,23 @@ export function AnnotationWorkspaceProvider({
     [annotations],
   );
 
+  const poseAnnotations = useMemo(
+    () => annotations.filter(isPoseInstance),
+    [annotations],
+  );
+
+  const pointAnnotations = useMemo(
+    () => annotations.filter(isImagePointInstance),
+    [annotations],
+  );
+
+  const activeTemplate = useMemo(() => {
+    return (
+      getKeypointTemplate(activeTemplateId) ??
+      getKeypointTemplate(DEFAULT_KEYPOINT_TEMPLATE_ID)!
+    );
+  }, [activeTemplateId]);
+
   useEffect(() => {
     if (!activeProject?.labels.length) {
       setActiveLabelId(null);
@@ -368,9 +499,21 @@ export function AnnotationWorkspaceProvider({
       activeProject?.annotationType === 'bbox' ||
       activeProject?.annotationType === 'rotated_bbox'
     ) {
-      setToolState((prev) => (prev === 'polygon' ? 'draw' : prev));
+      setToolState((prev) =>
+        prev === 'polygon' || prev === 'place_pose' || prev === 'place_point'
+          ? 'draw'
+          : prev,
+      );
+    } else if (activeProject?.annotationType === 'keypoint') {
+      setToolState((prev) =>
+        prev === 'draw' || prev === 'polygon' ? 'place_pose' : prev,
+      );
     }
   }, [activeProject?.annotationType]);
+
+  const setActiveTemplateId = useCallback((id: string) => {
+    setActiveTemplateIdState(id);
+  }, []);
 
   const saveNow = useCallback(async () => {
     if (saveTimerRef.current) {
@@ -393,6 +536,113 @@ export function AnnotationWorkspaceProvider({
     scheduleSave();
   }, [scheduleSave]);
 
+  const bumpHistory = useCallback(() => {
+    setHistoryTick((t) => t + 1);
+  }, []);
+
+  const captureHistorySnapshot = useCallback((): AnnotationHistorySnapshot => {
+    return {
+      annotations: structuredClone(annotationsRef.current),
+      selectedAnnotationId: selectedIdRef.current,
+    };
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    historyRef.current.clear();
+    bumpHistory();
+  }, [bumpHistory]);
+
+  const recordHistory = useCallback(() => {
+    if (isApplyingHistoryRef.current) return;
+    historyRef.current.record(captureHistorySnapshot());
+    bumpHistory();
+  }, [captureHistorySnapshot, bumpHistory]);
+
+  const applyHistorySnapshot = useCallback(
+    (snapshot: AnnotationHistorySnapshot) => {
+      isApplyingHistoryRef.current = true;
+      setAnnotations(snapshot.annotations);
+      setSelectedAnnotationId(snapshot.selectedAnnotationId);
+      isApplyingHistoryRef.current = false;
+      touchDirty();
+    },
+    [touchDirty],
+  );
+
+  const beginHistoryBatch = useCallback(() => {
+    historyRef.current.beginBatch(captureHistorySnapshot());
+  }, [captureHistorySnapshot]);
+
+  const endHistoryBatch = useCallback(() => {
+    historyRef.current.endBatch();
+    bumpHistory();
+  }, [bumpHistory]);
+
+  const undo = useCallback((): boolean => {
+    const restored = historyRef.current.undo(captureHistorySnapshot());
+    if (!restored) return false;
+    applyHistorySnapshot(restored);
+    bumpHistory();
+    return true;
+  }, [captureHistorySnapshot, applyHistorySnapshot, bumpHistory]);
+
+  const redo = useCallback((): boolean => {
+    const restored = historyRef.current.redo(captureHistorySnapshot());
+    if (!restored) return false;
+    applyHistorySnapshot(restored);
+    bumpHistory();
+    return true;
+  }, [captureHistorySnapshot, applyHistorySnapshot, bumpHistory]);
+
+  const setLocalUndoHandler = useCallback(
+    (handler: (() => boolean) | null) => {
+      localUndoHandlerRef.current = handler;
+    },
+    [],
+  );
+
+  const canUndo = useMemo(
+    () => historyRef.current.canUndo(),
+    [historyTick],
+  );
+  const canRedo = useMemo(
+    () => historyRef.current.canRedo(),
+    [historyTick],
+  );
+
+  useEffect(() => {
+    if (!annotationPanelVisible) return undefined;
+
+    const onKeyDown = (ev: KeyboardEvent) => {
+      const tag = (ev.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+
+      const isUndo =
+        !ev.shiftKey && (ev.key === 'z' || ev.key === 'Z');
+      const isRedo =
+        (ev.shiftKey && (ev.key === 'z' || ev.key === 'Z')) ||
+        ev.key === 'y' ||
+        ev.key === 'Y';
+
+      if (isUndo) {
+        if (localUndoHandlerRef.current?.()) {
+          ev.preventDefault();
+          return;
+        }
+        if (undo()) ev.preventDefault();
+        return;
+      }
+
+      if (isRedo) {
+        if (redo()) ev.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [annotationPanelVisible, undo, redo]);
+
   useEffect(() => {
     if (
       !annotationPanelVisible ||
@@ -406,6 +656,8 @@ export function AnnotationWorkspaceProvider({
       setLoadError(null);
       setDirty(false);
       setSourceStale(false);
+      historyRef.current.clear();
+      setHistoryTick(0);
       return undefined;
     }
 
@@ -413,7 +665,8 @@ export function AnnotationWorkspaceProvider({
       activeProject.modality !== 'image' ||
       (activeProject.annotationType !== 'bbox' &&
         activeProject.annotationType !== 'rotated_bbox' &&
-        activeProject.annotationType !== 'polygon') ||
+        activeProject.annotationType !== 'polygon' &&
+        activeProject.annotationType !== 'keypoint') ||
       !relativeFilePath
     ) {
       currentPairRef.current = { rel: null, abs: null };
@@ -423,6 +676,8 @@ export function AnnotationWorkspaceProvider({
       setLoadError(null);
       setDirty(false);
       setSourceStale(false);
+      historyRef.current.clear();
+      setHistoryTick(0);
       return undefined;
     }
 
@@ -475,6 +730,7 @@ export function AnnotationWorkspaceProvider({
 
           setLoadedDocMeta(meta);
           setAnnotations(ann);
+          clearHistory();
           setDirty(false);
           setSourceStale(stale);
           setSelectedAnnotationId(null);
@@ -483,6 +739,7 @@ export function AnnotationWorkspaceProvider({
           const meta = emptyDocMeta(projForMeta, rel, stats);
           setLoadedDocMeta(meta);
           setAnnotations([]);
+          clearHistory();
           setDirty(false);
           setSourceStale(false);
           setSelectedAnnotationId(null);
@@ -493,6 +750,7 @@ export function AnnotationWorkspaceProvider({
           setLoadError(e instanceof Error ? e.message : '加载标注失败');
           setAnnotations([]);
           setLoadedDocMeta(null);
+          clearHistory();
           currentPairRef.current = { rel, abs: activeFilePath };
           setDirty(false);
         }
@@ -521,6 +779,7 @@ export function AnnotationWorkspaceProvider({
     activeFilePath,
     relativeFilePath,
     persistFromRefs,
+    clearHistory,
   ]);
 
   const selectAnnotation = useCallback((id: string | null) => {
@@ -554,12 +813,13 @@ export function AnnotationWorkspaceProvider({
         height: rect.height,
       };
 
+      recordHistory();
       setAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(activeLabelId);
       return true;
     },
-    [activeLabelId, loadedDocMeta, touchDirty, recordLabelUsage],
+    [activeLabelId, loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
   );
 
   const addPolygonAnnotation = useCallback(
@@ -577,12 +837,13 @@ export function AnnotationWorkspaceProvider({
         points,
       };
 
+      recordHistory();
       setAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(activeLabelId);
       return true;
     },
-    [activeLabelId, loadedDocMeta, touchDirty, recordLabelUsage],
+    [activeLabelId, loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
   );
 
   const addRotatedBboxAnnotation = useCallback(
@@ -610,12 +871,13 @@ export function AnnotationWorkspaceProvider({
         angle: rect.angle,
       };
 
+      recordHistory();
       setAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(activeLabelId);
       return true;
     },
-    [activeLabelId, loadedDocMeta, touchDirty, recordLabelUsage],
+    [activeLabelId, loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
   );
 
   const updateRotatedBboxGeometry = useCallback(
@@ -626,6 +888,7 @@ export function AnnotationWorkspaceProvider({
         'cx' | 'cy' | 'width' | 'height' | 'angle'
       >,
     ) => {
+      recordHistory();
       setAnnotations((prev) =>
         prev.map((item) =>
           item.kind === 'rotated_bbox' && item.id === id
@@ -639,7 +902,7 @@ export function AnnotationWorkspaceProvider({
       );
       touchDirty();
     },
-    [touchDirty],
+    [touchDirty, recordHistory],
   );
 
   const updateBboxGeometry = useCallback(
@@ -647,6 +910,7 @@ export function AnnotationWorkspaceProvider({
       id: string,
       patch: Pick<BboxAnnotation, 'x' | 'y' | 'width' | 'height'>,
     ) => {
+      recordHistory();
       setAnnotations((prev) =>
         prev.map((item) =>
           item.kind === 'bbox' && item.id === id
@@ -660,12 +924,13 @@ export function AnnotationWorkspaceProvider({
       );
       touchDirty();
     },
-    [touchDirty],
+    [touchDirty, recordHistory],
   );
 
   const updatePolygonGeometry = useCallback(
     (id: string, points: { x: number; y: number }[]) => {
       if (points.length < 3) return;
+      recordHistory();
       setAnnotations((prev) =>
         prev.map((item) =>
           item.kind === 'polygon' && item.id === id
@@ -679,20 +944,289 @@ export function AnnotationWorkspaceProvider({
       );
       touchDirty();
     },
-    [touchDirty],
+    [touchDirty, recordHistory],
+  );
+
+  const addPoseAnnotation = useCallback(
+    (
+      templateId: string,
+      centerScene: ScenePoint,
+      naturalWidth: number,
+      naturalHeight: number,
+    ): string | null => {
+      if (!loadedDocMeta) return null;
+      const template = getKeypointTemplate(templateId);
+      if (!template) return null;
+      const labels = activeProjectRef.current?.labels ?? [];
+      const labelId = resolveLabelIdForTemplate(template, labels);
+      if (!labelId) return null;
+
+      const scene = buildInitialPoseSceneGeometry(
+        template,
+        centerScene,
+        naturalWidth,
+        naturalHeight,
+      );
+      const now = new Date().toISOString();
+      const id = crypto.randomUUID();
+      const next = sceneGeometryToPoseAnn(scene, naturalWidth, naturalHeight, {
+        id,
+        labelId,
+        templateId,
+        createdAt: now,
+      });
+
+      recordHistory();
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      recordLabelUsage(labelId);
+      return id;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const addPointAnnotation = useCallback(
+    (x: number, y: number, labelId: string): string | null => {
+      if (!loadedDocMeta || !labelId) return null;
+      const now = new Date().toISOString();
+      const id = crypto.randomUUID();
+      const next: ImagePointAnnotation = {
+        id,
+        kind: 'point',
+        labelId,
+        createdAt: now,
+        updatedAt: now,
+        x,
+        y,
+      };
+      recordHistory();
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      recordLabelUsage(labelId);
+      return id;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const addPreAnnotBboxes = useCallback(
+    (
+      items: Array<{
+        labelId?: string | null;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }>,
+    ): number => {
+      if (!loadedDocMeta || items.length === 0) return 0;
+      const now = new Date().toISOString();
+      const nextItems: BboxAnnotation[] = items.map((item) => ({
+        id: crypto.randomUUID(),
+        kind: 'bbox',
+        labelId: item.labelId ?? null,
+        createdAt: now,
+        updatedAt: now,
+        source: 'preannot',
+        x: item.x,
+        y: item.y,
+        width: item.width,
+        height: item.height,
+      }));
+
+      recordHistory();
+      setAnnotations((prev) => [...prev, ...nextItems]);
+      touchDirty();
+      nextItems.forEach((ann) => {
+        if (ann.labelId) recordLabelUsage(ann.labelId);
+      });
+      return nextItems.length;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const addPreAnnotRotatedBboxes = useCallback(
+    (
+      items: Array<{
+        labelId?: string | null;
+        cx: number;
+        cy: number;
+        width: number;
+        height: number;
+        angle: number;
+      }>,
+    ): number => {
+      if (!loadedDocMeta || items.length === 0) return 0;
+      const now = new Date().toISOString();
+      const nextItems: RotatedBboxAnnotation[] = items.map((item) => ({
+        id: crypto.randomUUID(),
+        kind: 'rotated_bbox',
+        labelId: item.labelId ?? null,
+        createdAt: now,
+        updatedAt: now,
+        source: 'preannot',
+        cx: item.cx,
+        cy: item.cy,
+        width: item.width,
+        height: item.height,
+        angle: item.angle,
+      }));
+
+      recordHistory();
+      setAnnotations((prev) => [...prev, ...nextItems]);
+      touchDirty();
+      nextItems.forEach((ann) => {
+        if (ann.labelId) recordLabelUsage(ann.labelId);
+      });
+      return nextItems.length;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const addPreAnnotPolygon = useCallback(
+    (points: { x: number; y: number }[], labelId?: string): boolean => {
+      const resolvedLabelId = labelId ?? activeLabelId;
+      if (!resolvedLabelId || points.length < 3) return false;
+      if (!loadedDocMeta) return false;
+
+      const now = new Date().toISOString();
+      const next: PolygonAnnotation = {
+        id: crypto.randomUUID(),
+        kind: 'polygon',
+        labelId: resolvedLabelId,
+        createdAt: now,
+        updatedAt: now,
+        source: 'preannot',
+        points,
+      };
+
+      recordHistory();
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      recordLabelUsage(resolvedLabelId);
+      return true;
+    },
+    [activeLabelId, loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const addPreAnnotPoses = useCallback(
+    (
+      items: Array<{
+        labelId: string;
+        templateId: string;
+        cx: number;
+        cy: number;
+        width: number;
+        height: number;
+        angle: number;
+        keypoints: { x: number; y: number; visibility: 0 | 1 | 2 }[];
+      }>,
+    ): number => {
+      if (!loadedDocMeta || items.length === 0) return 0;
+      const now = new Date().toISOString();
+      const nextItems: PoseAnnotation[] = items.map((item) => ({
+        id: crypto.randomUUID(),
+        kind: 'pose',
+        labelId: item.labelId,
+        templateId: item.templateId,
+        createdAt: now,
+        updatedAt: now,
+        source: 'preannot',
+        cx: item.cx,
+        cy: item.cy,
+        width: item.width,
+        height: item.height,
+        angle: item.angle,
+        keypoints: item.keypoints,
+      }));
+
+      recordHistory();
+      setAnnotations((prev) => [...prev, ...nextItems]);
+      touchDirty();
+      nextItems.forEach((ann) => {
+        if (ann.labelId) recordLabelUsage(ann.labelId);
+      });
+      return nextItems.length;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const clearPreAnnots = useCallback((): number => {
+    let removed = 0;
+    setAnnotations((prev) => {
+      const next = prev.filter((item) => item.source !== 'preannot');
+      removed = prev.length - next.length;
+      return next;
+    });
+    if (removed > 0) {
+      recordHistory();
+      touchDirty();
+      setSelectedAnnotationId(null);
+    }
+    return removed;
+  }, [touchDirty, recordHistory]);
+
+  const updatePoseGeometry = useCallback(
+    (id: string, ann: PoseAnnotation) => {
+      recordHistory();
+      setAnnotations((prev) =>
+        prev.map((item) =>
+          item.kind === 'pose' && item.id === id ? ann : item,
+        ),
+      );
+      touchDirty();
+    },
+    [touchDirty, recordHistory],
+  );
+
+  const updatePointGeometry = useCallback(
+    (id: string, x: number, y: number) => {
+      recordHistory();
+      setAnnotations((prev) =>
+        prev.map((item) =>
+          item.kind === 'point' && item.id === id
+            ? { ...item, x, y, updatedAt: new Date().toISOString() }
+            : item,
+        ),
+      );
+      touchDirty();
+    },
+    [touchDirty, recordHistory],
+  );
+
+  const updateKeypointVisibility = useCallback(
+    (poseId: string, index: number, visibility: 0 | 1 | 2) => {
+      recordHistory();
+      setAnnotations((prev) =>
+        prev.map((item) => {
+          if (item.kind !== 'pose' || item.id !== poseId) return item;
+          const keypoints = item.keypoints.map((kp, i) =>
+            i === index ? { ...kp, visibility } : kp,
+          );
+          return {
+            ...item,
+            keypoints,
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+      );
+      touchDirty();
+    },
+    [touchDirty, recordHistory],
   );
 
   const deleteAnnotation = useCallback(
     (id: string) => {
+      recordHistory();
       setAnnotations((prev) => prev.filter((a) => a.id !== id));
       setSelectedAnnotationId((sid) => (sid === id ? null : sid));
       touchDirty();
     },
-    [touchDirty],
+    [touchDirty, recordHistory],
   );
 
   const updateAnnotationLabel = useCallback(
     (id: string, labelId: string) => {
+      recordHistory();
       setAnnotations((prev) =>
         prev.map((item) =>
           item.id === id
@@ -703,7 +1237,7 @@ export function AnnotationWorkspaceProvider({
       touchDirty();
       recordLabelUsage(labelId);
     },
-    [touchDirty, recordLabelUsage],
+    [touchDirty, recordLabelUsage, recordHistory],
   );
 
   const reportImageNaturalSize = useCallback(
@@ -739,7 +1273,12 @@ export function AnnotationWorkspaceProvider({
       bboxAnnotations,
       rotatedBboxAnnotations,
       polygonAnnotations,
+      poseAnnotations,
+      pointAnnotations,
       imageAnnotationType,
+      activeTemplateId,
+      setActiveTemplateId,
+      activeTemplate,
       selectedAnnotationId,
       tool,
       setTool,
@@ -750,9 +1289,19 @@ export function AnnotationWorkspaceProvider({
       addBboxAnnotation,
       addRotatedBboxAnnotation,
       addPolygonAnnotation,
+      addPoseAnnotation,
+      addPointAnnotation,
+      addPreAnnotBboxes,
+      addPreAnnotRotatedBboxes,
+      addPreAnnotPolygon,
+      addPreAnnotPoses,
+      clearPreAnnots,
       updateBboxGeometry,
       updateRotatedBboxGeometry,
       updatePolygonGeometry,
+      updatePoseGeometry,
+      updatePointGeometry,
+      updateKeypointVisibility,
       deleteAnnotation,
       updateAnnotationLabel,
       reportImageNaturalSize,
@@ -761,6 +1310,13 @@ export function AnnotationWorkspaceProvider({
       loadError,
       sourceStale,
       saveNow,
+      undo,
+      redo,
+      canUndo,
+      canRedo,
+      beginHistoryBatch,
+      endHistoryBatch,
+      setLocalUndoHandler,
     };
   }, [
     workspaceEnabled,
@@ -771,7 +1327,11 @@ export function AnnotationWorkspaceProvider({
     bboxAnnotations,
     rotatedBboxAnnotations,
     polygonAnnotations,
+    poseAnnotations,
+    pointAnnotations,
     imageAnnotationType,
+    activeTemplateId,
+    activeTemplate,
     selectedAnnotationId,
     tool,
     setTool,
@@ -781,9 +1341,19 @@ export function AnnotationWorkspaceProvider({
     addBboxAnnotation,
     addRotatedBboxAnnotation,
     addPolygonAnnotation,
+    addPoseAnnotation,
+    addPointAnnotation,
+    addPreAnnotBboxes,
+    addPreAnnotRotatedBboxes,
+    addPreAnnotPolygon,
+    addPreAnnotPoses,
+    clearPreAnnots,
     updateBboxGeometry,
     updateRotatedBboxGeometry,
     updatePolygonGeometry,
+    updatePoseGeometry,
+    updatePointGeometry,
+    updateKeypointVisibility,
     deleteAnnotation,
     updateAnnotationLabel,
     reportImageNaturalSize,
@@ -792,6 +1362,13 @@ export function AnnotationWorkspaceProvider({
     loadError,
     sourceStale,
     saveNow,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    beginHistoryBatch,
+    endHistoryBatch,
+    setLocalUndoHandler,
   ]);
 
   return (

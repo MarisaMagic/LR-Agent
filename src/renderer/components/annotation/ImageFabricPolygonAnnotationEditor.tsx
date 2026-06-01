@@ -24,10 +24,21 @@ import {
 } from './fabric/fabricViewportZoom';
 import { createResizeObserver } from '../../utils/resizeObserver';
 import ImageAnnotationToolbar from './ImageAnnotationToolbar';
+import {
+  runSam2PreAnnot,
+} from './PreAnnotToolbarSection';
+import { bindPreAnnotBoxDraw, isPreAnnotBoxTool } from './fabric/fabricPreAnnotBoxDraw';
+import { usePretrainedModels } from '../../context/PretrainedModelsContext';
+import {
+  loadSavedPreAnnotModelId,
+  pickDefaultPreAnnotModel,
+  getEligiblePreAnnotModels,
+} from '../../utils/preAnnotModelFilter';
 import './ImageFabricAnnotationEditor.css';
 
 interface ImageFabricPolygonAnnotationEditorProps {
   imageUrl: string;
+  imagePath: string;
 }
 
 const ZOOM_STEP = 1.2;
@@ -53,9 +64,11 @@ function getSceneExtents(
 
 export default function ImageFabricPolygonAnnotationEditor({
   imageUrl,
+  imagePath,
 }: ImageFabricPolygonAnnotationEditorProps) {
   const { activeProject } = useAnnotation();
   const { showToast } = useToast();
+  const { models } = usePretrainedModels();
   const {
     polygonAnnotations,
     selectedAnnotationId,
@@ -64,10 +77,12 @@ export default function ImageFabricPolygonAnnotationEditor({
     tool,
     setTool,
     addPolygonAnnotation,
+    addPreAnnotPolygon,
     updatePolygonGeometry,
     deleteAnnotation,
     reportImageNaturalSize,
     loadError,
+    setLocalUndoHandler,
   } = useAnnotationWorkspace();
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -99,8 +114,8 @@ export default function ImageFabricPolygonAnnotationEditor({
   const [imageNatural, setImageNatural] = useState({ w: 0, h: 0 });
 
   const labelResolver = useCallback(
-    (labelId: string) => {
-      if (!activeProject) return null;
+    (labelId: string | null) => {
+      if (!labelId || !activeProject) return null;
       const lab = activeProject.labels.find((l) => l.id === labelId);
       return lab ? { name: lab.name, color: lab.color } : null;
     },
@@ -414,6 +429,85 @@ export default function ImageFabricPolygonAnnotationEditor({
   }, [selectedAnnotationId, canvasReady, tool]);
 
   useEffect(() => {
+    if (!canvasReady) {
+      setLocalUndoHandler(null);
+      return undefined;
+    }
+    setLocalUndoHandler(
+      () => polygonInteractionRef.current?.tryUndoDraftPoint() ?? false,
+    );
+    return () => setLocalUndoHandler(null);
+  }, [canvasReady, setLocalUndoHandler]);
+
+  const resolveSamModel = useCallback(() => {
+    if (!activeProject) return null;
+    const eligible = getEligiblePreAnnotModels('polygon', models);
+    if (eligible.length === 0) return null;
+    const saved = loadSavedPreAnnotModelId(activeProject.id);
+    return (
+      eligible.find((m) => m.id === saved) ??
+      pickDefaultPreAnnotModel('polygon', models)
+    );
+  }, [activeProject, models]);
+
+  useEffect(() => {
+    const canvas = fabricRef.current;
+    if (!canvas || !canvasReady) return undefined;
+
+    return bindPreAnnotBoxDraw(canvas, {
+      getTool: () => toolRef.current,
+      getNaturalSize: () => naturalSizeRef.current,
+      onTooSmall: () => {
+        showToast('框太小，请拖大一点再松手', { type: 'info' });
+      },
+      onComplete: async (box) => {
+        if (toolRef.current !== 'preannot_sam_box') return;
+
+        const model = resolveSamModel();
+        if (!model) {
+          showToast('未找到可用的 SAM2 模型', { type: 'info' });
+          setTool('select');
+          return;
+        }
+        if (!activeLabelIdRef.current) {
+          showToast('请先选择绘制标签', { type: 'info' });
+          setTool('select');
+          return;
+        }
+
+        showToast('分割中…', { type: 'info' });
+        try {
+          const points = await runSam2PreAnnot({
+            imagePath,
+            model,
+            box,
+          });
+          if (points.length < 3) {
+            showToast('未生成有效多边形，请调整框选区域', { type: 'info' });
+          } else {
+            addPreAnnotPolygon(points);
+            showToast('已添加多边形预标注', { type: 'info' });
+          }
+        } catch (error) {
+          showToast(
+            error instanceof Error ? error.message : 'SAM2 分割失败',
+            { type: 'error' },
+          );
+        } finally {
+          setTool('select');
+        }
+      },
+    });
+  }, [
+    canvasReady,
+    imagePath,
+    resolveSamModel,
+    addPreAnnotPolygon,
+    setTool,
+    showToast,
+  ]);
+
+  useEffect(() => {
     const onKeyDown = (ev: KeyboardEvent) => {
       const tag = (ev.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -447,13 +541,19 @@ export default function ImageFabricPolygonAnnotationEditor({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [setTool, zoomIn, zoomOut, fitImageToView]);
 
-  const scrollToolClass =
-    tool === 'polygon' ? 'polygon' : tool === 'select' ? 'select' : 'draw';
+  const scrollToolClass = isPreAnnotBoxTool(tool)
+    ? 'draw'
+    : tool === 'polygon'
+      ? 'polygon'
+      : tool === 'select'
+        ? 'select'
+        : 'draw';
 
   return (
     <div className="image-fabric-editor">
       <ImageAnnotationToolbar
         mode="polygon"
+        imagePath={imagePath}
         canvasReady={canvasReady}
         imageNatural={imageNatural}
         onZoomIn={zoomIn}

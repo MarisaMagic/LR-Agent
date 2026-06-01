@@ -132,7 +132,12 @@ const electronHandler = {
     validate: (
       model: Pick<
         import('./pretrainedModels/pretrainedModelStore').PretrainedModelConfig,
-        'modelType' | 'checkpointPath' | 'configPath'
+        | 'modelType'
+        | 'checkpointPath'
+        | 'configPath'
+        | 'keypointBackend'
+        | 'keypointTemplateIds'
+        | 'auxiliaryPaths'
       >,
     ): Promise<
       import('./pretrainedModels/pretrainedModelStore').PretrainedModelValidationResult
@@ -142,6 +147,27 @@ const electronHandler = {
     ): Promise<
       import('./pretrainedModels/pretrainedModelStore').Sam2ScanResult[]
     > => ipcRenderer.invoke('pretrainedModels:scanSam2Directory', rootDir),
+    scanFaceAlignmentDirectory: (
+      rootDir: string,
+    ): Promise<
+      | import('./pretrainedModels/pretrainedModelStore').KeypointAssetScanResult
+      | null
+    > => ipcRenderer.invoke('pretrainedModels:scanFaceAlignmentDirectory', rootDir),
+    scanKeypointBundleDirectory: (
+      rootDir: string,
+    ): Promise<
+      import('./pretrainedModels/pretrainedModelStore').KeypointBundleScanResult
+    > => ipcRenderer.invoke('pretrainedModels:scanKeypointBundleDirectory', rootDir),
+  },
+  preAnnot: {
+    checkRuntime: (): Promise<
+      import('../shared/preAnnotTypes').PreAnnotRuntimeInfo
+    > => ipcRenderer.invoke('preAnnot:checkRuntime'),
+    run: (
+      request: import('../shared/preAnnotTypes').PreAnnotRequest,
+    ): Promise<import('../shared/preAnnotTypes').PreAnnotRunResponse> =>
+      ipcRenderer.invoke('preAnnot:run', request),
+    cancel: (): Promise<void> => ipcRenderer.invoke('preAnnot:cancel'),
   },
   dialog: {
     openFile: (options?: {
@@ -190,6 +216,11 @@ const electronHandler = {
         doc,
         sourceHint,
       ),
+    exportAnnotations: (
+      request: import('../shared/annotationExportTypes').AnnotationExportRequest,
+    ): Promise<
+      import('../shared/annotationExportTypes').AnnotationExportResult
+    > => ipcRenderer.invoke('annotation:exportAnnotations', request),
   },
 };
 

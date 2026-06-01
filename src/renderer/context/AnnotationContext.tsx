@@ -36,10 +36,13 @@ interface AnnotationContextValue {
   loading: boolean;
   createWizardOpen: boolean;
   editingProject: AnnotationProject | null;
+  exportingProject: AnnotationProject | null;
   openCreateWizard: () => void;
   closeCreateWizard: () => void;
   openEditProject: (project: AnnotationProject) => void;
   closeEditProject: () => void;
+  openExportProject: (project: AnnotationProject) => void;
+  closeExportProject: () => void;
   refreshProjects: () => Promise<void>;
   createProject: (
     input: CreateAnnotationProjectInput,
@@ -68,6 +71,8 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [createWizardOpen, setCreateWizardOpen] = useState(false);
   const [editingProject, setEditingProject] =
+    useState<AnnotationProject | null>(null);
+  const [exportingProject, setExportingProject] =
     useState<AnnotationProject | null>(null);
 
   const refreshProjects = useCallback(async () => {
@@ -130,6 +135,14 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
 
   const closeEditProject = useCallback(() => {
     setEditingProject(null);
+  }, []);
+
+  const openExportProject = useCallback((project: AnnotationProject) => {
+    setExportingProject(project);
+  }, []);
+
+  const closeExportProject = useCallback(() => {
+    setExportingProject(null);
   }, []);
 
   const createProject = useCallback(
@@ -254,10 +267,13 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
       loading,
       createWizardOpen,
       editingProject,
+      exportingProject,
       openCreateWizard,
       closeCreateWizard,
       openEditProject,
       closeEditProject,
+      openExportProject,
+      closeExportProject,
       refreshProjects,
       createProject,
       updateProject,
@@ -273,10 +289,13 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
       loading,
       createWizardOpen,
       editingProject,
+      exportingProject,
       openCreateWizard,
       closeCreateWizard,
       openEditProject,
       closeEditProject,
+      openExportProject,
+      closeExportProject,
       refreshProjects,
       createProject,
       updateProject,

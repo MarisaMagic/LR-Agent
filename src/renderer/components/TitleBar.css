@@ -1,8 +1,10 @@
 .title-bar {
+  --lr-titlebar-height: 36px;
+  --lr-titlebar-icon-size: 18px;
   display: flex;
   align-items: stretch;
   flex-shrink: 0;
-  height: 30px;
+  height: var(--lr-titlebar-height);
   background: var(--vscode-titleBar-activeBackground, #181818);
   color: var(--vscode-titleBar-activeForeground, #cccccc);
   border-bottom: 1px solid var(--vscode-panel-border, #2b2b2b);
@@ -21,9 +23,9 @@
 }
 
 .title-bar-app-icon {
-  width: 16px;
-  height: 16px;
-  margin: 0 8px 0 10px;
+  width: var(--lr-titlebar-icon-size);
+  height: var(--lr-titlebar-icon-size);
+  margin: 0 10px 0 12px;
   flex-shrink: 0;
   object-fit: contain;
 }
@@ -44,8 +46,8 @@
   background: transparent;
   color: inherit;
   font-size: 14px;
-  line-height: 30px;
-  padding: 0 8px;
+  line-height: var(--lr-titlebar-height);
+  padding: 0 10px;
   cursor: default;
 }
 
@@ -112,6 +114,7 @@
 
 .title-bar-title {
   font-size: 14px;
+  line-height: var(--lr-titlebar-height);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -119,18 +122,24 @@
   pointer-events: none;
 }
 
+.title-bar-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
 .title-bar-controls {
   display: flex;
   flex-shrink: 0;
-  -webkit-app-region: no-drag;
 }
 
 .title-bar-control {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 30px;
+  width: 48px;
+  height: var(--lr-titlebar-height);
   padding: 0;
   border: none;
   background: transparent;
@@ -139,7 +148,7 @@
 }
 
 .title-bar-control .codicon {
-  font-size: 16px;
+  font-size: var(--lr-titlebar-icon-size);
 }
 
 .title-bar-control:hover {

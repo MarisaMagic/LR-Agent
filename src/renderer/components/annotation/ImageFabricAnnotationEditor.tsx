@@ -40,6 +40,7 @@ import './ImageFabricAnnotationEditor.css';
 
 interface ImageFabricAnnotationEditorProps {
   imageUrl: string;
+  imagePath: string;
 }
 
 const ZOOM_STEP = 1.2;
@@ -66,6 +67,7 @@ function getSceneExtents(
 
 export default function ImageFabricAnnotationEditor({
   imageUrl,
+  imagePath,
 }: ImageFabricAnnotationEditorProps) {
   const { activeProject } = useAnnotation();
   const { showToast } = useToast();
@@ -112,8 +114,8 @@ export default function ImageFabricAnnotationEditor({
   const [imageNatural, setImageNatural] = useState({ w: 0, h: 0 });
 
   const labelResolver = useCallback(
-    (labelId: string) => {
-      if (!activeProject) return null;
+    (labelId: string | null) => {
+      if (!labelId || !activeProject) return null;
       const lab = activeProject.labels.find((l) => l.id === labelId);
       return lab ? { name: lab.name, color: lab.color } : null;
     },
@@ -759,6 +761,7 @@ export default function ImageFabricAnnotationEditor({
   return (
     <div className="image-fabric-editor">
       <ImageAnnotationToolbar
+        imagePath={imagePath}
         canvasReady={canvasReady}
         imageNatural={imageNatural}
         onZoomIn={zoomIn}

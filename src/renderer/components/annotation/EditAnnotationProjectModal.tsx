@@ -10,6 +10,7 @@ import {
 } from '../../types/annotation';
 import { useAnnotation } from '../../context/AnnotationContext';
 import LabelEditor, { normalizeLabels } from './LabelEditor';
+import { buildDefaultKeypointLabels } from '../../types/keypointTemplate';
 import './EditAnnotationProjectModal.css';
 
 interface EditAnnotationProjectModalProps {
@@ -36,6 +37,12 @@ export default function EditAnnotationProjectModal({
     setError(null);
     setSubmitting(false);
   }, [project]);
+
+  const isKeypointProject = project.annotationType === 'keypoint';
+
+  const handleGenerateTemplateLabels = () => {
+    setLabels(buildDefaultKeypointLabels());
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -144,7 +151,21 @@ export default function EditAnnotationProjectModal({
           </label>
         </div>
 
-        <LabelEditor labels={labels} onChange={setLabels} />
+        <LabelEditor
+          labels={labels}
+          onChange={setLabels}
+          keypointMode={isKeypointProject}
+        />
+        {isKeypointProject && labels.length === 0 ? (
+          <VscodeButton
+            secondary
+            type="button"
+            className="edit-annotation-project-generate-labels"
+            onClick={handleGenerateTemplateLabels}
+          >
+            从骨架模板生成默认标签
+          </VscodeButton>
+        ) : null}
       </div>
 
       <div className="edit-annotation-project-actions">

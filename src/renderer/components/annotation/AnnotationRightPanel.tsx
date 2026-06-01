@@ -11,18 +11,23 @@ import {
 } from '../../types/annotation';
 import type {
   BboxAnnotation,
+  ImagePointAnnotation,
   PolygonAnnotation,
+  PoseAnnotation,
   RotatedBboxAnnotation,
 } from '../../types/annotationDocument';
+import { getKeypointTemplate } from '../../types/keypointTemplate';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import {
   AnnotationMotionList,
   AnnotationMotionListItem,
 } from '../../motion/AnnotationListMotion';
+import { getAnnotationLabelState } from '../../utils/annotationLabel';
 import { getLabelChipStyle, hexToRgba } from '../../utils/labelColor';
 import VscodeScrollHost from '../VscodeScrollHost';
 import AnnotationDrawLabelPicker from './AnnotationDrawLabelPicker';
+import KeypointTemplateSelector from './KeypointTemplateSelector';
 import AnnotationItemLabelMenu from './AnnotationItemLabelMenu';
 import './AnnotationRightPanel.css';
 
@@ -67,13 +72,14 @@ function AnnotationListRow({
   suffix,
 }: {
   index: number;
-  labelId: string;
+  labelId: string | null;
   labels: { id: string; name: string; color: string }[];
   onChangeLabel: (labelId: string) => void;
   onDelete: () => void;
   suffix?: string;
 }) {
-  const activeLabel = labels.find((l) => l.id === labelId);
+  const activeLabel = labelId ? labels.find((l) => l.id === labelId) : null;
+  const labelState = getAnnotationLabelState(labelId, labels);
 
   return (
     <div className="annotation-right-item-row">
@@ -83,21 +89,25 @@ function AnnotationListRow({
           {suffix ? (
             <span className="annotation-right-suffix">{suffix}</span>
           ) : null}
-          {activeLabel ? (
+          {labelState === 'labeled' && activeLabel ? (
             <span
               className="annotation-right-chip"
               style={getLabelChipStyle(activeLabel.color)}
             >
               {activeLabel.name}
             </span>
-          ) : (
+          ) : null}
+          {labelState === 'unlabeled' ? (
+            <span className="annotation-right-unlabeled">未标注</span>
+          ) : null}
+          {labelState === 'orphaned' ? (
             <span className="annotation-right-unknown">未知标签</span>
-          )}
+          ) : null}
         </span>
 
         <AnnotationItemLabelMenu
           labels={labels}
-          value={labelId}
+          value={labelId ?? ''}
           onChange={onChangeLabel}
           ariaLabel={`标注 #${index + 1} 切换类别`}
         />
@@ -337,8 +347,101 @@ function renderPolygonWorkspaceBody(
   );
 }
 
+function renderKeypointWorkspaceBody(
+  project: AnnotationProject,
+  workspaceEnabled: boolean,
+  loadError: string | null,
+  poseAnnotations: PoseAnnotation[],
+  pointAnnotations: ImagePointAnnotation[],
+  selectedAnnotationId: string | null,
+  selectAnnotation: (id: string | null) => void,
+  setTool: (tool: 'select' | 'place_pose') => void,
+  updateAnnotationLabel: (annotationId: string, labelId: string) => void,
+  deleteAnnotation: (id: string) => void,
+): ReactElement {
+  if (!workspaceEnabled) {
+    return (
+      <p className="annotation-right-muted">
+        请在资源管理器中选择一张项目内的图片。
+      </p>
+    );
+  }
+  if (loadError) {
+    return <p className="annotation-right-error">{loadError}</p>;
+  }
+
+  const total = poseAnnotations.length + pointAnnotations.length;
+  const emptyHint =
+    '选择骨架模板后，使用「放置骨架」在画布上单击；右键关键点可切换可见性。';
+
+  type ListItem =
+    | { kind: 'pose'; ann: PoseAnnotation }
+    | { kind: 'point'; ann: ImagePointAnnotation };
+
+  const items: ListItem[] = [
+    ...poseAnnotations.map((ann) => ({ kind: 'pose' as const, ann })),
+    ...pointAnnotations.map((ann) => ({ kind: 'point' as const, ann })),
+  ];
+
+  return (
+    <VscodeScrollHost
+      className="annotation-right-list-host"
+      scrollableClassName="annotation-right-list-scroll"
+    >
+      {total === 0 ? (
+        <p className="annotation-right-muted">{emptyHint}</p>
+      ) : (
+        <AnnotationMotionList className="annotation-right-items">
+          {items.map((item, idx) => {
+            const ann = item.ann;
+            const selected = ann.id === selectedAnnotationId;
+            const activeLabel = project.labels.find(
+              (l) => l.id === ann.labelId,
+            );
+            const selectItem = () => {
+              setTool('select');
+              selectAnnotation(ann.id);
+            };
+            const template =
+              item.kind === 'pose'
+                ? getKeypointTemplate(item.ann.templateId)
+                : null;
+            const suffix =
+              item.kind === 'pose'
+                ? `${template?.name ?? item.ann.templateId} · ${item.ann.keypoints.length}点`
+                : '单点';
+            return (
+              <AnnotationMotionListItem
+                key={ann.id}
+                layoutKey={ann.id}
+                className={`annotation-right-item${selected ? ' annotation-right-item--active' : ''}`}
+                style={getAnnotationItemStyle(activeLabel?.color)}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selected}
+                aria-label={`选择标注 ${idx + 1}`}
+                onClick={selectItem}
+                onKeyDown={handleAnnotationItemKeyDown(selectItem)}
+              >
+                <AnnotationListRow
+                  index={idx}
+                  labelId={ann.labelId}
+                  labels={project.labels}
+                  onChangeLabel={(lid) => updateAnnotationLabel(ann.id, lid)}
+                  onDelete={() => deleteAnnotation(ann.id)}
+                  suffix={suffix}
+                />
+              </AnnotationMotionListItem>
+            );
+          })}
+        </AnnotationMotionList>
+      )}
+    </VscodeScrollHost>
+  );
+}
+
 export default function AnnotationRightPanel() {
-  const { activeProject } = useAnnotation();
+  const { activeProject, openExportProject } = useAnnotation();
   const {
     annotationPanelVisible,
     workspaceEnabled,
@@ -346,6 +449,8 @@ export default function AnnotationRightPanel() {
     bboxAnnotations,
     rotatedBboxAnnotations,
     polygonAnnotations,
+    poseAnnotations,
+    pointAnnotations,
     dirty,
     saving,
     loadError,
@@ -393,8 +498,14 @@ export default function AnnotationRightPanel() {
   const isImageRotatedBbox =
     activeProject.modality === 'image' &&
     activeProject.annotationType === 'rotated_bbox';
+  const isImageKeypoint =
+    activeProject.modality === 'image' &&
+    activeProject.annotationType === 'keypoint';
   const isImageAnnotatable =
-    isImageBbox || isImagePolygon || isImageRotatedBbox;
+    isImageBbox ||
+    isImagePolygon ||
+    isImageRotatedBbox ||
+    isImageKeypoint;
 
   if (!isImageAnnotatable) {
     const modalityLabel = TASK_TYPE_CONFIG[activeProject.modality].label;
@@ -440,44 +551,81 @@ export default function AnnotationRightPanel() {
             </span>
           )}
         </div>
-        <VscodeButton
-          secondary
-          onClick={() => {
-            saveNow().catch(() => undefined);
-          }}
-          disabled={!dirty && !saving}
-        >
-          立即保存
-        </VscodeButton>
+        <div className="annotation-right-header-actions">
+          <VscodeButton
+            secondary
+            onClick={() => {
+              if (activeProject) openExportProject(activeProject);
+            }}
+          >
+            导出
+          </VscodeButton>
+          <VscodeButton
+            secondary
+            onClick={() => {
+              saveNow().catch(() => undefined);
+            }}
+            disabled={!dirty && !saving}
+          >
+            立即保存
+          </VscodeButton>
+        </div>
       </header>
 
       <section className="annotation-right-section">
-        <h4 className="annotation-right-heading">绘制用标签</h4>
-        {activeProject.labels.length === 0 ? (
-          <p className="annotation-right-muted">
-            未定义标签。请在「标注任务」中编辑项目并添加类别。
-          </p>
+        {isImageKeypoint ? (
+          <>
+            <h4 className="annotation-right-heading">骨架模板</h4>
+            <KeypointTemplateSelector />
+            <p className="annotation-right-muted annotation-right-template-note">
+              放置骨架时自动使用模板对应标签（如 person / hand / face）。
+            </p>
+          </>
         ) : (
-          <AnnotationDrawLabelPicker
-            className="annotation-right-chip-row"
-            variant="panel"
-            labels={activeProject.labels}
-            labelUsage={labelUsage}
-            activeLabelId={activeLabelId}
-            onSelect={setActiveLabelId}
-          />
+          <>
+            <h4 className="annotation-right-heading">绘制用标签</h4>
+            {activeProject.labels.length === 0 ? (
+              <p className="annotation-right-muted">
+                未定义标签。请在「标注任务」中编辑项目并添加类别。
+              </p>
+            ) : (
+              <AnnotationDrawLabelPicker
+                className="annotation-right-chip-row"
+                variant="panel"
+                labels={activeProject.labels}
+                labelUsage={labelUsage}
+                activeLabelId={activeLabelId}
+                onSelect={setActiveLabelId}
+              />
+            )}
+          </>
         )}
       </section>
 
       <section className="annotation-right-section annotation-right-section--grow">
         <h4 className="annotation-right-heading">
-          {isImagePolygon
-            ? '当前图片多边形'
-            : isImageRotatedBbox
-              ? '当前图片旋转矩形框'
-              : '当前图片矩形框'}
+          {isImageKeypoint
+            ? '当前图片关键点'
+            : isImagePolygon
+              ? '当前图片多边形'
+              : isImageRotatedBbox
+                ? '当前图片旋转矩形框'
+                : '当前图片矩形框'}
         </h4>
-        {isImagePolygon
+        {isImageKeypoint
+          ? renderKeypointWorkspaceBody(
+              activeProject,
+              workspaceEnabled,
+              loadError,
+              poseAnnotations,
+              pointAnnotations,
+              selectedAnnotationId,
+              selectAnnotation,
+              setTool,
+              updateAnnotationLabel,
+              deleteAnnotation,
+            )
+          : isImagePolygon
           ? renderPolygonWorkspaceBody(
               activeProject,
               workspaceEnabled,

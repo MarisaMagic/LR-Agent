@@ -47,6 +47,7 @@ import './ImageFabricAnnotationEditor.css';
 
 interface ImageFabricRotatedBboxAnnotationEditorProps {
   imageUrl: string;
+  imagePath: string;
 }
 
 const ZOOM_STEP = 1.2;
@@ -74,6 +75,7 @@ function getSceneExtents(
 
 export default function ImageFabricRotatedBboxAnnotationEditor({
   imageUrl,
+  imagePath,
 }: ImageFabricRotatedBboxAnnotationEditorProps) {
   const { activeProject } = useAnnotation();
   const { showToast } = useToast();
@@ -120,8 +122,8 @@ export default function ImageFabricRotatedBboxAnnotationEditor({
   const [imageNatural, setImageNatural] = useState({ w: 0, h: 0 });
 
   const labelResolver = useCallback(
-    (labelId: string) => {
-      if (!activeProject) return null;
+    (labelId: string | null) => {
+      if (!labelId || !activeProject) return null;
       const lab = activeProject.labels.find((l) => l.id === labelId);
       return lab ? { name: lab.name, color: lab.color } : null;
     },
@@ -828,6 +830,7 @@ export default function ImageFabricRotatedBboxAnnotationEditor({
     <div className="image-fabric-editor">
       <ImageAnnotationToolbar
         mode="rotated_bbox"
+        imagePath={imagePath}
         canvasReady={canvasReady}
         imageNatural={imageNatural}
         onZoomIn={zoomIn}

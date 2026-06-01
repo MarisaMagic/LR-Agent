@@ -3,6 +3,11 @@
   z-index: 1200;
   min-width: 140px;
   margin: 0;
+  transform-origin: top right;
+}
+
+.annotation-project-menu-portal.annotation-project-menu-open-up {
+  transform-origin: bottom right;
 }
 
 .annotation-project-menu-portal[style*='visibility: hidden'] {

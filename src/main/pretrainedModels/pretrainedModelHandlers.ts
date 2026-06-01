@@ -2,6 +2,8 @@ import { dialog, ipcMain } from 'electron';
 import {
   getPretrainedModels,
   savePretrainedModels,
+  scanFaceAlignmentDirectory,
+  scanKeypointBundleDirectory,
   scanSam2Directory,
   validatePretrainedModel,
   type PretrainedModelConfig,
@@ -23,7 +25,12 @@ export default function registerPretrainedModelHandlers(): void {
       _event,
       model: Pick<
         PretrainedModelConfig,
-        'modelType' | 'checkpointPath' | 'configPath'
+        | 'modelType'
+        | 'checkpointPath'
+        | 'configPath'
+        | 'keypointBackend'
+        | 'keypointTemplateIds'
+        | 'auxiliaryPaths'
       >,
     ) => validatePretrainedModel(model),
   );
@@ -31,6 +38,17 @@ export default function registerPretrainedModelHandlers(): void {
   ipcMain.handle(
     'pretrainedModels:scanSam2Directory',
     async (_event, rootDir: string) => scanSam2Directory(rootDir),
+  );
+
+  ipcMain.handle(
+    'pretrainedModels:scanFaceAlignmentDirectory',
+    async (_event, rootDir: string) =>
+      scanFaceAlignmentDirectory(rootDir),
+  );
+
+  ipcMain.handle(
+    'pretrainedModels:scanKeypointBundleDirectory',
+    async (_event, rootDir: string) => scanKeypointBundleDirectory(rootDir),
   );
 
   ipcMain.handle(

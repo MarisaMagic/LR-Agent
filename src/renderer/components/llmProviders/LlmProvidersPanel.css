@@ -1,0 +1,43 @@
+.llm-providers-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.llm-providers-toolbar {
+  flex-shrink: 0;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--vscode-panel-border, #3c3c3c);
+}
+
+.llm-providers-scroll-host {
+  flex: 1;
+  min-height: 0;
+}
+
+.llm-provider-delete-dialog {
+  width: min(420px, 92vw);
+  padding: 16px 18px;
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  border-radius: 6px;
+  background: var(--vscode-editor-background, #1e1e1e);
+  color: var(--vscode-foreground, #cccccc);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.llm-provider-delete-dialog h3 {
+  margin: 0 0 12px;
+}
+
+.llm-provider-delete-dialog p {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.llm-provider-delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

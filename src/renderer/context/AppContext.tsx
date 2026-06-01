@@ -436,18 +436,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [workspace, loadDirectory]);
 
   const setLeftWidth = useCallback((width: number) => {
-    const clamped = Math.min(
-      Math.max(width, MIN_SIDEBAR_WIDTH),
-      MAX_SIDEBAR_WIDTH,
-    );
+    const clamped = Math.max(width, MIN_SIDEBAR_WIDTH);
     dispatchLayout({ type: 'SET_LEFT_WIDTH', width: clamped });
   }, []);
 
   const setRightWidth = useCallback((width: number) => {
-    const clamped = Math.min(
-      Math.max(width, MIN_SIDEBAR_WIDTH),
-      MAX_SIDEBAR_WIDTH,
-    );
+    const clamped = Math.max(width, MIN_SIDEBAR_WIDTH);
     dispatchLayout({ type: 'SET_RIGHT_WIDTH', width: clamped });
   }, []);
 

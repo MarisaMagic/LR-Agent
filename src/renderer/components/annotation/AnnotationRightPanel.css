@@ -46,6 +46,13 @@
   flex-wrap: wrap;
 }
 
+.annotation-right-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .annotation-right-status {
   font-size: 12px;
   color: var(--vscode-descriptionForeground, #858585);
@@ -226,6 +233,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+
+.annotation-right-unlabeled {
+  color: var(--vscode-descriptionForeground, #858585);
 }
 
 .annotation-right-unknown {

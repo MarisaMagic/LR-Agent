@@ -17,6 +17,7 @@ import { resolveHtmlPath } from './util';
 import { DirectoryItem, FileStats } from './preload';
 import registerAuthHandlers from './auth/authHandlers';
 import registerPretrainedModelHandlers from './pretrainedModels/pretrainedModelHandlers';
+import registerPreAnnotHandlers from './preAnnot/preAnnotHandlers';
 import {
   getAnnotationProjects,
   removeProjectDirConfig,
@@ -27,6 +28,8 @@ import {
   readAnnotationDocJson,
   writeAnnotationDocJson,
 } from './annotation/annotationDataStore';
+import { runAnnotationExport } from './annotation/annotationExportEngine';
+import type { AnnotationExportRequest } from '../shared/annotationExportTypes';
 
 class AppUpdater {
   constructor() {
@@ -174,6 +177,13 @@ ipcMain.handle(
     sourceHint?: { mtimeMs?: number; size?: number },
   ) => {
     await writeAnnotationDocJson(projectDir, relativePath, doc, sourceHint);
+  },
+);
+
+ipcMain.handle(
+  'annotation:exportAnnotations',
+  async (_event, request: AnnotationExportRequest) => {
+    return runAnnotationExport(request);
   },
 );
 
@@ -411,6 +421,7 @@ app
   .then(() => {
     registerAuthHandlers();
     registerPretrainedModelHandlers();
+    registerPreAnnotHandlers();
     createWindow();
     app.on('activate', () => {
       if (mainWindow === null) createWindow();

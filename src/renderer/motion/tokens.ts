@@ -5,6 +5,7 @@ export const motionDuration = {
   exit: 0.14,
   tab: 0.18,
   modal: 0.22,
+  popover: 0.16,
 } as const;
 
 export const motionDistance = {

@@ -1,0 +1,52 @@
+.agent-markdown {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--vscode-foreground, #cccccc);
+  word-break: break-word;
+}
+
+.agent-markdown p {
+  margin: 0 0 0.75em;
+}
+
+.agent-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.agent-markdown pre {
+  margin: 0.5em 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  background: var(--vscode-textCodeBlock-background, #1e1e1e);
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+}
+
+.agent-markdown code {
+  font-family: var(--vscode-editor-font-family, Consolas, monospace);
+  font-size: 12px;
+}
+
+.agent-markdown :not(pre) > code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.2);
+}
+
+.agent-markdown blockquote {
+  margin: 0.5em 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--vscode-textBlockQuote-border, #007acc);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.agent-markdown ul,
+.agent-markdown ol {
+  margin: 0.5em 0;
+  padding-left: 1.25em;
+}
+
+.agent-markdown .katex-display {
+  margin: 0.75em 0;
+  overflow-x: auto;
+}

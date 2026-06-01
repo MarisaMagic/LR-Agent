@@ -1,4 +1,5 @@
 import type { AnnotationType, Modality } from './annotation';
+import { parseStoredLabelId } from '../utils/annotationLabel';
 
 export interface AnnotationSourceMeta {
   width: number;
@@ -9,12 +10,16 @@ export interface AnnotationSourceMeta {
   size?: number;
 }
 
+export type AnnotationSource = 'manual' | 'preannot';
+
 export interface AnnotationBase {
   id: string;
-  labelId: string;
+  /** null = unlabeled (e.g. YOLO pre-annotation pending user assignment) */
+  labelId: string | null;
   createdAt: string;
   updatedAt: string;
   note?: string;
+  source?: AnnotationSource;
 }
 
 export interface BboxAnnotation extends AnnotationBase {
@@ -44,6 +49,33 @@ export interface PolygonAnnotation extends AnnotationBase {
   points: { x: number; y: number }[];
 }
 
+export type KeypointVisibility = 0 | 1 | 2;
+
+export interface PoseKeypoint {
+  x: number;
+  y: number;
+  visibility: KeypointVisibility;
+}
+
+export interface PoseAnnotation extends AnnotationBase {
+  kind: 'pose';
+  templateId: string;
+  /** Bbox center + size, normalized 0–1 vs natural image dimensions */
+  cx: number;
+  cy: number;
+  width: number;
+  height: number;
+  angle: number;
+  keypoints: PoseKeypoint[];
+}
+
+/** Single-point annotation within keypoint projects */
+export interface ImagePointAnnotation extends AnnotationBase {
+  kind: 'point';
+  x: number;
+  y: number;
+}
+
 export interface SpanAnnotation extends AnnotationBase {
   kind: 'span_ner';
   start: number;
@@ -54,6 +86,8 @@ export type AnnotationInstance =
   | BboxAnnotation
   | RotatedBboxAnnotation
   | PolygonAnnotation
+  | PoseAnnotation
+  | ImagePointAnnotation
   | SpanAnnotation;
 
 export const FILE_ANNOTATION_SCHEMA_VERSION = 1;
@@ -74,27 +108,39 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object');
 }
 
-function isAnnotBase(record: Record<string, unknown>): record is Record<
-  string,
-  unknown
-> & {
+type ParsedAnnotBase = {
   id: string;
-  labelId: string;
+  labelId: string | null;
   createdAt: string;
   updatedAt: string;
-} {
-  return (
-    typeof record.id === 'string' &&
-    typeof record.labelId === 'string' &&
-    typeof record.createdAt === 'string' &&
-    typeof record.updatedAt === 'string'
-  );
+  note?: string;
+};
+
+function parseAnnotBase(record: Record<string, unknown>): ParsedAnnotBase | null {
+  if (
+    typeof record.id !== 'string' ||
+    typeof record.createdAt !== 'string' ||
+    typeof record.updatedAt !== 'string'
+  ) {
+    return null;
+  }
+  const labelId = parseStoredLabelId(record.labelId);
+  if (labelId === undefined) return null;
+  return {
+    id: record.id,
+    labelId,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    note: typeof record.note === 'string' ? record.note : undefined,
+  };
 }
 
 export function parsePolygonAnnotation(
   raw: Record<string, unknown>,
 ): PolygonAnnotation | null {
-  if (raw.kind !== 'polygon' || !isAnnotBase(raw)) return null;
+  if (raw.kind !== 'polygon') return null;
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
   if (!Array.isArray(raw.points) || raw.points.length < 3) return null;
   const points: { x: number; y: number }[] = [];
   for (const pt of raw.points) {
@@ -105,13 +151,77 @@ export function parsePolygonAnnotation(
     points.push({ x: pt.x, y: pt.y });
   }
   return {
-    id: raw.id,
-    labelId: raw.labelId,
-    createdAt: raw.createdAt,
-    updatedAt: raw.updatedAt,
-    note: typeof raw.note === 'string' ? raw.note : undefined,
+    ...base,
     kind: 'polygon',
     points,
+  };
+}
+
+function parseVisibility(value: unknown): KeypointVisibility | null {
+  if (value === 0 || value === 1 || value === 2) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const v = Math.round(value);
+    if (v === 0 || v === 1 || v === 2) return v;
+  }
+  return null;
+}
+
+export function parsePoseAnnotation(
+  raw: Record<string, unknown>,
+): PoseAnnotation | null {
+  if (raw.kind !== 'pose') return null;
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
+  if (
+    typeof raw.templateId !== 'string' ||
+    typeof raw.cx !== 'number' ||
+    typeof raw.cy !== 'number' ||
+    typeof raw.width !== 'number' ||
+    typeof raw.height !== 'number' ||
+    typeof raw.angle !== 'number' ||
+    !Array.isArray(raw.keypoints)
+  ) {
+    return null;
+  }
+  const keypoints: PoseKeypoint[] = [];
+  for (const kp of raw.keypoints) {
+    if (!isRecord(kp) || typeof kp.x !== 'number' || typeof kp.y !== 'number') {
+      return null;
+    }
+    const visibility = parseVisibility(kp.visibility);
+    if (visibility === null) return null;
+    keypoints.push({ x: kp.x, y: kp.y, visibility });
+  }
+  return {
+    ...base,
+    kind: 'pose',
+    templateId: raw.templateId,
+    cx: raw.cx,
+    cy: raw.cy,
+    width: raw.width,
+    height: raw.height,
+    angle: raw.angle,
+    keypoints,
+  };
+}
+
+export function parseImagePointAnnotation(
+  raw: Record<string, unknown>,
+): ImagePointAnnotation | null {
+  if (
+    raw.kind !== 'point' ||
+    typeof raw.x !== 'number' ||
+    typeof raw.y !== 'number'
+  ) {
+    return null;
+  }
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
+  return {
+    ...base,
+    kind: 'point',
+    x: raw.x,
+    y: raw.y,
   };
 }
 
@@ -128,13 +238,10 @@ export function parseRotatedBboxAnnotation(
   ) {
     return null;
   }
-  if (!isAnnotBase(raw)) return null;
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
   return {
-    id: raw.id,
-    labelId: raw.labelId,
-    createdAt: raw.createdAt,
-    updatedAt: raw.updatedAt,
-    note: typeof raw.note === 'string' ? raw.note : undefined,
+    ...base,
     kind: 'rotated_bbox',
     cx: raw.cx,
     cy: raw.cy,
@@ -156,13 +263,10 @@ export function parseBboxAnnotation(
   ) {
     return null;
   }
-  if (!isAnnotBase(raw)) return null;
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
   return {
-    id: raw.id,
-    labelId: raw.labelId,
-    createdAt: raw.createdAt,
-    updatedAt: raw.updatedAt,
-    note: typeof raw.note === 'string' ? raw.note : undefined,
+    ...base,
     kind: 'bbox',
     x: raw.x,
     y: raw.y,
@@ -180,18 +284,17 @@ export function parseAnnotationInstance(
     if (item.kind === 'bbox') return parseBboxAnnotation(item);
     if (item.kind === 'rotated_bbox') return parseRotatedBboxAnnotation(item);
     if (item.kind === 'polygon') return parsePolygonAnnotation(item);
+    if (item.kind === 'pose') return parsePoseAnnotation(item);
+    if (item.kind === 'point') return parseImagePointAnnotation(item);
     if (
       item.kind === 'span_ner' &&
       typeof item.start === 'number' &&
-      typeof item.end === 'number' &&
-      isAnnotBase(item)
+      typeof item.end === 'number'
     ) {
+      const base = parseAnnotBase(item);
+      if (!base) return null;
       return {
-        id: item.id,
-        labelId: item.labelId,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-        note: typeof item.note === 'string' ? item.note : undefined,
+        ...base,
         kind: 'span_ner',
         start: item.start,
         end: item.end,

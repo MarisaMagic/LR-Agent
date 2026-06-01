@@ -28,6 +28,8 @@ function annotationsRoot(projectDir: string): string {
   return path.join(projectDir, PROJECT_HIDDEN, ANNOTATIONS_DIR);
 }
 
+export { annotationsRoot };
+
 function filesDir(projectDir: string): string {
   return path.join(annotationsRoot(projectDir), FILES_DIR);
 }
@@ -47,6 +49,32 @@ export function normalizeRelativePath(relativePath: string): string {
 export function computeFileKey(relativePath: string): string {
   const normalized = normalizeRelativePath(relativePath);
   return crypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
+}
+
+export async function readAnnotationIndex(
+  projectDir: string,
+): Promise<AnnotationIndexFilePayload | null> {
+  return readIndex(projectDir);
+}
+
+export async function loadAllAnnotationDocs(
+  projectDir: string,
+): Promise<Array<{ relativePath: string; doc: unknown }>> {
+  const index = await readIndex(projectDir);
+  if (!index) return [];
+
+  const results: Array<{ relativePath: string; doc: unknown }> = [];
+  for (const entry of Object.values(index.files)) {
+    const dp = docPath(projectDir, entry.fileKey);
+    if (!(await fs.pathExists(dp))) continue;
+    try {
+      const doc = await fs.readJson(dp);
+      results.push({ relativePath: entry.relativePath, doc });
+    } catch {
+      // skip corrupt docs
+    }
+  }
+  return results;
 }
 
 async function readIndex(

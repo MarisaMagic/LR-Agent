@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAnnotation } from '../context/AnnotationContext';
 import appIcon from '../../../assets/icon.png';
+import LayoutControls from './LayoutControls';
 import './TitleBar.css';
 
 const IS_DEV =
@@ -271,44 +272,50 @@ export default function TitleBar() {
         <span className="title-bar-title">LR-Agent</span>
       </div>
 
-      {showWindowControls && (
-        <div className="title-bar-controls">
-          <button
-            type="button"
-            className="title-bar-control title-bar-control-minimize"
-            aria-label="最小化"
-            onClick={() => window.electron.window.minimize()}
-          >
-            <span
-              className="codicon codicon-chrome-minimize"
-              aria-hidden="true"
-            />
-          </button>
-          <button
-            type="button"
-            className="title-bar-control title-bar-control-maximize"
-            aria-label={isMaximized ? '还原' : '最大化'}
-            onClick={() => window.electron.window.maximize()}
-          >
-            <span
-              className={`codicon ${
-                isMaximized
-                  ? 'codicon-chrome-restore'
-                  : 'codicon-chrome-maximize'
-              }`}
-              aria-hidden="true"
-            />
-          </button>
-          <button
-            type="button"
-            className="title-bar-control title-bar-control-close"
-            aria-label="关闭"
-            onClick={() => window.electron.window.close()}
-          >
-            <span className="codicon codicon-chrome-close" aria-hidden="true" />
-          </button>
-        </div>
-      )}
+      <div className="title-bar-right">
+        <LayoutControls />
+        {showWindowControls && (
+          <div className="title-bar-controls">
+            <button
+              type="button"
+              className="title-bar-control title-bar-control-minimize"
+              aria-label="最小化"
+              onClick={() => window.electron.window.minimize()}
+            >
+              <span
+                className="codicon codicon-chrome-minimize"
+                aria-hidden="true"
+              />
+            </button>
+            <button
+              type="button"
+              className="title-bar-control title-bar-control-maximize"
+              aria-label={isMaximized ? '还原' : '最大化'}
+              onClick={() => window.electron.window.maximize()}
+            >
+              <span
+                className={`codicon ${
+                  isMaximized
+                    ? 'codicon-chrome-restore'
+                    : 'codicon-chrome-maximize'
+                }`}
+                aria-hidden="true"
+              />
+            </button>
+            <button
+              type="button"
+              className="title-bar-control title-bar-control-close"
+              aria-label="关闭"
+              onClick={() => window.electron.window.close()}
+            >
+              <span
+                className="codicon codicon-chrome-close"
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+        )}
+      </div>
     </header>
   );
 }

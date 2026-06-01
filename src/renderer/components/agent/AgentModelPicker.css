@@ -1,0 +1,95 @@
+.agent-model-picker {
+  position: relative;
+  min-width: 0;
+  overflow: visible;
+}
+
+.agent-model-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.agent-model-picker-trigger:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.16);
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.agent-model-picker-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.agent-model-picker-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-model-picker-chevron {
+  font-size: 12px;
+  opacity: 0.8;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.agent-model-picker-trigger[aria-expanded='true'] .agent-model-picker-chevron {
+  transform: rotate(180deg);
+}
+
+.agent-model-picker-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  min-width: 220px;
+  max-width: 280px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--vscode-widget-border, #454545);
+  background: var(--vscode-dropdown-background, #3c3c3c);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  transform-origin: bottom left;
+}
+
+.agent-model-picker-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--vscode-foreground, #cccccc);
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-model-picker-option:hover,
+.agent-model-picker-option--active {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+
+.agent-model-picker-option-name {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.agent-model-picker-option-model {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}

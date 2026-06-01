@@ -489,9 +489,9 @@ export default function ImageBboxAnnotationLayer({
         aria-hidden
       >
         {bboxAnnotations.map((ann) => {
-          const label = labelById.get(ann.labelId);
+          const label = ann.labelId ? labelById.get(ann.labelId) : null;
           const stroke = label?.color ?? BBOX_THEME.defaultStroke;
-          const labelName = label?.name ?? '未知';
+          const labelName = label?.name ?? BBOX_THEME.labelEmptyText;
           const isSel = ann.id === selectedAnnotationId;
           return (
             <BboxAnnotationGraphic

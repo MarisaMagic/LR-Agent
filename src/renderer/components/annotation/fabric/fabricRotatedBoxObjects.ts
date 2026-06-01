@@ -15,7 +15,7 @@ export const ROTATED_BOX_ROTATE_CURSOR = 'grab';
 
 export type AnnotatedRotatedBoxRect = Rect & {
   lrRotatedAnnotationBox?: boolean;
-  data?: { boxId: string; labelId: string };
+  data?: { boxId: string; labelId: string | null };
   _boxId?: string;
   _labelObj?: FabricText;
 };

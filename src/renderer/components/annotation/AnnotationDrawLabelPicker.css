@@ -1,7 +1,18 @@
 /* Panel variant: more-labels control (toolbar styles live in ImageAnnotationToolbar.css) */
 
-.annotation-right-label-more-wrap {
-  position: relative;
+.annotation-draw-label-picker-measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  height: 0;
+  overflow: hidden;
+}
+
+.annotation-right-label-more-wrap {  position: relative;
   flex-shrink: 0;
 }
 
@@ -46,7 +57,7 @@
   flex-direction: column;
   gap: 4px;
   min-width: 120px;
-  max-width: 100%;
+  max-width: 220px;
   max-height: 220px;
   overflow-y: auto;
   padding: 4px;

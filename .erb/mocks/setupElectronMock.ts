@@ -54,11 +54,24 @@ Object.defineProperty(window, 'electron', {
       showItemInFolder: jest.fn().mockResolvedValue(undefined),
       readFileAnnotationDoc: jest.fn().mockResolvedValue(null),
       writeFileAnnotationDoc: jest.fn().mockResolvedValue(undefined),
+      exportAnnotations: jest.fn().mockResolvedValue({
+        success: true,
+        outputDir: '',
+        filesWritten: 0,
+        imageCount: 0,
+        annotationCount: 0,
+        message: 'ok',
+      }),
     },
     theme: {
       getSystemDark: jest.fn().mockResolvedValue(false),
       onSystemChanged: jest.fn(() => jest.fn()),
       notifyEffectiveTheme: jest.fn(),
+    },
+    preAnnot: {
+      checkRuntime: jest.fn().mockResolvedValue({ pythonOk: false }),
+      run: jest.fn().mockResolvedValue({ ok: false, error: 'mock' }),
+      cancel: jest.fn().mockResolvedValue(undefined),
     },
   },
 });

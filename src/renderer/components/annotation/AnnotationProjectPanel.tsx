@@ -21,6 +21,7 @@ export default function AnnotationProjectPanel({
     loading,
     openCreateWizard,
     openEditProject,
+    openExportProject,
     refreshProjects,
     openProject,
     deleteProject,
@@ -67,6 +68,7 @@ export default function AnnotationProjectPanel({
           loading={loading}
           onOpen={handleOpen}
           onEdit={openEditProject}
+          onExport={openExportProject}
           onDelete={setDeleteTarget}
           onShowInFolder={showProjectInFolder}
         />

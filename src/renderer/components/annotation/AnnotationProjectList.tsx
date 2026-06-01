@@ -20,6 +20,7 @@ interface AnnotationProjectListProps {
   onOpen: (projectId: string) => void;
   onDelete: (project: AnnotationProject) => void;
   onEdit: (project: AnnotationProject) => void;
+  onExport: (project: AnnotationProject) => void;
   onShowInFolder: (project: AnnotationProject) => void;
 }
 
@@ -37,9 +38,11 @@ export default function AnnotationProjectList({
   onOpen,
   onDelete,
   onEdit,
+  onExport,
   onShowInFolder,
 }: AnnotationProjectListProps) {
   const [menuProjectId, setMenuProjectId] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const menuAnchorRef = useRef<HTMLElement | null>(null);
   const triggerRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
@@ -58,6 +61,11 @@ export default function AnnotationProjectList({
     : null;
 
   const closeMenu = () => {
+    setMenuOpen(false);
+  };
+
+  const finalizeMenuClose = () => {
+    setMenuOpen(false);
     setMenuProjectId(null);
     menuAnchorRef.current = null;
   };
@@ -65,10 +73,11 @@ export default function AnnotationProjectList({
   const openMenu = (projectId: string, anchor: HTMLButtonElement) => {
     setMenuProjectId(projectId);
     menuAnchorRef.current = anchor;
+    setMenuOpen(true);
   };
 
   const toggleMenu = (projectId: string, anchor: HTMLButtonElement) => {
-    if (menuProjectId === projectId) {
+    if (menuProjectId === projectId && menuOpen) {
       closeMenu();
       return;
     }
@@ -98,7 +107,7 @@ export default function AnnotationProjectList({
       <AnnotationMotionList as="ul" className="annotation-project-list">
         {sorted.map((project) => {
           const isActive = project.id === activeProjectId;
-          const menuOpen = menuProjectId === project.id;
+          const menuOpenForItem = menuProjectId === project.id && menuOpen;
 
           return (
             <AnnotationMotionListItem
@@ -107,7 +116,7 @@ export default function AnnotationProjectList({
               layoutKey={project.id}
               className={`annotation-project-card${
                 isActive ? ' annotation-project-card-active' : ''
-              }${menuOpen ? ' annotation-project-card-menu-open' : ''}`}
+              }${menuOpenForItem ? ' annotation-project-card-menu-open' : ''}`}
             >
               <div className="annotation-project-card-body">
                 <button
@@ -174,7 +183,7 @@ export default function AnnotationProjectList({
                   type="button"
                   className="annotation-project-menu-trigger"
                   aria-label="更多操作"
-                  aria-expanded={menuOpen}
+                  aria-expanded={menuOpenForItem}
                   ref={(element) => {
                     if (element) {
                       triggerRefs.current.set(project.id, element);
@@ -196,8 +205,11 @@ export default function AnnotationProjectList({
 
       {menuProject && menuAnchorRef.current && (
         <AnnotationProjectMenuPortal
+          key={menuProject.id}
+          open={menuOpen}
           anchorEl={menuAnchorRef.current}
           onClose={closeMenu}
+          onExitComplete={finalizeMenuClose}
           onOpen={() => {
             closeMenu();
             onOpen(menuProject.id);
@@ -205,6 +217,10 @@ export default function AnnotationProjectList({
           onEdit={() => {
             closeMenu();
             onEdit(menuProject);
+          }}
+          onExport={() => {
+            closeMenu();
+            onExport(menuProject);
           }}
           onShowInFolder={() => {
             closeMenu();

@@ -529,6 +529,11 @@ export class PolygonCanvasInteraction {
     return true;
   }
 
+  /** Used by workspace Ctrl+Z before annotation history undo. */
+  tryUndoDraftPoint(): boolean {
+    return this.undoDraftPoint();
+  }
+
   private addVertex(
     obj: AnnotatedPolygon,
     scenePt: Point,
@@ -826,13 +831,6 @@ export class PolygonCanvasInteraction {
     if (ev.key === 'Escape') {
       this.cancelDraft();
       return true;
-    }
-    if (
-      (ev.ctrlKey || ev.metaKey) &&
-      !ev.shiftKey &&
-      (ev.key === 'z' || ev.key === 'Z')
-    ) {
-      if (this.undoDraftPoint()) return true;
     }
     if (
       (ev.key === 'Delete' || ev.key === 'Backspace') &&
