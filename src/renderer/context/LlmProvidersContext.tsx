@@ -15,17 +15,20 @@ import {
   buildEmptyProvider,
   loadDefaultProviderId,
   loadLlmProviders,
+  markDefaultLlmProvider,
   persistDefaultProviderId,
-  persistLlmProviders,
+  removeLlmProvider,
   resolveDefaultProvider,
+  upsertLlmProvider,
 } from '../services/llmProviderService';
+import { useAuth } from './AuthContext';
 
 interface LlmProvidersContextValue {
   providers: LlmProviderConfig[];
   loading: boolean;
   defaultProvider: LlmProviderConfig | null;
   refreshProviders: () => Promise<void>;
-  upsertProvider: (provider: LlmProviderConfig) => Promise<void>;
+  upsertProvider: (provider: LlmProviderConfig, isNew?: boolean) => Promise<void>;
   deleteProvider: (id: string) => Promise<void>;
   setDefaultProvider: (id: string) => Promise<void>;
 }
@@ -35,6 +38,7 @@ const LlmProvidersContext = createContext<LlmProvidersContextValue | null>(
 );
 
 export function LlmProvidersProvider({ children }: { children: ReactNode }) {
+  const { status: authStatus } = useAuth();
   const [providers, setProviders] = useState<LlmProviderConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [defaultProviderId, setDefaultProviderId] = useState<string | null>(
@@ -48,43 +52,50 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
       setProviders(list);
       const resolved = resolveDefaultProvider(list);
       setDefaultProviderId(resolved?.id ?? null);
+      if (resolved?.id) {
+        persistDefaultProviderId(resolved.id);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    refreshProviders().catch(() => undefined);
-  }, [refreshProviders]);
+    if (authStatus === 'authenticated') {
+      refreshProviders().catch(() => undefined);
+      return;
+    }
+    if (authStatus === 'unauthenticated') {
+      setProviders([]);
+      setLoading(false);
+    }
+  }, [authStatus, refreshProviders]);
 
   const upsertProvider = useCallback(
-    async (provider: LlmProviderConfig) => {
-      const exists = providers.some((item) => item.id === provider.id);
-      let next = exists
-        ? providers.map((item) => (item.id === provider.id ? provider : item))
-        : [...providers, provider];
+    async (provider: LlmProviderConfig, isNew = false) => {
+      const saved = await upsertLlmProvider(providers, provider, isNew);
+      let next = isNew
+        ? [...providers, saved]
+        : providers.map((item) => (item.id === saved.id ? saved : item));
 
-      if (provider.isDefault) {
+      if (saved.isDefault) {
         next = next.map((item) => ({
           ...item,
-          isDefault: item.id === provider.id,
+          isDefault: item.id === saved.id,
         }));
+        persistDefaultProviderId(saved.id);
+        setDefaultProviderId(saved.id);
       }
 
-      await persistLlmProviders(next);
       setProviders(next);
-      if (provider.isDefault) {
-        persistDefaultProviderId(provider.id);
-        setDefaultProviderId(provider.id);
-      }
     },
     [providers],
   );
 
   const deleteProvider = useCallback(
     async (id: string) => {
+      await removeLlmProvider(id);
       const next = providers.filter((item) => item.id !== id);
-      await persistLlmProviders(next);
       setProviders(next);
       if (defaultProviderId === id) {
         const resolved = resolveDefaultProvider(next);
@@ -97,14 +108,14 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
 
   const setDefaultProvider = useCallback(
     async (id: string) => {
+      const updated = await markDefaultLlmProvider(id);
       const next = providers.map((item) => ({
         ...item,
-        isDefault: item.id === id,
+        isDefault: item.id === updated.id,
       }));
-      await persistLlmProviders(next);
       setProviders(next);
-      persistDefaultProviderId(id);
-      setDefaultProviderId(id);
+      persistDefaultProviderId(updated.id);
+      setDefaultProviderId(updated.id);
     },
     [providers],
   );
@@ -154,4 +165,4 @@ export function useLlmProviders(): LlmProvidersContextValue {
   return ctx;
 }
 
-export { buildEmptyProvider };
+export { buildEmptyProvider, createAgentId };

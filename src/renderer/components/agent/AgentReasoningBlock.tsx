@@ -14,18 +14,24 @@ export default function AgentReasoningBlock({
   streaming = false,
   onToggle,
 }: AgentReasoningBlockProps) {
+  const label = streaming
+    ? '思考中…'
+    : block.content.trim()
+      ? '已思考'
+      : '思考过程';
+
   return (
     <div className="agent-reasoning-block">
-      <button type="button" className="agent-block-toggle" onClick={onToggle}>
+      <button type="button" className="agent-reasoning-toggle" onClick={onToggle}>
         <VscodeIcon
           name={block.collapsed ? 'chevron-right' : 'chevron-down'}
-          size={14}
+          size={12}
         />
-        <span>思考过程{streaming ? '…' : ''}</span>
+        <span>{label}</span>
       </button>
-      {!block.collapsed && (
+      {!block.collapsed && block.content.trim() && (
         <div className="agent-reasoning-body">
-          <AgentMarkdown content={block.content || ' ' } />
+          <AgentMarkdown content={block.content} />
         </div>
       )}
     </div>

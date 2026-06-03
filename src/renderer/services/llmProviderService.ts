@@ -2,18 +2,26 @@ import {
   createAgentId,
   type LlmProviderConfig,
 } from '../../shared/agentTypes';
+import {
+  createLlmProviderOnApi,
+  deleteLlmProviderOnApi,
+  fetchLlmProvidersFromApi,
+  migrateLocalProvidersToApi,
+  setDefaultLlmProviderOnApi,
+  updateLlmProviderOnApi,
+} from './llmProviderApi';
+import tokenHolder from './tokenHolder';
 
-const STORAGE_KEY = 'lr-agent:llmProviders';
 const DEFAULT_PROVIDER_KEY = 'lr-agent:defaultLlmProviderId';
 
 export function buildEmptyProvider(): LlmProviderConfig {
   const now = Date.now();
   return {
-    id: createAgentId('llm'),
+    id: crypto.randomUUID(),
     name: '',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     apiKey: '',
-    model: 'Qwen3.6-Plus',
+    model: 'qwen-plus',
     enabled: true,
     isDefault: false,
     createdAt: now,
@@ -22,20 +30,11 @@ export function buildEmptyProvider(): LlmProviderConfig {
 }
 
 export async function loadLlmProviders(): Promise<LlmProviderConfig[]> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as LlmProviderConfig[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
+  if (!tokenHolder.getAccessToken()) {
     return [];
   }
-}
-
-export async function persistLlmProviders(
-  providers: LlmProviderConfig[],
-): Promise<void> {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(providers));
+  await migrateLocalProvidersToApi();
+  return fetchLlmProvidersFromApi();
 }
 
 export function loadDefaultProviderId(): string | null {
@@ -67,4 +66,38 @@ export function resolveDefaultProvider(
     : null;
   if (stored) return stored;
   return enabled.find((item) => item.isDefault) ?? enabled[0] ?? null;
+}
+
+export async function upsertLlmProvider(
+  providers: LlmProviderConfig[],
+  provider: LlmProviderConfig,
+  isNew: boolean,
+): Promise<LlmProviderConfig> {
+  const saved = isNew
+    ? await createLlmProviderOnApi(provider)
+    : await updateLlmProviderOnApi(provider);
+
+  if (saved.isDefault) {
+    const updated = await setDefaultLlmProviderOnApi(saved.id);
+    persistDefaultProviderId(updated.id);
+    return updated;
+  }
+  return saved;
+}
+
+export async function removeLlmProvider(id: string): Promise<void> {
+  await deleteLlmProviderOnApi(id);
+}
+
+export async function markDefaultLlmProvider(id: string): Promise<LlmProviderConfig> {
+  const updated = await setDefaultLlmProviderOnApi(id);
+  persistDefaultProviderId(updated.id);
+  return updated;
+}
+
+/** @deprecated local-only persistence removed */
+export async function persistLlmProviders(
+  _providers: LlmProviderConfig[],
+): Promise<void> {
+  // no-op: providers are stored on the backend
 }

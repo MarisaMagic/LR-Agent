@@ -1,9 +1,42 @@
-.agent-reasoning-block,
+.agent-reasoning-block {
+  margin: 4px 0 10px;
+}
+
+.agent-reasoning-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font-size: var(--agent-font-small);
+  cursor: pointer;
+  text-align: left;
+}
+
+.agent-reasoning-toggle:hover {
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.agent-reasoning-body {
+  margin-top: 6px;
+  padding-left: 2px;
+  font-size: var(--agent-font-small);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.agent-reasoning-body .agent-markdown {
+  font-size: var(--agent-font-small);
+  line-height: 1.5;
+}
+
+/* Tool blocks: keep subtle, aligned with reasoning */
 .agent-tool-block {
-  margin-bottom: 8px;
-  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  margin: 8px 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 8px;
-  background: rgba(128, 128, 128, 0.08);
+  background: rgba(128, 128, 128, 0.05);
   overflow: hidden;
 }
 
@@ -12,23 +45,21 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px;
+  padding: 6px 0;
   border: none;
   background: transparent;
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: 12px;
+  font-size: var(--agent-font-small);
   cursor: pointer;
   text-align: left;
 }
 
 .agent-block-toggle:hover {
   color: var(--vscode-foreground, #cccccc);
-  background: rgba(128, 128, 128, 0.08);
 }
 
-.agent-reasoning-body,
 .agent-tool-body {
-  padding: 0 10px 10px;
+  padding: 0 0 8px;
 }
 
 .agent-tool-section + .agent-tool-section {
@@ -36,7 +67,7 @@
 }
 
 .agent-tool-label {
-  font-size: 11px;
+  font-size: var(--agent-font-meta);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   margin-bottom: 4px;
 }
@@ -45,7 +76,7 @@
   margin: 0;
   padding: 8px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--agent-font-meta);
   line-height: 1.45;
   overflow-x: auto;
   background: var(--vscode-textCodeBlock-background, #1e1e1e);

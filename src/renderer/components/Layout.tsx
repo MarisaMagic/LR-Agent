@@ -224,23 +224,39 @@ export default function Layout() {
       document.body.style.userSelect = 'none';
       document.body.classList.add('is-resizing', `is-resizing-${side}`);
 
+      let resizeRafId: number | null = null;
+
+      const flushResizeDraft = () => {
+        resizeRafId = null;
+        const side = resizeSideRef.current;
+        const width = resizeDraftRef.current;
+        if (side == null || width == null) return;
+        setResizeDraft({ side, width });
+      };
+
       const onMove = (ev: { clientX: number }) => {
         if (resizeSideRef.current === 'left') {
-          const width = clampLeftWidth(ev.clientX - ACTIVITY_BAR_WIDTH);
-          resizeDraftRef.current = width;
-          setResizeDraft({ side: 'left', width });
-        }
-        if (resizeSideRef.current === 'right') {
+          resizeDraftRef.current = clampLeftWidth(
+            ev.clientX - ACTIVITY_BAR_WIDTH,
+          );
+        } else if (resizeSideRef.current === 'right') {
           const rightOffset = rightCollapsed ? RIGHT_ACTIVITY_BAR_WIDTH : 0;
-          const width = clampRightWidth(
+          resizeDraftRef.current = clampRightWidth(
             window.innerWidth - ev.clientX - rightOffset,
           );
-          resizeDraftRef.current = width;
-          setResizeDraft({ side: 'right', width });
+        } else {
+          return;
         }
+
+        if (resizeRafId != null) return;
+        resizeRafId = requestAnimationFrame(flushResizeDraft);
       };
 
       const onUp = () => {
+        if (resizeRafId != null) {
+          cancelAnimationFrame(resizeRafId);
+          resizeRafId = null;
+        }
         const activeSide = resizeSideRef.current;
         const finalWidth = resizeDraftRef.current;
         resizeSideRef.current = null;

@@ -54,6 +54,43 @@ async function* emitCharDeltas(
   }
 }
 
+function buildMockAnswer(userContent: string): string {
+  const preview = userContent.trim().slice(0, 80);
+  return `## 回复
+
+收到你的消息${preview ? `：「${preview}${userContent.length > 80 ? '…' : ''}」` : ''}。
+
+这是 **Markdown** 演示，支持：
+
+- 列表与 \`行内代码\`
+- 数学公式：行内 $E=mc^2$，块级：
+
+$$
+\\int_0^1 x^2 \\, dx = \\frac{1}{3}
+$$
+
+> 当前为 Mock 流式输出。请登录并在「大模型配置」中添加 API Key 后使用真实模型。`;
+}
+
+/** 纯文本闲聊 Mock（无工具/推理块） */
+export async function* mockChatStream(
+  userContent: string,
+  signal: AbortSignal,
+): AsyncGenerator<StreamEvent> {
+  try {
+    yield* emitCharDeltas(buildMockAnswer(userContent), 'text_delta', signal);
+    yield { type: 'done' };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return;
+    }
+    yield {
+      type: 'error',
+      message: err instanceof Error ? err.message : 'Mock 流式输出失败',
+    };
+  }
+}
+
 export async function* mockStreamResponse(
   userContent: string,
   signal: AbortSignal,

@@ -1,5 +1,5 @@
 .agent-markdown {
-  font-size: 13px;
+  font-size: var(--agent-font-body);
   line-height: 1.6;
   color: var(--vscode-foreground, #cccccc);
   word-break: break-word;
@@ -24,7 +24,7 @@
 
 .agent-markdown code {
   font-family: var(--vscode-editor-font-family, Consolas, monospace);
-  font-size: 12px;
+  font-size: var(--agent-font-code);
 }
 
 .agent-markdown :not(pre) > code {

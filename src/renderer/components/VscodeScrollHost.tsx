@@ -1,11 +1,17 @@
 import { VscodeScrollable } from '@vscode-elements/react-elements';
-import { type ComponentRef, type ReactNode, type Ref } from 'react';
+import {
+  type ComponentRef,
+  type ReactNode,
+  type Ref,
+  type UIEventHandler,
+} from 'react';
 import { useScrollHostHeight } from '../hooks/useScrollHostHeight';
 
 interface VscodeScrollHostProps {
   className?: string;
   scrollableClassName?: string;
   scrollRef?: Ref<ComponentRef<typeof VscodeScrollable>>;
+  onScroll?: UIEventHandler<HTMLElement>;
   children: ReactNode;
 }
 
@@ -16,6 +22,7 @@ export default function VscodeScrollHost({
   className = '',
   scrollableClassName = '',
   scrollRef,
+  onScroll,
   children,
 }: VscodeScrollHostProps) {
   const { hostRef, height } = useScrollHostHeight();
@@ -29,6 +36,7 @@ export default function VscodeScrollHost({
         ref={scrollRef}
         className={`sidebar-panel-scroll${scrollableClassName ? ` ${scrollableClassName}` : ''}`}
         style={height > 0 ? { height: `${height}px` } : undefined}
+        onScroll={onScroll}
       >
         {children}
       </VscodeScrollable>

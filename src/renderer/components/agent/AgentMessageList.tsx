@@ -6,13 +6,21 @@ import AgentMessageItem from './AgentMessageItem';
 import './AgentMessageList.css';
 
 export default function AgentMessageList() {
-  const { activeSessionId, getSessionMessages } = useAgentChat();
+  const {
+    activeSessionId,
+    activeSession,
+    editTargetMessageId,
+    getSessionMessages,
+    loadOlderMessages,
+    loadingOlderMessages,
+  } = useAgentChat();
   const bottomRef = useRef<HTMLDivElement>(null);
   const messages = activeSessionId ? getSessionMessages(activeSessionId) : [];
 
   useEffect(() => {
+    if (editTargetMessageId) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, activeSessionId]);
+  }, [messages, activeSessionId, editTargetMessageId]);
 
   if (!activeSessionId) {
     return null;
@@ -22,8 +30,21 @@ export default function AgentMessageList() {
     <VscodeScrollHost
       className="agent-message-list-scroll"
       scrollableClassName="agent-message-list-scrollable"
+      onScroll={(event) => {
+        const el = event.currentTarget;
+        if (
+          activeSession?.hasMoreMessagesBefore &&
+          !loadingOlderMessages &&
+          el.scrollTop < 64
+        ) {
+          void loadOlderMessages(activeSessionId);
+        }
+      }}
     >
       <div className="agent-message-list">
+        {loadingOlderMessages ? (
+          <div className="agent-message-list-loading">加载更早的消息…</div>
+        ) : null}
         {messages.length === 0 ? (
           <div className="agent-message-empty">
             <VscodeLabel>开始与 Agent 对话</VscodeLabel>

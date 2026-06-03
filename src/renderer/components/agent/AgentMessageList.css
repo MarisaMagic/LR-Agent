@@ -7,6 +7,13 @@
   padding: 12px;
 }
 
+.agent-message-list-loading {
+  padding: 8px 4px 12px;
+  font-size: var(--agent-font-meta);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  text-align: center;
+}
+
 .agent-message-empty {
   padding: 32px 12px;
   text-align: center;
@@ -15,6 +22,6 @@
 
 .agent-message-empty p {
   margin: 8px 0 0;
-  font-size: 12px;
+  font-size: var(--agent-font-small);
   line-height: 1.5;
 }

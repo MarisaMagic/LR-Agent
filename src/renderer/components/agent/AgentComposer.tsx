@@ -1,12 +1,17 @@
 import {
   FormEvent,
   KeyboardEvent,
+  useCallback,
+  useEffect,
   useMemo,
+  useRef,
 } from 'react';
 import { useAgentChat } from '../../context/AgentChatContext';
 import { useLlmProviders } from '../../context/LlmProvidersContext';
 import AgentModelPicker from './AgentModelPicker';
 import './AgentComposer.css';
+
+const COMPOSER_MAX_HEIGHT_PX = 160;
 
 export default function AgentComposer() {
   const {
@@ -14,14 +19,14 @@ export default function AgentComposer() {
     activeSession,
     composerDraft,
     setComposerDraft,
-    editTargetMessageId,
-    cancelEdit,
     sendMessage,
     stopGeneration,
     isSessionStreaming,
+    preparingContext,
     setSessionProvider,
   } = useAgentChat();
   const { providers, defaultProvider } = useLlmProviders();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const enabledProviders = useMemo(
     () => providers.filter((item) => item.enabled),
@@ -31,16 +36,30 @@ export default function AgentComposer() {
   const streaming =
     activeSessionId != null && isSessionStreaming(activeSessionId);
 
+  const busy = streaming || preparingContext;
+
   const canSend =
     Boolean(composerDraft.trim()) &&
     enabledProviders.length > 0 &&
     Boolean(activeSessionId) &&
-    !streaming;
+    !busy;
+
+  const resizeTextarea = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_HEIGHT_PX)}px`;
+  }, []);
+
+  useEffect(() => {
+    resizeTextarea();
+  }, [composerDraft, resizeTextarea]);
 
   const handleSubmit = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (streaming || !composerDraft.trim()) return;
+    if (busy || !composerDraft.trim()) return;
     await sendMessage(composerDraft);
+    requestAnimationFrame(resizeTextarea);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -55,23 +74,18 @@ export default function AgentComposer() {
 
   return (
     <div className="agent-composer">
-      {editTargetMessageId && (
-        <div className="agent-composer-edit-banner">
-          <span>正在编辑消息，发送后将截断后续对话并重发。</span>
-          <button type="button" onClick={cancelEdit}>
-            取消
-          </button>
-        </div>
-      )}
-
       <form className="agent-composer-form" onSubmit={handleSubmit}>
         <div className="agent-composer-box">
           <textarea
+            ref={textareaRef}
             className="agent-composer-input"
             value={composerDraft}
             placeholder="Plan, Build, / for skills, @ for context"
-            rows={3}
-            onChange={(event) => setComposerDraft(event.target.value)}
+            rows={1}
+            onChange={(event) => {
+              setComposerDraft(event.target.value);
+              resizeTextarea();
+            }}
             onKeyDown={handleKeyDown}
           />
 
@@ -86,7 +100,7 @@ export default function AgentComposer() {
               }}
             />
 
-            {streaming ? (
+            {busy ? (
               <button
                 type="button"
                 className="agent-composer-send agent-composer-send--stop"

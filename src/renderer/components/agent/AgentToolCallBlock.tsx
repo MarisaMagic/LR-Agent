@@ -1,6 +1,6 @@
 import { VscodeIcon } from '@vscode-elements/react-elements';
 import type { MessageBlock } from '../../types/agent';
-import './AgentReasoningBlock.css';
+import './AgentReasoningBlock.css'; /* shared tool + reasoning tokens */
 
 interface AgentToolCallBlockProps {
   block: Extract<MessageBlock, { type: 'tool_call' }>;

@@ -49,11 +49,8 @@ export default function LlmProvidersPanel() {
 
   const handleSave = async (provider: LlmProviderConfig) => {
     const existing = providers.find((item) => item.id === provider.id);
-    const payload =
-      existing && !provider.apiKey
-        ? { ...provider, apiKey: existing.apiKey }
-        : provider;
-    await upsertProvider(payload);
+    const isNew = !existing;
+    await upsertProvider(provider, isNew);
   };
 
   const handleDelete = async () => {

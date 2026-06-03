@@ -1,26 +1,88 @@
 .agent-session-tabs {
+  --agent-tab-bar-height: 40px;
+  --agent-tab-scrollbar-height: 3px;
+
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 4px;
   flex-shrink: 0;
-  padding: 6px 6px 0;
+  height: var(--agent-tab-bar-height);
+  min-height: var(--agent-tab-bar-height);
+  padding: 0 6px;
+  box-sizing: border-box;
   border-bottom: 1px solid var(--vscode-sideBar-border, #3e3e42);
   background: var(--vscode-sideBarTitle-background, #252526);
 }
 
+.agent-session-tab-scroller {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .agent-session-tab-list {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  padding-top: 4px;
+  box-sizing: border-box;
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.agent-session-tab-list::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.agent-session-tab-scrollbar {
+  flex-shrink: 0;
+  position: relative;
+  height: var(--agent-tab-scrollbar-height);
+  cursor: pointer;
+}
+
+.agent-session-tab-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  height: var(--agent-tab-scrollbar-height);
+  min-width: 32px;
+  border-radius: 1px;
+  background: var(--vscode-scrollbarSlider-background);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: auto;
+}
+
+.agent-session-tab-scroller.is-dragging .agent-session-tab-scrollbar-thumb {
+  opacity: 1;
+}
+
+.agent-session-tab-scroller:hover .agent-session-tab-scrollbar-thumb,
+.agent-session-tab-scroller.is-scrolling .agent-session-tab-scrollbar-thumb {
+  opacity: 1;
+}
+
+.agent-session-tab-scroller:hover .agent-session-tab-scrollbar-thumb:hover,
+.agent-session-tab-scroller.is-scrolling .agent-session-tab-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-hoverBackground);
 }
 
 .agent-session-tab {
   display: flex;
   align-items: center;
-  max-width: 160px;
+  flex-shrink: 0;
+  min-width: 130px;
+  max-width: 220px;
   border-radius: 6px 6px 0 0;
   border: 1px solid transparent;
   background: transparent;
@@ -36,12 +98,13 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 1;
   min-width: 0;
-  padding: 6px 4px 6px 8px;
+  padding: 5px 4px 5px 12px;
   border: none;
   background: transparent;
   color: var(--vscode-foreground, #cccccc);
-  font-size: 12px;
+  font-size: var(--agent-font-small);
   cursor: pointer;
 }
 
@@ -52,17 +115,39 @@
 }
 
 .agent-session-tab-close {
-  padding: 4px 6px 6px 2px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 2px 4px 2px 0;
+  padding: 0;
   border: none;
+  border-radius: 4px;
   background: transparent;
   color: var(--vscode-descriptionForeground, #9d9d9d);
   cursor: pointer;
+}
+
+.agent-session-tab-close .codicon {
   font-size: 14px;
   line-height: 1;
 }
 
 .agent-session-tab-close:hover {
   color: var(--vscode-foreground, #cccccc);
+  background: rgba(128, 128, 128, 0.2);
+}
+
+.agent-session-tab:not(.agent-session-tab--active) .agent-session-tab-close {
+  opacity: 0;
+}
+
+.agent-session-tab:hover .agent-session-tab-close,
+.agent-session-tab--active .agent-session-tab-close,
+.agent-session-tab-close:focus-visible {
+  opacity: 1;
 }
 
 .agent-session-tab-dot {
@@ -76,6 +161,7 @@
 .agent-session-tab-actions {
   display: flex;
   align-items: center;
+  align-self: center;
   flex-shrink: 0;
 }
 

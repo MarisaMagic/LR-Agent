@@ -14,7 +14,7 @@
   border-radius: 999px;
   background: transparent;
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: 12px;
+  font-size: var(--agent-font-small);
   line-height: 1.2;
   cursor: pointer;
   transition:
@@ -39,7 +39,7 @@
 }
 
 .agent-model-picker-chevron {
-  font-size: 12px;
+  font-size: var(--agent-font-small);
   opacity: 0.8;
   flex-shrink: 0;
   transition: transform 0.15s ease;
@@ -85,11 +85,11 @@
 }
 
 .agent-model-picker-option-name {
-  font-size: 12px;
+  font-size: var(--agent-font-small);
   font-weight: 500;
 }
 
 .agent-model-picker-option-model {
-  font-size: 11px;
+  font-size: var(--agent-font-meta);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }

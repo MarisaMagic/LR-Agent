@@ -78,6 +78,9 @@ export default function AgentHistoryPopover({
     openSessionTab,
     deleteSession,
     isSessionStreaming,
+    sessionsHasMore,
+    loadingMoreSessions,
+    loadMoreSessions,
   } = useAgentChat();
   const reducedMotion = useReducedMotion();
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -169,7 +172,19 @@ export default function AgentHistoryPopover({
         />
       </div>
 
-      <div className="agent-history-groups">
+      <div
+        className="agent-history-groups"
+        onScroll={(event) => {
+          const el = event.currentTarget;
+          if (
+            sessionsHasMore &&
+            !loadingMoreSessions &&
+            el.scrollHeight - el.scrollTop - el.clientHeight < 48
+          ) {
+            void loadMoreSessions();
+          }
+        }}
+      >
         {groups.length === 0 ? (
           <div className="agent-history-empty">暂无历史对话</div>
         ) : (
@@ -198,8 +213,15 @@ export default function AgentHistoryPopover({
                                 : 'codicon-history'
                           } agent-history-row-icon`}
                         />
-                        <span className="agent-history-row-title">
-                          {session.title}
+                        <span className="agent-history-row-text">
+                          <span className="agent-history-row-title">
+                            {session.title}
+                          </span>
+                          {session.lastMessagePreview ? (
+                            <span className="agent-history-row-preview">
+                              {session.lastMessagePreview}
+                            </span>
+                          ) : null}
                         </span>
                       </button>
                       <button
@@ -218,6 +240,9 @@ export default function AgentHistoryPopover({
             </section>
           ))
         )}
+        {loadingMoreSessions ? (
+          <div className="agent-history-loading">加载中…</div>
+        ) : null}
       </div>
         </m.div>
       )}

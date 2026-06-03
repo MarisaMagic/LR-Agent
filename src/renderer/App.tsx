@@ -33,8 +33,8 @@ function MainAppRoutes() {
         <AppProvider>
           <PretrainedModelsProvider>
             <LlmProvidersProvider>
-              <AgentChatProvider>
-                <AnnotationProvider>
+              <AnnotationProvider>
+                <AgentChatProvider>
                   <AnnotationWorkspaceProvider>
                     <AppShell>
                       <PageTransition
@@ -50,8 +50,8 @@ function MainAppRoutes() {
                       </PageTransition>
                     </AppShell>
                   </AnnotationWorkspaceProvider>
-                </AnnotationProvider>
-              </AgentChatProvider>
+                </AgentChatProvider>
+              </AnnotationProvider>
             </LlmProvidersProvider>
           </PretrainedModelsProvider>
         </AppProvider>

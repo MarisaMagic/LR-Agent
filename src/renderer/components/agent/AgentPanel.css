@@ -6,4 +6,13 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--vscode-sideBar-background, #252526);
+
+  /* Panel base: align with app --vscode-font-size (15px), not legacy 13px hardcodes */
+  font-size: var(--vscode-font-size, 15px);
+  --agent-font-body: 1em;
+  --agent-font-large: 1.067em;
+  --agent-font-small: 0.933em;
+  --agent-font-meta: 0.867em;
+  --agent-font-caption: 0.8em;
+  --agent-font-code: 0.933em;
 }

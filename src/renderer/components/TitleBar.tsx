@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAnnotation } from '../context/AnnotationContext';
 import appIcon from '../../../assets/icon.png';
-import LayoutControls from './LayoutControls';
+import { LeftSidebarToggle, RightSidebarToggle } from './LayoutControls';
 import './TitleBar.css';
 
 const IS_DEV =
@@ -263,6 +263,9 @@ export default function TitleBar() {
             </div>
           ))}
         </nav>
+        <div className="layout-controls layout-controls-left">
+          <LeftSidebarToggle />
+        </div>
       </div>
 
       <div
@@ -273,7 +276,9 @@ export default function TitleBar() {
       </div>
 
       <div className="title-bar-right">
-        <LayoutControls />
+        <div className="layout-controls layout-controls-right">
+          <RightSidebarToggle />
+        </div>
         {showWindowControls && (
           <div className="title-bar-controls">
             <button

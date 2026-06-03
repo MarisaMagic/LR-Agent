@@ -6,6 +6,34 @@ import type {
 } from '../../shared/agentTypes';
 
 const STORAGE_KEY = 'lr-agent:agentChatState';
+const UI_STORAGE_KEY = 'lr-agent:agentChatUi';
+
+export interface AgentChatUiState {
+  openTabIds: string[];
+  activeSessionId: string | null;
+}
+
+export function createEmptyUiState(): AgentChatUiState {
+  return { openTabIds: [], activeSessionId: null };
+}
+
+export function loadAgentChatUiState(): AgentChatUiState {
+  try {
+    const raw = localStorage.getItem(UI_STORAGE_KEY);
+    if (!raw) return createEmptyUiState();
+    const parsed = JSON.parse(raw) as AgentChatUiState;
+    return {
+      openTabIds: parsed.openTabIds ?? [],
+      activeSessionId: parsed.activeSessionId ?? null,
+    };
+  } catch {
+    return createEmptyUiState();
+  }
+}
+
+export function persistAgentChatUiState(state: AgentChatUiState): void {
+  localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(state));
+}
 
 export function createEmptyChatState(): AgentChatPersistedState {
   return {

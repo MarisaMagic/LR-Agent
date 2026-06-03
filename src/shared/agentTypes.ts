@@ -47,13 +47,37 @@ export interface ChatMessage {
   updatedAt: number;
 }
 
+export interface ChatContextConfig {
+  maxContextTokens: number;
+  reserveCompletionTokens: number;
+  maxTurnsInWindow: number;
+  summarizeTriggerRatio: number;
+  minTurnsBeforeSummarize: number;
+}
+
+export const DEFAULT_CHAT_CONTEXT_CONFIG: ChatContextConfig = {
+  maxContextTokens: 12_000,
+  reserveCompletionTokens: 2_048,
+  maxTurnsInWindow: 20,
+  summarizeTriggerRatio: 0.85,
+  minTurnsBeforeSummarize: 6,
+};
+
 export interface AgentSession {
   id: string;
   title: string;
   providerId: string;
   model: string;
   messageIds: string[];
+  messageCount?: number;
+  lastMessagePreview?: string;
+  hasMoreMessagesBefore?: boolean;
   activeJobId?: string;
+  /** 被窗口挤出历史的压缩摘要 */
+  contextSummary?: string;
+  /** 摘要已覆盖到的最后一条消息 id */
+  summaryUpToMessageId?: string;
+  lastContextTokenEstimate?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -77,8 +101,22 @@ export type StreamEvent =
       arguments: string;
     }
   | { type: 'tool_result'; toolCallId: string; result: string }
+  | { type: 'preparing'; stage: 'summarize' | 'streaming' | 'build_messages' }
+  | {
+      type: 'context_updated';
+      summary: string;
+      summaryUpToMessageId: string;
+      tokenEstimate?: number;
+    }
+  | { type: 'route_decided'; mode: 'chat' | 'assist'; domain: string }
   | { type: 'done' }
   | { type: 'error'; message: string };
+
+export interface ClientContextPayload {
+  workspaceRoot?: string | null;
+  activeFilePath?: string | null;
+  activeAnnotationProjectId?: string | null;
+}
 
 export interface AgentChatPersistedState {
   sessions: Record<string, AgentSession>;
