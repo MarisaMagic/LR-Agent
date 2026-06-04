@@ -782,6 +782,39 @@ export function AnnotationWorkspaceProvider({
     clearHistory,
   ]);
 
+  useEffect(() => {
+    if (!annotationPanelVisible || !projectRootMatched) return undefined;
+
+    const onBatchApplied = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectId?: string }>).detail;
+      const proj = activeProjectRef.current;
+      if (!proj || detail?.projectId !== proj.id) return;
+      const rel = relativeFilePath;
+      if (!rel) return;
+      void readFileAnnotationDoc(proj.directoryPath, rel)
+        .then((raw) => {
+          const parsed = raw ? parseFileAnnotationDocument(raw) : null;
+          if (!parsed) return;
+          const { annotations: ann, ...meta } = parsed;
+          setLoadedDocMeta(meta);
+          setAnnotations(ann);
+          setDirty(false);
+          clearHistory();
+        })
+        .catch(() => undefined);
+    };
+
+    window.addEventListener('lr-agent:annotation-batch-applied', onBatchApplied);
+    return () => {
+      window.removeEventListener('lr-agent:annotation-batch-applied', onBatchApplied);
+    };
+  }, [
+    annotationPanelVisible,
+    projectRootMatched,
+    relativeFilePath,
+    clearHistory,
+  ]);
+
   const selectAnnotation = useCallback((id: string | null) => {
     setSelectedAnnotationId(id);
   }, []);

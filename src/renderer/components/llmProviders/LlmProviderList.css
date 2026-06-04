@@ -56,6 +56,16 @@
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
+.llm-provider-badge-vision {
+  background: rgba(86, 156, 214, 0.18);
+  color: #569cd6;
+}
+
+.llm-provider-badge-text-only {
+  background: rgba(206, 145, 120, 0.15);
+  color: #ce9178;
+}
+
 .llm-provider-item-meta {
   margin-top: 6px;
   font-size: 12px;

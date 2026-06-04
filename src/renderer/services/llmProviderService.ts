@@ -24,6 +24,9 @@ export function buildEmptyProvider(): LlmProviderConfig {
     model: 'qwen-plus',
     enabled: true,
     isDefault: false,
+    supportsVision: false,
+    visionProbedAt: null,
+    visionProbeDetail: '',
     createdAt: now,
     updatedAt: now,
   };

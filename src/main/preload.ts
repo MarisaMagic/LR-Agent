@@ -222,6 +222,56 @@ const electronHandler = {
       import('../shared/annotationExportTypes').AnnotationExportResult
     > => ipcRenderer.invoke('annotation:exportAnnotations', request),
   },
+  annotationAgent: {
+    listImages: (
+      projectDir: string,
+      maxFiles?: number,
+    ): Promise<
+      Array<{
+        relativePath: string;
+        name: string;
+        parent: string;
+        absolutePath: string;
+        index: number;
+      }>
+    > => ipcRenderer.invoke('annotationAgent:listImages', projectDir, maxFiles),
+    globImages: (
+      projectDir: string,
+      options?: {
+        parentFolder?: string;
+        namePattern?: string;
+        limit?: number;
+      },
+    ): Promise<{
+      count: number;
+      images: Array<{
+        relativePath: string;
+        name: string;
+        parent: string;
+        absolutePath: string;
+        index: number;
+      }>;
+    }> => ipcRenderer.invoke('annotationAgent:globImages', projectDir, options),
+    listDirectory: (
+      projectDir: string,
+      relativeDir?: string,
+      maxEntries?: number,
+    ): Promise<{
+      relativeDir: string;
+      entries: Array<{
+        name: string;
+        relativePath: string;
+        kind: 'file' | 'directory';
+        isImage: boolean;
+      }>;
+    }> =>
+      ipcRenderer.invoke(
+        'annotationAgent:listDirectory',
+        projectDir,
+        relativeDir,
+        maxEntries,
+      ),
+  },
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

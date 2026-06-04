@@ -18,6 +18,7 @@ import { DirectoryItem, FileStats } from './preload';
 import registerAuthHandlers from './auth/authHandlers';
 import registerPretrainedModelHandlers from './pretrainedModels/pretrainedModelHandlers';
 import registerPreAnnotHandlers from './preAnnot/preAnnotHandlers';
+import registerAnnotationAgentHandlers from './annotation/agent/handlers';
 import {
   getAnnotationProjects,
   removeProjectDirConfig,
@@ -422,6 +423,7 @@ app
     registerAuthHandlers();
     registerPretrainedModelHandlers();
     registerPreAnnotHandlers();
+    registerAnnotationAgentHandlers();
     createWindow();
     app.on('activate', () => {
       if (mainWindow === null) createWindow();

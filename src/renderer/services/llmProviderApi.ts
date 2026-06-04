@@ -12,6 +12,9 @@ interface LlmProviderApiRow {
   model: string;
   enabled: boolean;
   is_default: boolean;
+  supports_vision: boolean;
+  vision_probed_at: number | null;
+  vision_probe_detail: string;
   created_at: number;
   updated_at: number;
 }
@@ -25,6 +28,9 @@ function mapRow(row: LlmProviderApiRow): LlmProviderConfig {
     model: row.model,
     enabled: row.enabled,
     isDefault: row.is_default,
+    supportsVision: row.supports_vision,
+    visionProbedAt: row.vision_probed_at,
+    visionProbeDetail: row.vision_probe_detail ?? '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -94,6 +100,15 @@ export async function setDefaultLlmProviderOnApi(
   id: string,
 ): Promise<LlmProviderConfig> {
   const row = await apiFetch<LlmProviderApiRow>(`/llm-providers/${id}/default`, {
+    method: 'POST',
+  });
+  return mapRow(row);
+}
+
+export async function probeLlmProviderVisionOnApi(
+  id: string,
+): Promise<LlmProviderConfig> {
+  const row = await apiFetch<LlmProviderApiRow>(`/llm-providers/${id}/probe-vision`, {
     method: 'POST',
   });
   return mapRow(row);

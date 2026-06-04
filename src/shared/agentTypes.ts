@@ -1,3 +1,5 @@
+import type { AnnotationBatchProposal } from './annotationAgentTypes';
+
 export interface LlmProviderConfig {
   id: string;
   name: string;
@@ -6,6 +8,10 @@ export interface LlmProviderConfig {
   model: string;
   enabled: boolean;
   isDefault: boolean;
+  /** API 视觉探针结果（64×64 图 + 图文请求） */
+  supportsVision: boolean;
+  visionProbedAt: number | null;
+  visionProbeDetail: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -25,7 +31,32 @@ export type MessageBlock =
       status: 'running' | 'done' | 'error';
       result?: string;
       collapsed: boolean;
+    }
+  | {
+      type: 'annotation_proposal';
+      proposal: AnnotationBatchProposal;
+      status: 'pending' | 'applied' | 'dismissed';
+    }
+  | {
+      type: 'annotation_pipeline';
+      collapsed: boolean;
+      steps: AnnotationPipelineStep[];
     };
+
+export type AnnotationPipelineStepStatus =
+  | 'pending'
+  | 'running'
+  | 'done'
+  | 'error'
+  | 'skipped';
+
+export interface AnnotationPipelineStep {
+  stage: string;
+  label: string;
+  message: string;
+  status: AnnotationPipelineStepStatus;
+  detail?: string;
+}
 
 export type ChatMessageStatus =
   | 'pending'
@@ -63,9 +94,22 @@ export const DEFAULT_CHAT_CONTEXT_CONFIG: ChatContextConfig = {
   minTurnsBeforeSummarize: 6,
 };
 
+export type AgentInteractionMode = 'chat' | 'annotation';
+
+export interface ProjectAgentUiState {
+  openTabIds: string[];
+  activeSessionId: string | null;
+  agentMode: AgentInteractionMode;
+}
+
+export const WORKSPACE_AGENT_UI_KEY = '__workspace';
+
 export interface AgentSession {
   id: string;
   title: string;
+  /** 绑定标注任务；null 表示工作区通用会话 */
+  annotationProjectId?: string | null;
+  interactionMode?: 'chat' | 'annotation' | null;
   providerId: string;
   model: string;
   messageIds: string[];
@@ -108,7 +152,19 @@ export type StreamEvent =
       summaryUpToMessageId: string;
       tokenEstimate?: number;
     }
-  | { type: 'route_decided'; mode: 'chat' | 'assist'; domain: string }
+  | {
+      type: 'route_decided';
+      mode: 'chat' | 'assist';
+      domain: string;
+    }
+  | {
+      type: 'annotation_progress';
+      stage: string;
+      message: string;
+      status?: AnnotationPipelineStepStatus;
+      detail?: string;
+    }
+  | { type: 'annotation_proposal'; proposal: AnnotationBatchProposal }
   | { type: 'done' }
   | { type: 'error'; message: string };
 
@@ -116,6 +172,18 @@ export interface ClientContextPayload {
   workspaceRoot?: string | null;
   activeFilePath?: string | null;
   activeAnnotationProjectId?: string | null;
+  annotationProjectModality?: string | null;
+  annotationProjectType?: string | null;
+  agentMode?: AgentInteractionMode | null;
+  annotationProjectSnapshot?: {
+    projectId: string;
+    name: string;
+    modality: string;
+    annotationType: string;
+    annotationTypeLabel?: string;
+    labels: Array<{ id: string; name: string; color?: string }>;
+    detectionModels: Array<{ id: string; name: string; isDefault?: boolean }>;
+  } | null;
 }
 
 export interface AgentChatPersistedState {

@@ -1,0 +1,104 @@
+.agent-pipeline-block {
+  margin: 4px 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--vscode-widget-border, #454545);
+  background: rgba(128, 128, 128, 0.08);
+}
+
+.agent-pipeline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: var(--vscode-foreground, #cccccc);
+  font-size: var(--agent-font-small);
+  cursor: pointer;
+  text-align: left;
+}
+
+.agent-pipeline-toggle:hover {
+  background: rgba(128, 128, 128, 0.1);
+}
+
+.agent-pipeline-body {
+  padding: 0 10px 10px;
+}
+
+.agent-pipeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-pipeline-list--nested {
+  margin-top: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.agent-pipeline-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--agent-font-small);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.agent-pipeline-step--done {
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.agent-pipeline-step--error {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.agent-pipeline-step--running {
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.agent-pipeline-step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agent-pipeline-step-label {
+  font-weight: 600;
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.agent-pipeline-step-message {
+  word-break: break-word;
+}
+
+.agent-pipeline-step-detail {
+  font-size: var(--agent-font-meta);
+  opacity: 0.85;
+}
+
+.agent-pipeline-workers summary {
+  cursor: pointer;
+  font-size: var(--agent-font-meta);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  user-select: none;
+}
+
+.agent-pipeline-spin {
+  animation: agent-pipeline-spin 1s linear infinite;
+}
+
+@keyframes agent-pipeline-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

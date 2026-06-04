@@ -72,7 +72,7 @@ export default function AgentHistoryPopover({
   onExitComplete,
 }: AgentHistoryPopoverProps) {
   const {
-    sessionOrder,
+    sessionOrderForProject: sessionOrder,
     sessions,
     activeSessionId,
     openSessionTab,

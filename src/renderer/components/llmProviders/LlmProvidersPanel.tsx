@@ -23,6 +23,7 @@ export default function LlmProvidersPanel() {
     upsertProvider,
     deleteProvider,
     setDefaultProvider,
+    probeProviderVision,
   } = useLlmProviders();
 
   const [formOpen, setFormOpen] = useState(false);
@@ -84,6 +85,7 @@ export default function LlmProvidersPanel() {
           onEdit={openEdit}
           onDelete={setDeleteTarget}
           onSetDefault={(provider) => setDefaultProvider(provider.id)}
+          onProbeVision={(provider) => probeProviderVision(provider.id)}
         />
       </VscodeScrollHost>
 

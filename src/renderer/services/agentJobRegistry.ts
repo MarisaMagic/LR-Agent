@@ -4,12 +4,15 @@ import type {
   ClientContextPayload,
   StreamEvent,
 } from '../../shared/agentTypes';
+import type { AnnotationProjectSnapshot } from '../../shared/annotationAgentTypes';
+import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import { mockChatStream } from './agentStreamMock';
 import {
   buildBackendMessages,
   sessionContextPayload,
   streamChatViaBackend,
 } from './backendChatClient';
+import { startAnnotationBatchJob } from './annotationBatchJob';
 import { cancelChatJobOnApi } from './llmProviderApi';
 import tokenHolder from './tokenHolder';
 
@@ -143,6 +146,51 @@ export async function startChatJob(options: {
     emitJobEvent(options.jobId, {
       type: 'error',
       message: err instanceof Error ? err.message : '流式请求失败',
+    });
+  } finally {
+    runningJobs.delete(options.jobId);
+    pendingListeners.delete(options.jobId);
+  }
+}
+
+export async function startAnnotationBatchJobRunner(options: {
+  jobId: string;
+  providerId: string;
+  userRequest: string;
+  project: AnnotationProjectSnapshot;
+  currentFileAbsolutePath: string | null;
+  detectionModels: PretrainedModelConfig[];
+  onPersistEvent?: (event: StreamEvent) => void;
+}): Promise<void> {
+  if (runningJobs.has(options.jobId)) return;
+
+  const controller = new AbortController();
+  const job: RunningJob = {
+    controller,
+    listeners: new Set(),
+  };
+  runningJobs.set(options.jobId, job);
+  attachPendingListeners(options.jobId, job);
+
+  try {
+    await startAnnotationBatchJob({
+      jobId: options.jobId,
+      providerId: options.providerId,
+      userRequest: options.userRequest,
+      project: options.project,
+      currentFileAbsolutePath: options.currentFileAbsolutePath,
+      detectionModels: options.detectionModels,
+      signal: controller.signal,
+      onEvent: (event) => emitJobEvent(options.jobId, event),
+      onPersistEvent: options.onPersistEvent,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return;
+    }
+    emitJobEvent(options.jobId, {
+      type: 'error',
+      message: err instanceof Error ? err.message : '批量标注失败',
     });
   } finally {
     runningJobs.delete(options.jobId);

@@ -25,6 +25,8 @@ interface AgentMessageApiRow {
 interface AgentSessionApiRow {
   id: string;
   title: string;
+  annotation_project_id?: string | null;
+  interaction_mode?: string | null;
   provider_id: string;
   model: string;
   message_ids: string[];
@@ -68,6 +70,11 @@ function mapSession(row: AgentSessionApiRow): AgentSession {
   return {
     id: row.id,
     title: row.title,
+    annotationProjectId: row.annotation_project_id ?? null,
+    interactionMode:
+      row.interaction_mode === 'annotation' || row.interaction_mode === 'chat'
+        ? row.interaction_mode
+        : null,
     providerId: row.provider_id,
     model: row.model,
     messageIds: row.message_ids ?? [],
@@ -88,13 +95,23 @@ export interface AgentSessionsPage {
 }
 
 export async function fetchAgentSessionsPage(
-  options: { limit?: number; cursor?: string | null } = {},
+  options: {
+    limit?: number;
+    cursor?: string | null;
+    annotationProjectId?: string | null;
+    workspaceOnly?: boolean;
+  } = {},
 ): Promise<AgentSessionsPage> {
   const params = new URLSearchParams();
   const limit = options.limit ?? DEFAULT_SESSION_PAGE_SIZE;
   params.set('limit', String(limit));
   if (options.cursor) {
     params.set('cursor', options.cursor);
+  }
+  if (options.workspaceOnly) {
+    params.set('workspace_only', 'true');
+  } else if (options.annotationProjectId) {
+    params.set('annotation_project_id', options.annotationProjectId);
   }
   const data = await apiFetch<AgentSessionListApiResponse>(
     `/agent/sessions?${params.toString()}`,
@@ -140,7 +157,10 @@ export async function fetchAgentSessionDetail(
 }
 
 export async function createAgentSessionRemote(
-  session: Pick<AgentSession, 'id' | 'title' | 'providerId' | 'model'>,
+  session: Pick<
+    AgentSession,
+    'id' | 'title' | 'providerId' | 'model' | 'annotationProjectId' | 'interactionMode'
+  >,
 ): Promise<AgentSession> {
   const row = await apiFetch<AgentSessionApiRow>('/agent/sessions', {
     method: 'POST',
@@ -149,6 +169,8 @@ export async function createAgentSessionRemote(
       title: session.title,
       provider_id: session.providerId || null,
       model: session.model || null,
+      annotation_project_id: session.annotationProjectId ?? null,
+      interaction_mode: session.interactionMode ?? null,
     }),
   });
   return mapSession(row);
@@ -178,11 +200,16 @@ export async function deleteAgentSessionRemote(sessionId: string): Promise<void>
   });
 }
 
-/** Login hydration: first page of session list; messages load on tab open. */
-export async function loadRemoteAgentChatState(): Promise<
+export async function loadRemoteAgentChatStateForProject(
+  annotationProjectId: string | null,
+): Promise<
   AgentChatPersistedState & { sessionsNextCursor: string | null; sessionsHasMore: boolean }
 > {
-  const page = await fetchAgentSessionsPage();
+  const page = await fetchAgentSessionsPage(
+    annotationProjectId
+      ? { annotationProjectId }
+      : { workspaceOnly: true },
+  );
   const sessionsMap: Record<string, AgentSession> = {};
   const messagesBySession: AgentChatPersistedState['messagesBySession'] = {};
   const sessionOrder = page.sessions
@@ -191,6 +218,7 @@ export async function loadRemoteAgentChatState(): Promise<
     .map((session) => session.id);
 
   for (const session of page.sessions) {
+    if ((session.messageCount ?? 0) <= 0) continue;
     sessionsMap[session.id] = session;
     messagesBySession[session.id] = {};
   }
@@ -200,10 +228,17 @@ export async function loadRemoteAgentChatState(): Promise<
   return {
     sessions: sessionsMap,
     sessionOrder,
-    openTabIds,
-    activeSessionId: openTabIds[0] ?? null,
+    openTabIds: [],
+    activeSessionId: null,
     messagesBySession,
     sessionsNextCursor: page.nextCursor,
     sessionsHasMore: page.hasMore,
   };
+}
+
+/** @deprecated prefer loadRemoteAgentChatStateForProject */
+export async function loadRemoteAgentChatState(): Promise<
+  AgentChatPersistedState & { sessionsNextCursor: string | null; sessionsHasMore: boolean }
+> {
+  return loadRemoteAgentChatStateForProject(null);
 }

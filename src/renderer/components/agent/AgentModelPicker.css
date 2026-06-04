@@ -27,6 +27,17 @@
   color: var(--vscode-foreground, #cccccc);
 }
 
+.agent-model-picker--inline .agent-model-picker-trigger {
+  padding: 5px 8px;
+  color: var(--vscode-foreground, #e8e8e8);
+  font-size: var(--agent-font-small, 12px);
+  font-weight: 500;
+}
+
+.agent-model-picker--inline .agent-model-picker-trigger:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.14);
+}
+
 .agent-model-picker-trigger:disabled {
   opacity: 0.55;
   cursor: not-allowed;

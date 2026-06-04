@@ -12,40 +12,62 @@ import {
   buildSessionTitle,
   createAgentId,
   type AgentChatPersistedState,
+  type AgentInteractionMode,
   type AgentSession,
   type ChatMessage,
+  type ClientContextPayload,
   type MessageBlock,
 } from '../../shared/agentTypes';
 import {
-  createAgentSessionRemote,
   deleteAgentSessionRemote,
   fetchAgentSessionDetail,
   fetchAgentSessionsPage,
-  loadRemoteAgentChatState,
+  loadRemoteAgentChatStateForProject,
   patchAgentSessionRemote,
 } from '../services/agentChatApi';
 import {
   applyStreamEventToBlocks,
   createEmptyChatState,
+  createEmptyProjectUi,
   getUserTextFromMessage,
+  getProjectUi,
   loadAgentChatState,
   loadAgentChatUiState,
   persistAgentChatState,
   persistAgentChatUiState,
+  sessionBelongsToProject,
+  sessionHasHistoryContent,
+  setProjectUi,
 } from '../services/agentChatStore';
+import {
+  createDraftSession,
+  mergeProjectSessionsIntoState,
+  normalizeProjectTabs,
+} from '../services/agentProjectBootstrap';
+import { buildAnnotationProjectSnapshot } from '../services/buildProjectSnapshot';
 import tokenHolder from '../services/tokenHolder';
 import { useAuth } from './AuthContext';
 import {
   isJobRunning,
+  startAnnotationBatchJobRunner,
   startChatJob,
   stopJob,
   subscribeJobEvents,
 } from '../services/agentJobRegistry';
+import {
+  AnnotationRunPersistence,
+} from '../services/annotationRunPersistence';
+import type { AnnotationProjectSnapshot } from '../../shared/annotationAgentTypes';
+import type { AnnotationProject } from '../types/annotation';
+import type { PretrainedModelConfig } from '../types/pretrainedModel';
+import { usePretrainedModels } from './PretrainedModelsContext';
 import { shouldClearSummaryOnEdit } from '../services/chatContextUtils';
 import { useAnnotation } from './AnnotationContext';
 import { useApp } from './AppContext';
 import { useLlmProviders } from './LlmProvidersContext';
 import { useToast } from './ToastContext';
+import { ApiError } from '../types/auth';
+import translateError from '../utils/errors';
 
 interface AgentChatContextValue {
   sessions: Record<string, AgentSession>;
@@ -79,6 +101,11 @@ interface AgentChatContextValue {
     messageId: string,
     blockIndex: number,
   ) => void;
+  updateMessageBlocks: (
+    sessionId: string,
+    messageId: string,
+    updater: (blocks: MessageBlock[]) => MessageBlock[],
+  ) => void;
   setSessionProvider: (sessionId: string, providerId: string) => void;
   isSessionStreaming: (sessionId: string) => boolean;
   preparingContext: boolean;
@@ -88,6 +115,11 @@ interface AgentChatContextValue {
   getSessionMessages: (sessionId: string) => ChatMessage[];
   loadMoreSessions: () => Promise<void>;
   loadOlderMessages: (sessionId?: string) => Promise<void>;
+  /** 当前标注项目下的会话顺序（已过滤） */
+  sessionOrderForProject: string[];
+  currentAnnotationProjectId: string | null;
+  agentMode: AgentInteractionMode;
+  setAgentMode: (mode: AgentInteractionMode) => void;
 }
 
 const AgentChatContext = createContext<AgentChatContextValue | null>(null);
@@ -114,18 +146,52 @@ function normalizeLoadedState(state: AgentChatPersistedState): AgentChatPersiste
   return next;
 }
 
+function buildClientContextPayload(
+  options: {
+    rootPath: string | null;
+    activeFilePath: string | null;
+    activeProject: AnnotationProject | null;
+    agentMode: AgentInteractionMode;
+    detectionModels: PretrainedModelConfig[];
+  },
+): ClientContextPayload {
+  const base: ClientContextPayload = {
+    workspaceRoot: options.rootPath,
+    activeFilePath: options.activeFilePath,
+    activeAnnotationProjectId: options.activeProject?.id ?? null,
+    annotationProjectModality: options.activeProject?.modality ?? null,
+    annotationProjectType: options.activeProject?.annotationType ?? null,
+    agentMode: options.agentMode,
+  };
+  if (!options.activeProject) return base;
+  const snap = buildAnnotationProjectSnapshot(
+    options.activeProject,
+    options.detectionModels,
+  );
+  return {
+    ...base,
+    annotationProjectSnapshot: {
+      projectId: snap.projectId,
+      name: snap.name,
+      modality: snap.modality,
+      annotationType: snap.annotationType,
+      annotationTypeLabel: snap.annotationTypeLabel,
+      labels: snap.labels,
+      detectionModels: snap.detectionModels ?? [],
+    },
+  };
+}
+
 export function AgentChatProvider({ children }: { children: ReactNode }) {
   const { providers, defaultProvider } = useLlmProviders();
   const { showToast } = useToast();
   const { status: authStatus } = useAuth();
   const { rootPath, activeFilePath } = useApp();
   const { activeProject } = useAnnotation();
-  const [state, setState] = useState<AgentChatPersistedState>(() => {
-    if (tokenHolder.getAccessToken()) {
-      return createEmptyChatState();
-    }
-    return normalizeLoadedState(loadAgentChatState());
-  });
+  const { models: pretrainedModels } = usePretrainedModels();
+  const [state, setState] = useState<AgentChatPersistedState>(() =>
+    createEmptyChatState(),
+  );
   const initializedRef = useRef(false);
   const remoteHydratedRef = useRef(false);
   const loadedSessionsRef = useRef<Set<string>>(new Set());
@@ -140,26 +206,98 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   );
   const [editDraft, setEditDraft] = useState('');
   const [preparingContext, setPreparingContext] = useState(false);
+  const agentUiRef = useRef(loadAgentChatUiState());
+  const activeProjectIdRef = useRef<string | null>(activeProject?.id ?? null);
+  activeProjectIdRef.current = activeProject?.id ?? null;
+  const [agentMode, setAgentModeState] = useState<AgentInteractionMode>(() =>
+    getProjectUi(agentUiRef.current, activeProject?.id).agentMode,
+  );
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const persist = useCallback((next: AgentChatPersistedState) => {
-    stateRef.current = next;
-    setState(next);
-    if (tokenHolder.getAccessToken()) {
-      persistAgentChatUiState({
+  const currentAnnotationProjectId = activeProject?.id ?? null;
+
+  const persistUiSlice = useCallback(
+    (slice: Partial<ReturnType<typeof createEmptyProjectUi>>) => {
+      const pid = activeProjectIdRef.current;
+      const currentUi = getProjectUi(agentUiRef.current, pid);
+      const nextUi = { ...currentUi, ...slice };
+      agentUiRef.current = setProjectUi(agentUiRef.current, pid, nextUi);
+      if (tokenHolder.getAccessToken()) {
+        persistAgentChatUiState(agentUiRef.current);
+      }
+      if (slice.agentMode) {
+        setAgentModeState(slice.agentMode);
+      }
+    },
+    [],
+  );
+
+  const persist = useCallback(
+    (next: AgentChatPersistedState) => {
+      stateRef.current = next;
+      setState(next);
+      persistUiSlice({
         openTabIds: next.openTabIds,
         activeSessionId: next.activeSessionId,
       });
-    } else {
-      persistAgentChatState(next);
-    }
-  }, []);
+      if (!tokenHolder.getAccessToken()) {
+        persistAgentChatState(next);
+      }
+    },
+    [persistUiSlice],
+  );
+
+  const setAgentMode = useCallback(
+    (mode: AgentInteractionMode) => {
+      setAgentModeState(mode);
+      persistUiSlice({ agentMode: mode });
+    },
+    [persistUiSlice],
+  );
+
+  const removeGhostSession = useCallback(
+    (sessionId: string) => {
+      const current = stateRef.current;
+      if (!current.sessions[sessionId]) return;
+      const { [sessionId]: _removedSession, ...sessions } = current.sessions;
+      const { [sessionId]: _removedMessages, ...messagesBySession } =
+        current.messagesBySession;
+      const sessionOrder = current.sessionOrder.filter((id) => id !== sessionId);
+      const openTabIds = current.openTabIds.filter((id) => id !== sessionId);
+      let activeSessionId = current.activeSessionId;
+      if (activeSessionId === sessionId) {
+        activeSessionId = openTabIds[openTabIds.length - 1] ?? null;
+      }
+      loadedSessionsRef.current.delete(sessionId);
+      persist({
+        ...current,
+        sessions,
+        sessionOrder,
+        openTabIds,
+        activeSessionId,
+        messagesBySession,
+      });
+    },
+    [persist],
+  );
+
+  const reportRemoteSessionError = useCallback(
+    (err: unknown, fallback: string) => {
+      const message =
+        err instanceof ApiError ? translateError(err.detail) : fallback;
+      showToast(message, { type: 'error' });
+    },
+    [showToast],
+  );
 
   const ensureSessionLoaded = useCallback(
     async (sessionId: string): Promise<boolean> => {
       if (!tokenHolder.getAccessToken()) return true;
       const current = stateRef.current;
+      if (!sessionHasHistoryContent(sessionId, current)) {
+        return true;
+      }
       const existing = current.messagesBySession[sessionId];
       const sessionMeta = current.sessions[sessionId];
       const messageCount = sessionMeta?.messageCount ?? 0;
@@ -188,12 +326,23 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           },
         });
         return true;
-      } catch {
-        showToast('加载对话失败，请重试', { type: 'error' });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          if (sessionHasHistoryContent(sessionId, stateRef.current)) {
+            removeGhostSession(sessionId);
+            showToast('该对话未同步到云端，已从列表移除', { type: 'info' });
+          }
+          return false;
+        }
+        if (err instanceof ApiError && err.status === 429) {
+          reportRemoteSessionError(err, '操作过于频繁，请稍后再试');
+          return false;
+        }
+        reportRemoteSessionError(err, '加载对话失败，请重试');
         return false;
       }
     },
-    [persist, showToast],
+    [persist, removeGhostSession, reportRemoteSessionError, showToast],
   );
 
   const loadMoreSessions = useCallback(async () => {
@@ -204,7 +353,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     if (!cursor) return;
     setLoadingMoreSessions(true);
     try {
-      const page = await fetchAgentSessionsPage({ cursor });
+      const page = await fetchAgentSessionsPage({
+        cursor,
+        annotationProjectId: activeProjectIdRef.current,
+        workspaceOnly: !activeProjectIdRef.current,
+      });
       sessionsNextCursorRef.current = page.nextCursor;
       setSessionsHasMore(page.hasMore);
       const latest = stateRef.current;
@@ -213,6 +366,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       const orderSeen = new Set(latest.sessionOrder);
       const sessionOrder = [...latest.sessionOrder];
       for (const session of page.sessions) {
+        if (
+          !sessionBelongsToProject(session, activeProjectIdRef.current)
+        ) {
+          continue;
+        }
         sessions[session.id] = {
           ...session,
           activeJobId: latest.sessions[session.id]?.activeJobId,
@@ -231,7 +389,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoadingMoreSessions(false);
     }
-  }, [loadingMoreSessions, persist, sessionsHasMore, showToast]);
+  }, [loadingMoreSessions, persist, sessionsHasMore, showToast, activeProject?.id]);
 
   const loadOlderMessages = useCallback(
     async (sessionId?: string) => {
@@ -283,6 +441,61 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     [loadingOlderMessages, persist, showToast],
   );
 
+  const bootstrapProjectAgent = useCallback(async () => {
+    loadedSessionsRef.current.clear();
+    const projectId = activeProjectIdRef.current;
+    const remote = await loadRemoteAgentChatStateForProject(projectId);
+    const ui = getProjectUi(agentUiRef.current, projectId);
+    let merged = mergeProjectSessionsIntoState(
+      createEmptyChatState(),
+      remote,
+      projectId,
+    );
+    let { state: nextState, ui: nextUi } = normalizeProjectTabs(
+      merged,
+      ui,
+      projectId,
+    );
+
+    if (nextUi.openTabIds.length === 0) {
+      const provider = defaultProvider;
+      const session = createDraftSession(
+        projectId,
+        provider ? { id: provider.id, model: provider.model } : null,
+        getProjectUi(agentUiRef.current, projectId).agentMode,
+      );
+      nextState = {
+        ...nextState,
+        sessions: { ...nextState.sessions, [session.id]: session },
+        openTabIds: [session.id],
+        activeSessionId: session.id,
+        messagesBySession: {
+          ...nextState.messagesBySession,
+          [session.id]: nextState.messagesBySession[session.id] ?? {},
+        },
+      };
+      nextUi = {
+        ...nextUi,
+        openTabIds: [session.id],
+        activeSessionId: session.id,
+      };
+    }
+
+    sessionsNextCursorRef.current = remote.sessionsNextCursor;
+    setSessionsHasMore(remote.sessionsHasMore);
+    agentUiRef.current = setProjectUi(agentUiRef.current, projectId, nextUi);
+    persistAgentChatUiState(agentUiRef.current);
+    stateRef.current = nextState;
+    setState(nextState);
+    setAgentModeState(nextUi.agentMode);
+    if (
+      nextState.activeSessionId &&
+      sessionHasHistoryContent(nextState.activeSessionId, nextState)
+    ) {
+      void ensureSessionLoaded(nextState.activeSessionId);
+    }
+  }, [defaultProvider, ensureSessionLoaded]);
+
   useEffect(() => {
     if (authStatus !== 'authenticated') {
       remoteHydratedRef.current = false;
@@ -292,39 +505,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const remote = await loadRemoteAgentChatState();
-        if (cancelled) return;
-        const ui = loadAgentChatUiState();
-        const openTabIds =
-          ui.openTabIds.length > 0
-            ? ui.openTabIds.filter((id) => remote.sessions[id])
-            : remote.openTabIds;
-        const activeSessionId =
-          ui.activeSessionId && remote.sessions[ui.activeSessionId]
-            ? ui.activeSessionId
-            : remote.activeSessionId;
-
-        sessionsNextCursorRef.current = remote.sessionsNextCursor;
-        setSessionsHasMore(remote.sessionsHasMore);
-
-        const { sessionsNextCursor: _c, sessionsHasMore: _h, ...remoteState } = remote;
-        const merged: AgentChatPersistedState = {
-          ...remoteState,
-          openTabIds,
-          activeSessionId,
-        };
-        remoteHydratedRef.current = true;
-        stateRef.current = merged;
-        setState(merged);
-        persistAgentChatUiState({
-          openTabIds: merged.openTabIds,
-          activeSessionId: merged.activeSessionId,
-        });
-        if (merged.activeSessionId) {
-          void ensureSessionLoaded(merged.activeSessionId);
-        }
-      } catch {
+        await bootstrapProjectAgent();
+        if (!cancelled) remoteHydratedRef.current = true;
+      } catch (err) {
         if (!cancelled) {
+          reportRemoteSessionError(err, '加载对话列表失败，请重试');
           remoteHydratedRef.current = true;
         }
       }
@@ -333,7 +518,33 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [authStatus, ensureSessionLoaded]);
+  }, [authStatus, activeProject?.id, bootstrapProjectAgent, reportRemoteSessionError]);
+
+  useEffect(() => {
+    if (authStatus === 'loading') return;
+    if (authStatus === 'authenticated') return;
+    loadedSessionsRef.current.clear();
+    persist(normalizeLoadedState(loadAgentChatState()));
+    const projectId = activeProject?.id ?? null;
+    const ui = getProjectUi(agentUiRef.current, projectId);
+    setAgentModeState(ui.agentMode);
+    const current = stateRef.current;
+    const openTabIds = ui.openTabIds.filter(
+      (id) =>
+        current.sessions[id] &&
+        sessionBelongsToProject(current.sessions[id], projectId),
+    );
+    let activeSessionId = ui.activeSessionId;
+    if (!activeSessionId || !openTabIds.includes(activeSessionId)) {
+      activeSessionId = openTabIds[openTabIds.length - 1] ?? null;
+    }
+    if (
+      openTabIds.join(',') !== current.openTabIds.join(',') ||
+      activeSessionId !== current.activeSessionId
+    ) {
+      persist({ ...current, openTabIds, activeSessionId });
+    }
+  }, [activeProject?.id, authStatus, persist]);
 
   const resolveProvider = useCallback(
     (providerId?: string) => {
@@ -356,31 +567,25 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     const current = stateRef.current;
     if (current.openTabIds.length > 0) return;
 
-    const id = createAgentId('session');
+    const projectId = activeProject?.id ?? null;
     const provider = defaultProvider;
-    const now = Date.now();
-    const session: AgentSession = {
-      id,
-      title: '新对话',
-      providerId: provider?.id ?? '',
-      model: provider?.model ?? '',
-      messageIds: [],
-      createdAt: now,
-      updatedAt: now,
-    };
+    const session = createDraftSession(
+      projectId,
+      provider ? { id: provider.id, model: provider.model } : null,
+      getProjectUi(agentUiRef.current, projectId).agentMode,
+    );
+    const latest = stateRef.current;
     persist({
-      ...current,
-      sessions: { ...current.sessions, [id]: session },
-      sessionOrder: [id, ...current.sessionOrder],
-      openTabIds: [id],
-      activeSessionId: id,
-      messagesBySession: { ...current.messagesBySession, [id]: {} },
+      ...latest,
+      sessions: { ...latest.sessions, [session.id]: session },
+      openTabIds: [session.id],
+      activeSessionId: session.id,
+      messagesBySession: {
+        ...latest.messagesBySession,
+        [session.id]: {},
+      },
     });
-
-    if (tokenHolder.getAccessToken()) {
-      createAgentSessionRemote(session).catch(() => undefined);
-    }
-  }, [authStatus, defaultProvider, persist]);
+  }, [activeProject?.id, authStatus, defaultProvider, persist]);
 
   const updateMessage = useCallback(
     (
@@ -406,6 +611,21 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     [persist],
   );
 
+  const updateMessageBlocks = useCallback(
+    (
+      sessionId: string,
+      messageId: string,
+      updater: (blocks: MessageBlock[]) => MessageBlock[],
+    ) => {
+      updateMessage(sessionId, messageId, (message) => ({
+        ...message,
+        blocks: updater(message.blocks),
+        updatedAt: Date.now(),
+      }));
+    },
+    [updateMessage],
+  );
+
   const attachJobListener = useCallback(
     (jobId: string, sessionId: string, messageId: string) => {
       return subscribeJobEvents(jobId, (event) => {
@@ -422,7 +642,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             status: 'done',
             updatedAt: Date.now(),
             blocks: existing.blocks.map((block) =>
-              block.type === 'reasoning' || block.type === 'tool_call'
+              block.type === 'reasoning' ||
+              block.type === 'tool_call' ||
+              block.type === 'annotation_pipeline'
                 ? { ...block, collapsed: true }
                 : block,
             ),
@@ -462,6 +684,17 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             status: 'error',
             error: event.message,
             updatedAt: Date.now(),
+            blocks: existing.blocks.map((block) =>
+              block.type === 'annotation_pipeline'
+                ? {
+                    ...block,
+                    collapsed: true,
+                    steps: block.steps.map((s) =>
+                      s.status === 'running' ? { ...s, status: 'error' as const } : s,
+                    ),
+                  }
+                : block,
+            ),
           };
 
           const session = latest.sessions[sessionId];
@@ -524,35 +757,25 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const createSession = useCallback(() => {
     const current = stateRef.current;
     const provider = defaultProvider;
-    const id = createAgentId('session');
-    const now = Date.now();
-    const session: AgentSession = {
-      id,
-      title: '新对话',
-      providerId: provider?.id ?? '',
-      model: provider?.model ?? '',
-      messageIds: [],
-      createdAt: now,
-      updatedAt: now,
-    };
+    const session = createDraftSession(
+      activeProject?.id ?? null,
+      provider ? { id: provider.id, model: provider.model } : null,
+      agentMode,
+    );
     persist({
       ...current,
-      sessions: { ...current.sessions, [id]: session },
-      sessionOrder: [id, ...current.sessionOrder.filter((item) => item !== id)],
-      openTabIds: [...current.openTabIds, id],
-      activeSessionId: id,
+      sessions: { ...current.sessions, [session.id]: session },
+      openTabIds: [...current.openTabIds, session.id],
+      activeSessionId: session.id,
       messagesBySession: {
         ...current.messagesBySession,
-        [id]: current.messagesBySession[id] ?? {},
+        [session.id]: current.messagesBySession[session.id] ?? {},
       },
     });
-    if (tokenHolder.getAccessToken()) {
-      createAgentSessionRemote(session).catch(() => undefined);
-    }
     setEditTargetMessageId(null);
     setComposerDraft('');
-    return id;
-  }, [defaultProvider, persist]);
+    return session.id;
+  }, [activeProject?.id, agentMode, defaultProvider, persist]);
 
   const switchSession = useCallback(
     (sessionId: string) => {
@@ -594,38 +817,38 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       if (activeSessionId === sessionId) {
         activeSessionId = openTabIds[openTabIds.length - 1] ?? null;
       }
+
+      let sessions = current.sessions;
+      let sessionOrder = current.sessionOrder;
+      let messagesBySession = current.messagesBySession;
+      if (!sessionHasHistoryContent(sessionId, current)) {
+        const { [sessionId]: _removed, ...restSessions } = sessions;
+        sessions = restSessions;
+        const { [sessionId]: _msgs, ...restMessages } = messagesBySession;
+        messagesBySession = restMessages;
+        sessionOrder = sessionOrder.filter((id) => id !== sessionId);
+      }
+
       if (openTabIds.length === 0) {
-        const id = createAgentId('session');
         const provider = defaultProvider;
-        const now = Date.now();
-        const session: AgentSession = {
-          id,
-          title: '新对话',
-          providerId: provider?.id ?? '',
-          model: provider?.model ?? '',
-          messageIds: [],
-          createdAt: now,
-          updatedAt: now,
-        };
+        const session = createDraftSession(
+          activeProject?.id ?? null,
+          provider ? { id: provider.id, model: provider.model } : null,
+          agentMode,
+        );
         persist({
           ...current,
-          sessions: { ...current.sessions, [id]: session },
-          sessionOrder: [id, ...current.sessionOrder],
-          openTabIds: [id],
-          activeSessionId: id,
-          messagesBySession: {
-            ...current.messagesBySession,
-            [id]: {},
-          },
+          sessions: { ...sessions, [session.id]: session },
+          sessionOrder,
+          openTabIds: [session.id],
+          activeSessionId: session.id,
+          messagesBySession: { ...messagesBySession, [session.id]: {} },
         });
-        if (tokenHolder.getAccessToken()) {
-          createAgentSessionRemote(session).catch(() => undefined);
-        }
         return;
       }
-      persist({ ...current, openTabIds, activeSessionId });
+      persist({ ...current, sessions, sessionOrder, openTabIds, activeSessionId, messagesBySession });
     },
-    [defaultProvider, persist],
+    [activeProject?.id, agentMode, defaultProvider, persist],
   );
 
   const deleteSession = useCallback(
@@ -636,7 +859,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         stopJob(session.activeJobId);
       }
 
-      if (tokenHolder.getAccessToken()) {
+      if (tokenHolder.getAccessToken() && sessionHasHistoryContent(sessionId, current)) {
         try {
           await deleteAgentSessionRemote(sessionId);
         } catch {
@@ -657,28 +880,19 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         activeSessionId = openTabIds[openTabIds.length - 1] ?? null;
       }
       if (openTabIds.length === 0) {
-        const id = createAgentId('session');
         const provider = defaultProvider;
-        const now = Date.now();
-        const newSession: AgentSession = {
-          id,
-          title: '新对话',
-          providerId: provider?.id ?? '',
-          model: provider?.model ?? '',
-          messageIds: [],
-          createdAt: now,
-          updatedAt: now,
-        };
+        const session = createDraftSession(
+          activeProject?.id ?? null,
+          provider ? { id: provider.id, model: provider.model } : null,
+          agentMode,
+        );
         persist({
-          sessions: { ...sessions, [id]: newSession },
-          sessionOrder: [id, ...sessionOrder],
-          openTabIds: [id],
-          activeSessionId: id,
-          messagesBySession: { ...messagesBySession, [id]: {} },
+          sessions: { ...sessions, [session.id]: session },
+          sessionOrder,
+          openTabIds: [session.id],
+          activeSessionId: session.id,
+          messagesBySession: { ...messagesBySession, [session.id]: {} },
         });
-        if (tokenHolder.getAccessToken()) {
-          createAgentSessionRemote(newSession).catch(() => undefined);
-        }
         return;
       }
       persist({
@@ -688,11 +902,21 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         activeSessionId,
         messagesBySession,
       });
-      if (activeSessionId) {
+      if (activeSessionId && sessionHasHistoryContent(activeSessionId, {
+        sessions,
+        messagesBySession,
+      })) {
         void ensureSessionLoaded(activeSessionId);
       }
     },
-    [defaultProvider, persist, showToast, ensureSessionLoaded],
+    [
+      activeProject?.id,
+      agentMode,
+      defaultProvider,
+      ensureSessionLoaded,
+      persist,
+      showToast,
+    ],
   );
 
   const stopGeneration = useCallback(
@@ -735,7 +959,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       const sessionId = current.activeSessionId;
       if (!sessionId) return;
 
-      if (tokenHolder.getAccessToken()) {
+      const wasDraft = !sessionHasHistoryContent(sessionId, current);
+
+      if (tokenHolder.getAccessToken() && !wasDraft) {
         const loaded = await ensureSessionLoaded(sessionId);
         if (!loaded) return;
       }
@@ -860,23 +1086,92 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
       attachJobListener(jobId, sessionId, assistantMessageId);
       setPreparingContext(true);
+      const clientContext = buildClientContextPayload({
+        rootPath,
+        activeFilePath,
+        activeProject: activeProject ?? null,
+        agentMode,
+        detectionModels: pretrainedModels,
+      });
       try {
-        await startChatJob({
-          jobId,
-          session: nextSession,
-          messageIds,
-          sessionMessages,
-          providerId: selectedProvider.id,
-          userMessageId: userMessageIdForJob,
-          assistantMessageId,
-          userContent: trimmed,
-          truncateFromMessageId,
-          clientContext: {
-            workspaceRoot: rootPath,
-            activeFilePath,
-            activeAnnotationProjectId: activeProject?.id ?? null,
-          },
-        });
+        if (agentMode === 'annotation') {
+          if (!tokenHolder.getAccessToken()) {
+            throw new Error('请先登录后再使用标注 Agent 模式');
+          }
+          if (
+            !activeProject ||
+            activeProject.modality !== 'image' ||
+            activeProject.annotationType !== 'bbox'
+          ) {
+            throw new Error(
+              '标注 Agent 模式需要已打开的图片 bbox 标注项目',
+            );
+          }
+          const snapshot: AnnotationProjectSnapshot =
+            buildAnnotationProjectSnapshot(activeProject, pretrainedModels);
+          const persistence = new AnnotationRunPersistence();
+          let persistenceStarted = false;
+          try {
+            await persistence.start({
+              providerId: selectedProvider.id,
+              sessionId,
+              clientJobId: jobId,
+              userContent: trimmed,
+              userMessageId: userMessageIdForJob,
+              assistantMessageId,
+              truncateFromMessageId,
+              clientContext,
+            });
+            persistenceStarted = true;
+            await startAnnotationBatchJobRunner({
+              jobId,
+              providerId: selectedProvider.id,
+              userRequest: trimmed,
+              project: snapshot,
+              currentFileAbsolutePath: activeFilePath,
+              detectionModels: pretrainedModels,
+              onPersistEvent: (event) => persistence.push(event),
+            });
+            const finalMessage =
+              stateRef.current.messagesBySession[sessionId]?.[assistantMessageId];
+            if (finalMessage?.status === 'stopped') {
+              await persistence.finalize({ status: 'stopped' });
+            } else if (finalMessage?.status === 'error') {
+              await persistence.finalize({
+                status: 'error',
+                error: finalMessage.error ?? '批量标注失败',
+              });
+            } else {
+              await persistence.finalize({ status: 'done' });
+            }
+          } catch (innerErr) {
+            if (persistenceStarted) {
+              await persistence
+                .finalize({
+                  status: 'error',
+                  error:
+                    innerErr instanceof Error
+                      ? innerErr.message
+                      : '批量标注失败',
+                })
+                .catch(() => undefined);
+            }
+            throw innerErr;
+          }
+        } else {
+          await startChatJob({
+            jobId,
+            session: nextSession,
+            messageIds,
+            sessionMessages,
+            providerId: selectedProvider.id,
+            userMessageId: userMessageIdForJob,
+            assistantMessageId,
+            userContent: trimmed,
+            truncateFromMessageId,
+            clientContext,
+          });
+        }
       } catch (err) {
         updateMessage(sessionId, assistantMessageId, (message) => ({
           ...message,
@@ -904,8 +1199,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     },
     [
       activeFilePath,
-      activeProject?.id,
+      activeProject,
+      agentMode,
       attachJobListener,
+      pretrainedModels,
       editTargetMessageId,
       ensureSessionLoaded,
       persist,
@@ -1005,6 +1302,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           if (block.type === 'reasoning' || block.type === 'tool_call') {
             return { ...block, collapsed: !block.collapsed };
           }
+          if (block.type === 'annotation_pipeline') {
+            return { ...block, collapsed: !block.collapsed };
+          }
           return block;
         }),
         updatedAt: Date.now(),
@@ -1039,10 +1339,24 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     [state.activeSessionId, state.sessions],
   );
 
+  const sessionOrderForProject = useMemo(
+    () =>
+      state.sessionOrder.filter(
+        (id) =>
+          sessionBelongsToProject(state.sessions[id], currentAnnotationProjectId) &&
+          sessionHasHistoryContent(id, state),
+      ),
+    [state.sessionOrder, state.sessions, state.messagesBySession, currentAnnotationProjectId],
+  );
+
   const value = useMemo(
     () => ({
       sessions: state.sessions,
       sessionOrder: state.sessionOrder,
+      sessionOrderForProject,
+      currentAnnotationProjectId,
+      agentMode,
+      setAgentMode,
       openTabIds: state.openTabIds,
       activeSessionId: state.activeSessionId,
       activeSession,
@@ -1065,6 +1379,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       cancelEdit,
       regenerateAssistant,
       toggleBlockCollapse,
+      updateMessageBlocks,
       setSessionProvider,
       isSessionStreaming,
       preparingContext,
@@ -1078,6 +1393,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     [
       state,
       activeSession,
+      sessionOrderForProject,
+      currentAnnotationProjectId,
+      agentMode,
+      setAgentMode,
       historyOpen,
       composerDraft,
       editTargetMessageId,
@@ -1097,6 +1416,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       cancelEdit,
       regenerateAssistant,
       toggleBlockCollapse,
+      updateMessageBlocks,
       setSessionProvider,
       isSessionStreaming,
       getSessionMessages,

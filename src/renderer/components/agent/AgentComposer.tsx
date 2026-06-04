@@ -7,7 +7,9 @@ import {
   useRef,
 } from 'react';
 import { useAgentChat } from '../../context/AgentChatContext';
+import { useAnnotation } from '../../context/AnnotationContext';
 import { useLlmProviders } from '../../context/LlmProvidersContext';
+import AgentModePicker from './AgentModePicker';
 import AgentModelPicker from './AgentModelPicker';
 import './AgentComposer.css';
 
@@ -24,8 +26,14 @@ export default function AgentComposer() {
     isSessionStreaming,
     preparingContext,
     setSessionProvider,
+    agentMode,
+    setAgentMode,
   } = useAgentChat();
+  const { activeProject } = useAnnotation();
   const { providers, defaultProvider } = useLlmProviders();
+  const showAnnotateMode =
+    activeProject?.modality === 'image' &&
+    activeProject.annotationType === 'bbox';
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const enabledProviders = useMemo(
@@ -90,15 +98,26 @@ export default function AgentComposer() {
           />
 
           <div className="agent-composer-footer">
-            <AgentModelPicker
-              providers={enabledProviders}
-              selectedId={selectedProviderId}
-              disabled={!activeSessionId}
-              onSelect={(providerId) => {
-                if (!activeSessionId) return;
-                setSessionProvider(activeSessionId, providerId);
-              }}
-            />
+            <div className="agent-composer-footer-left">
+              {showAnnotateMode ? (
+                <AgentModePicker
+                  mode={agentMode}
+                  disabled={busy}
+                  onSelect={setAgentMode}
+                />
+              ) : null}
+
+              <AgentModelPicker
+                providers={enabledProviders}
+                selectedId={selectedProviderId}
+                disabled={!activeSessionId}
+                inline
+                onSelect={(providerId) => {
+                  if (!activeSessionId) return;
+                  setSessionProvider(activeSessionId, providerId);
+                }}
+              />
+            </div>
 
             {busy ? (
               <button

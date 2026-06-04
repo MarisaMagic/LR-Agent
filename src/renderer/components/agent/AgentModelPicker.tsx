@@ -7,6 +7,8 @@ interface AgentModelPickerProps {
   providers: LlmProviderConfig[];
   selectedId: string;
   disabled?: boolean;
+  /** 与模式选择器并排时，使用 Cursor 式纯文本触发样式 */
+  inline?: boolean;
   onSelect: (providerId: string) => void;
 }
 
@@ -14,6 +16,7 @@ export default function AgentModelPicker({
   providers,
   selectedId,
   disabled = false,
+  inline = false,
   onSelect,
 }: AgentModelPickerProps) {
   const [open, setOpen] = useState(false);
@@ -40,7 +43,10 @@ export default function AgentModelPicker({
       : '选择模型';
 
   return (
-    <div className="agent-model-picker" ref={rootRef}>
+    <div
+      className={`agent-model-picker${inline ? ' agent-model-picker--inline' : ''}`}
+      ref={rootRef}
+    >
       <button
         type="button"
         className="agent-model-picker-trigger"

@@ -10,6 +10,12 @@ interface LlmProviderListProps {
   onEdit: (provider: LlmProviderConfig) => void;
   onDelete: (provider: LlmProviderConfig) => void;
   onSetDefault: (provider: LlmProviderConfig) => void;
+  onProbeVision: (provider: LlmProviderConfig) => void;
+}
+
+function visionBadgeLabel(provider: LlmProviderConfig): string {
+  if (provider.visionProbedAt == null) return '视觉未检测';
+  return provider.supportsVision ? '多模态' : '仅文本';
 }
 
 export default function LlmProviderList({
@@ -18,6 +24,7 @@ export default function LlmProviderList({
   onEdit,
   onDelete,
   onSetDefault,
+  onProbeVision,
 }: LlmProviderListProps) {
   const [menuProviderId, setMenuProviderId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -92,6 +99,20 @@ export default function LlmProviderList({
                         已停用
                       </span>
                     )}
+                    <span
+                      className={`llm-provider-badge ${
+                        provider.supportsVision
+                          ? 'llm-provider-badge-vision'
+                          : 'llm-provider-badge-text-only'
+                      }`}
+                      title={
+                        provider.visionProbeDetail
+                          ? `视觉探针：${provider.visionProbeDetail}`
+                          : undefined
+                      }
+                    >
+                      {visionBadgeLabel(provider)}
+                    </span>
                   </div>
                 </div>
                 <div className="llm-provider-item-meta">
@@ -138,6 +159,10 @@ export default function LlmProviderList({
           onDelete={() => {
             closeMenu();
             onDelete(menuProvider);
+          }}
+          onProbeVision={() => {
+            closeMenu();
+            onProbeVision(menuProvider);
           }}
         />
       )}

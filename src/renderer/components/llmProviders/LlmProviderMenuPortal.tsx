@@ -9,6 +9,7 @@ interface LlmProviderMenuPortalProps {
   onExitComplete?: () => void;
   onSetDefault: () => void;
   onEdit: () => void;
+  onProbeVision: () => void;
   onDelete: () => void;
 }
 
@@ -20,6 +21,7 @@ export default function LlmProviderMenuPortal({
   onExitComplete,
   onSetDefault,
   onEdit,
+  onProbeVision,
   onDelete,
 }: LlmProviderMenuPortalProps) {
   return (
@@ -39,6 +41,9 @@ export default function LlmProviderMenuPortal({
       )}
       <button type="button" role="menuitem" onClick={onEdit}>
         编辑
+      </button>
+      <button type="button" role="menuitem" onClick={onProbeVision}>
+        重新检测视觉
       </button>
       <button
         type="button"

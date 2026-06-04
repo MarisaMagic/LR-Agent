@@ -4,9 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getFloatingMenuMotionProps } from '../../motion/PopoverMotion';
 import type { ChatMessage } from '../../types/agent';
 import { useAgentChat } from '../../context/AgentChatContext';
+import tokenHolder from '../../services/tokenHolder';
+import { patchAnnotationProposalStatusRemote } from '../../services/annotationRunPersistence';
 import AgentMarkdown from './AgentMarkdown';
 import AgentReasoningBlock from './AgentReasoningBlock';
 import AgentToolCallBlock from './AgentToolCallBlock';
+import AgentAnnotationPipelineBlock from './AgentAnnotationPipelineBlock';
+import AnnotationProposalBlock from './AnnotationProposalBlock';
 
 interface AgentAssistantMessageProps {
   message: ChatMessage;
@@ -28,6 +32,7 @@ export default function AgentAssistantMessage({
     isSessionStreaming,
     getSessionMessages,
     activeSessionId,
+    updateMessageBlocks,
   } = useAgentChat();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -117,9 +122,45 @@ export default function AgentAssistantMessage({
               />
             );
           }
+          if (block.type === 'annotation_pipeline') {
+            return (
+              <AgentAnnotationPipelineBlock
+                key="annotation-pipeline"
+                steps={block.steps}
+                collapsed={block.collapsed}
+                streaming={isStreaming}
+                onToggle={() => handleToggle(index)}
+              />
+            );
+          }
           if (block.type === 'text' && block.content) {
             return (
               <AgentMarkdown key={`text-${index}`} content={block.content} />
+            );
+          }
+          if (block.type === 'annotation_proposal') {
+            return (
+              <AnnotationProposalBlock
+                key={`proposal-${block.proposal.id}`}
+                proposal={block.proposal}
+                status={block.status}
+                onStatusChange={(status) => {
+                  updateMessageBlocks(message.sessionId, message.id, (blocks) =>
+                    blocks.map((b, i) =>
+                      i === index && b.type === 'annotation_proposal'
+                        ? { ...b, status }
+                        : b,
+                    ),
+                  );
+                  if (tokenHolder.getAccessToken()) {
+                    patchAnnotationProposalStatusRemote({
+                      sessionId: message.sessionId,
+                      messageId: message.id,
+                      status,
+                    }).catch(() => undefined);
+                  }
+                }}
+              />
             );
           }
           return null;

@@ -117,6 +117,24 @@ export async function* streamChatViaBackend(
           active_file_path: request.clientContext.activeFilePath ?? null,
           active_annotation_project_id:
             request.clientContext.activeAnnotationProjectId ?? null,
+          annotation_project_modality:
+            request.clientContext.annotationProjectModality ?? null,
+          annotation_project_type:
+            request.clientContext.annotationProjectType ?? null,
+          agent_mode: request.clientContext.agentMode ?? null,
+          annotation_project_snapshot: request.clientContext
+            .annotationProjectSnapshot
+            ? {
+                project_id: request.clientContext.annotationProjectSnapshot.projectId,
+                name: request.clientContext.annotationProjectSnapshot.name,
+                modality: request.clientContext.annotationProjectSnapshot.modality,
+                annotation_type:
+                  request.clientContext.annotationProjectSnapshot.annotationType,
+                labels: request.clientContext.annotationProjectSnapshot.labels,
+                detection_models:
+                  request.clientContext.annotationProjectSnapshot.detectionModels,
+              }
+            : null,
         }
       : undefined,
   };
