@@ -16,11 +16,15 @@ export default function AgentMessageList() {
   } = useAgentChat();
   const bottomRef = useRef<HTMLDivElement>(null);
   const messages = activeSessionId ? getSessionMessages(activeSessionId) : [];
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  const scrollKey = activeSessionId
+    ? `${activeSessionId}:${lastMessage?.id ?? '_empty'}:${lastMessage?.updatedAt ?? 0}`
+    : '';
 
   useEffect(() => {
-    if (editTargetMessageId) return;
+    if (editTargetMessageId || !scrollKey) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, activeSessionId, editTargetMessageId]);
+  }, [scrollKey, editTargetMessageId]);
 
   if (!activeSessionId) {
     return null;

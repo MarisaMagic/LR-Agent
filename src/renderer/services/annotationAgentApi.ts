@@ -48,6 +48,7 @@ export async function prepareBatchAnnotation(
   providerId: string,
   options: {
     userRequest: string;
+    /** 仅 UI 显式指定；勿用回合理解的 referenced_relative_paths */
     preselectedPaths?: string[];
     sessionId?: string;
     currentRelativePath: string;
@@ -106,6 +107,23 @@ export interface MapDetectionBoxesUnifiedResult {
   unmapped_indices?: number[];
   hint?: string;
   next_step?: string;
+  label_pool_source?: string;
+  label_pool_debug?: LabelPoolDebugInfo;
+  vision_map_retry_rounds?: number;
+  label_candidates?: Array<{ id: string; name: string }>;
+}
+
+/** 标签候选池各阶段调试信息（与后端 map 响应一致） */
+export interface LabelPoolDebugInfo {
+  source: string;
+  project_count: number;
+  scoped_count: number;
+  effective_count: number;
+  project_names: string[];
+  scoped_names: string[];
+  effective_names: string[];
+  excluded_names: string[];
+  preflight_label_ids: string[];
 }
 
 export async function mapDetectionBoxesUnified(

@@ -7,7 +7,11 @@ import type { BatchAnnotationPlan, ImageCandidate } from '../../../shared/annota
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
 import type { SubImageTimingBreakdown } from './annotationTiming';
 import { tryAutoFinalizeFromMap } from './finalizeFromMappings';
-import { logAnnotationDebug } from './annotationAgentDebug';
+import {
+  formatMapMappingRows,
+  logAnnotationDebug,
+  logAnnotationDebugMapDetail,
+} from './annotationAgentDebug';
 import type { FusionSubImageResult } from './fusionSubImageTypes';
 import {
   readImageBase64,
@@ -39,6 +43,8 @@ export async function runDeterministicSubImageAgent(options: {
     provider_id: options.providerId,
     use_vision_mapping: useVision,
     detection_model: options.detectionModel.id,
+    user_request: options.userRequest.trim() || undefined,
+    intent_summary: plan.intent_summary?.trim() || undefined,
   });
 
   const ctx: SubImageToolContext = {
@@ -142,13 +148,14 @@ export async function runDeterministicSubImageAgent(options: {
   ctx.mappings = mapResult.mappings ?? [];
   ctx.mapMethod = mapResult.method ?? '';
   ctx.mapHint = mapResult.hint ?? '';
+  const mapMappings = formatMapMappingRows(ctx.mappings, options.labelCandidates);
 
-  logAnnotationDebug('map-response', image.relativePath, {
+  logAnnotationDebugMapDetail(image.relativePath, {
     elapsed_ms: timing.map_ms,
-    method: ctx.mapMethod,
-    mapped: ctx.mappings.filter((m) => m.label_id).length,
-    unmapped: mapResult.unmapped_indices?.length ?? 0,
-    mode: 'deterministic',
+    mapResult,
+    labelCandidates: options.labelCandidates,
+    userRequest: options.userRequest,
+    intentSummary: plan.intent_summary,
   });
 
   const auto = tryAutoFinalizeFromMap({
@@ -181,6 +188,7 @@ export async function runDeterministicSubImageAgent(options: {
       unmappedCount: Math.max(0, ctx.keptCount - auto.mappedCount),
       autoFinalized: true,
       method: ctx.mapMethod,
+      mapMappings,
     });
   }
 
@@ -194,5 +202,6 @@ export async function runDeterministicSubImageAgent(options: {
     unmappedCount: Math.max(0, ctx.keptCount - mappedCount),
     method: ctx.mapMethod,
     mapHint: ctx.mapHint,
+    mapMappings,
   });
 }

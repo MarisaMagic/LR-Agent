@@ -89,6 +89,15 @@ export async function runObjectDetectionForSubAgent(
     scope: plan.annotation_scope,
     conf,
     iou,
+    boxes: boxes.map((b) => ({
+      box_index: b.box_index,
+      class_name: b.class_name,
+      confidence: Number(b.confidence.toFixed(3)),
+      x: Number(b.x.toFixed(4)),
+      y: Number(b.y.toFixed(4)),
+      width: Number(b.width.toFixed(4)),
+      height: Number(b.height.toFixed(4)),
+    })),
   });
   return {
     rawCount,

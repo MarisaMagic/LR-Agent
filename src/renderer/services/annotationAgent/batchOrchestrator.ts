@@ -148,6 +148,7 @@ async function* drainConcurrentPipelines(
 export async function* runAnnotationBatchJob(options: {
   providerId: string;
   userRequest: string;
+  /** 仅 UI 显式勾选等场景传入；对话 Agent 不传，由 batch-prepare 每轮选图 */
   preselectedPaths?: string[];
   sessionId?: string;
   project: AnnotationProjectSnapshot;
@@ -254,6 +255,8 @@ export async function* runAnnotationBatchJob(options: {
       reason: scopeReason,
       use_vision_mapping: plan.use_vision_mapping,
       intent_summary: plan.intent_summary,
+      resolved_user_request: effectiveUserRequest.trim() || undefined,
+      project_label_names: labelCandidates.map((l) => l.name),
     });
 
     const detail = [
@@ -312,9 +315,12 @@ export async function* runAnnotationBatchJob(options: {
     providerId,
     plan_use_vision_mapping: plan.use_vision_mapping,
     label_strategy: plan.label_strategy,
+    intent_summary: plan.intent_summary,
+    effective_user_request: effectiveUserRequest.trim() || undefined,
     detection_model_id: detModel.id,
     detection_model_name: detModel.name,
     label_names: labelCandidates.map((l) => l.name),
+    annotation_scope: plan.annotation_scope,
     note: '后端终端查看 provider_model / provider_is_vision / map-api 日志',
   });
 
@@ -378,6 +384,7 @@ export async function* runAnnotationBatchJob(options: {
         unmappedCount: fusion.unmappedCount,
         method: fusion.method,
         autoFinalized: fusion.autoFinalized,
+        mappings: fusion.mapMappings,
       });
       const detailParts = formatWorkerDetailParts(result);
       yield progress(
@@ -397,6 +404,7 @@ export async function* runAnnotationBatchJob(options: {
         unmappedCount: fusionFail.unmappedCount,
         method: fusionFail.method,
         mapHint: fusionFail.mapHint,
+        mappings: fusionFail.mapMappings,
       });
       const skipDetail = [
         result.reason,

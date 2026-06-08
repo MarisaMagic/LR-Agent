@@ -1,5 +1,6 @@
 import type { AnnotationBatchChange } from '../../../shared/annotationAgentTypes';
 import type { SubImageTimingBreakdown } from './annotationTiming';
+import type { MapMappingRow } from './annotationAgentDebug';
 
 export interface FusionSubImageResult {
   ok: boolean;
@@ -14,6 +15,7 @@ export interface FusionSubImageResult {
   autoFinalized?: boolean;
   method?: string;
   mapHint?: string;
+  mapMappings?: MapMappingRow[];
   elapsedMs?: number;
   timing?: SubImageTimingBreakdown;
 }

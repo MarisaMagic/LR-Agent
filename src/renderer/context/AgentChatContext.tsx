@@ -1199,7 +1199,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               jobId,
               providerId: selectedProvider.id,
               userRequest: effectiveUserContent,
-              preselectedPaths: turnUnderstanding?.referencedRelativePaths,
               sessionId,
               project: snapshot,
               currentFileAbsolutePath: activeFilePath,
