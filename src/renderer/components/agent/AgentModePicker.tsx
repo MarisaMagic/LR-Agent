@@ -73,7 +73,9 @@ export default function AgentModePicker({
     <div className="agent-mode-picker" ref={rootRef}>
       <button
         type="button"
-        className="agent-mode-picker-trigger"
+        className={`agent-mode-picker-trigger${
+          active.id === 'chat' ? ' agent-mode-picker-trigger--ask' : ''
+        }${active.id === 'annotation' ? ' agent-mode-picker-trigger--agent' : ''}`}
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -99,6 +101,8 @@ export default function AgentModePicker({
             aria-selected={option.id === mode}
             className={`agent-mode-picker-option${
               option.id === mode ? ' agent-mode-picker-option--active' : ''
+            }${option.id === 'chat' ? ' agent-mode-picker-option--ask' : ''}${
+              option.id === 'annotation' ? ' agent-mode-picker-option--agent' : ''
             }`}
             onClick={() => {
               onSelect(option.id);

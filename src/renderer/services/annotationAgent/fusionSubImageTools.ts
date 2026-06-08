@@ -1,5 +1,5 @@
 /**
- * Client-side sub-agent tools (YOLO detect, finalize) shared by ReAct runners.
+ * 单图标注本地工具：YOLO 检测与图像读取。
  */
 import {
   assertPreAnnotResult,
@@ -13,9 +13,7 @@ import type {
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
 import { isDetectResult } from '../../../shared/preAnnotTypes';
 import { filterDetectionBoxesByScope } from './detectionScope';
-import { tryAutoFinalizeFromMap } from './finalizeFromMappings';
 import { logAnnotationDebug } from './annotationAgentDebug';
-import type { AgentToolCall } from './agentTurnTypes';
 
 export type DetectBox = {
   box_index: number;
@@ -54,7 +52,7 @@ export async function runObjectDetectionForSubAgent(
   image: ImageCandidate,
   plan: BatchAnnotationPlan,
   detectionModel: PretrainedModelConfig,
-  args: Record<string, unknown>,
+  args: Record<string, unknown> = {},
 ): Promise<{ rawCount: number; keptCount: number; excludedCount: number; boxes: DetectBox[] }> {
   const hints = plan.detection_hints;
   const conf =
@@ -98,102 +96,4 @@ export async function runObjectDetectionForSubAgent(
     excludedCount: scoped.excluded,
     boxes,
   };
-}
-
-export function normalizeToolBoxes(raw: unknown[]): DetectBox[] {
-  return raw.map((item, idx) => {
-    const b = item as Record<string, unknown>;
-    return {
-      box_index: Number(b.box_index ?? idx),
-      class_name: String(b.class_name ?? b.detection_label ?? ''),
-      confidence: Number(b.confidence ?? 0),
-      x: Number(b.x ?? 0),
-      y: Number(b.y ?? 0),
-      width: Number(b.width ?? 0),
-      height: Number(b.height ?? 0),
-    };
-  });
-}
-
-export async function executeClientSubImageTool(
-  options: {
-    userRequest: string;
-    plan: BatchAnnotationPlan;
-    image: ImageCandidate;
-    detectionModel: PretrainedModelConfig;
-    labelCandidates: Array<{ id: string; name: string }>;
-  },
-  call: Pick<AgentToolCall, 'name' | 'args'>,
-  ctx: SubImageToolContext,
-): Promise<string> {
-  const { plan, image } = options;
-
-  if (call.name === 'run_object_detection') {
-    const det = await runObjectDetectionForSubAgent(
-      image,
-      plan,
-      options.detectionModel,
-      (call.args ?? {}) as Record<string, unknown>,
-    );
-    ctx.rawCount = det.rawCount;
-    ctx.keptCount = det.keptCount;
-    ctx.excludedCount = det.excludedCount;
-    ctx.boxes = det.boxes;
-    return JSON.stringify({
-      ok: true,
-      raw_count: det.rawCount,
-      kept_count: det.keptCount,
-      excluded_count: det.excludedCount,
-      boxes: det.boxes,
-      scope_summary: plan.annotation_scope.scope_summary,
-    });
-  }
-
-  if (call.name === 'finalize_image_change') {
-    const auto = tryAutoFinalizeFromMap({
-      plan,
-      imageRelativePath: image.relativePath,
-      imageAbsolutePath: image.absolutePath,
-      boxes: ctx.boxes,
-      mappings: ctx.mappings,
-      labelCandidates: options.labelCandidates,
-    });
-    if (auto.ok && auto.change) {
-      ctx.change = auto.change;
-      return JSON.stringify({
-        ok: true,
-        box_count: auto.mappedCount,
-        captured: true,
-      });
-    }
-    return JSON.stringify({
-      ok: false,
-      error: auto.reason ?? 'finalize 失败',
-    });
-  }
-
-  return JSON.stringify({ ok: false, error: `未知客户端工具: ${call.name}` });
-}
-
-export function applyServerDoneToContext(
-  ctx: SubImageToolContext,
-  data: {
-    boxes?: DetectBox[];
-    mappings?: Array<{ box_index: number; label_id: string; reason?: string }>;
-    raw_count?: number;
-    kept_count?: number;
-    method?: string;
-    map_hint?: string;
-  },
-): void {
-  if (Array.isArray(data.boxes) && data.boxes.length > 0) {
-    ctx.boxes = data.boxes;
-  }
-  if (Array.isArray(data.mappings)) {
-    ctx.mappings = data.mappings;
-  }
-  if (typeof data.raw_count === 'number') ctx.rawCount = data.raw_count;
-  if (typeof data.kept_count === 'number') ctx.keptCount = data.kept_count;
-  if (data.method) ctx.mapMethod = data.method;
-  if (data.map_hint) ctx.mapHint = data.map_hint;
 }

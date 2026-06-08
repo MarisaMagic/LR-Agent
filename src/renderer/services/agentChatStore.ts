@@ -6,6 +6,7 @@ import type {
   MessageBlock,
   ProjectAgentUiState,
   StreamEvent,
+  TurnKind,
 } from '../../shared/agentTypes';
 import { labelForPipelineStage } from './annotationAgent/pipelineStages';
 import { WORKSPACE_AGENT_UI_KEY } from '../../shared/agentTypes';
@@ -311,18 +312,19 @@ export function applyStreamEventToBlocks(
         };
       }
     }
-    const existingIdx = next.findIndex((b) => b.type === 'annotation_proposal');
     const block = {
       type: 'annotation_proposal' as const,
       proposal: event.proposal,
       status: 'pending' as const,
     };
-    if (existingIdx >= 0) {
-      next[existingIdx] = block;
-    } else {
-      next.push(block);
-    }
-    return next;
+    const withoutProposal: MessageBlock[] = next.filter(
+      (b) => b.type !== 'annotation_proposal',
+    );
+    const existing = next.find((b) => b.type === 'annotation_proposal');
+    const status =
+      existing?.type === 'annotation_proposal' ? existing.status : block.status;
+    withoutProposal.push({ ...block, status });
+    return withoutProposal;
   }
 
   return next;
@@ -334,6 +336,22 @@ export function getUserTextFromMessage(message: ChatMessage): string {
     .filter((block): block is Extract<MessageBlock, { type: 'text' }> => block.type === 'text')
     .map((block) => block.content)
     .join('\n');
+}
+
+export { resolveUserMessageIdForJob } from './userMessageIdForJob';
+
+/** 重新生成时保持与原助手回复同一条流水线（批量 vs 对话）。 */
+export function inferRegenerateTurnKind(
+  assistantMessage: ChatMessage,
+): TurnKind | undefined {
+  if (assistantMessage.role !== 'assistant') {
+    return undefined;
+  }
+  const wasBatch = assistantMessage.blocks.some(
+    (block) =>
+      block.type === 'annotation_proposal' || block.type === 'annotation_pipeline',
+  );
+  return wasBatch ? 'execute_batch' : 'converse';
 }
 
 export function buildApiMessages(

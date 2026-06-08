@@ -11,7 +11,6 @@ import AgentReasoningBlock from './AgentReasoningBlock';
 import AgentToolCallBlock from './AgentToolCallBlock';
 import AgentAnnotationPipelineBlock from './AgentAnnotationPipelineBlock';
 import AnnotationProposalBlock from './AnnotationProposalBlock';
-
 interface AgentAssistantMessageProps {
   message: ChatMessage;
 }
@@ -54,7 +53,9 @@ export default function AgentAssistantMessage({
   const hasPriorUser = messageIndex > 0;
 
   const canRegenerate =
-    (message.status === 'done' || message.status === 'stopped') &&
+    (message.status === 'done' ||
+      message.status === 'stopped' ||
+      message.status === 'error') &&
     !streamingSession &&
     hasPriorUser &&
     Boolean(textContent.trim() || message.blocks.length > 0);
@@ -103,6 +104,9 @@ export default function AgentAssistantMessage({
     <div className="agent-message-item agent-message-item--assistant">
       <div className="agent-assistant-content">
         {message.blocks.map((block, index) => {
+          if ((block as { type: string }).type === 'mode_suggestion') {
+            return null;
+          }
           if (block.type === 'reasoning') {
             return (
               <AgentReasoningBlock
@@ -166,10 +170,7 @@ export default function AgentAssistantMessage({
           return null;
         })}
 
-        {isStreaming && !textContent && message.blocks.length === 0 && (
-          <span className="agent-stream-cursor">▍</span>
-        )}
-        {isStreaming && textContent && (
+        {isStreaming && (
           <span className="agent-stream-cursor">▍</span>
         )}
 

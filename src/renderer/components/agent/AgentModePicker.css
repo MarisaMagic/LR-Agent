@@ -30,6 +30,32 @@
   cursor: not-allowed;
 }
 
+/* Ask — Cursor-like muted green pill */
+.agent-mode-picker-trigger--ask {
+  background: rgba(30, 80, 50, 0.55);
+  color: #8fd9a8;
+}
+
+.agent-mode-picker-trigger--ask:hover:not(:disabled) {
+  background: rgba(38, 96, 62, 0.65);
+  color: #a8e6bc;
+}
+
+.agent-mode-picker-trigger--ask .agent-mode-picker-codicon,
+.agent-mode-picker-trigger--ask .agent-mode-picker-chevron {
+  color: inherit;
+  opacity: 1;
+}
+
+/* Agent — neutral accent when selected */
+.agent-mode-picker-trigger--agent {
+  background: rgba(128, 128, 128, 0.28);
+}
+
+.agent-mode-picker-trigger--agent:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.38);
+}
+
 .agent-mode-picker-symbol {
   display: inline-flex;
   align-items: center;
@@ -91,9 +117,21 @@
   cursor: pointer;
 }
 
-.agent-mode-picker-option:hover,
+.agent-mode-picker-option:hover {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+
 .agent-mode-picker-option--active {
   background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+
+.agent-mode-picker-option--active.agent-mode-picker-option--ask {
+  background: rgba(30, 80, 50, 0.35);
+}
+
+.agent-mode-picker-option--active.agent-mode-picker-option--ask
+  .agent-mode-picker-option-name {
+  color: #8fd9a8;
 }
 
 .agent-mode-picker-option-leading {

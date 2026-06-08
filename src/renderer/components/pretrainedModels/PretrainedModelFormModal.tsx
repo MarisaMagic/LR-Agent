@@ -598,7 +598,7 @@ export default function PretrainedModelFormModal({
                 min={0.05}
                 max={0.95}
                 step={0.05}
-                value={form.params?.confThreshold ?? 0.25}
+                value={form.params?.confThreshold ?? 0.7}
                 onChange={(e) =>
                   updateParams({ confThreshold: Number(e.target.value) })
                 }
@@ -611,7 +611,7 @@ export default function PretrainedModelFormModal({
                 min={0.1}
                 max={0.9}
                 step={0.05}
-                value={form.params?.iouThreshold ?? 0.45}
+                value={form.params?.iouThreshold ?? 0.5}
                 onChange={(e) =>
                   updateParams({ iouThreshold: Number(e.target.value) })
                 }

@@ -17,6 +17,9 @@ import {
   type ChatMessage,
   type ClientContextPayload,
   type MessageBlock,
+  type TurnKind,
+  type TurnUnderstandingResult,
+  isBatchAnnotationTurnKind,
 } from '../../shared/agentTypes';
 import {
   deleteAgentSessionRemote,
@@ -30,6 +33,8 @@ import {
   createEmptyChatState,
   createEmptyProjectUi,
   getUserTextFromMessage,
+  inferRegenerateTurnKind,
+  resolveUserMessageIdForJob,
   getProjectUi,
   loadAgentChatState,
   loadAgentChatUiState,
@@ -45,6 +50,8 @@ import {
   normalizeProjectTabs,
 } from '../services/agentProjectBootstrap';
 import { buildAnnotationProjectSnapshot } from '../services/buildProjectSnapshot';
+import { understandTurn } from '../services/agentTurnRouter';
+import { getRelativeProjectPath } from '../utils/projectPaths';
 import tokenHolder from '../services/tokenHolder';
 import { useAuth } from './AuthContext';
 import {
@@ -90,7 +97,7 @@ interface AgentChatContextValue {
   deleteSession: (sessionId: string) => void;
   sendMessage: (
     content: string,
-    options?: { editMessageId?: string },
+    options?: { editMessageId?: string; forceTurnKind?: TurnKind },
   ) => Promise<void>;
   stopGeneration: (sessionId?: string) => void;
   beginEditMessage: (messageId: string) => void;
@@ -153,15 +160,29 @@ function buildClientContextPayload(
     activeProject: AnnotationProject | null;
     agentMode: AgentInteractionMode;
     detectionModels: PretrainedModelConfig[];
+    turnKind?: TurnKind | null;
+    turnUnderstanding?: TurnUnderstandingResult | null;
   },
 ): ClientContextPayload {
+  const activeRelativePath =
+    options.activeProject && options.activeFilePath
+      ? getRelativeProjectPath(
+          options.activeProject.directoryPath,
+          options.activeFilePath,
+        )
+      : null;
+
   const base: ClientContextPayload = {
     workspaceRoot: options.rootPath,
     activeFilePath: options.activeFilePath,
+    activeRelativePath,
+    projectDirectoryPath: options.activeProject?.directoryPath ?? null,
     activeAnnotationProjectId: options.activeProject?.id ?? null,
     annotationProjectModality: options.activeProject?.modality ?? null,
     annotationProjectType: options.activeProject?.annotationType ?? null,
     agentMode: options.agentMode,
+    turnKind: options.turnKind ?? null,
+    turnUnderstanding: options.turnUnderstanding ?? null,
   };
   if (!options.activeProject) return base;
   const snap = buildAnnotationProjectSnapshot(
@@ -173,6 +194,7 @@ function buildClientContextPayload(
     annotationProjectSnapshot: {
       projectId: snap.projectId,
       name: snap.name,
+      directoryPath: snap.directoryPath,
       modality: snap.modality,
       annotationType: snap.annotationType,
       annotationTypeLabel: snap.annotationTypeLabel,
@@ -739,7 +761,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        if (event.type === 'preparing' || event.type === 'route_decided') {
+        if (
+          event.type === 'preparing' ||
+          event.type === 'route_decided'
+        ) {
           return;
         }
 
@@ -951,7 +976,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   );
 
   const sendMessage = useCallback(
-    async (content: string, options?: { editMessageId?: string }) => {
+    async (
+      content: string,
+      options?: { editMessageId?: string; forceTurnKind?: TurnKind },
+    ) => {
       const trimmed = content.trim();
       if (!trimmed) return;
 
@@ -970,6 +998,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       if (!session) return;
 
       if (session.activeJobId && isJobRunning(session.activeJobId)) {
+        showToast('当前任务仍在进行，请先停止后再发送', { type: 'info' });
         return;
       }
 
@@ -988,6 +1017,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
       let truncateFromMessageId: string | null = null;
       let sessionForContext: AgentSession = { ...session };
+      let newUserMessageId: string | null = null;
 
       if (editMessageId) {
         const editIndex = messageIds.indexOf(editMessageId);
@@ -1020,12 +1050,14 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         setEditDraft('');
       } else {
         const userMessageId = createAgentId('msg');
+        newUserMessageId = userMessageId;
         const userMessage: ChatMessage = {
           id: userMessageId,
           sessionId,
           role: 'user',
           blocks: [{ type: 'text', content: trimmed }],
           status: 'done',
+          interactionMode: agentMode,
           providerId: selectedProvider.id,
           model: selectedProvider.model,
           createdAt: now,
@@ -1035,9 +1067,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         messageIds.push(userMessageId);
       }
 
-      const userMessageIdForJob = isEdit
-        ? editMessageId!
-        : messageIds[messageIds.length - 2] ?? createAgentId('msg');
+      const userMessageIdForJob = resolveUserMessageIdForJob({
+        editMessageId,
+        newUserMessageId,
+      });
       const assistantMessageId = createAgentId('msg');
       const assistantMessage: ChatMessage = {
         id: assistantMessageId,
@@ -1045,6 +1078,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         role: 'assistant',
         blocks: [],
         status: 'streaming',
+        interactionMode: agentMode,
         providerId: selectedProvider.id,
         model: selectedProvider.model,
         createdAt: now + 1,
@@ -1086,29 +1120,67 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
       attachJobListener(jobId, sessionId, assistantMessageId);
       setPreparingContext(true);
-      const clientContext = buildClientContextPayload({
+      const baseClientContext = buildClientContextPayload({
         rootPath,
         activeFilePath,
         activeProject: activeProject ?? null,
         agentMode,
         detectionModels: pretrainedModels,
       });
+
+      let turnUnderstanding: TurnUnderstandingResult | null = null;
+      let effectiveUserContent = trimmed;
+
+      if (tokenHolder.getAccessToken() && !options?.forceTurnKind) {
+        try {
+          turnUnderstanding = await understandTurn({
+            providerId: selectedProvider.id,
+            userContent: trimmed,
+            clientContext: baseClientContext,
+            sessionId,
+            userMessageId: userMessageIdForJob,
+            assistantMessageId,
+            truncateFromMessageId,
+          });
+          effectiveUserContent = turnUnderstanding.resolvedUserContent;
+        } catch {
+          showToast('回合理解失败，已按原文处理', { type: 'info' });
+        }
+      }
+
+      const clientContext = buildClientContextPayload({
+        rootPath,
+        activeFilePath,
+        activeProject: activeProject ?? null,
+        agentMode,
+        detectionModels: pretrainedModels,
+        turnKind: options?.forceTurnKind ?? turnUnderstanding?.turnKind ?? null,
+        turnUnderstanding,
+      });
+
       try {
-        if (agentMode === 'annotation') {
+        const turnKind: TurnKind =
+          options?.forceTurnKind ?? turnUnderstanding?.turnKind ?? 'converse';
+
+        if (turnKind === 'unsupported') {
+          throw new Error('当前无法处理该请求，请检查项目类型或描述');
+        }
+
+        const canAnnotate =
+          Boolean(activeProject) &&
+          activeProject?.modality === 'image' &&
+          activeProject?.annotationType === 'bbox';
+
+        if (isBatchAnnotationTurnKind(turnKind) && !canAnnotate) {
+          throw new Error('批量标注需要已打开的图片 bbox 标注项目');
+        }
+
+        if (isBatchAnnotationTurnKind(turnKind)) {
           if (!tokenHolder.getAccessToken()) {
-            throw new Error('请先登录后再使用标注 Agent 模式');
-          }
-          if (
-            !activeProject ||
-            activeProject.modality !== 'image' ||
-            activeProject.annotationType !== 'bbox'
-          ) {
-            throw new Error(
-              '标注 Agent 模式需要已打开的图片 bbox 标注项目',
-            );
+            throw new Error('请先登录后再使用标注功能');
           }
           const snapshot: AnnotationProjectSnapshot =
-            buildAnnotationProjectSnapshot(activeProject, pretrainedModels);
+            buildAnnotationProjectSnapshot(activeProject!, pretrainedModels);
           const persistence = new AnnotationRunPersistence();
           let persistenceStarted = false;
           try {
@@ -1116,7 +1188,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               providerId: selectedProvider.id,
               sessionId,
               clientJobId: jobId,
-              userContent: trimmed,
+              userContent: effectiveUserContent,
               userMessageId: userMessageIdForJob,
               assistantMessageId,
               truncateFromMessageId,
@@ -1126,14 +1198,18 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             await startAnnotationBatchJobRunner({
               jobId,
               providerId: selectedProvider.id,
-              userRequest: trimmed,
+              userRequest: effectiveUserContent,
+              preselectedPaths: turnUnderstanding?.referencedRelativePaths,
+              sessionId,
               project: snapshot,
               currentFileAbsolutePath: activeFilePath,
               detectionModels: pretrainedModels,
               onPersistEvent: (event) => persistence.push(event),
             });
             const finalMessage =
-              stateRef.current.messagesBySession[sessionId]?.[assistantMessageId];
+              stateRef.current.messagesBySession[sessionId]?.[
+                assistantMessageId
+              ];
             if (finalMessage?.status === 'stopped') {
               await persistence.finalize({ status: 'stopped' });
             } else if (finalMessage?.status === 'error') {
@@ -1167,7 +1243,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             providerId: selectedProvider.id,
             userMessageId: userMessageIdForJob,
             assistantMessageId,
-            userContent: trimmed,
+            userContent: effectiveUserContent,
             truncateFromMessageId,
             clientContext,
           });
@@ -1208,6 +1284,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       persist,
       resolveProvider,
       rootPath,
+      showToast,
       updateMessage,
     ],
   );
@@ -1270,16 +1347,50 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
       const session = current.sessions[sessionId];
       if (!session) return;
-      if (session.activeJobId && isJobRunning(session.activeJobId)) return;
 
       const assistantIndex = session.messageIds.indexOf(assistantMessageId);
       if (assistantIndex < 0) return;
+
+      const assistantMessage =
+        current.messagesBySession[sessionId]?.[assistantMessageId];
+      if (!assistantMessage || assistantMessage.role !== 'assistant') {
+        return;
+      }
+
+      if (session.activeJobId && isJobRunning(session.activeJobId)) {
+        stopGeneration(sessionId);
+      }
+
+      const sessionMessages = {
+        ...(current.messagesBySession[sessionId] ?? {}),
+      };
+      let markedStopped = false;
+      for (const id of session.messageIds) {
+        const msg = sessionMessages[id];
+        if (msg?.status === 'streaming') {
+          sessionMessages[id] = {
+            ...msg,
+            status: 'stopped',
+            updatedAt: Date.now(),
+          };
+          markedStopped = true;
+        }
+      }
+      if (markedStopped) {
+        persist({
+          ...stateRef.current,
+          messagesBySession: {
+            ...stateRef.current.messagesBySession,
+            [sessionId]: sessionMessages,
+          },
+        });
+      }
 
       let userMessageId: string | null = null;
       let userContent = '';
       for (let i = assistantIndex - 1; i >= 0; i -= 1) {
         const id = session.messageIds[i];
-        const msg = current.messagesBySession[sessionId]?.[id];
+        const msg = stateRef.current.messagesBySession[sessionId]?.[id];
         if (msg?.role === 'user') {
           userMessageId = id;
           userContent = getUserTextFromMessage(msg);
@@ -1288,9 +1399,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       }
       if (!userMessageId || !userContent.trim()) return;
 
-      await sendMessage(userContent, { editMessageId: userMessageId });
+      const forceTurnKind = inferRegenerateTurnKind(assistantMessage);
+      await sendMessage(userContent, {
+        editMessageId: userMessageId,
+        forceTurnKind,
+      });
     },
-    [sendMessage],
+    [agentMode, persist, sendMessage, stopGeneration],
   );
 
   const toggleBlockCollapse = useCallback(

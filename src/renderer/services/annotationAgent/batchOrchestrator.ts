@@ -10,7 +10,6 @@ import {
   ANNOTATION_BATCH_CONCURRENCY,
   ANNOTATION_BATCH_MAX_FILES,
 } from '../../../shared/annotationAgentTypes';
-import { isAnnotationFusionParityEnabled } from './fusionConfig';
 import {
   logAnnotationDebug,
   logAnnotationDebugImageResult,
@@ -33,9 +32,8 @@ import {
   formatSubImageTiming,
 } from './annotationTiming';
 import { runFusionSubImageAgent, type FusionSubImageResult } from './fusionSubImageRunner';
-import { runImagePipeline, type ImagePipelineResult } from './imagePipelineRunner';
 
-type WorkerResult = FusionSubImageResult | ImagePipelineResult;
+type WorkerResult = FusionSubImageResult;
 
 export type AnnotationProgressEvent =
   | {
@@ -150,6 +148,8 @@ async function* drainConcurrentPipelines(
 export async function* runAnnotationBatchJob(options: {
   providerId: string;
   userRequest: string;
+  preselectedPaths?: string[];
+  sessionId?: string;
   project: AnnotationProjectSnapshot;
   currentFileAbsolutePath: string | null;
   detectionModels: PretrainedModelConfig[];
@@ -185,6 +185,7 @@ export async function* runAnnotationBatchJob(options: {
   let scopeReason = '';
   let images: ImageCandidate[] = [];
   let plan: BatchAnnotationPlan;
+  let effectiveUserRequest = userRequest;
 
   try {
     const catalog = await window.electron?.annotationAgent?.listImages(
@@ -200,13 +201,17 @@ export async function* runAnnotationBatchJob(options: {
     }));
 
     const prepared = await prepareBatchAnnotation(providerId, {
-      userRequest,
+      userRequest: effectiveUserRequest,
+      preselectedPaths: options.preselectedPaths,
+      sessionId: options.sessionId,
       currentRelativePath: currentRel ?? '',
       candidates,
       labelCandidates,
       detectionModels: detectionSummaries,
       project,
     });
+    effectiveUserRequest =
+      prepared.resolved_user_request?.trim() || userRequest;
 
     scopeReason = prepared.scope_reason ?? '';
     const { images: resolved, missing } = imagesFromAgentPaths(
@@ -282,7 +287,9 @@ export async function* runAnnotationBatchJob(options: {
   if (images.length === 0) {
     yield {
       type: 'text',
-      content: scopeReason || '请更具体说明文件夹或文件名（如 data 下的 7.jpg 和 8.jpg）。',
+      content:
+        scopeReason ||
+        '未识别为批量标注请求。请更具体说明文件夹或文件名（如 data 下的 7.jpg 和 8.jpg），或切换到 Ask 模式进行问答。',
     };
     return;
   }
@@ -303,7 +310,6 @@ export async function* runAnnotationBatchJob(options: {
 
   logAnnotationDebug('batch-setup', '批量配置', {
     providerId,
-    fusion_parity: isAnnotationFusionParityEnabled(),
     plan_use_vision_mapping: plan.use_vision_mapping,
     label_strategy: plan.label_strategy,
     detection_model_id: detModel.id,
@@ -313,9 +319,7 @@ export async function* runAnnotationBatchJob(options: {
   });
 
   const total = images.length;
-  const fusionParity = isAnnotationFusionParityEnabled();
-  const modeLabel = fusionParity ? 'ReAct 子 Agent（fusion）' : 'legacy 管道';
-  yield progress('workers', `共 ${total} 张图片，${modeLabel} 并发处理`, 'running');
+  yield progress('workers', `共 ${total} 张图片，子 Agent 并发处理`, 'running');
   batchTimer.mark('workers');
 
   const pipelineGen = drainConcurrentPipelines(
@@ -338,38 +342,18 @@ export async function* runAnnotationBatchJob(options: {
         ),
       );
       const imageStarted = performance.now();
-      if (fusionParity) {
-        const result = await runFusionSubImageAgent({
-          providerId,
-          userRequest,
-          plan,
-          image,
-          detectionModel: detModel!,
-          labelCandidates,
-        });
-        if (result.elapsedMs == null) {
-          result.elapsedMs = Math.round(performance.now() - imageStarted);
-        }
-        return result;
-      }
-      return runImagePipeline({
+      const result = await runFusionSubImageAgent({
         providerId,
-        userRequest,
+        userRequest: effectiveUserRequest,
         plan,
         image,
         detectionModel: detModel!,
         labelCandidates,
-        onStage: (stageMsg) => {
-          push(
-            progress(
-              'worker',
-              `处理中 (${index + 1}/${total})：${image.relativePath}`,
-              'running',
-              stageMsg,
-            ),
-          );
-        },
       });
+      if (result.elapsedMs == null) {
+        result.elapsedMs = Math.round(performance.now() - imageStarted);
+      }
+      return result;
     },
   );
 
@@ -477,17 +461,16 @@ export async function* runAnnotationBatchJob(options: {
     createdAt: Date.now(),
   };
 
-  yield { type: 'proposal', proposal };
-
   const summaryLines = [
     `已处理 ${images.length} 张图片，成功 ${succeeded.length} 张，跳过 ${skipped.length} 张。`,
     `共生成 ${totalBoxes} 个带标签的候选框。`,
     scopeReason ? `范围说明：${scopeReason}` : '',
     plan.plan_steps.length
-      ? `计划：\n${plan.plan_steps.map((s) => `• ${s}`).join('\n')}`
+      ? `计划：\n\n${plan.plan_steps.map((s) => `- ${s}`).join('\n')}`
       : '',
     '请在下方卡片中确认并「应用标注」。',
   ].filter(Boolean);
 
   yield { type: 'text', content: summaryLines.join('\n\n') };
+  yield { type: 'proposal', proposal };
 }

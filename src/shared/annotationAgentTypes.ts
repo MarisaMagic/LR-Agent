@@ -17,15 +17,6 @@ export interface AnnotationScopePayload {
   exclude_label_names?: string[];
 }
 
-export interface AnnotationTaskParseResult {
-  intent_summary: string;
-  needs_object_detection?: boolean;
-  annotation_scope: AnnotationScopePayload;
-}
-
-/** @deprecated use AnnotationTaskParseResult */
-export type AnnotationIntentResult = AnnotationTaskParseResult;
-
 export interface DetectionHints {
   needs_object_detection?: boolean;
   model_id?: string | null;
@@ -54,6 +45,8 @@ export interface BatchAnnotationPlan {
 export interface BatchPrepareResult extends BatchAnnotationPlan {
   selected_paths: string[];
   scope_reason: string;
+  /** 后端指代消解后的可执行请求（有 session 时） */
+  resolved_user_request?: string;
 }
 
 export interface AnnotationBatchChange {

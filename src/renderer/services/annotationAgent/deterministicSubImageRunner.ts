@@ -1,6 +1,6 @@
 /**
  * 确定性快路径：detect（本地 YOLO）→ map（API，服务端读本地路径）→ finalize。
- * 跳过 ReAct 子 Agent，省每图 ~2 次 LLM + SSE/HTTP 往返。
+ * 固定流程：本地 detect → map API → finalize。
  */
 import { mapDetectionBoxesUnified } from '../annotationAgentApi';
 import type { BatchAnnotationPlan, ImageCandidate } from '../../../shared/annotationAgentTypes';

@@ -88,7 +88,13 @@ export default function AgentComposer() {
             ref={textareaRef}
             className="agent-composer-input"
             value={composerDraft}
-            placeholder="Plan, Build, / for skills, @ for context"
+            placeholder={
+              showAnnotateMode
+                ? agentMode === 'annotation'
+                  ? '可指代当前打开图或上文路径，如：标注这张图片、data/2.jpg'
+                  : '可问标注内容或看图，如：2.jpg 标了谁、图里有几个人'
+                : 'Plan, Build, / for skills, @ for context'
+            }
             rows={1}
             onChange={(event) => {
               setComposerDraft(event.target.value);

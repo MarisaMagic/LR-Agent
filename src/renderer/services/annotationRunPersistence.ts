@@ -1,5 +1,6 @@
 import type { ClientContextPayload, StreamEvent } from '../../shared/agentTypes';
 import { apiFetch } from './api';
+import { buildApiClientContext } from './agentTurnRouter';
 
 const FLUSH_MS = 300;
 const MAX_EVENTS_PER_BATCH = 40;
@@ -56,29 +57,10 @@ export class AnnotationRunPersistence {
           assistant_message_id: options.assistantMessageId,
           truncate_from_message_id: options.truncateFromMessageId ?? null,
           client_context: options.clientContext
-            ? {
-                workspace_root: options.clientContext.workspaceRoot ?? null,
-                active_file_path: options.clientContext.activeFilePath ?? null,
-                active_annotation_project_id:
-                  options.clientContext.activeAnnotationProjectId ?? null,
-                annotation_project_modality:
-                  options.clientContext.annotationProjectModality ?? null,
-                annotation_project_type:
-                  options.clientContext.annotationProjectType ?? null,
-                agent_mode: options.clientContext.agentMode ?? 'annotation',
-                annotation_project_snapshot: options.clientContext.annotationProjectSnapshot
-                  ? {
-                      project_id: options.clientContext.annotationProjectSnapshot.projectId,
-                      name: options.clientContext.annotationProjectSnapshot.name,
-                      modality: options.clientContext.annotationProjectSnapshot.modality,
-                      annotation_type:
-                        options.clientContext.annotationProjectSnapshot.annotationType,
-                      labels: options.clientContext.annotationProjectSnapshot.labels,
-                      detection_models:
-                        options.clientContext.annotationProjectSnapshot.detectionModels,
-                    }
-                  : null,
-              }
+            ? buildApiClientContext({
+                ...options.clientContext,
+                agentMode: options.clientContext.agentMode ?? 'annotation',
+              })
             : null,
         }),
       },

@@ -4,7 +4,7 @@ function normList(items: string[] | undefined): string[] {
   return (items ?? []).map((s) => s.trim().toLowerCase()).filter(Boolean);
 }
 
-/** 合并 parse-task 与 create-plan 的范围；不在代码里推断任务类型 */
+/** 合并 batch-prepare 任务范围与计划范围；不在代码里推断任务类型 */
 export function mergeEffectiveDetectionScope(
   taskScope: AnnotationScopePayload | undefined,
   planScope: AnnotationScopePayload | undefined,

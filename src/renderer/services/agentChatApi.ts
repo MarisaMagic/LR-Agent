@@ -15,6 +15,7 @@ interface AgentMessageApiRow {
   role: string;
   blocks: MessageBlock[];
   status: ChatMessage['status'];
+  interaction_mode?: string | null;
   provider_id: string;
   model: string;
   error?: string | null;
@@ -52,12 +53,16 @@ interface AgentSessionDetailApiResponse {
 }
 
 function mapMessage(row: AgentMessageApiRow): ChatMessage {
+  const mode = row.interaction_mode;
+  const interactionMode =
+    mode === 'annotation' || mode === 'chat' ? mode : null;
   return {
     id: row.id,
     sessionId: row.session_id,
     role: row.role as ChatMessage['role'],
     blocks: row.blocks ?? [],
     status: row.status,
+    interactionMode,
     providerId: row.provider_id,
     model: row.model,
     error: row.error ?? undefined,

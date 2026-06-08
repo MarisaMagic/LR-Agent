@@ -41,8 +41,8 @@ export default function AgentUserMessage({ message }: AgentUserMessageProps) {
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
     el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [isEditing, editDraft]);
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+  }, [isEditing]);
 
   const resizeTextarea = useCallback(() => {
     const el = textareaRef.current;

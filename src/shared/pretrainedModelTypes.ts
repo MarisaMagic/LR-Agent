@@ -125,8 +125,8 @@ export const KEYPOINT_BACKEND_PRESETS: Record<
 export const DEFAULT_YOLO_PARAMS: Required<
   Pick<PretrainedModelParams, 'confThreshold' | 'iouThreshold'>
 > = {
-  confThreshold: 0.25,
-  iouThreshold: 0.45,
+  confThreshold: 0.7,
+  iouThreshold: 0.5,
 };
 
 export const DEFAULT_SAM2_PARAMS: Required<

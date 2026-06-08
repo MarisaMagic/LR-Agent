@@ -71,6 +71,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   blocks: MessageBlock[];
   status: ChatMessageStatus;
+  /** 该轮 UI 模式：chat=Ask，annotation=Agent */
+  interactionMode?: AgentInteractionMode | null;
   providerId: string;
   model: string;
   error?: string;
@@ -95,6 +97,40 @@ export const DEFAULT_CHAT_CONTEXT_CONFIG: ChatContextConfig = {
 };
 
 export type AgentInteractionMode = 'chat' | 'annotation';
+
+export type TurnKind =
+  | 'execute_batch'
+  | 'converse'
+  | 'clarify_scope'
+  | 'wants_batch'
+  | 'unsupported';
+
+export type TaskIntent =
+  | 'converse'
+  | 'query_annotation'
+  | 'execute_batch'
+  | 'clarify_scope'
+  | 'wants_batch'
+  | 'unsupported';
+
+export function isBatchAnnotationTurnKind(
+  turnKind: TurnKind | null | undefined,
+): boolean {
+  return turnKind === 'execute_batch' || turnKind === 'wants_batch';
+}
+
+export interface TurnUnderstandingResult {
+  resolvedUserContent: string;
+  referencedRelativePaths: string[];
+  resolvedActiveRelativePath?: string | null;
+  taskIntent: TaskIntent;
+  turnKind: TurnKind;
+  needsVisionInput: boolean;
+  confidence: number;
+  scopeNotes: string;
+  reason: string;
+  userVisibleHint?: string | null;
+}
 
 export interface ProjectAgentUiState {
   openTabIds: string[];
@@ -171,13 +207,18 @@ export type StreamEvent =
 export interface ClientContextPayload {
   workspaceRoot?: string | null;
   activeFilePath?: string | null;
+  activeRelativePath?: string | null;
+  projectDirectoryPath?: string | null;
   activeAnnotationProjectId?: string | null;
   annotationProjectModality?: string | null;
   annotationProjectType?: string | null;
   agentMode?: AgentInteractionMode | null;
+  turnKind?: TurnKind | null;
+  turnUnderstanding?: TurnUnderstandingResult | null;
   annotationProjectSnapshot?: {
     projectId: string;
     name: string;
+    directoryPath?: string;
     modality: string;
     annotationType: string;
     annotationTypeLabel?: string;

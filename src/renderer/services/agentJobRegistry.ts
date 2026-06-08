@@ -157,6 +157,8 @@ export async function startAnnotationBatchJobRunner(options: {
   jobId: string;
   providerId: string;
   userRequest: string;
+  preselectedPaths?: string[];
+  sessionId?: string;
   project: AnnotationProjectSnapshot;
   currentFileAbsolutePath: string | null;
   detectionModels: PretrainedModelConfig[];
@@ -177,6 +179,8 @@ export async function startAnnotationBatchJobRunner(options: {
       jobId: options.jobId,
       providerId: options.providerId,
       userRequest: options.userRequest,
+      preselectedPaths: options.preselectedPaths,
+      sessionId: options.sessionId,
       project: options.project,
       currentFileAbsolutePath: options.currentFileAbsolutePath,
       detectionModels: options.detectionModels,

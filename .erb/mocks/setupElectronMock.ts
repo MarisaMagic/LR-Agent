@@ -1,3 +1,13 @@
+jest.mock('remark-math', () => ({
+  __esModule: true,
+  default: () => undefined,
+}));
+
+jest.mock('rehype-katex', () => ({
+  __esModule: true,
+  default: () => undefined,
+}));
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: jest.fn().mockImplementation((query: string) => ({
