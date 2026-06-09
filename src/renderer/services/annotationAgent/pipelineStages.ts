@@ -6,6 +6,8 @@ export const PIPELINE_STAGE_LABELS: Record<string, string> = {
   plan: '生成计划',
   workers: '批量处理',
   worker: '处理图片',
+  judge: '评分复核',
+  retry: '重新打标签',
   tool: '工具调用',
 };
 

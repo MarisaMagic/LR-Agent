@@ -20,6 +20,9 @@ export default function AnnotationProposalBlock({
   const { activeProject } = useAnnotation();
   const { showToast } = useToast();
   const [applying, setApplying] = useState(false);
+  const weakAcceptedChanges = proposal.changes.filter(
+    (change) => change.judge?.verdict === 'weak_accept',
+  );
 
   const handleApply = useCallback(async () => {
     if (!activeProject || activeProject.id !== proposal.projectId) {
@@ -66,6 +69,25 @@ export default function AnnotationProposalBlock({
         处理 {proposal.stats.processed} 张 · 成功 {proposal.stats.succeeded} · 跳过{' '}
         {proposal.stats.skipped} · 共 {proposal.stats.totalBoxes} 个框
       </div>
+      {proposal.stats.judged ? (
+        <div className="annotation-proposal-stats annotation-proposal-stats--judge">
+          评分 {proposal.stats.judged} 张 · 弱通过 {proposal.stats.weakAccepted ?? 0} ·
+          评分拒绝 {proposal.stats.rejected ?? 0} · 重试 {proposal.stats.retryRounds ?? 0} 轮
+        </div>
+      ) : null}
+      {weakAcceptedChanges.length > 0 ? (
+        <div className="annotation-proposal-weak">
+          <span className="annotation-proposal-badge">弱通过 · 建议人工复查</span>
+          <div className="annotation-proposal-weak-list">
+            {weakAcceptedChanges.slice(0, 6).map((change) => (
+              <span key={change.relativePath}>{change.relativePath}</span>
+            ))}
+            {weakAcceptedChanges.length > 6 ? (
+              <span>等 {weakAcceptedChanges.length} 张</span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <div className="annotation-proposal-actions">
         <VscodeButton disabled={disabled} onClick={() => void handleApply()}>
           {status === 'applied' ? '已应用' : applying ? '应用中…' : '应用标注'}

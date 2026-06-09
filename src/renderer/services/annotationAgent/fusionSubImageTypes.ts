@@ -1,4 +1,7 @@
-import type { AnnotationBatchChange } from '../../../shared/annotationAgentTypes';
+import type {
+  AnnotationBatchChange,
+  AnnotationJudgeSummary,
+} from '../../../shared/annotationAgentTypes';
 import type { SubImageTimingBreakdown } from './annotationTiming';
 import type { MapMappingRow } from './annotationAgentDebug';
 
@@ -16,6 +19,11 @@ export interface FusionSubImageResult {
   method?: string;
   mapHint?: string;
   mapMappings?: MapMappingRow[];
+  judge?: AnnotationJudgeSummary;
+  judgeAttempts?: number;
+  judgeRetryRounds?: number;
+  weakAccepted?: boolean;
+  rejectedByJudge?: boolean;
   elapsedMs?: number;
   timing?: SubImageTimingBreakdown;
 }

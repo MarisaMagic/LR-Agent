@@ -39,6 +39,7 @@ export interface SubImageTimingBreakdown {
   stream_ms?: number;
   detect_ms?: number;
   map_ms?: number;
+  judge_ms?: number;
   finalize_ms?: number;
   round_count?: number;
 }
@@ -56,6 +57,9 @@ export function formatSubImageTiming(t: SubImageTimingBreakdown): string {
   }
   if (t.map_ms != null && t.map_ms > 0) {
     parts.push(`映射 ${formatDurationMs(t.map_ms)}`);
+  }
+  if (t.judge_ms != null && t.judge_ms > 0) {
+    parts.push(`评分 ${formatDurationMs(t.judge_ms)}`);
   }
   if (t.finalize_ms != null && t.finalize_ms > 0) {
     parts.push(`finalize ${formatDurationMs(t.finalize_ms)}`);

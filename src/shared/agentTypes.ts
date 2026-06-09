@@ -56,6 +56,8 @@ export interface AnnotationPipelineStep {
   message: string;
   status: AnnotationPipelineStepStatus;
   detail?: string;
+  /** 图片相对路径，用于批量明细按图聚合 */
+  imagePath?: string;
 }
 
 export type ChatMessageStatus =
@@ -199,6 +201,7 @@ export type StreamEvent =
       message: string;
       status?: AnnotationPipelineStepStatus;
       detail?: string;
+      imagePath?: string;
     }
   | { type: 'annotation_proposal'; proposal: AnnotationBatchProposal }
   | { type: 'done' }

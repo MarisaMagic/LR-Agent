@@ -63,6 +63,7 @@ function mapAndEmit(
       message: event.message,
       status: event.status,
       detail: event.detail,
+      imagePath: event.imagePath,
     });
     return;
   }

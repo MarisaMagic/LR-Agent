@@ -21,6 +21,7 @@ export class AnnotationRunPersistence {
   private buffer: StreamEvent[] = [];
   private seq = 0;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private flushChain: Promise<void> = Promise.resolve();
   private sessionId = '';
   private assistantMessageId = '';
   private clientJobId = '';
@@ -73,17 +74,23 @@ export class AnnotationRunPersistence {
     if (event.type === 'done') return;
     this.buffer.push(event);
     if (isImmediateEvent(event)) {
-      void this.flush(true);
+      this.enqueueFlush(true);
       return;
     }
     this.scheduleFlush();
+  }
+
+  private enqueueFlush(force: boolean): void {
+    this.flushChain = this.flushChain
+      .then(() => this.flush(force))
+      .catch(() => undefined);
   }
 
   private scheduleFlush(): void {
     if (this.flushTimer != null) return;
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
-      void this.flush(false);
+      this.enqueueFlush(false);
     }, FLUSH_MS);
   }
 
@@ -123,6 +130,7 @@ export class AnnotationRunPersistence {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
     }
+    await this.flushChain;
     await this.flush(true);
     try {
       await apiFetch<{ ok: boolean }>('/agent/annotation-run/finalize', {

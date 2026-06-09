@@ -5,6 +5,8 @@ import type {
   TurnKind,
   TurnUnderstandingResult,
 } from '../../shared/agentTypes';
+import { ApiError } from '../types/auth';
+import { authFetch, parseApiError } from './authenticatedFetch';
 import tokenHolder from './tokenHolder';
 
 export function buildApiClientContext(
@@ -95,17 +97,12 @@ export async function understandTurn(options: {
   truncateFromMessageId?: string | null;
   imageCatalogHint?: string[];
 }): Promise<TurnUnderstandingResult> {
-  const accessToken = tokenHolder.getAccessToken();
-  if (!accessToken) {
-    throw new Error('not_authenticated');
+  if (!tokenHolder.getAccessToken()) {
+    throw new ApiError(401, 'not_authenticated');
   }
 
-  const response = await fetch(`${API_BASE_URL}/agent/turn/understand`, {
+  const response = await authFetch(`${API_BASE_URL}/agent/turn/understand`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify({
       provider_id: options.providerId,
       user_content: options.userContent,
@@ -119,17 +116,7 @@ export async function understandTurn(options: {
   });
 
   if (!response.ok) {
-    let detail = response.statusText;
-    try {
-      const errBody = (await response.json()) as {
-        detail?: string;
-        msg?: string;
-      };
-      detail = errBody.detail ?? errBody.msg ?? detail;
-    } catch {
-      // ignore
-    }
-    throw new Error(detail || 'turn_understand_failed');
+    throw await parseApiError(response);
   }
 
   const json = (await response.json()) as {

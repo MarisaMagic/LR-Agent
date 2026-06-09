@@ -31,6 +31,11 @@ export interface SubAgentConstraints {
   min_labeled_box_count?: number;
 }
 
+export interface JudgeConfig {
+  enabled: boolean;
+  maxRetries: number;
+}
+
 export interface BatchAnnotationPlan {
   intent_summary: string;
   label_strategy: 'map_each_box_to_label' | 'single_label_for_all_boxes';
@@ -38,6 +43,7 @@ export interface BatchAnnotationPlan {
   detection_hints: DetectionHints;
   sub_agent_constraints: SubAgentConstraints;
   annotation_scope: AnnotationScopePayload;
+  judge_config?: JudgeConfig;
   plan_steps: string[];
 }
 
@@ -54,6 +60,28 @@ export interface AnnotationBatchChange {
   absolutePath: string;
   operation: 'append' | 'replace';
   annotations: BboxAnnotation[];
+  judge?: AnnotationJudgeSummary;
+}
+
+export type AnnotationJudgeVerdict = 'accept' | 'weak_accept' | 'reject';
+
+export interface AnnotationJudgeIssue {
+  boxIndex?: number;
+  code?: string;
+  message: string;
+  expectedLabelId?: string;
+  actualLabelId?: string;
+}
+
+export interface AnnotationJudgeSummary {
+  verdict: AnnotationJudgeVerdict;
+  confidence?: number;
+  summary?: string;
+  issues?: AnnotationJudgeIssue[];
+  retryFeedback?: string;
+  checkedBoxes?: number;
+  attempts?: number;
+  retryRounds?: number;
 }
 
 export interface AnnotationBatchProposal {
@@ -66,6 +94,10 @@ export interface AnnotationBatchProposal {
     succeeded: number;
     skipped: number;
     totalBoxes: number;
+    judged?: number;
+    weakAccepted?: number;
+    rejected?: number;
+    retryRounds?: number;
   };
   plan?: BatchAnnotationPlan;
   createdAt: number;

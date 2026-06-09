@@ -2,6 +2,7 @@ import { MessageResponse, TokenResponse, UserPublic } from '../types/auth';
 import { resolveApiBaseUrl } from '../config';
 import tokenHolder from './tokenHolder';
 import { apiFetch } from './api';
+import { refreshSessionOnce } from './authenticatedFetch';
 
 async function persistSession(result: TokenResponse): Promise<void> {
   tokenHolder.setAccessToken(result.access_token);
@@ -88,18 +89,11 @@ export async function logout(): Promise<void> {
 }
 
 export async function tryRefreshSession(): Promise<boolean> {
-  const refreshToken = await window.electron.auth.getRefreshToken();
-  if (!refreshToken) {
-    return false;
-  }
-
-  try {
-    await refresh(refreshToken);
-    return true;
-  } catch {
+  const refreshed = await refreshSessionOnce();
+  if (!refreshed) {
     await clearSession();
-    return false;
   }
+  return refreshed;
 }
 
 export async function restoreSession(): Promise<UserPublic | null> {

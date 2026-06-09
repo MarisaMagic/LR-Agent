@@ -1,9 +1,13 @@
 import { API_BASE_URL } from '../config';
 import type {
+  AnnotationJudgeSummary,
+  AnnotationJudgeVerdict,
   AnnotationProjectSnapshot,
   BatchPrepareResult,
   ImageCandidate,
 } from '../../shared/annotationAgentTypes';
+import { ApiError } from '../types/auth';
+import { authFetch, parseApiError } from './authenticatedFetch';
 import tokenHolder from './tokenHolder';
 
 interface ApiSuccess<T> {
@@ -15,29 +19,17 @@ async function postAnnotationLlm<T>(
   path: string,
   body: Record<string, unknown>,
 ): Promise<T> {
-  const accessToken = tokenHolder.getAccessToken();
-  if (!accessToken) {
-    throw new Error('请先登录后再使用标注 Agent');
+  if (!tokenHolder.getAccessToken()) {
+    throw new ApiError(401, 'not_authenticated');
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await authFetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(body),
   });
 
   if (!response.ok) {
-    let detail = response.statusText;
-    try {
-      const errBody = (await response.json()) as { detail?: string; msg?: string };
-      detail = errBody.detail ?? errBody.msg ?? detail;
-    } catch {
-      // ignore
-    }
-    throw new Error(detail || '请求失败');
+    throw await parseApiError(response);
   }
 
   const json = (await response.json()) as ApiSuccess<T>;
@@ -113,6 +105,12 @@ export interface MapDetectionBoxesUnifiedResult {
   label_candidates?: Array<{ id: string; name: string }>;
 }
 
+export interface JudgeDetectionLabelsResult extends AnnotationJudgeSummary {
+  ok?: boolean;
+  error?: string;
+  verdict: AnnotationJudgeVerdict;
+}
+
 /** 标签候选池各阶段调试信息（与后端 map 响应一致） */
 export interface LabelPoolDebugInfo {
   source: string;
@@ -148,6 +146,9 @@ export async function mapDetectionBoxesUnified(
     imageAbsolutePath?: string;
     imageBase64?: string;
     ocrText?: string;
+    judgeFeedback?: string;
+    previousMappings?: Array<{ box_index: number; label_id: string; reason?: string }>;
+    attempt?: number;
   },
 ): Promise<MapDetectionBoxesUnifiedResult> {
   return postAnnotationLlm<MapDetectionBoxesUnifiedResult>(
@@ -165,8 +166,85 @@ export async function mapDetectionBoxesUnified(
       image_absolute_path: options.imageAbsolutePath ?? '',
       image_base64: options.imageBase64 ?? '',
       ocr_text: options.ocrText ?? '',
+      judge_feedback: options.judgeFeedback ?? '',
+      previous_mappings: options.previousMappings ?? [],
+      attempt: options.attempt ?? 0,
     },
   );
+}
+
+export async function judgeDetectionLabels(
+  providerId: string,
+  options: {
+    userRequest: string;
+    intentSummary: string;
+    labelCandidates: Array<{ id: string; name: string }>;
+    boxes: Array<{
+      box_index: number;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      class_name: string;
+      confidence?: number;
+    }>;
+    mappings: Array<{ box_index: number; label_id: string; reason?: string }>;
+    annotations: Array<Record<string, unknown>>;
+    imageAbsolutePath?: string;
+    imageBase64?: string;
+    attempt?: number;
+    maxRetries?: number;
+  },
+): Promise<JudgeDetectionLabelsResult> {
+  const result = await postAnnotationLlm<{
+    ok?: boolean;
+    error?: string;
+    verdict?: AnnotationJudgeVerdict;
+    confidence?: number;
+    summary?: string;
+    issues?: Array<{
+      box_index?: number;
+      boxIndex?: number;
+      code?: string;
+      message?: string;
+      expected_label_id?: string;
+      expectedLabelId?: string;
+      actual_label_id?: string;
+      actualLabelId?: string;
+    }>;
+    retry_feedback?: string;
+    retryFeedback?: string;
+    checked_boxes?: number;
+    checkedBoxes?: number;
+  }>('/agent/annotation/judge-detection-labels', {
+    provider_id: providerId,
+    user_request: options.userRequest,
+    intent_summary: options.intentSummary,
+    label_candidates: options.labelCandidates,
+    boxes: options.boxes,
+    mappings: options.mappings,
+    annotations: options.annotations,
+    image_absolute_path: options.imageAbsolutePath ?? '',
+    image_base64: options.imageBase64 ?? '',
+    attempt: options.attempt ?? 0,
+    max_retries: options.maxRetries ?? 3,
+  });
+  return {
+    ok: result.ok,
+    error: result.error,
+    verdict: result.verdict ?? 'weak_accept',
+    confidence: result.confidence,
+    summary: result.summary,
+    issues: (result.issues ?? []).map((issue) => ({
+      boxIndex: issue.boxIndex ?? issue.box_index,
+      code: issue.code,
+      message: issue.message ?? '',
+      expectedLabelId: issue.expectedLabelId ?? issue.expected_label_id,
+      actualLabelId: issue.actualLabelId ?? issue.actual_label_id,
+    })),
+    retryFeedback: result.retryFeedback ?? result.retry_feedback,
+    checkedBoxes: result.checkedBoxes ?? result.checked_boxes,
+  };
 }
 
 export async function mapDetectionBoxesHeuristic(

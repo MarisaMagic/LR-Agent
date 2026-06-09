@@ -40,6 +40,12 @@ export default function AgentAssistantMessage({
   const menuMotion = getFloatingMenuMotionProps('above-anchor', reducedMotion);
 
   const isStreaming = message.status === 'streaming';
+  const hasAnnotationProposal = message.blocks.some(
+    (block) => block.type === 'annotation_proposal',
+  );
+  const batchPipelineCompleted =
+    hasAnnotationProposal &&
+    (message.status === 'done' || message.status === 'stopped');
   const textContent = getAssistantPlainText(message);
   const streamingSession =
     activeSessionId != null && isSessionStreaming(activeSessionId);
@@ -133,6 +139,7 @@ export default function AgentAssistantMessage({
                 steps={block.steps}
                 collapsed={block.collapsed}
                 streaming={isStreaming}
+                batchCompleted={batchPipelineCompleted}
                 onToggle={() => handleToggle(index)}
               />
             );

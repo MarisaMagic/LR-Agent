@@ -7,6 +7,8 @@ import type {
   StreamEvent,
 } from '../../shared/agentTypes';
 import { DEFAULT_CHAT_CONTEXT_CONFIG as defaultContextConfig } from '../../shared/agentTypes';
+import { ApiError } from '../types/auth';
+import { authFetch, parseApiError } from './authenticatedFetch';
 import tokenHolder from './tokenHolder';
 import { buildApiClientContext } from './agentTurnRouter';
 
@@ -83,8 +85,7 @@ export async function* streamChatViaBackend(
   request: BackendChatRequest,
   signal: AbortSignal,
 ): AsyncGenerator<StreamEvent> {
-  const accessToken = tokenHolder.getAccessToken();
-  if (!accessToken) {
+  if (!tokenHolder.getAccessToken()) {
     yield { type: 'error', message: 'not_authenticated' };
     return;
   }
@@ -117,26 +118,27 @@ export async function* streamChatViaBackend(
       : undefined,
   };
 
-  const response = await fetch(`${API_BASE_URL}/agent/chat/stream`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-    },
-    body: JSON.stringify(body),
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await authFetch(`${API_BASE_URL}/agent/chat/stream`, {
+      method: 'POST',
+      headers: {
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (err) {
+    if (err instanceof ApiError) {
+      yield { type: 'error', message: err.detail };
+      return;
+    }
+    throw err;
+  }
 
   if (!response.ok) {
-    let detail = response.statusText;
-    try {
-      const errBody = (await response.json()) as { detail?: string };
-      detail = errBody.detail ?? detail;
-    } catch {
-      // ignore
-    }
-    yield { type: 'error', message: detail || '请求失败' };
+    const apiError = await parseApiError(response);
+    yield { type: 'error', message: apiError.detail };
     return;
   }
 

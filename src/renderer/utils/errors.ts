@@ -1,3 +1,5 @@
+import { ApiError } from '../types/auth';
+
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_credentials: '邮箱或密码错误',
   email_already_registered: '该邮箱已注册',
@@ -5,6 +7,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   password_must_contain_uppercase: '密码需包含大写字母',
   password_must_contain_digit: '密码需包含数字',
   session_expired: '登录已过期，请重新登录',
+  not_authenticated: '请先登录后再使用此功能',
+  token_reuse_detected: '登录状态异常，请重新登录',
   request_failed: '请求失败，请稍后重试',
   invalid_or_expired_token: '验证链接无效或已过期',
   email_already_verified: '邮箱已验证，无需重复发送',
@@ -21,4 +25,29 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 export default function translateError(detail: string): string {
   return ERROR_MESSAGES[detail] ?? detail;
+}
+
+export function isAuthError(err: unknown): boolean {
+  if (err instanceof ApiError && err.status === 401) {
+    return true;
+  }
+  if (err instanceof Error) {
+    return [
+      'session_expired',
+      'not_authenticated',
+      'invalid_credentials',
+      'token_reuse_detected',
+    ].includes(err.message);
+  }
+  return false;
+}
+
+export function resolveErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    return translateError(err.detail);
+  }
+  if (err instanceof Error && err.message) {
+    return translateError(err.message);
+  }
+  return fallback;
 }

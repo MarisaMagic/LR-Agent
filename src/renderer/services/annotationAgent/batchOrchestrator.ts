@@ -42,6 +42,7 @@ export type AnnotationProgressEvent =
       message: string;
       status?: 'running' | 'done' | 'error';
       detail?: string;
+      imagePath?: string;
     }
   | {
       type: 'tool';
@@ -60,8 +61,9 @@ function progress(
   message: string,
   status: 'running' | 'done' | 'error' = 'running',
   detail?: string,
+  imagePath?: string,
 ): AnnotationProgressEvent {
-  return { type: 'progress', stage, message, status, detail };
+  return { type: 'progress', stage, message, status, detail, imagePath };
 }
 
 function planFromBatchPrepare(data: BatchPrepareResult): BatchAnnotationPlan {
@@ -70,6 +72,18 @@ function planFromBatchPrepare(data: BatchPrepareResult): BatchAnnotationPlan {
     scope_reason: _reason,
     ...plan
   } = data;
+  const rawJudgeConfig = (plan as BatchAnnotationPlan & {
+    judge_config?: { enabled?: boolean; maxRetries?: number; max_retries?: number };
+  }).judge_config;
+  if (rawJudgeConfig) {
+    (plan as BatchAnnotationPlan).judge_config = {
+      enabled: Boolean(rawJudgeConfig.enabled),
+      maxRetries: Math.max(
+        0,
+        Number(rawJudgeConfig.maxRetries ?? rawJudgeConfig.max_retries ?? 3),
+      ),
+    };
+  }
   return plan;
 }
 
@@ -80,6 +94,11 @@ function formatWorkerDetailParts(result: WorkerResult): string[] {
     fusion.rawCount != null ? `检测 ${fusion.rawCount}→保留 ${fusion.keptCount ?? 0}` : '',
     fusion.unmappedCount != null ? `未映射 ${fusion.unmappedCount}` : '',
     fusion.method ? `方式 ${fusion.method}` : '',
+    fusion.judge
+      ? `评分 ${fusion.judge.verdict === 'weak_accept' ? '弱通过' : fusion.judge.verdict === 'accept' ? '通过' : '拒绝'}`
+      : '',
+    fusion.judge?.confidence != null ? `评分置信度 ${fusion.judge.confidence.toFixed(2)}` : '',
+    fusion.judgeRetryRounds ? `重试 ${fusion.judgeRetryRounds} 次` : '',
   ].filter(Boolean) as string[];
   if (fusion.timing) {
     parts.push(formatSubImageTiming(fusion.timing));
@@ -345,6 +364,8 @@ export async function* runAnnotationBatchJob(options: {
           'worker',
           `处理中 (${index + 1}/${total})：${image.relativePath}`,
           'running',
+          undefined,
+          image.relativePath,
         ),
       );
       const imageStarted = performance.now();
@@ -355,6 +376,13 @@ export async function* runAnnotationBatchJob(options: {
         image,
         detectionModel: detModel!,
         labelCandidates,
+        onProgress: (event) => push(progress(
+          event.stage,
+          event.message,
+          event.status ?? 'running',
+          event.detail,
+          event.imagePath ?? image.relativePath,
+        )),
       });
       if (result.elapsedMs == null) {
         result.elapsedMs = Math.round(performance.now() - imageStarted);
@@ -385,6 +413,8 @@ export async function* runAnnotationBatchJob(options: {
         method: fusion.method,
         autoFinalized: fusion.autoFinalized,
         mappings: fusion.mapMappings,
+        judge: fusion.judge,
+        judge_retry_rounds: fusion.judgeRetryRounds,
       });
       const detailParts = formatWorkerDetailParts(result);
       yield progress(
@@ -392,6 +422,7 @@ export async function* runAnnotationBatchJob(options: {
         `完成：${result.relativePath}`,
         'done',
         detailParts.join(' · ') || undefined,
+        result.relativePath,
       );
     } else {
       const fusionFail = result as FusionSubImageResult;
@@ -405,6 +436,9 @@ export async function* runAnnotationBatchJob(options: {
         method: fusionFail.method,
         mapHint: fusionFail.mapHint,
         mappings: fusionFail.mapMappings,
+        judge: fusionFail.judge,
+        judge_retry_rounds: fusionFail.judgeRetryRounds,
+        rejected_by_judge: fusionFail.rejectedByJudge,
       });
       const skipDetail = [
         result.reason,
@@ -417,9 +451,13 @@ export async function* runAnnotationBatchJob(options: {
         `跳过：${result.relativePath}`,
         'error',
         skipDetail || undefined,
+        result.relativePath,
       );
     }
   }
+
+  const succeeded = workerResults.filter((r) => r.ok && r.change);
+  const skipped = workerResults.filter((r) => !r.ok);
 
   const workersMs = batchTimer.lap('workers');
   const batchTotalMs = batchTimer.total();
@@ -427,18 +465,28 @@ export async function* runAnnotationBatchJob(options: {
     elapsed_ms: Math.round(workersMs),
     batch_total_ms: Math.round(batchTotalMs),
     image_count: total,
+    succeeded: succeeded.length,
+    skipped: skipped.length,
   });
   yield progress(
     'workers',
-    '图片处理结束',
+    `批量处理完成 · 成功 ${succeeded.length} · 跳过 ${skipped.length} · 共 ${total} 张`,
     'done',
     `本阶段 ${formatDurationMs(workersMs)} · 全流程累计 ${formatDurationMs(batchTotalMs)}`,
   );
-
-  const succeeded = workerResults.filter((r) => r.ok && r.change);
-  const skipped = workerResults.filter((r) => !r.ok);
   const totalBoxes = succeeded.reduce(
     (sum, r) => sum + (r.change?.annotations.length ?? 0),
+    0,
+  );
+  const judged = workerResults.filter((r) => Boolean((r as FusionSubImageResult).judge)).length;
+  const weakAccepted = succeeded.filter(
+    (r) => (r as FusionSubImageResult).judge?.verdict === 'weak_accept',
+  ).length;
+  const rejected = skipped.filter(
+    (r) => (r as FusionSubImageResult).rejectedByJudge,
+  ).length;
+  const retryRounds = workerResults.reduce(
+    (sum, r) => sum + ((r as FusionSubImageResult).judgeRetryRounds ?? 0),
     0,
   );
 
@@ -464,6 +512,10 @@ export async function* runAnnotationBatchJob(options: {
       succeeded: succeeded.length,
       skipped: skipped.length,
       totalBoxes,
+      judged,
+      weakAccepted,
+      rejected,
+      retryRounds,
     },
     plan,
     createdAt: Date.now(),
@@ -472,6 +524,9 @@ export async function* runAnnotationBatchJob(options: {
   const summaryLines = [
     `已处理 ${images.length} 张图片，成功 ${succeeded.length} 张，跳过 ${skipped.length} 张。`,
     `共生成 ${totalBoxes} 个带标签的候选框。`,
+    judged
+      ? `评分复核：已评分 ${judged} 张，弱通过 ${weakAccepted} 张，评分拒绝 ${rejected} 张，触发重试 ${retryRounds} 轮。`
+      : '',
     scopeReason ? `范围说明：${scopeReason}` : '',
     plan.plan_steps.length
       ? `计划：\n\n${plan.plan_steps.map((s) => `- ${s}`).join('\n')}`

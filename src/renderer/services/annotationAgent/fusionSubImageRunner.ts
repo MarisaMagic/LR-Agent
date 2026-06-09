@@ -15,6 +15,13 @@ export async function runFusionSubImageAgent(options: {
   image: ImageCandidate;
   detectionModel: PretrainedModelConfig;
   labelCandidates: Array<{ id: string; name: string }>;
+  onProgress?: (event: {
+    stage: string;
+    message: string;
+    status?: 'running' | 'done' | 'error';
+    detail?: string;
+    imagePath?: string;
+  }) => void;
 }): Promise<FusionSubImageResult> {
   return runDeterministicSubImageAgent(options);
 }

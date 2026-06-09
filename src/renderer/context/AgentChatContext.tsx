@@ -32,8 +32,10 @@ import {
   applyStreamEventToBlocks,
   createEmptyChatState,
   createEmptyProjectUi,
+  finalizeAnnotationPipelineBlock,
   getUserTextFromMessage,
   inferRegenerateTurnKind,
+  normalizeHistoricalMessages,
   resolveUserMessageIdForJob,
   getProjectUi,
   loadAgentChatState,
@@ -74,7 +76,7 @@ import { useApp } from './AppContext';
 import { useLlmProviders } from './LlmProvidersContext';
 import { useToast } from './ToastContext';
 import { ApiError } from '../types/auth';
-import translateError from '../utils/errors';
+import translateError, { isAuthError, resolveErrorMessage } from '../utils/errors';
 
 interface AgentChatContextValue {
   sessions: Record<string, AgentSession>;
@@ -135,16 +137,7 @@ function normalizeLoadedState(state: AgentChatPersistedState): AgentChatPersiste
   const next = { ...state };
   for (const sessionId of Object.keys(next.messagesBySession)) {
     const messages = next.messagesBySession[sessionId] ?? {};
-    for (const messageId of Object.keys(messages)) {
-      const message = messages[messageId];
-      if (message.status === 'streaming') {
-        messages[messageId] = {
-          ...message,
-          status: 'stopped',
-          updatedAt: Date.now(),
-        };
-      }
-    }
+    next.messagesBySession[sessionId] = normalizeHistoricalMessages(messages);
     const session = next.sessions[sessionId];
     if (session?.activeJobId) {
       next.sessions[sessionId] = { ...session, activeJobId: undefined };
@@ -344,7 +337,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           },
           messagesBySession: {
             ...latest.messagesBySession,
-            [sessionId]: detail.messages,
+            [sessionId]: normalizeHistoricalMessages(detail.messages),
           },
         });
         return true;
@@ -433,7 +426,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         const latest = stateRef.current;
         const mergedMessages = {
           ...(latest.messagesBySession[targetId] ?? {}),
-          ...detail.messages,
+          ...normalizeHistoricalMessages(detail.messages),
         };
         const newIds = detail.session.messageIds.filter(
           (id) => !session.messageIds.includes(id),
@@ -663,13 +656,15 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             ...existing,
             status: 'done',
             updatedAt: Date.now(),
-            blocks: existing.blocks.map((block) =>
-              block.type === 'reasoning' ||
-              block.type === 'tool_call' ||
-              block.type === 'annotation_pipeline'
-                ? { ...block, collapsed: true }
-                : block,
-            ),
+            blocks: existing.blocks.map((block) => {
+              if (block.type === 'annotation_pipeline') {
+                return finalizeAnnotationPipelineBlock(block, 'done');
+              }
+              if (block.type === 'reasoning' || block.type === 'tool_call') {
+                return { ...block, collapsed: true };
+              }
+              return block;
+            }),
           };
 
           const session = latest.sessions[sessionId];
@@ -704,7 +699,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           sessionMessages[messageId] = {
             ...existing,
             status: 'error',
-            error: event.message,
+            error: translateError(event.message),
             updatedAt: Date.now(),
             blocks: existing.blocks.map((block) =>
               block.type === 'annotation_pipeline'
@@ -1143,7 +1138,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             truncateFromMessageId,
           });
           effectiveUserContent = turnUnderstanding.resolvedUserContent;
-        } catch {
+        } catch (err) {
+          if (isAuthError(err)) {
+            showToast(resolveErrorMessage(err, '登录已过期，请重新登录'), {
+              type: 'error',
+            });
+            throw err;
+          }
           showToast('回合理解失败，已按原文处理', { type: 'info' });
         }
       }
@@ -1251,7 +1252,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         updateMessage(sessionId, assistantMessageId, (message) => ({
           ...message,
           status: 'error',
-          error: err instanceof Error ? err.message : '对话请求失败',
+          error: resolveErrorMessage(err, '对话请求失败'),
           updatedAt: Date.now(),
         }));
         const latest = stateRef.current.sessions[sessionId];

@@ -8,6 +8,10 @@ import type {
   StreamEvent,
   TurnKind,
 } from '../../shared/agentTypes';
+import {
+  isImageDetailPipelineStage,
+  upsertImageDetailPipelineStep,
+} from './annotationAgent/pipelineImageSteps';
 import { labelForPipelineStage } from './annotationAgent/pipelineStages';
 import { WORKSPACE_AGENT_UI_KEY } from '../../shared/agentTypes';
 
@@ -154,6 +158,73 @@ export function persistAgentChatState(state: AgentChatPersistedState): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+export function finalizeAnnotationPipelineBlock(
+  block: Extract<MessageBlock, { type: 'annotation_pipeline' }>,
+  terminalStatus: 'done' | 'error' = 'done',
+): Extract<MessageBlock, { type: 'annotation_pipeline' }> {
+  return {
+    ...block,
+    collapsed: true,
+    steps: block.steps.map((step) =>
+      step.status === 'running' ? { ...step, status: terminalStatus } : step,
+    ),
+  };
+}
+
+/** 历史会话加载时修正残留的 streaming / pipeline running 状态。 */
+export function normalizeHistoricalAssistantMessage(
+  message: ChatMessage,
+): ChatMessage {
+  if (message.role !== 'assistant') return message;
+
+  const hasProposal = message.blocks.some(
+    (block) => block.type === 'annotation_proposal',
+  );
+  const isTerminal =
+    message.status === 'done' ||
+    message.status === 'stopped' ||
+    message.status === 'error' ||
+    (hasProposal && message.status === 'streaming');
+
+  if (!isTerminal) return message;
+
+  let next = message;
+  if (message.status === 'streaming') {
+    next = {
+      ...next,
+      status: hasProposal ? 'done' : 'stopped',
+      updatedAt: Date.now(),
+    };
+  }
+
+  const needsPipelineFix = next.blocks.some(
+    (block) =>
+      block.type === 'annotation_pipeline' &&
+      block.steps.some((step) => step.status === 'running'),
+  );
+  if (!needsPipelineFix) return next;
+
+  const terminalStatus = next.status === 'error' ? 'error' : 'done';
+  return {
+    ...next,
+    blocks: next.blocks.map((block) =>
+      block.type === 'annotation_pipeline'
+        ? finalizeAnnotationPipelineBlock(block, terminalStatus)
+        : block,
+    ),
+  };
+}
+
+export function normalizeHistoricalMessages(
+  messages: Record<string, ChatMessage>,
+): Record<string, ChatMessage> {
+  const next: Record<string, ChatMessage> = {};
+  for (const [id, message] of Object.entries(messages)) {
+    next[id] = normalizeHistoricalAssistantMessage(message);
+  }
+  return next;
+}
+
 function applyAnnotationProgressToBlocks(
   blocks: MessageBlock[],
   event: Extract<StreamEvent, { type: 'annotation_progress' }>,
@@ -166,26 +237,19 @@ function applyAnnotationProgressToBlocks(
     message: event.message,
     status: event.status ?? 'running',
     detail: event.detail,
+    imagePath: event.imagePath,
   };
 
   const upsertSteps = (steps: AnnotationPipelineStep[]): AnnotationPipelineStep[] => {
     const updated = steps.map((s) =>
-      s.status === 'running' && s.stage !== event.stage && event.stage !== 'worker'
+      s.status === 'running' &&
+      s.stage !== event.stage &&
+      !isImageDetailPipelineStage(event.stage)
         ? { ...s, status: 'done' as const }
         : s,
     );
-    if (event.stage === 'worker') {
-      const idx = updated.findIndex(
-        (s) => s.stage === 'worker' && s.message === event.message,
-      );
-      if (idx >= 0) {
-        updated[idx] = incoming;
-        return updated;
-      }
-      const trimmed = updated.filter((s) => s.stage !== 'worker').concat(incoming);
-      const workers = trimmed.filter((s) => s.stage === 'worker');
-      const rest = trimmed.filter((s) => s.stage !== 'worker');
-      return [...rest, ...workers.slice(-12)];
+    if (isImageDetailPipelineStage(event.stage)) {
+      return upsertImageDetailPipelineStep(updated, incoming);
     }
     const idx = updated.findIndex((s) => s.stage === event.stage);
     if (idx >= 0) {
