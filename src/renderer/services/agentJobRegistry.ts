@@ -3,6 +3,7 @@ import type {
   ChatMessage,
   ClientContextPayload,
   StreamEvent,
+  TurnKind,
 } from '../../shared/agentTypes';
 import type { AnnotationProjectSnapshot } from '../../shared/annotationAgentTypes';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
@@ -13,6 +14,9 @@ import {
   streamChatViaBackend,
 } from './backendChatClient';
 import { startAnnotationBatchJob } from './annotationBatchJob';
+import { startAnnotationMutationJob } from './annotationMutationBatchJob';
+import { startAnalysisBatchJob } from './analysisBatchJob';
+import { startReportBatchJob } from './reportBatchJob';
 import { cancelChatJobOnApi } from './llmProviderApi';
 import tokenHolder from './tokenHolder';
 
@@ -195,6 +199,137 @@ export async function startAnnotationBatchJobRunner(options: {
     emitJobEvent(options.jobId, {
       type: 'error',
       message: err instanceof Error ? err.message : '批量标注失败',
+    });
+  } finally {
+    runningJobs.delete(options.jobId);
+    pendingListeners.delete(options.jobId);
+  }
+}
+
+export async function startAnalysisJobRunner(options: {
+  jobId: string;
+  providerId: string;
+  userRequest: string;
+  sessionId?: string;
+  project: AnnotationProjectSnapshot;
+  onPersistEvent?: (event: StreamEvent) => void;
+}): Promise<void> {
+  if (runningJobs.has(options.jobId)) return;
+
+  const controller = new AbortController();
+  const job: RunningJob = {
+    controller,
+    listeners: new Set(),
+  };
+  runningJobs.set(options.jobId, job);
+  attachPendingListeners(options.jobId, job);
+
+  try {
+    await startAnalysisBatchJob({
+      providerId: options.providerId,
+      userRequest: options.userRequest,
+      project: options.project,
+      sessionId: options.sessionId,
+      signal: controller.signal,
+      onEvent: (event) => emitJobEvent(options.jobId, event),
+      onPersistEvent: options.onPersistEvent,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return;
+    }
+    emitJobEvent(options.jobId, {
+      type: 'error',
+      message: err instanceof Error ? err.message : '数据分析失败',
+    });
+  } finally {
+    runningJobs.delete(options.jobId);
+    pendingListeners.delete(options.jobId);
+  }
+}
+
+export async function startReportJobRunner(options: {
+  jobId: string;
+  providerId: string;
+  userRequest: string;
+  sessionId?: string;
+  project: AnnotationProjectSnapshot;
+  turnKind: TurnKind;
+  onPersistEvent?: (event: StreamEvent) => void;
+}): Promise<void> {
+  if (runningJobs.has(options.jobId)) return;
+
+  const controller = new AbortController();
+  const job: RunningJob = {
+    controller,
+    listeners: new Set(),
+  };
+  runningJobs.set(options.jobId, job);
+  attachPendingListeners(options.jobId, job);
+
+  try {
+    await startReportBatchJob({
+      providerId: options.providerId,
+      userRequest: options.userRequest,
+      project: options.project,
+      turnKind: options.turnKind,
+      sessionId: options.sessionId,
+      signal: controller.signal,
+      onEvent: (event) => emitJobEvent(options.jobId, event),
+      onPersistEvent: options.onPersistEvent,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return;
+    }
+    emitJobEvent(options.jobId, {
+      type: 'error',
+      message: err instanceof Error ? err.message : '报告生成失败',
+    });
+  } finally {
+    runningJobs.delete(options.jobId);
+    pendingListeners.delete(options.jobId);
+  }
+}
+
+export async function startAnnotationMutationJobRunner(options: {
+  jobId: string;
+  providerId: string;
+  userRequest: string;
+  sessionId?: string;
+  project: AnnotationProjectSnapshot;
+  currentFileAbsolutePath: string | null;
+  onPersistEvent?: (event: StreamEvent) => void;
+}): Promise<void> {
+  if (runningJobs.has(options.jobId)) return;
+
+  const controller = new AbortController();
+  const job: RunningJob = {
+    controller,
+    listeners: new Set(),
+  };
+  runningJobs.set(options.jobId, job);
+  attachPendingListeners(options.jobId, job);
+
+  try {
+    await startAnnotationMutationJob({
+      jobId: options.jobId,
+      providerId: options.providerId,
+      userRequest: options.userRequest,
+      sessionId: options.sessionId,
+      project: options.project,
+      currentFileAbsolutePath: options.currentFileAbsolutePath,
+      signal: controller.signal,
+      onEvent: (event) => emitJobEvent(options.jobId, event),
+      onPersistEvent: options.onPersistEvent,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return;
+    }
+    emitJobEvent(options.jobId, {
+      type: 'error',
+      message: err instanceof Error ? err.message : '标注变更失败',
     });
   } finally {
     runningJobs.delete(options.jobId);

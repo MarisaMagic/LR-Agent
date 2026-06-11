@@ -27,6 +27,8 @@ export function buildApiClientContext(
       clientContext.annotationProjectModality ?? null,
     annotation_project_type: clientContext.annotationProjectType ?? null,
     agent_mode: clientContext.agentMode ?? null,
+    selected_annotation_id: clientContext.selectedAnnotationId ?? null,
+    selected_annotation_ids: clientContext.selectedAnnotationIds ?? [],
     turn_understanding: clientContext.turnUnderstanding
       ? {
           resolved_user_content:

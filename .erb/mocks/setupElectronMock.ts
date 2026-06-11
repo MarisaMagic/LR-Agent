@@ -83,6 +83,12 @@ Object.defineProperty(window, 'electron', {
       run: jest.fn().mockResolvedValue({ ok: false, error: 'mock' }),
       cancel: jest.fn().mockResolvedValue(undefined),
     },
+    analysis: {
+      runScript: jest.fn().mockResolvedValue({ stdout: '', truncated: false }),
+    },
+    workspace: {
+      writeMarkdownFile: jest.fn().mockResolvedValue({ success: true }),
+    },
   },
 });
 

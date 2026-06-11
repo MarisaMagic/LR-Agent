@@ -475,10 +475,13 @@ export async function* runAnnotationBatchJob(options: {
     `本阶段 ${formatDurationMs(workersMs)} · 全流程累计 ${formatDurationMs(batchTotalMs)}`,
   );
   const totalBoxes = succeeded.reduce(
-    (sum, r) => sum + (r.change?.annotations.length ?? 0),
+    (sum, r) => sum + (r.change?.annotations?.length ?? 0),
     0,
   );
   const judged = workerResults.filter((r) => Boolean((r as FusionSubImageResult).judge)).length;
+  const accepted = succeeded.filter(
+    (r) => (r as FusionSubImageResult).judge?.verdict === 'accept',
+  ).length;
   const weakAccepted = succeeded.filter(
     (r) => (r as FusionSubImageResult).judge?.verdict === 'weak_accept',
   ).length;
@@ -513,6 +516,7 @@ export async function* runAnnotationBatchJob(options: {
       skipped: skipped.length,
       totalBoxes,
       judged,
+      accepted,
       weakAccepted,
       rejected,
       retryRounds,
@@ -525,7 +529,7 @@ export async function* runAnnotationBatchJob(options: {
     `已处理 ${images.length} 张图片，成功 ${succeeded.length} 张，跳过 ${skipped.length} 张。`,
     `共生成 ${totalBoxes} 个带标签的候选框。`,
     judged
-      ? `评分复核：已评分 ${judged} 张，弱通过 ${weakAccepted} 张，评分拒绝 ${rejected} 张，触发重试 ${retryRounds} 轮。`
+      ? `评分复核：通过 ${accepted} 张，弱通过 ${weakAccepted} 张，拒绝 ${rejected} 张。`
       : '',
     scopeReason ? `范围说明：${scopeReason}` : '',
     plan.plan_steps.length

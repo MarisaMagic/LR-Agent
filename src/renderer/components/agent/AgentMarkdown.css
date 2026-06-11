@@ -40,13 +40,37 @@
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
-.agent-markdown ul,
-.agent-markdown ol {
+.agent-markdown ul {
   margin: 0.5em 0;
   padding-left: 1.25em;
+}
+
+.agent-markdown ol {
+  margin: 0.5em 0;
+  padding-left: 2.5em;
 }
 
 .agent-markdown .katex-display {
   margin: 0.75em 0;
   overflow-x: auto;
+}
+
+.agent-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75em 0;
+}
+
+.agent-markdown th,
+.agent-markdown td {
+  border: 1px solid var(--vscode-panel-border, #3e3e42);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  word-break: normal;
+}
+
+.agent-markdown th {
+  background: var(--lr-viewer-table-header-background, #2d2d2d);
+  font-weight: 600;
 }

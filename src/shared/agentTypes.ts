@@ -1,5 +1,8 @@
 import type { AnnotationBatchProposal } from './annotationAgentTypes';
 
+/** Agent 流水线类型：与 UI 标题、阶段标签一一对应 */
+export type PipelineKind = 'batch' | 'analysis' | 'mutation' | 'report';
+
 export interface LlmProviderConfig {
   id: string;
   name: string;
@@ -41,6 +44,23 @@ export type MessageBlock =
       type: 'annotation_pipeline';
       collapsed: boolean;
       steps: AnnotationPipelineStep[];
+      /** 流水线类型，默认 batch */
+      pipelineKind?: PipelineKind;
+    }
+  | {
+      type: 'analysis_script_proposal';
+      script: string;
+      explanation: string;
+      status: 'pending' | 'running' | 'done' | 'error' | 'dismissed';
+      result?: string;
+      error?: string;
+    }
+  | {
+      type: 'document_proposal';
+      title: string;
+      content: string;
+      suggestedRelativePath: string;
+      status: 'pending' | 'applied' | 'dismissed';
     };
 
 export type AnnotationPipelineStepStatus =
@@ -102,6 +122,10 @@ export type AgentInteractionMode = 'chat' | 'annotation';
 
 export type TurnKind =
   | 'execute_batch'
+  | 'mutate_annotation'
+  | 'analyze_data'
+  | 'generate_report'
+  | 'generate_document'
   | 'converse'
   | 'clarify_scope'
   | 'wants_batch'
@@ -111,6 +135,12 @@ export type TaskIntent =
   | 'converse'
   | 'query_annotation'
   | 'execute_batch'
+  | 'mutate_annotation'
+  | 'edit_annotation'
+  | 'delete_annotation'
+  | 'analyze_data'
+  | 'generate_report'
+  | 'generate_document'
   | 'clarify_scope'
   | 'wants_batch'
   | 'unsupported';
@@ -119,6 +149,24 @@ export function isBatchAnnotationTurnKind(
   turnKind: TurnKind | null | undefined,
 ): boolean {
   return turnKind === 'execute_batch' || turnKind === 'wants_batch';
+}
+
+export function isMutationAnnotationTurnKind(
+  turnKind: TurnKind | null | undefined,
+): boolean {
+  return turnKind === 'mutate_annotation';
+}
+
+export function isAnalysisTurnKind(
+  turnKind: TurnKind | null | undefined,
+): boolean {
+  return turnKind === 'analyze_data';
+}
+
+export function isDocumentTurnKind(
+  turnKind: TurnKind | null | undefined,
+): boolean {
+  return turnKind === 'generate_report' || turnKind === 'generate_document';
 }
 
 export interface TurnUnderstandingResult {
@@ -202,8 +250,24 @@ export type StreamEvent =
       status?: AnnotationPipelineStepStatus;
       detail?: string;
       imagePath?: string;
+      pipelineKind?: PipelineKind;
     }
   | { type: 'annotation_proposal'; proposal: AnnotationBatchProposal }
+  | {
+      type: 'analysis_script_proposal';
+      script: string;
+      explanation: string;
+      status?: 'pending' | 'running' | 'done' | 'error' | 'dismissed';
+      result?: string;
+      error?: string;
+    }
+  | {
+      type: 'document_proposal';
+      title: string;
+      content: string;
+      suggestedRelativePath: string;
+      status?: 'pending' | 'applied' | 'dismissed';
+    }
   | { type: 'done' }
   | { type: 'error'; message: string };
 
@@ -216,6 +280,8 @@ export interface ClientContextPayload {
   annotationProjectModality?: string | null;
   annotationProjectType?: string | null;
   agentMode?: AgentInteractionMode | null;
+  selectedAnnotationId?: string | null;
+  selectedAnnotationIds?: string[];
   turnKind?: TurnKind | null;
   turnUnderstanding?: TurnUnderstandingResult | null;
   annotationProjectSnapshot?: {

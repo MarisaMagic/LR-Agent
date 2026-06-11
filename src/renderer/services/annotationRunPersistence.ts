@@ -7,6 +7,8 @@ const MAX_EVENTS_PER_BATCH = 40;
 
 function isImmediateEvent(event: StreamEvent): boolean {
   if (event.type === 'annotation_proposal') return true;
+  if (event.type === 'analysis_script_proposal') return true;
+  if (event.type === 'document_proposal') return true;
   if (event.type === 'annotation_progress') {
     const stage = event.stage;
     if (stage === 'prepare' && event.status === 'done') return true;

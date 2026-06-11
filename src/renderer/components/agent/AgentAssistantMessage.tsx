@@ -11,6 +11,8 @@ import AgentReasoningBlock from './AgentReasoningBlock';
 import AgentToolCallBlock from './AgentToolCallBlock';
 import AgentAnnotationPipelineBlock from './AgentAnnotationPipelineBlock';
 import AnnotationProposalBlock from './AnnotationProposalBlock';
+import AnalysisScriptProposalBlock from './AnalysisScriptProposalBlock';
+import DocumentProposalBlock from './DocumentProposalBlock';
 interface AgentAssistantMessageProps {
   message: ChatMessage;
 }
@@ -43,9 +45,26 @@ export default function AgentAssistantMessage({
   const hasAnnotationProposal = message.blocks.some(
     (block) => block.type === 'annotation_proposal',
   );
-  const batchPipelineCompleted =
-    hasAnnotationProposal &&
-    (message.status === 'done' || message.status === 'stopped');
+  const analysisProposalBlock = message.blocks.find(
+    (block) => block.type === 'analysis_script_proposal',
+  );
+  const documentProposalBlock = message.blocks.find(
+    (block) => block.type === 'document_proposal',
+  );
+  const messageTerminal =
+    message.status === 'done' ||
+    message.status === 'stopped' ||
+    message.status === 'error';
+  const pipelineCompleted =
+    (hasAnnotationProposal && messageTerminal) ||
+    (analysisProposalBlock != null &&
+      (analysisProposalBlock.status === 'done' ||
+        analysisProposalBlock.status === 'error' ||
+        analysisProposalBlock.status === 'dismissed') &&
+      messageTerminal) ||
+    (documentProposalBlock != null &&
+      documentProposalBlock.status !== 'pending' &&
+      messageTerminal);
   const textContent = getAssistantPlainText(message);
   const streamingSession =
     activeSessionId != null && isSessionStreaming(activeSessionId);
@@ -135,11 +154,12 @@ export default function AgentAssistantMessage({
           if (block.type === 'annotation_pipeline') {
             return (
               <AgentAnnotationPipelineBlock
-                key="annotation-pipeline"
+                key={`pipeline-${block.pipelineKind ?? 'batch'}`}
                 steps={block.steps}
                 collapsed={block.collapsed}
                 streaming={isStreaming}
-                batchCompleted={batchPipelineCompleted}
+                pipelineCompleted={pipelineCompleted}
+                pipelineKind={block.pipelineKind ?? 'batch'}
                 onToggle={() => handleToggle(index)}
               />
             );
@@ -170,6 +190,47 @@ export default function AgentAssistantMessage({
                       status,
                     }).catch(() => undefined);
                   }
+                }}
+              />
+            );
+          }
+          if (block.type === 'analysis_script_proposal') {
+            return (
+              <AnalysisScriptProposalBlock
+                key={`analysis-${index}`}
+                script={block.script}
+                explanation={block.explanation}
+                status={block.status}
+                result={block.result}
+                error={block.error}
+                onStatusChange={(patch) => {
+                  updateMessageBlocks(message.sessionId, message.id, (blocks) =>
+                    blocks.map((b, i) =>
+                      i === index && b.type === 'analysis_script_proposal'
+                        ? { ...b, ...patch }
+                        : b,
+                    ),
+                  );
+                }}
+              />
+            );
+          }
+          if (block.type === 'document_proposal') {
+            return (
+              <DocumentProposalBlock
+                key={`doc-${index}`}
+                title={block.title}
+                content={block.content}
+                suggestedRelativePath={block.suggestedRelativePath}
+                status={block.status}
+                onStatusChange={(status) => {
+                  updateMessageBlocks(message.sessionId, message.id, (blocks) =>
+                    blocks.map((b, i) =>
+                      i === index && b.type === 'document_proposal'
+                        ? { ...b, status }
+                        : b,
+                    ),
+                  );
                 }}
               />
             );

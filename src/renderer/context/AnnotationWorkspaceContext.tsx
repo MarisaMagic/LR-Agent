@@ -36,6 +36,7 @@ import {
   readFileAnnotationDoc,
   writeFileAnnotationDoc,
 } from '../services/annotationDataService';
+import { updateAnnotationWorkspaceAgentSnapshot } from '../services/annotationAgentBridge';
 import {
   bumpLabelUsage,
   loadLabelUsage,
@@ -786,11 +787,22 @@ export function AnnotationWorkspaceProvider({
     if (!annotationPanelVisible || !projectRootMatched) return undefined;
 
     const onBatchApplied = (event: Event) => {
-      const detail = (event as CustomEvent<{ projectId?: string }>).detail;
+      const detail = (
+        event as CustomEvent<{ projectId?: string; relativePaths?: string[] }>
+      ).detail;
       const proj = activeProjectRef.current;
       if (!proj || detail?.projectId !== proj.id) return;
       const rel = relativeFilePath;
       if (!rel) return;
+      if (
+        detail?.relativePaths?.length &&
+        !detail.relativePaths.includes(rel)
+      ) {
+        return;
+      }
+      if (dirtyRef.current) {
+        return;
+      }
       void readFileAnnotationDoc(proj.directoryPath, rel)
         .then((raw) => {
           const parsed = raw ? parseFileAnnotationDocument(raw) : null;
@@ -804,8 +816,18 @@ export function AnnotationWorkspaceProvider({
         .catch(() => undefined);
     };
 
+    const onMutationsApplied = onBatchApplied;
+
+    window.addEventListener(
+      'lr-agent:annotation-mutations-applied',
+      onMutationsApplied,
+    );
     window.addEventListener('lr-agent:annotation-batch-applied', onBatchApplied);
     return () => {
+      window.removeEventListener(
+        'lr-agent:annotation-mutations-applied',
+        onMutationsApplied,
+      );
       window.removeEventListener('lr-agent:annotation-batch-applied', onBatchApplied);
     };
   }, [
@@ -813,6 +835,21 @@ export function AnnotationWorkspaceProvider({
     projectRootMatched,
     relativeFilePath,
     clearHistory,
+  ]);
+
+  useEffect(() => {
+    updateAnnotationWorkspaceAgentSnapshot({
+      selectedAnnotationId,
+      selectedAnnotationIds: selectedAnnotationId ? [selectedAnnotationId] : [],
+      workspaceDirty: dirty,
+      workspaceRelativePath: relativeFilePath,
+      workspaceProjectId: activeProject?.id ?? null,
+    });
+  }, [
+    selectedAnnotationId,
+    dirty,
+    relativeFilePath,
+    activeProject?.id,
   ]);
 
   const selectAnnotation = useCallback((id: string | null) => {

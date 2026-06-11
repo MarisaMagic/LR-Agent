@@ -7,14 +7,21 @@ import {
   workerStepDisplayLabel,
   workerStepDisplayMessage,
 } from '../../services/annotationAgent/pipelineImageSteps';
+import {
+  PIPELINE_TITLES,
+} from '../../services/annotationAgent/pipelineKinds';
+import type { PipelineKind } from '../../types/agent';
 import './AgentAnnotationPipelineBlock.css';
 
 interface AgentAnnotationPipelineBlockProps {
   steps: AnnotationPipelineStep[];
   collapsed: boolean;
   streaming?: boolean;
-  /** 批量标注已产出 proposal 且消息已结束时不应显示进行中 */
+  /** 流水线已产出 proposal 且消息已结束时不应显示进行中 */
+  pipelineCompleted?: boolean;
+  /** @deprecated 使用 pipelineCompleted */
   batchCompleted?: boolean;
+  pipelineKind?: PipelineKind;
   onToggle: () => void;
 }
 
@@ -55,17 +62,21 @@ export default function AgentAnnotationPipelineBlock({
   steps,
   collapsed,
   streaming = false,
+  pipelineCompleted = false,
   batchCompleted = false,
+  pipelineKind = 'batch',
   onToggle,
 }: AgentAnnotationPipelineBlockProps) {
+  const completed = pipelineCompleted || batchCompleted;
   const running = steps.some((s) => s.status === 'running');
   const failed = steps.some((s) => s.status === 'error');
-  const inProgress = !batchCompleted && (streaming || running);
+  const inProgress = !completed && (streaming || running);
+  const titles = PIPELINE_TITLES[pipelineKind] ?? PIPELINE_TITLES.batch;
   const title = inProgress
-    ? '批量标注进行中…'
+    ? titles.active
     : failed
-      ? '批量标注未完成'
-      : '批量标注步骤';
+      ? titles.failed
+      : titles.idle;
 
   const mainStages = steps.filter((s) => !isImageDetailPipelineStage(s.stage));
   const workerSteps = useMemo(
@@ -118,7 +129,7 @@ export default function AgentAnnotationPipelineBlock({
             ))}
           </ul>
 
-          {workerSteps.length > 0 ? (
+          {workerSteps.length > 0 && pipelineKind === 'batch' ? (
             <details className="agent-pipeline-workers" open={inProgress}>
               <summary>
                 图片处理明细（{workerSteps.length}

@@ -106,6 +106,10 @@ export function buildInferenceSpawnEnv(
 
   env.PYTHONUNBUFFERED = '1';
   env.PYTHONNOUSERSITE = '1';
+  env.PYTHONIOENCODING = 'utf-8';
+  if (process.platform === 'win32') {
+    env.PYTHONUTF8 = '1';
+  }
   return env;
 }
 

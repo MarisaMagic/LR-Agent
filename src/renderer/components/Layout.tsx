@@ -135,8 +135,8 @@ export default function Layout() {
       : ACTIVITY_BAR_WIDTH + leftWidth + RESIZER_WIDTH;
     const spaceMax =
       window.innerWidth - leftOccupied - RESIZER_WIDTH - minMainContentWidth;
-    const halfMax = Math.floor(window.innerWidth * 0.5);
-    return Math.max(minSidebarWidth, Math.min(halfMax, spaceMax));
+    const ratioMax = Math.floor(window.innerWidth * 0.6);
+    return Math.max(minSidebarWidth, Math.min(ratioMax, spaceMax));
   }, [leftCollapsed, leftWidth, minMainContentWidth, minSidebarWidth]);
 
   const clampLeftWidth = useCallback(

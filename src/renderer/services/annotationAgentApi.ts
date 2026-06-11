@@ -91,6 +91,57 @@ export async function prepareBatchAnnotation(
   );
 }
 
+export interface MutationPrepareResult {
+  selected_paths: string[];
+  intent_summary: string;
+  operations: Array<Record<string, unknown>>;
+  resolved_user_request?: string;
+}
+
+export async function prepareMutationAnnotation(
+  providerId: string,
+  options: {
+    userRequest: string;
+    sessionId?: string;
+    currentRelativePath: string;
+    candidates: ImageCandidate[];
+    labelCandidates: Array<{ id: string; name: string }>;
+    project: AnnotationProjectSnapshot | null;
+    selectedAnnotationIds?: string[];
+  },
+): Promise<MutationPrepareResult> {
+  return postAnnotationLlm<MutationPrepareResult>(
+    '/agent/annotation/mutation-prepare',
+    {
+      provider_id: providerId,
+      user_request: options.userRequest,
+      session_id: options.sessionId ?? null,
+      current_relative_path: options.currentRelativePath,
+      candidates: options.candidates.map((c) => ({
+        relative_path: c.relativePath,
+        name: c.name,
+        parent: c.parent,
+        index: c.index,
+      })),
+      label_candidates: options.labelCandidates,
+      selected_annotation_ids: options.selectedAnnotationIds ?? [],
+      project: options.project
+        ? {
+            project_id: options.project.projectId,
+            name: options.project.name,
+            modality: options.project.modality,
+            annotation_type: options.project.annotationType,
+            labels: options.project.labels.map((l) => ({
+              id: l.id,
+              name: l.name,
+              color: l.color,
+            })),
+          }
+        : null,
+    },
+  );
+}
+
 export interface MapDetectionBoxesUnifiedResult {
   ok?: boolean;
   error?: string;

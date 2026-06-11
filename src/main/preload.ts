@@ -272,6 +272,22 @@ const electronHandler = {
         maxEntries,
       ),
   },
+  analysis: {
+    runScript: (payload: {
+      script: string;
+      dataFiles?: Record<string, unknown>;
+      timeoutMs?: number;
+    }): Promise<{ stdout: string; truncated: boolean }> =>
+      ipcRenderer.invoke('analysis:runScript', payload),
+  },
+  workspace: {
+    writeMarkdownFile: (payload: {
+      rootDir: string;
+      relativePath: string;
+      content: string;
+    }): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+      ipcRenderer.invoke('workspace:writeMarkdownFile', payload),
+  },
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

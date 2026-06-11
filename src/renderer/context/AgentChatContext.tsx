@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { getAnnotationWorkspaceAgentSnapshot } from '../services/annotationAgentBridge';
 import {
   buildSessionTitle,
   createAgentId,
@@ -20,7 +21,15 @@ import {
   type TurnKind,
   type TurnUnderstandingResult,
   isBatchAnnotationTurnKind,
+  isMutationAnnotationTurnKind,
+  isAnalysisTurnKind,
+  isDocumentTurnKind,
 } from '../../shared/agentTypes';
+import {
+  isAgentAnalysisEnabled,
+  isAgentDocumentWriteEnabled,
+  isAgentMutationEnabled,
+} from '../services/agentFeatureFlags';
 import {
   deleteAgentSessionRemote,
   fetchAgentSessionDetail,
@@ -59,6 +68,9 @@ import { useAuth } from './AuthContext';
 import {
   isJobRunning,
   startAnnotationBatchJobRunner,
+  startAnnotationMutationJobRunner,
+  startAnalysisJobRunner,
+  startReportJobRunner,
   startChatJob,
   stopJob,
   subscribeJobEvents,
@@ -155,6 +167,8 @@ function buildClientContextPayload(
     detectionModels: PretrainedModelConfig[];
     turnKind?: TurnKind | null;
     turnUnderstanding?: TurnUnderstandingResult | null;
+    selectedAnnotationId?: string | null;
+    selectedAnnotationIds?: string[];
   },
 ): ClientContextPayload {
   const activeRelativePath =
@@ -174,9 +188,23 @@ function buildClientContextPayload(
     annotationProjectModality: options.activeProject?.modality ?? null,
     annotationProjectType: options.activeProject?.annotationType ?? null,
     agentMode: options.agentMode,
+    selectedAnnotationId: options.selectedAnnotationId ?? null,
+    selectedAnnotationIds: options.selectedAnnotationIds ?? [],
     turnKind: options.turnKind ?? null,
     turnUnderstanding: options.turnUnderstanding ?? null,
   };
+  const wsSnap = getAnnotationWorkspaceAgentSnapshot();
+  if (
+    wsSnap.selectedAnnotationId &&
+    !base.selectedAnnotationId &&
+    wsSnap.workspaceProjectId === options.activeProject?.id
+  ) {
+    base.selectedAnnotationId = wsSnap.selectedAnnotationId;
+    base.selectedAnnotationIds = wsSnap.selectedAnnotationIds.length
+      ? wsSnap.selectedAnnotationIds
+      : [wsSnap.selectedAnnotationId];
+  }
+
   if (!options.activeProject) return base;
   const snap = buildAnnotationProjectSnapshot(
     options.activeProject,
@@ -1172,11 +1200,200 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           activeProject?.modality === 'image' &&
           activeProject?.annotationType === 'bbox';
 
-        if (isBatchAnnotationTurnKind(turnKind) && !canAnnotate) {
-          throw new Error('批量标注需要已打开的图片 bbox 标注项目');
+        if (
+          (isBatchAnnotationTurnKind(turnKind) ||
+            isMutationAnnotationTurnKind(turnKind)) &&
+          !canAnnotate
+        ) {
+          throw new Error('标注 Agent 需要已打开的图片 bbox 标注项目');
         }
 
-        if (isBatchAnnotationTurnKind(turnKind)) {
+        if (isMutationAnnotationTurnKind(turnKind)) {
+          if (!isAgentMutationEnabled()) {
+            throw new Error('标注变更功能未启用');
+          }
+          if (!tokenHolder.getAccessToken()) {
+            throw new Error('请先登录后再使用标注功能');
+          }
+          const snapshot: AnnotationProjectSnapshot =
+            buildAnnotationProjectSnapshot(activeProject!, pretrainedModels);
+          const persistence = new AnnotationRunPersistence();
+          let persistenceStarted = false;
+          try {
+            await persistence.start({
+              providerId: selectedProvider.id,
+              sessionId,
+              clientJobId: jobId,
+              userContent: effectiveUserContent,
+              userMessageId: userMessageIdForJob,
+              assistantMessageId,
+              truncateFromMessageId,
+              clientContext,
+            });
+            persistenceStarted = true;
+            await startAnnotationMutationJobRunner({
+              jobId,
+              providerId: selectedProvider.id,
+              userRequest: effectiveUserContent,
+              sessionId,
+              project: snapshot,
+              currentFileAbsolutePath: activeFilePath,
+              onPersistEvent: (event) => persistence.push(event),
+            });
+            const finalMessage =
+              stateRef.current.messagesBySession[sessionId]?.[
+                assistantMessageId
+              ];
+            if (finalMessage?.status === 'stopped') {
+              await persistence.finalize({ status: 'stopped' });
+            } else if (finalMessage?.status === 'error') {
+              await persistence.finalize({
+                status: 'error',
+                error: finalMessage.error ?? '标注变更失败',
+              });
+            } else {
+              await persistence.finalize({ status: 'done' });
+            }
+          } catch (innerErr) {
+            if (persistenceStarted) {
+              await persistence
+                .finalize({
+                  status: 'error',
+                  error:
+                    innerErr instanceof Error
+                      ? innerErr.message
+                      : '标注变更失败',
+                })
+                .catch(() => undefined);
+            }
+            throw innerErr;
+          }
+        } else if (isAnalysisTurnKind(turnKind)) {
+          if (!isAgentAnalysisEnabled()) {
+            throw new Error('数据分析功能未启用');
+          }
+          if (!tokenHolder.getAccessToken()) {
+            throw new Error('请先登录后再使用数据分析');
+          }
+          if (!activeProject) {
+            throw new Error('数据分析需要已打开的标注项目');
+          }
+          const snapshot: AnnotationProjectSnapshot =
+            buildAnnotationProjectSnapshot(activeProject, pretrainedModels);
+          const persistence = new AnnotationRunPersistence();
+          let persistenceStarted = false;
+          try {
+            await persistence.start({
+              providerId: selectedProvider.id,
+              sessionId,
+              clientJobId: jobId,
+              userContent: effectiveUserContent,
+              userMessageId: userMessageIdForJob,
+              assistantMessageId,
+              truncateFromMessageId,
+              clientContext,
+            });
+            persistenceStarted = true;
+            await startAnalysisJobRunner({
+              jobId,
+              providerId: selectedProvider.id,
+              userRequest: effectiveUserContent,
+              sessionId,
+              project: snapshot,
+              onPersistEvent: (event) => persistence.push(event),
+            });
+            const finalMessage =
+              stateRef.current.messagesBySession[sessionId]?.[
+                assistantMessageId
+              ];
+            if (finalMessage?.status === 'stopped') {
+              await persistence.finalize({ status: 'stopped' });
+            } else if (finalMessage?.status === 'error') {
+              await persistence.finalize({
+                status: 'error',
+                error: finalMessage.error ?? '数据分析失败',
+              });
+            } else {
+              await persistence.finalize({ status: 'done' });
+            }
+          } catch (innerErr) {
+            if (persistenceStarted) {
+              await persistence
+                .finalize({
+                  status: 'error',
+                  error:
+                    innerErr instanceof Error
+                      ? innerErr.message
+                      : '数据分析失败',
+                })
+                .catch(() => undefined);
+            }
+            throw innerErr;
+          }
+        } else if (isDocumentTurnKind(turnKind)) {
+          if (!isAgentDocumentWriteEnabled()) {
+            throw new Error('报告/文档生成功能未启用');
+          }
+          if (!tokenHolder.getAccessToken()) {
+            throw new Error('请先登录后再生成报告');
+          }
+          if (!activeProject) {
+            throw new Error('生成报告需要已打开的标注项目');
+          }
+          const snapshot: AnnotationProjectSnapshot =
+            buildAnnotationProjectSnapshot(activeProject, pretrainedModels);
+          const persistence = new AnnotationRunPersistence();
+          let persistenceStarted = false;
+          try {
+            await persistence.start({
+              providerId: selectedProvider.id,
+              sessionId,
+              clientJobId: jobId,
+              userContent: effectiveUserContent,
+              userMessageId: userMessageIdForJob,
+              assistantMessageId,
+              truncateFromMessageId,
+              clientContext,
+            });
+            persistenceStarted = true;
+            await startReportJobRunner({
+              jobId,
+              providerId: selectedProvider.id,
+              userRequest: effectiveUserContent,
+              sessionId,
+              project: snapshot,
+              turnKind,
+              onPersistEvent: (event) => persistence.push(event),
+            });
+            const finalMessage =
+              stateRef.current.messagesBySession[sessionId]?.[
+                assistantMessageId
+              ];
+            if (finalMessage?.status === 'stopped') {
+              await persistence.finalize({ status: 'stopped' });
+            } else if (finalMessage?.status === 'error') {
+              await persistence.finalize({
+                status: 'error',
+                error: finalMessage.error ?? '报告生成失败',
+              });
+            } else {
+              await persistence.finalize({ status: 'done' });
+            }
+          } catch (innerErr) {
+            if (persistenceStarted) {
+              await persistence
+                .finalize({
+                  status: 'error',
+                  error:
+                    innerErr instanceof Error
+                      ? innerErr.message
+                      : '报告生成失败',
+                })
+                .catch(() => undefined);
+            }
+            throw innerErr;
+          }
+        } else if (isBatchAnnotationTurnKind(turnKind)) {
           if (!tokenHolder.getAccessToken()) {
             throw new Error('请先登录后再使用标注功能');
           }

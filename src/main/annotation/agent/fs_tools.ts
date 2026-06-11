@@ -75,19 +75,26 @@ export async function listProjectDirectory(
   const root = path.resolve(projectDir);
   const relDir = normalizeRelativePath(relativeDir);
   const target = relDir ? path.join(root, relDir) : root;
-
-  if (!(await fs.pathExists(target))) {
+  const targetResolved = path.resolve(target);
+  if (
+    targetResolved !== root &&
+    !targetResolved.startsWith(`${root}${path.sep}`)
+  ) {
     return { relativeDir: relDir, entries: [] };
   }
 
-  const stat = await fs.stat(target);
+  if (!(await fs.pathExists(targetResolved))) {
+    return { relativeDir: relDir, entries: [] };
+  }
+
+  const stat = await fs.stat(targetResolved);
   if (!stat.isDirectory()) {
     return { relativeDir: relDir, entries: [] };
   }
 
   let dirents: fs.Dirent[];
   try {
-    dirents = await fs.readdir(target, { withFileTypes: true });
+    dirents = await fs.readdir(targetResolved, { withFileTypes: true });
   } catch {
     return { relativeDir: relDir, entries: [] };
   }
@@ -99,7 +106,7 @@ export async function listProjectDirectory(
   for (const entry of dirents) {
     if (entries.length >= cap) break;
     if (entry.name.startsWith('.')) continue;
-    const abs = path.join(target, entry.name);
+    const abs = path.join(targetResolved, entry.name);
     const childRel = relDir ? `${relDir}/${entry.name}` : entry.name;
     const relPath = normalizeRelativePath(childRel);
     if (entry.isDirectory()) {

@@ -20,7 +20,7 @@ const MODE_OPTIONS: ModeOption[] = [
   {
     id: 'annotation',
     label: 'Agent',
-    description: '批量检测与标注提案',
+    description: '批量标注、变更、分析与报告',
     icon: 'agent',
   },
 ];

@@ -9,6 +9,9 @@ import type {
   TurnKind,
 } from '../../shared/agentTypes';
 import {
+  normalizePipelineKindsInBlocks,
+} from './annotationAgent/pipelineKinds';
+import {
   isImageDetailPipelineStage,
   upsertImageDetailPipelineStep,
 } from './annotationAgent/pipelineImageSteps';
@@ -202,16 +205,26 @@ export function normalizeHistoricalAssistantMessage(
       block.type === 'annotation_pipeline' &&
       block.steps.some((step) => step.status === 'running'),
   );
-  if (!needsPipelineFix) return next;
+  if (!needsPipelineFix) {
+    return {
+      ...next,
+      blocks: normalizePipelineKindsInBlocks(next.blocks),
+    };
+  }
 
   const terminalStatus = next.status === 'error' ? 'error' : 'done';
-  return {
+  next = {
     ...next,
     blocks: next.blocks.map((block) =>
       block.type === 'annotation_pipeline'
         ? finalizeAnnotationPipelineBlock(block, terminalStatus)
         : block,
     ),
+  };
+
+  return {
+    ...next,
+    blocks: normalizePipelineKindsInBlocks(next.blocks),
   };
 }
 
@@ -230,10 +243,15 @@ function applyAnnotationProgressToBlocks(
   event: Extract<StreamEvent, { type: 'annotation_progress' }>,
 ): MessageBlock[] {
   const next = [...blocks];
-  const pipelineIdx = next.findIndex((b) => b.type === 'annotation_pipeline');
+  const pipelineKind = event.pipelineKind ?? 'batch';
+  const pipelineIdx = next.findIndex(
+    (b) =>
+      b.type === 'annotation_pipeline' &&
+      (b.pipelineKind ?? 'batch') === pipelineKind,
+  );
   const incoming: AnnotationPipelineStep = {
     stage: event.stage,
-    label: labelForPipelineStage(event.stage),
+    label: labelForPipelineStage(event.stage, pipelineKind),
     message: event.message,
     status: event.status ?? 'running',
     detail: event.detail,
@@ -264,6 +282,7 @@ function applyAnnotationProgressToBlocks(
       type: 'annotation_pipeline',
       collapsed: false,
       steps: [incoming],
+      pipelineKind,
     });
     return next;
   }
@@ -272,6 +291,7 @@ function applyAnnotationProgressToBlocks(
   if (block.type !== 'annotation_pipeline') return next;
   next[pipelineIdx] = {
     ...block,
+    pipelineKind,
     steps: upsertSteps(block.steps),
   };
   return next;
@@ -391,6 +411,67 @@ export function applyStreamEventToBlocks(
     return withoutProposal;
   }
 
+  if (event.type === 'analysis_script_proposal') {
+    const status = (event.status ?? 'pending') as
+      | 'pending'
+      | 'running'
+      | 'done'
+      | 'error'
+      | 'dismissed';
+    if (status === 'done' || status === 'error') {
+      for (let i = 0; i < next.length; i += 1) {
+        const b = next[i];
+        if (
+          b.type === 'annotation_pipeline' &&
+          (b.pipelineKind ?? 'batch') === 'analysis'
+        ) {
+          next[i] = {
+            ...b,
+            collapsed: true,
+            steps: b.steps.map((s) =>
+              s.status === 'running' ? { ...s, status: 'done' } : s,
+            ),
+          };
+        }
+      }
+    }
+    const block = {
+      type: 'analysis_script_proposal' as const,
+      script: event.script,
+      explanation: event.explanation,
+      status,
+      result: event.result,
+      error: event.error,
+    };
+    return [...next.filter((b) => b.type !== 'analysis_script_proposal'), block];
+  }
+
+  if (event.type === 'document_proposal') {
+    for (let i = 0; i < next.length; i += 1) {
+      const b = next[i];
+      if (
+        b.type === 'annotation_pipeline' &&
+        (b.pipelineKind ?? 'batch') === 'report'
+      ) {
+        next[i] = {
+          ...b,
+          collapsed: true,
+          steps: b.steps.map((s) =>
+            s.status === 'running' ? { ...s, status: 'done' } : s,
+          ),
+        };
+      }
+    }
+    const block = {
+      type: 'document_proposal' as const,
+      title: event.title,
+      content: event.content,
+      suggestedRelativePath: event.suggestedRelativePath,
+      status: (event.status ?? 'pending') as 'pending' | 'applied' | 'dismissed',
+    };
+    return [...next.filter((b) => b.type !== 'document_proposal'), block];
+  }
+
   return next;
 }
 
@@ -411,11 +492,31 @@ export function inferRegenerateTurnKind(
   if (assistantMessage.role !== 'assistant') {
     return undefined;
   }
+  const wasMutation = assistantMessage.blocks.some((block) => {
+    if (block.type !== 'annotation_proposal') return false;
+    return block.proposal.changes.some(
+      (c) => c.operation === 'patch' || c.operation === 'delete',
+    );
+  });
+  if (wasMutation) return 'mutate_annotation';
+
   const wasBatch = assistantMessage.blocks.some(
     (block) =>
       block.type === 'annotation_proposal' || block.type === 'annotation_pipeline',
   );
-  return wasBatch ? 'execute_batch' : 'converse';
+  if (wasBatch) return 'execute_batch';
+
+  const wasAnalysis = assistantMessage.blocks.some(
+    (block) => block.type === 'analysis_script_proposal',
+  );
+  if (wasAnalysis) return 'analyze_data';
+
+  const wasDocument = assistantMessage.blocks.some(
+    (block) => block.type === 'document_proposal',
+  );
+  if (wasDocument) return 'generate_report';
+
+  return 'converse';
 }
 
 export function buildApiMessages(

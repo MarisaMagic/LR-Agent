@@ -30,7 +30,6 @@
 
 .annotation-proposal-stats--judge {
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  margin-top: -6px;
 }
 
 .annotation-proposal-weak {

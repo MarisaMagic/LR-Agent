@@ -55,13 +55,34 @@ export interface BatchPrepareResult extends BatchAnnotationPlan {
   resolved_user_request?: string;
 }
 
+/** Unified mutation operations for batch proposals (append/replace/patch/delete). */
+export type AnnotationChangeOperation =
+  | 'append'
+  | 'replace'
+  | 'replace_bboxes'
+  | 'patch'
+  | 'delete';
+
+export interface AnnotationPatch {
+  id: string;
+  labelId?: string;
+  note?: string;
+}
+
 export interface AnnotationBatchChange {
   relativePath: string;
   absolutePath: string;
-  operation: 'append' | 'replace';
-  annotations: BboxAnnotation[];
+  operation: AnnotationChangeOperation;
+  /** append / replace / replace_bboxes */
+  annotations?: BboxAnnotation[];
+  /** patch */
+  patches?: AnnotationPatch[];
+  /** delete */
+  deleteIds?: string[];
   judge?: AnnotationJudgeSummary;
 }
+
+export const MAX_MUTATIONS_PER_PROPOSAL = 200;
 
 export type AnnotationJudgeVerdict = 'accept' | 'weak_accept' | 'reject';
 
@@ -95,6 +116,7 @@ export interface AnnotationBatchProposal {
     skipped: number;
     totalBoxes: number;
     judged?: number;
+    accepted?: number;
     weakAccepted?: number;
     rejected?: number;
     retryRounds?: number;
