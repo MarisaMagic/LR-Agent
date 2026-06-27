@@ -238,7 +238,11 @@ export default function ExportAnnotationWizard({
           {successMessage ? '关闭' : '取消'}
         </VscodeButton>
         {!successMessage && (
-          <VscodeButton type="submit" disabled={!canExport || submitting}>
+          <VscodeButton
+            secondary
+            type="submit"
+            disabled={!canExport || submitting}
+          >
             {submitting ? '导出中…' : '开始导出'}
           </VscodeButton>
         )}

@@ -39,7 +39,6 @@ function getAnnotationItemStyle(accentColor?: string): CSSProperties {
       '--annotation-accent-bg-hover': 'rgba(255, 255, 255, 0.06)',
       '--annotation-accent-bg-active':
         'var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31))',
-      '--annotation-accent-bar': 'rgba(255, 255, 255, 0.18)',
     } as CSSProperties;
   }
 
@@ -48,7 +47,6 @@ function getAnnotationItemStyle(accentColor?: string): CSSProperties {
     '--annotation-accent-bg': hexToRgba(accentColor, 0.08),
     '--annotation-accent-bg-hover': hexToRgba(accentColor, 0.12),
     '--annotation-accent-bg-active': hexToRgba(accentColor, 0.2),
-    '--annotation-accent-bar': hexToRgba(accentColor, 0.55),
   } as CSSProperties;
 }
 
@@ -463,7 +461,6 @@ export default function AnnotationRightPanel() {
     labelUsage,
     deleteAnnotation,
     updateAnnotationLabel,
-    saveNow,
   } = useAnnotationWorkspace();
 
   if (!annotationPanelVisible || !activeProject) {
@@ -554,20 +551,12 @@ export default function AnnotationRightPanel() {
         <div className="annotation-right-header-actions">
           <VscodeButton
             secondary
+            className="annotation-right-export-btn"
             onClick={() => {
               if (activeProject) openExportProject(activeProject);
             }}
           >
-            导出
-          </VscodeButton>
-          <VscodeButton
-            secondary
-            onClick={() => {
-              saveNow().catch(() => undefined);
-            }}
-            disabled={!dirty && !saving}
-          >
-            立即保存
+            导出标注
           </VscodeButton>
         </div>
       </header>

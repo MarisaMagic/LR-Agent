@@ -34,7 +34,6 @@
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--vscode-sideBar-border, #3e3e42);
   flex-shrink: 0;
 }
 
@@ -51,6 +50,10 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.annotation-right-export-btn:focus:not(:focus-visible) {
+  --vscode-focusBorder: transparent;
 }
 
 .annotation-right-status {
@@ -158,12 +161,9 @@
   border-radius: 6px;
   border: none;
   background: var(--annotation-accent-bg, rgba(255, 255, 255, 0.03));
-  box-shadow: inset 3px 0 0
-    var(--annotation-accent-bar, rgba(255, 255, 255, 0.12));
   cursor: pointer;
   transition:
-    background-color var(--annotation-motion-duration) var(--annotation-motion-ease),
-    box-shadow var(--annotation-motion-duration) var(--annotation-motion-ease);
+    background-color var(--annotation-motion-duration) var(--annotation-motion-ease);
 }
 
 .annotation-right-item:focus-visible {
@@ -196,8 +196,6 @@
     --annotation-accent-bg-active,
     var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31))
   );
-  box-shadow: inset 3px 0 0
-    var(--annotation-accent-bar, rgba(255, 255, 255, 0.12));
 }
 
 .annotation-right-item-main {

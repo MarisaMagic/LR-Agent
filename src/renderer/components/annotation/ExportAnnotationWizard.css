@@ -122,8 +122,12 @@
 }
 
 .export-annotation-format-option.selected {
-  border-color: var(--lr-accent-muted, #f0d970);
-  background: rgba(219, 176, 24, 0.1);
+  border-color: var(--vscode-panel-border, #3e3e42);
+  background: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.31));
+}
+
+.export-annotation-format-option.selected .export-annotation-format-name {
+  font-weight: 600;
 }
 
 .export-annotation-format-name {
@@ -152,6 +156,14 @@
   font-size: 12px;
 }
 
+.export-annotation-directory-row input:focus {
+  outline: none;
+}
+
+.export-annotation-directory-row input:focus-visible {
+  border-color: var(--vscode-panel-border, #3e3e42);
+}
+
 .export-annotation-checkbox-row {
   display: flex;
   align-items: center;
@@ -171,6 +183,18 @@
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-foreground, #cccccc);
   font-size: 12px;
+}
+
+.export-annotation-select:focus {
+  outline: none;
+}
+
+.export-annotation-select:focus-visible {
+  border-color: var(--vscode-panel-border, #3e3e42);
+}
+
+.export-annotation-wizard vscode-button:focus:not(:focus-visible) {
+  --vscode-focusBorder: transparent;
 }
 
 .export-annotation-actions {

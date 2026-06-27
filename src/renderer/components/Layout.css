@@ -1,6 +1,5 @@
 .layout {
   --file-header-height: 35px;
-  --image-annotation-toolbar-height: 44px;
   --layout-top-band-height: var(--file-header-height);
 
   display: flex;
@@ -11,7 +10,7 @@
 
 .layout--image-annotation-toolbar {
   --layout-top-band-height: calc(
-    var(--file-header-height) + var(--image-annotation-toolbar-height)
+    var(--file-header-height) + var(--image-annotation-toolbar-height, 44px)
   );
 }
 

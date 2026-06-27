@@ -1,9 +1,11 @@
+import { useLayoutEffect, useRef } from 'react';
 import { VscodeButton } from '@vscode-elements/react-elements';
 import { useAnnotation } from '../../context/AnnotationContext';
 import {
   useAnnotationWorkspace,
   type ImageCanvasTool,
 } from '../../context/AnnotationWorkspaceContext';
+import { createResizeObserver } from '../../utils/resizeObserver';
 import AnnotationDrawLabelPicker from './AnnotationDrawLabelPicker';
 import KeypointTemplateSelector from './KeypointTemplateSelector';
 import PreAnnotToolbarSection from './PreAnnotToolbarSection';
@@ -31,6 +33,31 @@ export default function ImageAnnotationToolbar({
   const { activeProject } = useAnnotation();
   const { tool, setTool, activeLabelId, setActiveLabelId, labelUsage } =
     useAnnotationWorkspace();
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+
+    const layout = el.closest('.layout');
+    if (!layout) return;
+
+    const syncHeight = () => {
+      layout.style.setProperty(
+        '--image-annotation-toolbar-height',
+        `${el.offsetHeight}px`,
+      );
+    };
+
+    syncHeight();
+    const observer = createResizeObserver(syncHeight);
+    observer?.observe(el);
+
+    return () => {
+      observer?.disconnect();
+      layout.style.removeProperty('--image-annotation-toolbar-height');
+    };
+  }, [activeProject?.id, mode, imagePath, activeProject?.labels.length]);
 
   if (!activeProject) return null;
 
@@ -42,7 +69,7 @@ export default function ImageAnnotationToolbar({
   };
 
   return (
-    <div className="image-annotation-toolbar">
+    <div ref={toolbarRef} className="image-annotation-toolbar">
       <div
         className="image-annotation-tool-group"
         role="group"

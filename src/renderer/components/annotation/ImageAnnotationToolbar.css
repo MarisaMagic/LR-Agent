@@ -1,8 +1,7 @@
 .image-annotation-toolbar {
   box-sizing: border-box;
-  height: var(--image-annotation-toolbar-height, 44px);
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
