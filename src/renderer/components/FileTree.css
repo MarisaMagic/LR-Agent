@@ -173,3 +173,82 @@
   padding: 16px 12px;
   color: var(--vscode-descriptionForeground, #858585);
 }
+
+/* ── Prompt Dialog ── */
+
+.lr-prompt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.45);
+}
+
+.lr-prompt-dialog {
+  background-color: var(--vscode-editor-background, #252526);
+  border: 1px solid var(--vscode-panel-border, #3e3e42);
+  border-radius: 8px;
+  padding: 20px 24px;
+  min-width: 320px;
+  max-width: 440px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lr-prompt-title {
+  font-size: 13px;
+  color: var(--vscode-foreground, #cccccc);
+  font-weight: 500;
+}
+
+.lr-prompt-input {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: var(--vscode-font-family);
+  color: var(--vscode-input-foreground, #cccccc);
+  background-color: var(--vscode-input-background, #3c3c3c);
+  border: 1px solid var(--vscode-input-border, #3e3e42);
+  border-radius: 4px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.lr-prompt-input:focus {
+  border-color: var(--vscode-focusBorder, #007acc);
+}
+
+.lr-prompt-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.lr-prompt-btn {
+  padding: 5px 14px;
+  font-size: 13px;
+  font-family: var(--vscode-font-family);
+  border-radius: 4px;
+  border: 1px solid var(--vscode-button-border, #3e3e42);
+  background-color: var(--vscode-button-secondaryBackground, #3c3c3c);
+  color: var(--vscode-button-secondaryForeground, #cccccc);
+  cursor: pointer;
+}
+
+.lr-prompt-btn:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground, #4c4c4c);
+}
+
+.lr-prompt-btn--primary {
+  background-color: var(--vscode-button-background, #007acc);
+  color: var(--vscode-button-foreground, #ffffff);
+  border-color: var(--vscode-button-border, transparent);
+}
+
+.lr-prompt-btn--primary:hover {
+  background-color: var(--vscode-button-hoverBackground, #1c97ea);
+}

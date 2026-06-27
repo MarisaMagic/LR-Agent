@@ -1,49 +1,18 @@
 .layout {
+  --file-header-height: 35px;
+  --image-annotation-toolbar-height: 44px;
+  --layout-top-band-height: var(--file-header-height);
+
   display: flex;
   height: 100%;
   width: 100%;
   overflow: hidden;
 }
 
-.right-panel-tabs {
-  display: flex;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--vscode-sideBar-border, #3e3e42);
-  background: var(--vscode-sideBarTitle-background, #252526);
-}
-
-.right-panel-tab {
-  position: relative;
-  flex: 1;
-  padding: 6px 10px;
-  font-size: 12px;
-  border: none;
-  background: transparent;
-  color: var(--vscode-sideBarTitle-foreground, #cccccc);
-  cursor: pointer;
-  opacity: 0.75;
-  transition:
-    opacity var(--annotation-motion-duration) var(--annotation-motion-ease),
-    color var(--annotation-motion-duration) var(--annotation-motion-ease);
-}
-
-.right-panel-tab:hover {
-  opacity: 1;
-}
-
-.right-panel-tab--active {
-  opacity: 1;
-  font-weight: 600;
-}
-
-.right-panel-tab-indicator {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 0;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--vscode-focusBorder, #007fd4);
+.layout--image-annotation-toolbar {
+  --layout-top-band-height: calc(
+    var(--file-header-height) + var(--image-annotation-toolbar-height)
+  );
 }
 
 .main-content {
@@ -67,7 +36,13 @@
   flex-shrink: 0;
   padding: 0;
   border: none;
-  background: transparent;
+  background: linear-gradient(
+    to bottom,
+    var(--vscode-editorGroupHeader-tabsBackground, #252526) 0,
+    var(--vscode-editorGroupHeader-tabsBackground, #252526)
+      var(--layout-top-band-height),
+    transparent var(--layout-top-band-height)
+  );
   cursor: col-resize;
 }
 
@@ -96,11 +71,11 @@
 .resizer-left:hover::after,
 .layout.is-resizing-left .resizer-left::after {
   width: 2px;
-  background: var(--vscode-sash-hoverBorder, #dbb018);
+  background: var(--vscode-titleBar-activeBackground, #333333);
 }
 
 .resizer-right:hover::after,
 .layout.is-resizing-right .resizer-right::after {
   width: 2px;
-  background: var(--vscode-sash-hoverBorder, #dbb018);
+  background: var(--vscode-titleBar-activeBackground, #333333);
 }

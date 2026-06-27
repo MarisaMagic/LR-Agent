@@ -6,15 +6,24 @@
 }
 
 .file-header {
-  padding: 6px 12px;
+  box-sizing: border-box;
+  height: var(--file-header-height, 35px);
+  padding: 0 12px;
   background: var(--vscode-editorGroupHeader-tabsBackground, #252526);
-  border-bottom: 1px solid var(--vscode-editorGroup-border, #3e3e42);
   font-size: var(--vscode-font-size, 15px);
   color: var(--vscode-foreground, #cccccc);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.file-header-left {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .file-header-nav {
@@ -22,6 +31,7 @@
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
+  justify-self: center;
 }
 
 .file-header-nav--disabled {
@@ -35,11 +45,6 @@
   height: 22px;
 }
 
-.file-header-copy-btn {
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
 .file-viewer-empty {
   flex: 1;
   display: flex;
@@ -49,6 +54,14 @@
   gap: 12px;
   color: var(--vscode-descriptionForeground, #858585);
   height: 100%;
+}
+
+.file-viewer-body-inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .viewer-body {
@@ -79,7 +92,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+  min-width: 0;
+}
+
+.file-header-right {
   min-width: 0;
 }
 

@@ -10,6 +10,7 @@ import {
 } from './agentChatApi';
 import {
   createEmptyProjectUi,
+  mergeSessionFromRemote,
   sessionBelongsToProject,
   sessionHasHistoryContent,
   type AgentChatUiStateV2,
@@ -48,7 +49,7 @@ export function mergeProjectSessionsIntoState(
       sessionBelongsToProject(session, annotationProjectId) &&
       (session.messageCount ?? 0) > 0
     ) {
-      sessions[id] = session;
+      sessions[id] = mergeSessionFromRemote(current.sessions[id], session);
     }
   }
   const orderSet = new Set(

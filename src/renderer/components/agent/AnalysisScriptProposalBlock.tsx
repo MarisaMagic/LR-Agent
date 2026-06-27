@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react';
-import { VscodeButton } from '@vscode-elements/react-elements';
+import { VscodeIcon } from '@vscode-elements/react-elements';
+import { useAgentChat } from '../../context/AgentChatContext';
 import { useToast } from '../../context/ToastContext';
 import { executeAnalysisScript } from '../../services/agentDataAnalysis/dataAnalysisRunner';
 import { buildAnnotationStatsSnapshot } from '../../services/agentDataAnalysis/buildAnnotationStatsSnapshot';
 import { formatAnalysisStdout } from '../../services/agentDataAnalysis/analysisOutputFormat';
 import { useAnnotation } from '../../context/AnnotationContext';
-import './AnnotationProposalBlock.css';
+import './AgentAnnotationPipelineBlock.css';
 
 interface AnalysisScriptProposalBlockProps {
   script: string;
@@ -31,12 +32,11 @@ export default function AnalysisScriptProposalBlock({
   onStatusChange,
 }: AnalysisScriptProposalBlockProps) {
   const { showToast } = useToast();
+  const { pendingProposalCount } = useAgentChat();
   const { activeProject } = useAnnotation();
   const [running, setRunning] = useState(false);
   const [scriptExpanded, setScriptExpanded] = useState(false);
   const [outputExpanded, setOutputExpanded] = useState(false);
-
-  const autoPipeline = status === 'running' || status === 'done';
 
   const handleRerun = useCallback(async () => {
     if (!activeProject) {
@@ -76,68 +76,96 @@ export default function AnalysisScriptProposalBlock({
 
   const showRerun = status === 'done' || status === 'error';
   const isBusy = status === 'running' || running;
+  const hideInlineActions = pendingProposalCount > 0;
 
   return (
-    <div className="annotation-proposal-block">
-      <div className="annotation-proposal-title">数据分析</div>
-      <div className="annotation-proposal-summary">{explanation}</div>
-      {status === 'running' && !result ? (
-        <div className="annotation-proposal-weak">正在生成并运行分析脚本…</div>
-      ) : null}
-      <div className="annotation-proposal-weak">
-        <VscodeButton
-          secondary
-          onClick={() => setScriptExpanded((v) => !v)}
-          aria-expanded={scriptExpanded}
-        >
-          {scriptExpanded ? '收起脚本' : '查看脚本'}
-        </VscodeButton>
-        {result ? (
-          <VscodeButton
-            secondary
-            onClick={() => setOutputExpanded((v) => !v)}
-            aria-expanded={outputExpanded}
-          >
-            {outputExpanded ? '收起原始输出' : '查看原始输出'}
-          </VscodeButton>
+    <div className="agent-pipeline-block">
+      <div className="agent-pipeline-toggle" style={{ cursor: 'default' }}>
+        <span>数据分析</span>
+        {status === 'running' ? (
+          <VscodeIcon name="sync" size={12} className="agent-pipeline-spin" />
         ) : null}
       </div>
-      {scriptExpanded ? (
-        <pre className="annotation-proposal-weak-list" style={{ whiteSpace: 'pre-wrap' }}>
-          {script}
-        </pre>
-      ) : null}
-      {outputExpanded && result ? (
-        <pre className="annotation-proposal-summary" style={{ whiteSpace: 'pre-wrap' }}>
-          {formatAnalysisStdout(result)}
-        </pre>
-      ) : null}
-      {error ? (
-        <div className="annotation-proposal-weak">
-          <span className="annotation-proposal-badge">{error}</span>
+      <div className="agent-pipeline-body">
+        {explanation ? (
+          <div className="agent-pipeline-step-message">{explanation}</div>
+        ) : null}
+        {status === 'running' && !result ? (
+          <div className="agent-pipeline-step-message">正在生成并运行分析脚本…</div>
+        ) : null}
+        <div className="agent-pipeline-embedded">
+          {script ? (
+            <button
+              type="button"
+              className="agent-pipeline-embedded-toggle"
+              onClick={() => setScriptExpanded((v) => !v)}
+              aria-expanded={scriptExpanded}
+            >
+              <VscodeIcon
+                name={scriptExpanded ? 'chevron-down' : 'chevron-right'}
+                size={12}
+              />
+              <span>查看脚本</span>
+            </button>
+          ) : null}
+          {scriptExpanded && script ? (
+            <pre className="agent-pipeline-embedded-pre">{script}</pre>
+          ) : null}
+          {result ? (
+            <button
+              type="button"
+              className="agent-pipeline-embedded-toggle"
+              onClick={() => setOutputExpanded((v) => !v)}
+              aria-expanded={outputExpanded}
+            >
+              <VscodeIcon
+                name={outputExpanded ? 'chevron-down' : 'chevron-right'}
+                size={12}
+              />
+              <span>查看原始输出</span>
+            </button>
+          ) : null}
+          {outputExpanded && result ? (
+            <pre className="agent-pipeline-embedded-pre">
+              {formatAnalysisStdout(result)}
+            </pre>
+          ) : null}
+          {error ? (
+            <div className="agent-pipeline-embedded-error">{error}</div>
+          ) : null}
         </div>
-      ) : null}
-      <div className="annotation-proposal-actions">
-        {showRerun ? (
-          <VscodeButton disabled={isBusy} onClick={() => void handleRerun()}>
-            {isBusy ? '执行中…' : '重新运行脚本'}
-          </VscodeButton>
+        {!hideInlineActions && status === 'pending' ? (
+          <div className="agent-pipeline-embedded-actions">
+            <button
+              type="button"
+              className="agent-pipeline-embedded-action"
+              disabled={isBusy}
+              onClick={() => void handleRerun()}
+            >
+              {isBusy ? '执行中…' : '运行分析'}
+            </button>
+            <button
+              type="button"
+              className="agent-pipeline-embedded-action agent-pipeline-embedded-action--muted"
+              disabled={isBusy}
+              onClick={handleDismiss}
+            >
+              忽略
+            </button>
+          </div>
         ) : null}
-        {!autoPipeline && status === 'pending' ? (
-          <VscodeButton disabled={isBusy} onClick={() => void handleRerun()}>
-            {isBusy ? '执行中…' : '运行分析'}
-          </VscodeButton>
+        {!hideInlineActions && showRerun ? (
+          <div className="agent-pipeline-embedded-actions">
+            <button
+              type="button"
+              className="agent-pipeline-embedded-action"
+              disabled={isBusy}
+              onClick={() => void handleRerun()}
+            >
+              {isBusy ? '执行中…' : '重新运行'}
+            </button>
+          </div>
         ) : null}
-        {status === 'done' ? (
-          <span className="annotation-proposal-badge">已完成</span>
-        ) : null}
-        <VscodeButton
-          secondary
-          disabled={isBusy || status === 'dismissed'}
-          onClick={handleDismiss}
-        >
-          忽略
-        </VscodeButton>
       </div>
     </div>
   );

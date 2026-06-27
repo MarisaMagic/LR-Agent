@@ -1,9 +1,8 @@
 import fs from 'fs-extra';
 import path from 'path';
+import { isAllowedTextFileExtension } from '../../shared/workspaceTextExtensions';
 
-const MARKDOWN_EXT = '.md';
-
-export function resolveScopedMarkdownPath(
+export function resolveScopedTextPath(
   rootDir: string,
   relativePath: string,
 ): { absolutePath: string; relativePath: string } | { error: string } {
@@ -12,7 +11,8 @@ export function resolveScopedMarkdownPath(
   if (rel.includes('..')) {
     return { error: 'path_traversal_forbidden' };
   }
-  if (!rel.toLowerCase().endsWith(MARKDOWN_EXT)) {
+  const ext = path.extname(rel).toLowerCase();
+  if (!isAllowedTextFileExtension(ext)) {
     return { error: 'extension_not_allowed' };
   }
   const absolutePath = path.resolve(root, rel);
@@ -23,12 +23,12 @@ export function resolveScopedMarkdownPath(
   return { absolutePath, relativePath: rel.replace(/\\/g, '/') };
 }
 
-export async function writeScopedMarkdownFile(
+export async function writeScopedTextFile(
   rootDir: string,
   relativePath: string,
   content: string,
 ): Promise<{ success: boolean; filePath?: string; error?: string }> {
-  const resolved = resolveScopedMarkdownPath(rootDir, relativePath);
+  const resolved = resolveScopedTextPath(rootDir, relativePath);
   if ('error' in resolved) {
     return { success: false, error: resolved.error };
   }
@@ -36,3 +36,48 @@ export async function writeScopedMarkdownFile(
   await fs.writeFile(resolved.absolutePath, content, 'utf8');
   return { success: true, filePath: resolved.absolutePath };
 }
+
+export async function readScopedTextFile(
+  rootDir: string,
+  relativePath: string,
+): Promise<{
+  success: boolean;
+  content?: string;
+  exists?: boolean;
+  filePath?: string;
+  error?: string;
+}> {
+  const resolved = resolveScopedTextPath(rootDir, relativePath);
+  if ('error' in resolved) {
+    return { success: false, error: resolved.error };
+  }
+  try {
+    const exists = await fs.pathExists(resolved.absolutePath);
+    if (!exists) {
+      return {
+        success: true,
+        exists: false,
+        content: '',
+        filePath: resolved.absolutePath,
+      };
+    }
+    const content = await fs.readFile(resolved.absolutePath, 'utf8');
+    return {
+      success: true,
+      exists: true,
+      content,
+      filePath: resolved.absolutePath,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'read_failed',
+    };
+  }
+}
+
+/** @deprecated 使用 writeScopedTextFile */
+export const resolveScopedMarkdownPath = resolveScopedTextPath;
+
+/** @deprecated 使用 writeScopedTextFile */
+export const writeScopedMarkdownFile = writeScopedTextFile;

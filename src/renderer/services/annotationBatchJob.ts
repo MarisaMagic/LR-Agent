@@ -6,6 +6,13 @@ import {
   type AnnotationProgressEvent,
 } from './annotationAgent/batchOrchestrator';
 
+export type AnnotationBatchJobResult = {
+  status: 'completed' | 'skipped' | 'error';
+  summary: string;
+  processedImages: number;
+  hasProposal: boolean;
+};
+
 export async function startAnnotationBatchJob(options: {
   jobId: string;
   providerId: string;
@@ -18,12 +25,19 @@ export async function startAnnotationBatchJob(options: {
   onEvent: (event: StreamEvent) => void;
   onPersistEvent?: (event: StreamEvent) => void;
   signal: AbortSignal;
-}): Promise<void> {
+}): Promise<AnnotationBatchJobResult> {
   const emit = (event: StreamEvent): void => {
     options.onEvent(event);
     options.onPersistEvent?.(event);
   };
   const isCancelled = () => options.signal.aborted;
+
+  const outcome: AnnotationBatchJobResult = {
+    status: 'completed',
+    summary: '批量标注流水线已完成。',
+    processedImages: 0,
+    hasProposal: false,
+  };
 
   try {
     for await (const event of runAnnotationBatchJob({
@@ -38,18 +52,45 @@ export async function startAnnotationBatchJob(options: {
     })) {
       if (isCancelled()) break;
       mapAndEmit(event, emit);
-      if (event.type === 'error') break;
+      if (event.type === 'proposal') {
+        outcome.hasProposal = true;
+        outcome.processedImages = event.proposal.stats.processed;
+        outcome.summary = `批量标注完成：处理 ${event.proposal.stats.processed} 张，共 ${event.proposal.stats.totalBoxes} 个框。`;
+      }
+      if (event.type === 'text' && !outcome.hasProposal) {
+        outcome.status = 'skipped';
+        outcome.summary =
+          event.content.trim() ||
+          '未识别为批量标注请求；请改用 write_workspace_file 写文件，或更具体地描述需要标注的图片范围。';
+      }
+      if (event.type === 'error') {
+        outcome.status = 'error';
+        outcome.summary = event.message;
+        break;
+      }
     }
     if (!isCancelled()) {
       emit({ type: 'done' });
     }
   } catch (err) {
-    if (options.signal.aborted) return;
+    if (options.signal.aborted) return outcome;
+    outcome.status = 'error';
+    outcome.summary = err instanceof Error ? err.message : '批量标注失败';
     emit({
       type: 'error',
-      message: err instanceof Error ? err.message : '批量标注失败',
+      message: outcome.summary,
     });
   }
+
+  if (outcome.status === 'completed' && !outcome.hasProposal) {
+    outcome.status = 'skipped';
+    if (outcome.summary === '批量标注流水线已完成。') {
+      outcome.summary =
+        '批量标注未产生提案（可能未选定图片或任务与标注无关）。';
+    }
+  }
+
+  return outcome;
 }
 
 function mapAndEmit(

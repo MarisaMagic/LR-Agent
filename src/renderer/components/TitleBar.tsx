@@ -75,7 +75,7 @@ function MenuDropdown({
 
 export default function TitleBar() {
   const { openFolder, toggleLeftSidebar, toggleRightSidebar } = useApp();
-  const { openCreateWizard, clearActiveProject } = useAnnotation();
+  const { openCreateWizard, clearActiveProject, activeProject } = useAnnotation();
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
   const barRef = useRef<HTMLElement>(null);
@@ -272,7 +272,9 @@ export default function TitleBar() {
         className="title-bar-drag-region"
         onDoubleClick={handleDragRegionDoubleClick}
       >
-        <span className="title-bar-title">LR-Agent</span>
+        <span className="title-bar-title">
+          {activeProject?.name ?? 'LR-Agent'}
+        </span>
       </div>
 
       <div className="title-bar-right">

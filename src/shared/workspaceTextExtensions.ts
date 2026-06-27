@@ -1,0 +1,41 @@
+/** 与工作区 write_workspace_file / Electron 写盘白名单一致。 */
+export const ALLOWED_TEXT_FILE_EXTENSIONS = new Set([
+  '.md',
+  '.txt',
+  '.json',
+  '.yaml',
+  '.yml',
+  '.csv',
+  '.tsv',
+  '.xml',
+  '.html',
+  '.htm',
+  '.rst',
+  '.py',
+  '.js',
+  '.ts',
+  '.tsx',
+  '.jsx',
+  '.cpp',
+  '.cc',
+  '.cxx',
+  '.c',
+  '.h',
+  '.hpp',
+  '.cs',
+  '.java',
+  '.go',
+  '.rs',
+  '.sql',
+  '.sh',
+  '.bat',
+  '.ps1',
+  '.toml',
+  '.ini',
+  '.cfg',
+  '.env',
+]);
+
+export function isAllowedTextFileExtension(ext: string): boolean {
+  return ALLOWED_TEXT_FILE_EXTENSIONS.has(ext.toLowerCase());
+}

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { VscodeButton } from '@vscode-elements/react-elements';
 import type { AnnotationBatchProposal } from '../../../shared/annotationAgentTypes';
+import { useAgentChat } from '../../context/AgentChatContext';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useToast } from '../../context/ToastContext';
 import {
@@ -31,6 +32,7 @@ function summarizeChange(change: AnnotationBatchProposal['changes'][number]): st
   }
 }
 
+/** @deprecated 使用 AgentAnnotationChangeBlock + Keep All 栏 */
 export default function AnnotationProposalBlock({
   proposal,
   status,
@@ -38,6 +40,7 @@ export default function AnnotationProposalBlock({
 }: AnnotationProposalBlockProps) {
   const { activeProject } = useAnnotation();
   const { showToast } = useToast();
+  const { pendingProposalCount } = useAgentChat();
   const [applying, setApplying] = useState(false);
   const weakAcceptedChanges = proposal.changes.filter(
     (change) => change.judge?.verdict === 'weak_accept',
@@ -134,6 +137,7 @@ export default function AnnotationProposalBlock({
   }, [onStatusChange, showToast]);
 
   const disabled = status !== 'pending' || applying || hasUnresolved;
+  const hideInlineActions = pendingProposalCount > 0;
   const isMutationProposal = proposal.changes.some(
     (c) => c.operation === 'patch' || c.operation === 'delete',
   );
@@ -183,6 +187,7 @@ export default function AnnotationProposalBlock({
           </div>
         </div>
       ) : null}
+      {!hideInlineActions ? (
       <div className="annotation-proposal-actions">
         <VscodeButton disabled={disabled} onClick={() => void handleApply()}>
           {status === 'applied' ? '已应用' : applying ? '应用中…' : '应用变更'}
@@ -195,6 +200,7 @@ export default function AnnotationProposalBlock({
           忽略
         </VscodeButton>
       </div>
+      ) : null}
     </div>
   );
 }

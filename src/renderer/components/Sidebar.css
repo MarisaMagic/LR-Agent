@@ -35,6 +35,10 @@
   overflow: hidden;
 }
 
+.sidebar-no-header .sidebar-inner {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .sidebar-panel-header {
   flex-shrink: 0;
   display: flex;

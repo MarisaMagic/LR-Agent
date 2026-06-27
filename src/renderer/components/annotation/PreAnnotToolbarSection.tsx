@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { VscodeButton, VscodeProgressRing } from '@vscode-elements/react-elements';
+import {
+  VscodeButton,
+  VscodeOption,
+  VscodeProgressRing,
+  VscodeSingleSelect,
+} from '@vscode-elements/react-elements';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import { usePretrainedModels } from '../../context/PretrainedModelsContext';
@@ -29,6 +34,10 @@ export interface PreAnnotToolbarSectionProps {
   mode: 'bbox' | 'rotated_bbox' | 'polygon' | 'keypoint';
   imagePath: string;
   disabled?: boolean;
+}
+
+function getModelOptionLabel(model: PretrainedModelConfig): string {
+  return model.name.trim() || model.checkpointPath.split(/[/\\]/).pop() || model.id;
 }
 
 function isBboxGeometry(
@@ -311,23 +320,30 @@ export default function PreAnnotToolbarSection({
         role="group"
         aria-label="预标注"
       >
-        <select
+        <VscodeSingleSelect
           className="preannot-model-select"
           value={selectedModelId}
           disabled={controlsDisabled || eligibleModels.length === 0}
-          onChange={(e) => persistModelChoice(e.target.value)}
           aria-label="选择预训练模型"
+          onChange={(event) => {
+            const target = event.target as HTMLElement & { value?: string };
+            if (typeof target.value === 'string') {
+              persistModelChoice(target.value);
+            }
+          }}
         >
           {eligibleModels.length === 0 ? (
-            <option value="">无可用模型</option>
+            <VscodeOption value="" disabled>
+              无可用模型
+            </VscodeOption>
           ) : (
             eligibleModels.map((model: PretrainedModelConfig) => (
-              <option key={model.id} value={model.id}>
-                {model.name.trim() || model.checkpointPath.split(/[/\\]/).pop()}
-              </option>
+              <VscodeOption key={model.id} value={model.id}>
+                {getModelOptionLabel(model)}
+              </VscodeOption>
             ))
           )}
-        </select>
+        </VscodeSingleSelect>
 
         {running ? (
           <VscodeProgressRing />

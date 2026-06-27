@@ -535,7 +535,6 @@ export async function* runAnnotationBatchJob(options: {
     plan.plan_steps.length
       ? `计划：\n\n${plan.plan_steps.map((s) => `- ${s}`).join('\n')}`
       : '',
-    '请在下方卡片中确认并「应用标注」。',
   ].filter(Boolean);
 
   yield { type: 'text', content: summaryLines.join('\n\n') };

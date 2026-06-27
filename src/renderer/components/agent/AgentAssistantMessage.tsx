@@ -3,16 +3,22 @@ import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getFloatingMenuMotionProps } from '../../motion/PopoverMotion';
 import type { ChatMessage } from '../../types/agent';
+import { isFileProposalBlock } from '../../../shared/agentTypes';
 import { useAgentChat } from '../../context/AgentChatContext';
-import tokenHolder from '../../services/tokenHolder';
-import { patchAnnotationProposalStatusRemote } from '../../services/annotationRunPersistence';
 import AgentMarkdown from './AgentMarkdown';
 import AgentReasoningBlock from './AgentReasoningBlock';
 import AgentToolCallBlock from './AgentToolCallBlock';
 import AgentAnnotationPipelineBlock from './AgentAnnotationPipelineBlock';
-import AnnotationProposalBlock from './AnnotationProposalBlock';
-import AnalysisScriptProposalBlock from './AnalysisScriptProposalBlock';
-import DocumentProposalBlock from './DocumentProposalBlock';
+import AgentFileChangeBlock from './AgentFileChangeBlock';
+import AgentAnnotationChangeBlock from './AgentAnnotationChangeBlock';
+import {
+  findAnalysisScriptProposal,
+  messageHasEmbeddedAnalysisPipeline,
+  proposalBlockSummaryLine,
+  shouldHideToolCallInChat,
+  shouldRenderProposalSummaryOnly,
+  shouldSkipRedundantProposalText,
+} from './agentAssistantRenderUtils';
 interface AgentAssistantMessageProps {
   message: ChatMessage;
 }
@@ -33,7 +39,6 @@ export default function AgentAssistantMessage({
     isSessionStreaming,
     getSessionMessages,
     activeSessionId,
-    updateMessageBlocks,
   } = useAgentChat();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -48,9 +53,7 @@ export default function AgentAssistantMessage({
   const analysisProposalBlock = message.blocks.find(
     (block) => block.type === 'analysis_script_proposal',
   );
-  const documentProposalBlock = message.blocks.find(
-    (block) => block.type === 'document_proposal',
-  );
+  const documentProposalBlock = message.blocks.find(isFileProposalBlock);
   const messageTerminal =
     message.status === 'done' ||
     message.status === 'stopped' ||
@@ -125,6 +128,11 @@ export default function AgentAssistantMessage({
     regenerateAssistant(message.id).catch(() => undefined);
   }, [message.id, regenerateAssistant]);
 
+  const embeddedAnalysis = messageHasEmbeddedAnalysisPipeline(message);
+  const analysisProposalForPipeline = embeddedAnalysis
+    ? findAnalysisScriptProposal(message.blocks)
+    : undefined;
+
   return (
     <div className="agent-message-item agent-message-item--assistant">
       <div className="agent-assistant-content">
@@ -143,6 +151,9 @@ export default function AgentAssistantMessage({
             );
           }
           if (block.type === 'tool_call') {
+            if (shouldHideToolCallInChat(block, message.blocks)) {
+              return null;
+            }
             return (
               <AgentToolCallBlock
                 key={block.id}
@@ -152,6 +163,21 @@ export default function AgentAssistantMessage({
             );
           }
           if (block.type === 'annotation_pipeline') {
+            const isAnalysisPipeline =
+              block.pipelineKind === 'analysis' ||
+              block.steps.some((s) =>
+                ['collect', 'execute', 'summarize'].includes(s.stage),
+              );
+            const analysisDetail =
+              isAnalysisPipeline && analysisProposalForPipeline
+                ? {
+                    script: analysisProposalForPipeline.script,
+                    explanation: analysisProposalForPipeline.explanation,
+                    status: analysisProposalForPipeline.status,
+                    result: analysisProposalForPipeline.result,
+                    error: analysisProposalForPipeline.error,
+                  }
+                : undefined;
             return (
               <AgentAnnotationPipelineBlock
                 key={`pipeline-${block.pipelineKind ?? 'batch'}`}
@@ -160,79 +186,70 @@ export default function AgentAssistantMessage({
                 streaming={isStreaming}
                 pipelineCompleted={pipelineCompleted}
                 pipelineKind={block.pipelineKind ?? 'batch'}
+                analysisDetail={analysisDetail}
                 onToggle={() => handleToggle(index)}
               />
             );
           }
           if (block.type === 'text' && block.content) {
+            if (shouldSkipRedundantProposalText(block.content, message.blocks)) {
+              return null;
+            }
             return (
               <AgentMarkdown key={`text-${index}`} content={block.content} />
             );
           }
-          if (block.type === 'annotation_proposal') {
+          if (isFileProposalBlock(block)) {
+            if (block.status === 'dismissed') {
+              return null;
+            }
             return (
-              <AnnotationProposalBlock
-                key={`proposal-${block.proposal.id}`}
+              <AgentFileChangeBlock
+                key={`file-${index}`}
+                messageId={message.id}
+                blockIndex={index}
+                relativePath={block.suggestedRelativePath}
+                newContent={block.content}
+                status={block.status}
+              />
+            );
+          }
+          if (block.type === 'annotation_proposal') {
+            if (block.status === 'dismissed') {
+              return null;
+            }
+            return (
+              <AgentAnnotationChangeBlock
+                key={`annotation-${index}`}
+                messageId={message.id}
+                blockIndex={index}
                 proposal={block.proposal}
                 status={block.status}
-                onStatusChange={(status) => {
-                  updateMessageBlocks(message.sessionId, message.id, (blocks) =>
-                    blocks.map((b, i) =>
-                      i === index && b.type === 'annotation_proposal'
-                        ? { ...b, status }
-                        : b,
-                    ),
-                  );
-                  if (tokenHolder.getAccessToken()) {
-                    patchAnnotationProposalStatusRemote({
-                      sessionId: message.sessionId,
-                      messageId: message.id,
-                      status,
-                    }).catch(() => undefined);
-                  }
-                }}
               />
             );
           }
           if (block.type === 'analysis_script_proposal') {
+            if (embeddedAnalysis) {
+              return null;
+            }
+            if (!shouldRenderProposalSummaryOnly(block)) {
+              return null;
+            }
+            const summary = proposalBlockSummaryLine(block, index);
+            if (!summary) {
+              return null;
+            }
             return (
-              <AnalysisScriptProposalBlock
-                key={`analysis-${index}`}
-                script={block.script}
-                explanation={block.explanation}
-                status={block.status}
-                result={block.result}
-                error={block.error}
-                onStatusChange={(patch) => {
-                  updateMessageBlocks(message.sessionId, message.id, (blocks) =>
-                    blocks.map((b, i) =>
-                      i === index && b.type === 'analysis_script_proposal'
-                        ? { ...b, ...patch }
-                        : b,
-                    ),
-                  );
-                }}
-              />
-            );
-          }
-          if (block.type === 'document_proposal') {
-            return (
-              <DocumentProposalBlock
-                key={`doc-${index}`}
-                title={block.title}
-                content={block.content}
-                suggestedRelativePath={block.suggestedRelativePath}
-                status={block.status}
-                onStatusChange={(status) => {
-                  updateMessageBlocks(message.sessionId, message.id, (blocks) =>
-                    blocks.map((b, i) =>
-                      i === index && b.type === 'document_proposal'
-                        ? { ...b, status }
-                        : b,
-                    ),
-                  );
-                }}
-              />
+              <div
+                key={summary.key}
+                className={
+                  summary.tone === 'error'
+                    ? 'agent-proposal-summary agent-proposal-summary--error'
+                    : 'agent-proposal-summary'
+                }
+              >
+                {summary.text}
+              </div>
             );
           }
           return null;

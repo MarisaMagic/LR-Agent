@@ -38,7 +38,7 @@ function getAnnotationItemStyle(accentColor?: string): CSSProperties {
       '--annotation-accent-bg': 'rgba(255, 255, 255, 0.03)',
       '--annotation-accent-bg-hover': 'rgba(255, 255, 255, 0.06)',
       '--annotation-accent-bg-active':
-        'var(--vscode-list-activeSelectionBackground, rgba(0, 127, 212, 0.12))',
+        'var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31))',
       '--annotation-accent-bar': 'rgba(255, 255, 255, 0.18)',
     } as CSSProperties;
   }
@@ -113,17 +113,17 @@ function AnnotationListRow({
         />
       </div>
 
-      <VscodeButton
-        iconOnly
-        className="annotation-right-delete"
+      <button
+        type="button"
+        className="annotation-right-label-more-btn annotation-right-item-label-more-btn annotation-right-delete"
         aria-label={`删除标注 #${index + 1}`}
         onClick={(event) => {
           event.stopPropagation();
           onDelete();
         }}
       >
-        <VscodeIcon name="trash" />
-      </VscodeButton>
+        <span className="codicon codicon-trash" aria-hidden />
+      </button>
     </div>
   );
 }

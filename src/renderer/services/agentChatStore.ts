@@ -1,12 +1,17 @@
 import type {
   AgentChatPersistedState,
   AgentInteractionMode,
+  AgentSession,
   AnnotationPipelineStep,
   ChatMessage,
   MessageBlock,
   ProjectAgentUiState,
   StreamEvent,
   TurnKind,
+} from '../../shared/agentTypes';
+import {
+  isFileProposalBlock,
+  normalizeHistoricalBlocks,
 } from '../../shared/agentTypes';
 import {
   normalizePipelineKindsInBlocks,
@@ -17,6 +22,7 @@ import {
 } from './annotationAgent/pipelineImageSteps';
 import { labelForPipelineStage } from './annotationAgent/pipelineStages';
 import { WORKSPACE_AGENT_UI_KEY } from '../../shared/agentTypes';
+import { summarizeToolArgumentsForDisplay } from './toolDisplayUtils';
 
 const STORAGE_KEY = 'lr-agent:agentChatState';
 const UI_STORAGE_KEY = 'lr-agent:agentChatUi';
@@ -297,6 +303,60 @@ function applyAnnotationProgressToBlocks(
   return next;
 }
 
+/** 合并远端 session 元数据，避免列表 API 用空 messageIds 覆盖本地完整列表。 */
+export function mergeSessionFromRemote(
+  existing: AgentSession | undefined,
+  incoming: AgentSession,
+): AgentSession {
+  const existingIds = existing?.messageIds ?? [];
+  const incomingIds = incoming.messageIds ?? [];
+  const messageIds =
+    incomingIds.length >= existingIds.length ? incomingIds : existingIds;
+  return {
+    ...incoming,
+    messageIds,
+    activeJobId: existing?.activeJobId ?? incoming.activeJobId,
+  };
+}
+
+/** 合并远端消息与本地缓存（同 id 以 updatedAt 较新者为准；blocks 更完整者优先）。 */
+export function mergeMessagesFromRemote(
+  existing: Record<string, ChatMessage>,
+  incoming: Record<string, ChatMessage>,
+): Record<string, ChatMessage> {
+  const merged = { ...existing };
+  for (const [id, msg] of Object.entries(incoming)) {
+    const prev = merged[id];
+    const normalized = {
+      ...msg,
+      blocks: normalizeHistoricalBlocks(msg.blocks),
+    };
+    if (!prev) {
+      merged[id] = normalized;
+      continue;
+    }
+    const prevBlocks = normalizeHistoricalBlocks(prev.blocks);
+    const incomingRicher = normalized.blocks.length > prevBlocks.length;
+    const prevRicher = prevBlocks.length > normalized.blocks.length;
+    if (normalized.updatedAt > prev.updatedAt) {
+      merged[id] =
+        prevRicher && !incomingRicher
+          ? { ...normalized, blocks: prevBlocks }
+          : normalized;
+    } else if (normalized.updatedAt < prev.updatedAt) {
+      merged[id] =
+        incomingRicher && !prevRicher
+          ? { ...prev, blocks: normalized.blocks }
+          : prev;
+    } else if (incomingRicher) {
+      merged[id] = { ...prev, blocks: normalized.blocks };
+    } else {
+      merged[id] = prev;
+    }
+  }
+  return merged;
+}
+
 export function applyStreamEventToBlocks(
   blocks: MessageBlock[],
   event: StreamEvent,
@@ -343,9 +403,10 @@ export function applyStreamEventToBlocks(
     if (existingIdx >= 0) {
       const block = next[existingIdx];
       if (block.type === 'tool_call') {
+        const mergedArgs = block.arguments + event.arguments;
         next[existingIdx] = {
           ...block,
-          arguments: block.arguments + event.arguments,
+          arguments: summarizeToolArgumentsForDisplay(block.name, mergedArgs),
         };
       }
       return next;
@@ -354,9 +415,9 @@ export function applyStreamEventToBlocks(
       type: 'tool_call',
       id: event.toolCallId,
       name: event.name,
-      arguments: event.arguments,
+      arguments: summarizeToolArgumentsForDisplay(event.name, event.arguments),
       status: 'running',
-      collapsed: false,
+      collapsed: true,
     });
     return next;
   }
@@ -446,7 +507,50 @@ export function applyStreamEventToBlocks(
     return [...next.filter((b) => b.type !== 'analysis_script_proposal'), block];
   }
 
-  if (event.type === 'document_proposal') {
+  if (event.type === 'file_proposal_start') {
+    const block = {
+      type: 'file_proposal' as const,
+      title: event.title ?? '文件',
+      content: '',
+      suggestedRelativePath: event.suggestedRelativePath ?? '',
+      status: 'pending' as 'pending' | 'applied' | 'dismissed',
+    };
+    // 按 suggestedRelativePath 去重：同一路径的创建块只保留一个
+    const path = block.suggestedRelativePath;
+    const existingIdx = next.findIndex(
+      (b) =>
+        (b.type === 'file_proposal' || b.type === 'document_proposal') &&
+        b.suggestedRelativePath === path,
+    );
+    if (existingIdx >= 0) {
+      const existingStatus = next[existingIdx].status;
+      if (existingStatus && existingStatus !== 'pending') {
+        block.status = existingStatus;
+      }
+      next[existingIdx] = block;
+    } else {
+      next.push(block);
+    }
+    return next;
+  }
+
+  if (event.type === 'file_proposal_delta') {
+    const deltaPath = event.suggestedRelativePath;
+    for (let i = 0; i < next.length; i += 1) {
+      if (next[i].type === 'file_proposal') {
+        // 若 delta 携带路径，精确匹配；否则匹配最后一个 file_proposal（兼容旧 SSE）
+        if (deltaPath && next[i].suggestedRelativePath !== deltaPath) continue;
+        next[i] = {
+          ...next[i],
+          content: next[i].content + (event.content ?? ''),
+        };
+        return next;
+      }
+    }
+    return next;
+  }
+
+  if (event.type === 'file_proposal' || event.type === 'document_proposal') {
     for (let i = 0; i < next.length; i += 1) {
       const b = next[i];
       if (
@@ -463,13 +567,29 @@ export function applyStreamEventToBlocks(
       }
     }
     const block = {
-      type: 'document_proposal' as const,
+      type: 'file_proposal' as const,
       title: event.title,
       content: event.content,
       suggestedRelativePath: event.suggestedRelativePath,
       status: (event.status ?? 'pending') as 'pending' | 'applied' | 'dismissed',
     };
-    return [...next.filter((b) => b.type !== 'document_proposal'), block];
+    // 按 suggestedRelativePath 去重更新——支持同一消息中多个文件提案
+    const path = block.suggestedRelativePath;
+    const existingIdx = next.findIndex(
+      (b) =>
+        (b.type === 'file_proposal' || b.type === 'document_proposal') &&
+        b.suggestedRelativePath === path,
+    );
+    if (existingIdx >= 0) {
+      const existingStatus = next[existingIdx].status;
+      if (existingStatus && existingStatus !== 'pending') {
+        block.status = existingStatus;
+      }
+      next[existingIdx] = block;
+    } else {
+      next.push(block);
+    }
+    return next;
   }
 
   return next;
@@ -511,10 +631,8 @@ export function inferRegenerateTurnKind(
   );
   if (wasAnalysis) return 'analyze_data';
 
-  const wasDocument = assistantMessage.blocks.some(
-    (block) => block.type === 'document_proposal',
-  );
-  if (wasDocument) return 'generate_report';
+  const wasDocument = assistantMessage.blocks.some(isFileProposalBlock);
+  if (wasDocument) return 'generate_document';
 
   return 'converse';
 }
@@ -558,4 +676,18 @@ export function sessionBelongsToProject(
   const sid = session.annotationProjectId ?? null;
   const pid = annotationProjectId ?? null;
   return sid === pid;
+}
+
+/** 解析会话消息 id 顺序；messageIds 为空时从 messages 推断。 */
+export function resolveSessionMessageIds(
+  session: AgentSession | undefined,
+  messages: Record<string, ChatMessage>,
+): string[] {
+  const fromSession = session?.messageIds ?? [];
+  if (fromSession.length > 0) {
+    return fromSession.filter((id) => messages[id]);
+  }
+  return Object.values(messages)
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((m) => m.id);
 }

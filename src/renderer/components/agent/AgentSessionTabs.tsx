@@ -7,6 +7,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import { useLayoutResizing } from '../../hooks/useLayoutResizing';
+import { createResizeObserver } from '../../utils/resizeObserver';
 import { motionDuration, motionEase, motionDistance } from '../../motion/tokens';
 import VscodeClickableToolbarButton from '../VscodeClickableButton';
 import { useAgentChat } from '../../context/AgentChatContext';
@@ -93,12 +94,12 @@ export default function AgentSessionTabs() {
     };
     sync();
     const raf = requestAnimationFrame(sync);
-    const observer = new ResizeObserver(sync);
-    observer.observe(el);
+    const observer = createResizeObserver(sync);
+    if (observer) observer.observe(el);
 
     return () => {
       cancelAnimationFrame(raf);
-      observer.disconnect();
+      observer?.disconnect();
     };
   }, [openTabIds, updateThumb]);
 
@@ -289,6 +290,10 @@ export default function AgentSessionTabs() {
                     className="agent-session-tab-main"
                     onClick={() => switchSession(sessionId)}
                   >
+                    <span
+                      className="codicon codicon-comment agent-session-tab-icon"
+                      aria-hidden
+                    />
                     {streaming && <span className="agent-session-tab-dot" />}
                     <span className="agent-session-tab-title">
                       {session.title}

@@ -253,7 +253,7 @@ export default function SettingsPanel() {
 
         <button
           type="submit"
-          className="app-btn app-btn-primary"
+          className="app-btn app-btn-secondary"
           disabled={saving}
         >
           {saving ? '保存中…' : '保存资料'}
@@ -272,7 +272,7 @@ export default function SettingsPanel() {
           </button>
           <button
             type="button"
-            className="app-btn app-btn-danger"
+            className="app-btn settings-delete-account-btn"
             onClick={() => setDeleteModalOpen(true)}
           >
             注销账号

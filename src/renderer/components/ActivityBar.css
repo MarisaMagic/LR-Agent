@@ -36,21 +36,23 @@
 .activity-icon-wrap vscode-icon {
   display: block;
   line-height: 0;
+  --vscode-toolbar-hoverBackground: transparent;
+  --vscode-toolbar-activeBackground: transparent;
 }
 
 .activity-icon-active vscode-icon {
   color: var(--vscode-activityBar-foreground, #ffffff);
 }
 
-.activity-icon-active::before,
-.activity-avatar-btn.activity-icon-active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--lr-accent, #dbb018);
+.activity-icon-wrap.activity-icon-active,
+.activity-avatar-btn.activity-icon-active {
+  border-radius: 6px;
+  background: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.31));
+}
+
+.activity-icon-wrap:hover:not(.activity-icon-active) {
+  border-radius: 6px;
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
 .activity-avatar-btn {
@@ -65,17 +67,6 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-
-.activity-avatar-btn:hover .user-avatar {
-  border-color: var(--lr-accent-muted, #f0d970);
-}
-
-.activity-avatar-btn.activity-icon-active .user-avatar,
-.activity-avatar-btn.activity-icon-active .user-avatar-placeholder,
-.activity-avatar-btn.activity-icon-active .activity-avatar-fallback {
-  border-color: var(--lr-accent, #dbb018);
-  box-shadow: 0 0 0 1px rgba(204, 167, 0, 0.35);
 }
 
 .activity-avatar-fallback {

@@ -6,7 +6,8 @@ interface SidebarProps {
   width: number;
   collapsed: boolean;
   isResizing?: boolean;
-  title: string;
+  title?: string;
+  showHeader?: boolean;
   children: ReactNode;
 }
 
@@ -16,15 +17,18 @@ export default function Sidebar({
   collapsed,
   isResizing = false,
   title,
+  showHeader = true,
   children,
 }: SidebarProps) {
   return (
     <aside
-      className={`sidebar sidebar-${side}${collapsed ? ' collapsed' : ''}${isResizing ? ' is-resizing' : ''}`}
+      className={`sidebar sidebar-${side}${collapsed ? ' collapsed' : ''}${isResizing ? ' is-resizing' : ''}${!showHeader ? ' sidebar-no-header' : ''}`}
       style={{ width: collapsed ? 0 : width }}
     >
       <div className="sidebar-inner">
-        <header className="sidebar-panel-header">{title}</header>
+        {showHeader && title != null && (
+          <header className="sidebar-panel-header">{title}</header>
+        )}
         <div className="sidebar-body">{children}</div>
       </div>
     </aside>

@@ -5,6 +5,8 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
+  useState,
   type ReactNode,
 } from 'react';
 import { DirectoryItem } from '../../main/preload';
@@ -235,6 +237,11 @@ interface WorkspaceState {
   activeFilePath: string | null;
 }
 
+export interface FileClipboard {
+  action: 'cut' | 'copy';
+  paths: string[];
+}
+
 interface AppContextValue {
   layout: LayoutState;
   activityBarWidth: number;
@@ -255,6 +262,8 @@ interface AppContextValue {
   toggleFolder: (folderPath: string) => Promise<void>;
   selectFile: (filePath: string) => void;
   refreshTree: () => Promise<void>;
+  fileClipboard: FileClipboard | null;
+  setFileClipboard: (clipboard: FileClipboard | null) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -336,6 +345,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         activeFilePath: null,
       });
       localStorage.setItem(STORAGE_KEYS.lastWorkspace, dirPath);
+      window.electron.ipcRenderer.invoke('workspace:startWatch', dirPath);
     },
     [loadDirectory],
   );
@@ -408,6 +418,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setWorkspace({ activeFilePath: filePath });
   }, []);
 
+  const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(
+    null,
+  );
+
   const refreshTree = useCallback(async () => {
     const { rootPath, expandedPaths, activeFilePath, tree } = workspace;
     if (!rootPath) return;
@@ -434,6 +448,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       activeFilePath: nextActive,
     });
   }, [workspace, loadDirectory]);
+
+  // ── 防抖刷新 + 文件变更监听 ──
+
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedRefresh = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTree();
+    }, 300);
+  }, [refreshTree]);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const unsub = window.electron.fileSystem?.onChanged(() => {
+      debouncedRefresh();
+    });
+    return () => unsub?.();
+  }, [debouncedRefresh]);
 
   const setLeftWidth = useCallback((width: number) => {
     const clamped = Math.max(width, MIN_SIDEBAR_WIDTH);
@@ -544,6 +582,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toggleFolder,
       selectFile,
       refreshTree,
+      fileClipboard,
+      setFileClipboard,
     }),
     [
       layout,
@@ -558,6 +598,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toggleFolder,
       selectFile,
       refreshTree,
+      fileClipboard,
     ],
   );
 

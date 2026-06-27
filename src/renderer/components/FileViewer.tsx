@@ -6,7 +6,13 @@ import {
   VscodeScrollable,
 } from '@vscode-elements/react-elements';
 import mammoth from 'mammoth';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -26,6 +32,7 @@ import ImageFabricKeypointAnnotationEditor from './annotation/ImageFabricKeypoin
 import FileTypeIcon from './FileTypeIcon';
 import 'react-pdf/dist/Page/TextLayer.css';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
+import ContextMenu, { type ContextMenuItem } from './ContextMenu';
 import './FileViewer.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -66,24 +73,39 @@ function getViewerType(filePath: string | null): ViewerType {
   return 'unsupported';
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+/** 检查选区是否在 viewer-body 容器内 */
+function isSelectionInsideViewer(containerEl: HTMLElement): boolean {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) return false;
+  const { anchorNode, focusNode } = sel;
+  return (
+    (anchorNode && containerEl.contains(anchorNode)) ||
+    (focusNode && containerEl.contains(focusNode))
+  );
+}
+
+/** 选中 viewer-body 内所有文本 */
+function selectAllInViewer(containerEl: HTMLElement) {
+  const range = document.createRange();
+  range.selectNodeContents(containerEl);
+  const sel = window.getSelection();
+  if (sel) {
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  // 聚焦主区域确保接收后续键盘事件
+  containerEl.closest<HTMLElement>('.file-viewer')?.focus();
 }
 
 function FileHeader({
   filePath,
   fileName,
-  fileSize,
   onSelectFile,
 }: {
   filePath: string;
   fileName: string;
-  fileSize: number | null;
   onSelectFile: (filePath: string) => void;
 }) {
-  const sizeLabel = fileSize !== null ? ` (${formatBytes(fileSize)})` : '';
   const [canNavigate, setCanNavigate] = useState(false);
 
   useEffect(() => {
@@ -100,10 +122,6 @@ function FileHeader({
     };
   }, [filePath]);
 
-  const handleCopyPath = async () => {
-    await navigator.clipboard.writeText(filePath);
-  };
-
   const navigateSibling = useCallback(
     async (direction: 'prev' | 'next') => {
       const nextPath = await getAdjacentSiblingFile(filePath, direction);
@@ -116,6 +134,12 @@ function FileHeader({
 
   return (
     <div className="file-header">
+      <div className="file-header-left">
+        <FileTypeIcon path={filePath} size={16} className="file-header-icon" />
+        <span className="file-header-name" title={filePath}>
+          {fileName}
+        </span>
+      </div>
       <div
         className={`file-header-nav${canNavigate ? '' : ' file-header-nav--disabled'}`}
       >
@@ -134,19 +158,7 @@ function FileHeader({
           }}
         />
       </div>
-      <FileTypeIcon path={filePath} size={16} className="file-header-icon" />
-      <span className="file-header-name" title={filePath}>
-        {fileName}
-        {sizeLabel}
-      </span>
-      <VscodeButton
-        secondary
-        icon="copy"
-        onClick={handleCopyPath}
-        className="file-header-copy-btn"
-      >
-        复制路径
-      </VscodeButton>
+      <div className="file-header-right" aria-hidden="true" />
     </div>
   );
 }
@@ -173,7 +185,142 @@ export default function FileViewer({ filePath }: FileViewerProps) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fileSize, setFileSize] = useState<number | null>(null);
+
+  // ── 选区与右键菜单 ──
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const viewerBodyRef = useRef<HTMLDivElement>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [hasSelection, setHasSelection] = useState(false);
+
+  // 监听选区变化
+  useEffect(() => {
+    const onSelectionChange = () => {
+      const body = viewerBodyRef.current;
+      if (!body) {
+        setHasSelection(false);
+        return;
+      }
+      setHasSelection(isSelectionInsideViewer(body));
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () =>
+      document.removeEventListener('selectionchange', onSelectionChange);
+  }, [filePath]);
+
+  // 点击时聚焦主区域
+  const handleMainClick = useCallback(() => {
+    viewerRef.current?.focus();
+  }, []);
+
+  // 键盘处理
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const body = viewerBodyRef.current;
+      if (!body) return;
+
+      switch (e.key.toLowerCase()) {
+        case 'a':
+          e.preventDefault();
+          selectAllInViewer(body);
+          break;
+        case 'c':
+          e.preventDefault();
+          document.execCommand('copy');
+          break;
+        case 'x':
+          e.preventDefault();
+          document.execCommand('cut');
+          break;
+        case 'v':
+          e.preventDefault();
+          document.execCommand('paste');
+          break;
+        default:
+          break;
+      }
+    },
+    [],
+  );
+
+  // 右键菜单
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const sel = window.getSelection();
+      const body = viewerBodyRef.current;
+      if (!body || !sel || sel.isCollapsed || !isSelectionInsideViewer(body)) {
+        return;
+      }
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    },
+    [],
+  );
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  const contextMenuItems: ContextMenuItem[] = useMemo(() => {
+    return [
+      {
+        id: 'cut',
+        label: '剪切',
+        shortcut: 'Ctrl+X',
+        disabled: !hasSelection,
+        onClick: () => {
+          document.execCommand('cut');
+        },
+      },
+      {
+        id: 'copy',
+        label: '复制',
+        shortcut: 'Ctrl+C',
+        disabled: !hasSelection,
+        onClick: () => {
+          document.execCommand('copy');
+        },
+      },
+      {
+        id: 'paste',
+        label: '粘贴',
+        shortcut: 'Ctrl+V',
+        onClick: () => {
+          document.execCommand('paste');
+        },
+      },
+    ];
+  }, [hasSelection]);
+
+  // ── Edit 菜单 IPC ──
+  useEffect(() => {
+    const unsubs: (() => void)[] = [];
+    const actions: Record<string, () => void> = {
+      'edit:undo': () => document.execCommand('undo'),
+      'edit:redo': () => document.execCommand('redo'),
+      'edit:cut': () => document.execCommand('cut'),
+      'edit:copy': () => document.execCommand('copy'),
+      'edit:paste': () => document.execCommand('paste'),
+      'edit:selectAll': () => {
+        const body = viewerBodyRef.current;
+        if (body) selectAllInViewer(body);
+      },
+    };
+
+    for (const [channel, fn] of Object.entries(actions)) {
+      const unsub = window.electron.ipcRenderer.on(channel, () => {
+        // 聚焦主区域
+        viewerRef.current?.focus();
+        fn();
+      });
+      unsubs.push(unsub);
+    }
+
+    return () => unsubs.forEach((u) => u());
+  }, [filePath]);
 
   const highlightLanguage = useMemo(
     () => (filePath ? getHighlightLanguage(filePath) : null),
@@ -187,7 +334,6 @@ export default function FileViewer({ filePath }: FileViewerProps) {
     setPdfData(null);
     setNumPages(null);
     setError(null);
-    setFileSize(null);
 
     if (!filePath) return undefined;
 
@@ -197,9 +343,6 @@ export default function FileViewer({ filePath }: FileViewerProps) {
     const load = async () => {
       setLoading(true);
       try {
-        const stats = await window.electron.fileSystem?.getFileStats(filePath);
-        if (stats) setFileSize(stats.size);
-
         if (viewerType === 'markdown' || viewerType === 'text') {
           const text = await window.electron.fileSystem?.readFile(filePath);
           if (revoked) return;
@@ -271,6 +414,127 @@ export default function FileViewer({ filePath }: FileViewerProps) {
     if (err) setError(`无法用系统打开: ${err}`);
   };
 
+  // ── 渲染内容区（body） ──
+
+  const renderBody = () => {
+    let body: React.ReactNode = null;
+    if (loading) {
+      body = (
+        <div className="viewer-body loading">
+          <VscodeProgressRing />
+          <VscodeLabel>加载中...</VscodeLabel>
+        </div>
+      );
+    } else if (error && viewerType !== 'unsupported') {
+      body = (
+        <div className="viewer-body error-state">
+          <VscodeIcon name="warning" size={32} />
+          <VscodeLabel>{error}</VscodeLabel>
+          <VscodeButton icon="link-external" onClick={handleOpenExternal}>
+            用系统应用打开
+          </VscodeButton>
+        </div>
+      );
+    } else if (viewerType === 'pdf' && pdfData) {
+      body = (
+        <VscodeScrollable className="viewer-body pdf-container">
+          <Document
+            file={{ data: pdfData }}
+            onLoadSuccess={({ numPages: pages }) => setNumPages(pages)}
+            onLoadError={() => setError('无法加载 PDF')}
+            error="无法加载 PDF 文件"
+          >
+            {Array.from(new Array(numPages || 0), (_, index) => (
+              <Page key={`page_${index + 1}`} pageNumber={index + 1} />
+            ))}
+          </Document>
+        </VscodeScrollable>
+      );
+    } else if (viewerType === 'image' && binaryUrl) {
+      body = (
+        <div className="viewer-body image-container image-container--fabric">
+          {showImageAnnotator ? (
+            isKeypointAnnotator ? (
+              <ImageFabricKeypointAnnotationEditor
+                imageUrl={binaryUrl}
+                imagePath={filePath!}
+              />
+            ) : isPolygonAnnotator ? (
+              <ImageFabricPolygonAnnotationEditor
+                imageUrl={binaryUrl}
+                imagePath={filePath!}
+              />
+            ) : isRotatedBboxAnnotator ? (
+              <ImageFabricRotatedBboxAnnotationEditor
+                imageUrl={binaryUrl}
+                imagePath={filePath!}
+              />
+            ) : (
+              <ImageFabricAnnotationEditor
+                imageUrl={binaryUrl}
+                imagePath={filePath!}
+              />
+            )
+          ) : (
+            <img
+              src={binaryUrl}
+              alt={fileName}
+              className="image-preview-only"
+            />
+          )}
+        </div>
+      );
+    } else if (viewerType === 'markdown') {
+      body = (
+        <VscodeScrollable className="viewer-body markdown-content">
+          {textContent ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {textContent}
+            </ReactMarkdown>
+          ) : (
+            <div className="loading">
+              <VscodeProgressRing />
+            </div>
+          )}
+        </VscodeScrollable>
+      );
+    } else if (viewerType === 'docx' && docxHtml) {
+      body = (
+        <VscodeScrollable className="viewer-body docx-content">
+          <div
+            className="docx-html"
+            dangerouslySetInnerHTML={{ __html: docxHtml }}
+          />
+        </VscodeScrollable>
+      );
+    } else if (viewerType === 'text' && textContent !== null) {
+      body = (
+        <VscodeScrollable className="viewer-body text-content">
+          {highlightLanguage ? (
+            <HighlightedCodeBlock content={textContent} filePath={filePath!} />
+          ) : (
+            <pre className="code-block">{textContent}</pre>
+          )}
+        </VscodeScrollable>
+      );
+    } else {
+      body = (
+        <div className="viewer-body error-state">
+          <VscodeIcon name="file-binary" size={32} />
+          <VscodeLabel>{error || '暂不支持预览此文件类型'}</VscodeLabel>
+          <VscodeButton icon="link-external" onClick={handleOpenExternal}>
+            用系统应用打开
+          </VscodeButton>
+        </div>
+      );
+    }
+    return (
+      <div ref={viewerBodyRef} className="file-viewer-body-inner">
+        {body}
+      </div>
+    );
+  };
+
   if (!filePath) {
     return (
       <div className="file-viewer-empty">
@@ -284,154 +548,28 @@ export default function FileViewer({ filePath }: FileViewerProps) {
   const fileHeaderProps = {
     filePath,
     fileName,
-    fileSize,
     onSelectFile: selectFile,
   };
 
-  if (loading) {
-    return (
-      <div className="file-viewer">
-        <FileHeader {...fileHeaderProps} />
-        <div className="viewer-body loading">
-          <VscodeProgressRing />
-          <VscodeLabel>加载中...</VscodeLabel>
-        </div>
-      </div>
-    );
-  }
-
-  if (error && viewerType !== 'unsupported') {
-    return (
-      <div className="file-viewer">
-        <FileHeader {...fileHeaderProps} />
-        <div className="viewer-body error-state">
-          <VscodeIcon name="warning" size={32} />
-          <VscodeLabel>{error}</VscodeLabel>
-          <VscodeButton icon="link-external" onClick={handleOpenExternal}>
-            用系统应用打开
-          </VscodeButton>
-        </div>
-      </div>
-    );
-  }
-
-  if (viewerType === 'pdf' && pdfData) {
-    return (
-      <div className="file-viewer pdf-viewer">
-        <FileHeader {...fileHeaderProps} />
-        <VscodeScrollable className="viewer-body pdf-container">
-          <Document
-            file={{ data: pdfData }}
-            onLoadSuccess={({ numPages: pages }) => setNumPages(pages)}
-            onLoadError={() => setError('无法加载 PDF')}
-            error="无法加载 PDF 文件"
-          >
-            {Array.from(new Array(numPages || 0), (_, index) => (
-              <Page key={`page_${index + 1}`} pageNumber={index + 1} />
-            ))}
-          </Document>
-        </VscodeScrollable>
-      </div>
-    );
-  }
-
-  if (viewerType === 'image' && binaryUrl) {
-    return (
-      <div className="file-viewer image-viewer">
-        <FileHeader {...fileHeaderProps} />
-        <div className="viewer-body image-container image-container--fabric">
-          {showImageAnnotator ? (
-            isKeypointAnnotator ? (
-              <ImageFabricKeypointAnnotationEditor
-                imageUrl={binaryUrl}
-                imagePath={filePath}
-              />
-            ) : isPolygonAnnotator ? (
-              <ImageFabricPolygonAnnotationEditor
-                imageUrl={binaryUrl}
-                imagePath={filePath}
-              />
-            ) : isRotatedBboxAnnotator ? (
-              <ImageFabricRotatedBboxAnnotationEditor
-                imageUrl={binaryUrl}
-                imagePath={filePath}
-              />
-            ) : (
-              <ImageFabricAnnotationEditor
-                imageUrl={binaryUrl}
-                imagePath={filePath}
-              />
-            )
-          ) : (
-            <img
-              src={binaryUrl}
-              alt={fileName}
-              className="image-preview-only"
-            />
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (viewerType === 'markdown') {
-    return (
-      <div className="file-viewer markdown-viewer">
-        <FileHeader {...fileHeaderProps} />
-        <VscodeScrollable className="viewer-body markdown-content">
-          {textContent ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {textContent}
-            </ReactMarkdown>
-          ) : (
-            <div className="loading">
-              <VscodeProgressRing />
-            </div>
-          )}
-        </VscodeScrollable>
-      </div>
-    );
-  }
-
-  if (viewerType === 'docx' && docxHtml) {
-    return (
-      <div className="file-viewer docx-viewer">
-        <FileHeader {...fileHeaderProps} />
-        <VscodeScrollable className="viewer-body docx-content">
-          <div
-            className="docx-html"
-            dangerouslySetInnerHTML={{ __html: docxHtml }}
-          />
-        </VscodeScrollable>
-      </div>
-    );
-  }
-
-  if (viewerType === 'text' && textContent !== null) {
-    return (
-      <div className="file-viewer text-viewer">
-        <FileHeader {...fileHeaderProps} />
-        <VscodeScrollable className="viewer-body text-content">
-          {highlightLanguage ? (
-            <HighlightedCodeBlock content={textContent} filePath={filePath} />
-          ) : (
-            <pre className="code-block">{textContent}</pre>
-          )}
-        </VscodeScrollable>
-      </div>
-    );
-  }
-
   return (
-    <div className="file-viewer">
+    <div
+      ref={viewerRef}
+      className="file-viewer"
+      tabIndex={0}
+      onClick={handleMainClick}
+      onKeyDown={handleKeyDown}
+      onContextMenu={handleContextMenu}
+    >
       <FileHeader {...fileHeaderProps} />
-      <div className="viewer-body error-state">
-        <VscodeIcon name="file-binary" size={32} />
-        <VscodeLabel>{error || '暂不支持预览此文件类型'}</VscodeLabel>
-        <VscodeButton icon="link-external" onClick={handleOpenExternal}>
-          用系统应用打开
-        </VscodeButton>
-      </div>
+      {renderBody()}
+      {contextMenu && (
+        <ContextMenu
+          items={contextMenuItems}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={closeContextMenu}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useAgentChat } from '../../context/AgentChatContext';
 import AgentComposer from './AgentComposer';
+import AgentKeepAllBar from './AgentKeepAllBar';
 import AgentMessageList from './AgentMessageList';
 import AgentSessionTabs from './AgentSessionTabs';
 import './AgentPanel.css';
@@ -28,6 +29,7 @@ export default function AgentPanel() {
     <div className="agent-panel-root">
       <AgentSessionTabs />
       <AgentMessageList />
+      <AgentKeepAllBar />
       <AgentComposer />
     </div>
   );

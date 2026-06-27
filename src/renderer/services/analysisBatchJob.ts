@@ -20,7 +20,6 @@ export async function startAnalysisBatchJob(options: {
   };
   const isCancelled = () => options.signal.aborted;
 
-  analysisProposalSummaryEmitted = false;
   try {
     for await (const event of runDataAnalysisJob({
       providerId: options.providerId,
@@ -46,8 +45,6 @@ export async function startAnalysisBatchJob(options: {
   }
 }
 
-let analysisProposalSummaryEmitted = false;
-
 function mapAndEmit(
   event: AnalysisProgressEvent,
   onEvent: (event: StreamEvent) => void,
@@ -64,22 +61,11 @@ function mapAndEmit(
     return;
   }
   if (event.type === 'analysis_script_proposal') {
-    const status = event.status ?? 'pending';
-    if (status === 'running' && !analysisProposalSummaryEmitted) {
-      const summary = event.explanation?.trim();
-      if (summary) {
-        onEvent({
-          type: 'text_delta',
-          content: `[数据分析] ${summary}\n`,
-        });
-        analysisProposalSummaryEmitted = true;
-      }
-    }
     onEvent({
       type: 'analysis_script_proposal',
       script: event.script,
       explanation: event.explanation,
-      status,
+      status: event.status ?? 'pending',
       result: event.result,
       error: event.error,
     });

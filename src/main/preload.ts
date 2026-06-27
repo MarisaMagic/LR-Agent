@@ -23,7 +23,20 @@ export type Channels =
   | 'window:maximize-change'
   | 'menu:createAnnotationProject'
   | 'theme:systemChanged'
-  | 'theme:notifyEffectiveTheme';
+  | 'theme:notifyEffectiveTheme'
+  | 'file-system:changed'
+  | 'workspace:createFile'
+  | 'workspace:createFolder'
+  | 'workspace:deleteEntry'
+  | 'workspace:renameEntry'
+  | 'workspace:moveEntry'
+  | 'edit:undo'
+  | 'edit:redo'
+  | 'edit:cut'
+  | 'edit:copy'
+  | 'edit:paste'
+  | 'edit:selectAll'
+  | 'dialog:confirm';
 
 export interface DirectoryItem {
   name: string;
@@ -102,6 +115,10 @@ const electronHandler = {
       ipcRenderer.invoke('fs:getFileStats', filePath),
     openPath: (filePath: string): Promise<string> =>
       ipcRenderer.invoke('shell:openPath', filePath),
+    onChanged: (callback: (changedDir: string) => void): (() => void) =>
+      electronHandler.ipcRenderer.on('file-system:changed', (value) => {
+        callback(String(value));
+      }),
   },
   auth: {
     getRefreshToken: (): Promise<string | null> =>
@@ -175,6 +192,11 @@ const electronHandler = {
       filters?: { name: string; extensions: string[] }[];
     }): Promise<string | null> =>
       ipcRenderer.invoke('dialog:openFile', options),
+    confirm: (
+      message: string,
+      title?: string,
+    ): Promise<{ confirmed: boolean }> =>
+      ipcRenderer.invoke('dialog:confirm', { title, message }),
   },
   annotation: {
     getProjects: (): Promise<unknown[]> =>
@@ -281,12 +303,59 @@ const electronHandler = {
       ipcRenderer.invoke('analysis:runScript', payload),
   },
   workspace: {
-    writeMarkdownFile: (payload: {
+    writeTextFile: (payload: {
       rootDir: string;
       relativePath: string;
       content: string;
     }): Promise<{ success: boolean; filePath?: string; error?: string }> =>
-      ipcRenderer.invoke('workspace:writeMarkdownFile', payload),
+      ipcRenderer.invoke('workspace:writeTextFile', payload),
+    readTextFile: (payload: {
+      rootDir: string;
+      relativePath: string;
+    }): Promise<{
+      success: boolean;
+      content?: string;
+      exists?: boolean;
+      filePath?: string;
+      error?: string;
+    }> => ipcRenderer.invoke('workspace:readTextFile', payload),
+    createFile: (
+      dirPath: string,
+      fileName: string,
+    ): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+      ipcRenderer.invoke('workspace:createFile', dirPath, fileName),
+    createFolder: (
+      dirPath: string,
+      folderName: string,
+    ): Promise<{ success: boolean; folderPath?: string; error?: string }> =>
+      ipcRenderer.invoke('workspace:createFolder', dirPath, folderName),
+    deleteEntry: (
+      entryPath: string,
+    ): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('workspace:deleteEntry', entryPath),
+    renameEntry: (
+      oldPath: string,
+      newName: string,
+    ): Promise<{
+      success: boolean;
+      oldPath?: string;
+      newPath?: string;
+      error?: string;
+    }> => ipcRenderer.invoke('workspace:renameEntry', oldPath, newName),
+    moveEntry: (
+      srcPath: string,
+      destDir: string,
+    ): Promise<{
+      success: boolean;
+      oldPath?: string;
+      newPath?: string;
+      error?: string;
+    }> => ipcRenderer.invoke('workspace:moveEntry', srcPath, destDir),
+  },
+  mcp: {
+    /** 获取本地 MCP Server URL（如 "http://127.0.0.1:PORT"），未启动时返回 null */
+    getServerUrl: (): Promise<string | null> =>
+      ipcRenderer.invoke('mcp:getServerUrl'),
   },
 };
 

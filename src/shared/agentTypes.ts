@@ -56,6 +56,14 @@ export type MessageBlock =
       error?: string;
     }
   | {
+      type: 'file_proposal';
+      title: string;
+      content: string;
+      suggestedRelativePath: string;
+      status: 'pending' | 'applied' | 'dismissed';
+    }
+  | {
+      /** @deprecated 历史消息兼容，加载时 normalize 为 file_proposal */
       type: 'document_proposal';
       title: string;
       content: string;
@@ -262,6 +270,26 @@ export type StreamEvent =
       error?: string;
     }
   | {
+      type: 'file_proposal_start';
+      title: string;
+      suggestedRelativePath: string;
+      detail: string;
+    }
+  | {
+      type: 'file_proposal_delta';
+      content: string;
+      /** 所属文件相对路径，用于多文件场景下匹配对应的 file_proposal 块 */
+      suggestedRelativePath?: string;
+    }
+  | {
+      type: 'file_proposal';
+      title: string;
+      content: string;
+      suggestedRelativePath: string;
+      status?: 'pending' | 'applied' | 'dismissed';
+    }
+  | {
+      /** @deprecated 旧 SSE 事件 */
       type: 'document_proposal';
       title: string;
       content: string;
@@ -269,7 +297,36 @@ export type StreamEvent =
       status?: 'pending' | 'applied' | 'dismissed';
     }
   | { type: 'done' }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | {
+      type: 'tool_pending';
+      toolCalls: ClientToolCall[];
+    }
+  | {
+      /** @deprecated 使用 tool_pending */
+      type: 'client_tool_pending';
+      clientToolCalls: ClientToolCall[];
+    };
+
+/** 异步工具调用描述（来自 tool_pending / client_tool_pending 事件）。 */
+export interface ClientToolCall {
+  toolCallId: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+/** 客户端工具名称枚举，与后端 CLIENT_TOOL_NAMES 保持一致。 */
+export type ClientToolName =
+  | 'execute_batch_annotation'
+  | 'mutate_annotation'
+  | 'analyze_data';
+
+/** 客户端工具执行结果，随 resume 请求一并发送给后端。 */
+export interface ClientToolResult {
+  toolCallId: string;
+  name: string;
+  result: string;
+}
 
 export interface ClientContextPayload {
   workspaceRoot?: string | null;
@@ -284,6 +341,8 @@ export interface ClientContextPayload {
   selectedAnnotationIds?: string[];
   turnKind?: TurnKind | null;
   turnUnderstanding?: TurnUnderstandingResult | null;
+  /** 本地 MCP Server 地址（Electron 启动时分配，如 "http://127.0.0.1:PORT"） */
+  mcpServerUrl?: string | null;
   annotationProjectSnapshot?: {
     projectId: string;
     name: string;
@@ -322,4 +381,24 @@ export function buildSessionTitle(content: string): string {
   const line = content.trim().replace(/\s+/g, ' ');
   if (!line) return '新对话';
   return line.length > 24 ? `${line.slice(0, 24)}…` : line;
+}
+
+export type FileProposalLikeBlock =
+  | Extract<MessageBlock, { type: 'file_proposal' }>
+  | Extract<MessageBlock, { type: 'document_proposal' }>;
+
+export function isFileProposalBlock(
+  block: MessageBlock,
+): block is FileProposalLikeBlock {
+  return block.type === 'file_proposal' || block.type === 'document_proposal';
+}
+
+/** 将历史 document_proposal 块统一为 file_proposal。 */
+export function normalizeHistoricalBlocks(blocks: MessageBlock[]): MessageBlock[] {
+  return blocks.map((block) => {
+    if (block.type === 'document_proposal') {
+      return { ...block, type: 'file_proposal' as const };
+    }
+    return block;
+  });
 }

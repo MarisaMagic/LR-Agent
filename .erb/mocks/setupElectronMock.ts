@@ -87,7 +87,7 @@ Object.defineProperty(window, 'electron', {
       runScript: jest.fn().mockResolvedValue({ stdout: '', truncated: false }),
     },
     workspace: {
-      writeMarkdownFile: jest.fn().mockResolvedValue({ success: true }),
+      writeTextFile: jest.fn().mockResolvedValue({ success: true }),
     },
   },
 });

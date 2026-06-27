@@ -1,0 +1,189 @@
+.agent-file-change-block {
+  margin: 8px 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.agent-file-change-block--applied {
+  opacity: 0.85;
+}
+
+.agent-file-change-block__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--vscode-foreground, #cccccc);
+  cursor: pointer;
+  text-align: left;
+}
+
+.agent-file-change-block__header:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.agent-file-change-block__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-file-change-block__stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.agent-file-change-block__stat-add {
+  color: #3fb950;
+}
+
+.agent-file-change-block__stat-del {
+  color: #f85149;
+}
+
+.agent-file-change-block__badge {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+  font-size: 10px;
+}
+
+.agent-file-change-block__body {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.agent-file-change-block__diff-wrap {
+  position: relative;
+}
+
+.agent-file-change-block__diff-wrap--clamped .agent-file-change-block__diff {
+  max-height: calc(1.5em * 9 + 8px);
+  overflow: hidden;
+}
+
+.agent-file-change-block__diff-wrap--expandable:not(.agent-file-change-block__diff-wrap--clamped)
+  .agent-file-change-block__diff {
+  padding-bottom: 28px;
+}
+
+.agent-file-change-block__diff {
+  margin: 0;
+  padding: 4px 0;
+  overflow-x: auto;
+  font-family: var(--vscode-editor-font-family, 'Consolas', 'Monaco', monospace);
+  font-size: var(--vscode-editor-font-size, 13px);
+  line-height: 1.5;
+  background: var(--vscode-editor-background, rgba(0, 0, 0, 0.15));
+}
+
+.agent-file-change-block__diff-line {
+  display: flex;
+  align-items: baseline;
+  min-height: 1.5em;
+  padding: 0 8px;
+  white-space: pre;
+}
+
+.agent-file-change-block__diff-line--added {
+  background: rgba(63, 185, 80, 0.15);
+}
+
+.agent-file-change-block__diff-line--removed {
+  background: rgba(248, 81, 73, 0.15);
+}
+
+.agent-file-change-block__diff-prefix {
+  flex-shrink: 0;
+  width: 16px;
+  opacity: 0.7;
+  user-select: none;
+}
+
+.agent-file-change-block__diff-code {
+  display: inline;
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0;
+  border: none;
+  white-space: pre;
+}
+
+.agent-file-change-block__diff-plain {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  white-space: pre;
+}
+
+/* highlight.js 主题会给 .hljs 加强制 block 背景；diff 行内仅保留 token 颜色 */
+.agent-file-change-block__diff-code.hljs,
+.agent-file-change-block__diff .hljs {
+  display: inline !important;
+  padding: 0 !important;
+  background: transparent !important;
+  overflow: visible;
+}
+
+.agent-file-change-block__loading {
+  padding: 8px 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.agent-file-change-block__expand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 0 4px;
+  border: none;
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.agent-file-change-block__expand:hover {
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.agent-file-change-block__expand:focus-visible {
+  outline: none;
+}
+
+.agent-file-change-block__expand:focus-visible vscode-icon {
+  outline: 1px solid rgba(255, 255, 255, 0.35);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.agent-file-change-block__expand vscode-icon {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}

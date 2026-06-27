@@ -1,4 +1,5 @@
 import type { MessageBlock, PipelineKind } from '../../../shared/agentTypes';
+import { isFileProposalBlock } from '../../../shared/agentTypes';
 
 export const PIPELINE_TITLES: Record<
   PipelineKind,
@@ -31,7 +32,7 @@ export function inferPipelineKindFromBlocks(blocks: MessageBlock[]): PipelineKin
   if (blocks.some((b) => b.type === 'analysis_script_proposal')) {
     return 'analysis';
   }
-  if (blocks.some((b) => b.type === 'document_proposal')) {
+  if (blocks.some(isFileProposalBlock)) {
     return 'report';
   }
 

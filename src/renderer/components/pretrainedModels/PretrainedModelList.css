@@ -139,7 +139,7 @@
 }
 
 .pretrained-model-menu button:hover {
-  background: var(--vscode-menu-selectionBackground, #094771);
+  background: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
 .pretrained-model-menu button.danger {

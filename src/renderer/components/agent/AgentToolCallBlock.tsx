@@ -16,11 +16,11 @@ export default function AgentToolCallBlock({
       <button type="button" className="agent-block-toggle" onClick={onToggle}>
         <VscodeIcon
           name={block.collapsed ? 'chevron-right' : 'chevron-down'}
-          size={14}
+          size={12}
         />
         <span>
-          调用工具: {block.name}
-          {block.status === 'running' ? '（进行中）' : ''}
+          {block.name}
+          {block.status === 'running' ? ' · 进行中' : ''}
         </span>
       </button>
       {!block.collapsed && (

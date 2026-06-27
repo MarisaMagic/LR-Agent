@@ -4,6 +4,7 @@ import type {
   ChatContextConfig,
   ChatMessage,
   ClientContextPayload,
+  ClientToolResult,
   StreamEvent,
 } from '../../shared/agentTypes';
 import { DEFAULT_CHAT_CONTEXT_CONFIG as defaultContextConfig } from '../../shared/agentTypes';
@@ -27,6 +28,8 @@ export interface BackendChatRequest {
   truncateFromMessageId?: string | null;
   userContent: string;
   clientContext?: ClientContextPayload;
+  /** 上轮客户端工具执行结果，resume 时携带 */
+  clientToolResults?: ClientToolResult[];
 }
 
 export function buildBackendMessages(
@@ -116,6 +119,13 @@ export async function* streamChatViaBackend(
     client_context: request.clientContext
       ? buildApiClientContext(request.clientContext)
       : undefined,
+    client_tool_results: request.clientToolResults?.length
+      ? request.clientToolResults.map((r) => ({
+          tool_call_id: r.toolCallId,
+          name: r.name,
+          result: r.result,
+        }))
+      : undefined,
   };
 
   let response: Response;
@@ -160,9 +170,11 @@ export async function* streamChatViaBackend(
       buffer = parsed.rest;
       for (const event of parsed.events) {
         yield event;
-        if (event.type === 'error' || event.type === 'done') return;
+        if (event.type === 'done' || event.type === 'error') return;
+        if (event.type === 'tool_pending' || event.type === 'client_tool_pending') return;
       }
     }
+    // 仅在正常结束（非 client_tool_pending）时补发 done 事件
     if (!signal.aborted) {
       yield { type: 'done' };
     }

@@ -14,6 +14,7 @@ import {
   splitLabelsForToolbar,
   type LabelUsageMap,
 } from '../../utils/annotationLabelUsage';
+import { createResizeObserver } from '../../utils/resizeObserver';
 import AnnotationLabelOverflowMenuPortal from './AnnotationLabelOverflowMenuPortal';
 import './AnnotationDrawLabelPicker.css';
 
@@ -137,11 +138,9 @@ export default function AnnotationDrawLabelPicker({
     const container = containerRef.current;
     if (!container) return undefined;
 
-    const observer = new ResizeObserver(() => {
-      recomputeToolbarSplit();
-    });
-    observer.observe(container);
-    return () => observer.disconnect();
+    const observer = createResizeObserver(recomputeToolbarSplit);
+    if (observer) observer.observe(container);
+    return () => observer?.disconnect();
   }, [isToolbar, recomputeToolbarSplit]);
 
   const { pinned, overflow } = isToolbar ? toolbarSplit : panelSplit;

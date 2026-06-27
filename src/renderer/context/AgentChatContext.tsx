@@ -19,17 +19,7 @@ import {
   type ClientContextPayload,
   type MessageBlock,
   type TurnKind,
-  type TurnUnderstandingResult,
-  isBatchAnnotationTurnKind,
-  isMutationAnnotationTurnKind,
-  isAnalysisTurnKind,
-  isDocumentTurnKind,
 } from '../../shared/agentTypes';
-import {
-  isAgentAnalysisEnabled,
-  isAgentDocumentWriteEnabled,
-  isAgentMutationEnabled,
-} from '../services/agentFeatureFlags';
 import {
   deleteAgentSessionRemote,
   fetchAgentSessionDetail,
@@ -44,7 +34,10 @@ import {
   finalizeAnnotationPipelineBlock,
   getUserTextFromMessage,
   inferRegenerateTurnKind,
+  mergeMessagesFromRemote,
+  mergeSessionFromRemote,
   normalizeHistoricalMessages,
+  resolveSessionMessageIds,
   resolveUserMessageIdForJob,
   getProjectUi,
   loadAgentChatState,
@@ -56,28 +49,28 @@ import {
   setProjectUi,
 } from '../services/agentChatStore';
 import {
+  applyAllPendingProposals,
+  countPendingProposals,
+} from '../services/agentProposalApply';
+import { reconcileAppliedFileProposals } from '../services/agentProposalReconcile';
+import { ChatBlockPersistence } from '../services/annotationRunPersistence';
+import {
   createDraftSession,
   mergeProjectSessionsIntoState,
   normalizeProjectTabs,
 } from '../services/agentProjectBootstrap';
 import { buildAnnotationProjectSnapshot } from '../services/buildProjectSnapshot';
-import { understandTurn } from '../services/agentTurnRouter';
 import { getRelativeProjectPath } from '../utils/projectPaths';
 import tokenHolder from '../services/tokenHolder';
 import { useAuth } from './AuthContext';
 import {
   isJobRunning,
-  startAnnotationBatchJobRunner,
-  startAnnotationMutationJobRunner,
-  startAnalysisJobRunner,
-  startReportJobRunner,
   startChatJob,
   stopJob,
   subscribeJobEvents,
+  type ClientToolContext,
 } from '../services/agentJobRegistry';
-import {
-  AnnotationRunPersistence,
-} from '../services/annotationRunPersistence';
+import { understandTurn } from '../services/agentTurnRouter';
 import type { AnnotationProjectSnapshot } from '../../shared/annotationAgentTypes';
 import type { AnnotationProject } from '../types/annotation';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
@@ -136,6 +129,10 @@ interface AgentChatContextValue {
   getSessionMessages: (sessionId: string) => ChatMessage[];
   loadMoreSessions: () => Promise<void>;
   loadOlderMessages: (sessionId?: string) => Promise<void>;
+  /** 当前会话待应用提案数量（用于 Keep All 栏） */
+  pendingProposalCount: number;
+  applyAllPendingChanges: () => Promise<void>;
+  applyingAllPending: boolean;
   /** 当前标注项目下的会话顺序（已过滤） */
   sessionOrderForProject: string[];
   currentAnnotationProjectId: string | null;
@@ -165,10 +162,9 @@ function buildClientContextPayload(
     activeProject: AnnotationProject | null;
     agentMode: AgentInteractionMode;
     detectionModels: PretrainedModelConfig[];
-    turnKind?: TurnKind | null;
-    turnUnderstanding?: TurnUnderstandingResult | null;
     selectedAnnotationId?: string | null;
     selectedAnnotationIds?: string[];
+    mcpServerUrl?: string | null;
   },
 ): ClientContextPayload {
   const activeRelativePath =
@@ -190,8 +186,7 @@ function buildClientContextPayload(
     agentMode: options.agentMode,
     selectedAnnotationId: options.selectedAnnotationId ?? null,
     selectedAnnotationIds: options.selectedAnnotationIds ?? [],
-    turnKind: options.turnKind ?? null,
-    turnUnderstanding: options.turnUnderstanding ?? null,
+    mcpServerUrl: options.mcpServerUrl ?? null,
   };
   const wsSnap = getAnnotationWorkspaceAgentSnapshot();
   if (
@@ -238,10 +233,12 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const initializedRef = useRef(false);
   const remoteHydratedRef = useRef(false);
   const loadedSessionsRef = useRef<Set<string>>(new Set());
+  const blockPersistenceByJobRef = useRef(new Map<string, ChatBlockPersistence>());
   const sessionsNextCursorRef = useRef<string | null>(null);
   const [sessionsHasMore, setSessionsHasMore] = useState(false);
   const [loadingMoreSessions, setLoadingMoreSessions] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [applyingAllPending, setApplyingAllPending] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [composerDraft, setComposerDraft] = useState('');
   const [editTargetMessageId, setEditTargetMessageId] = useState<string | null>(
@@ -346,7 +343,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       const messageCount = sessionMeta?.messageCount ?? 0;
       if (
         loadedSessionsRef.current.has(sessionId) &&
-        ((existing && Object.keys(existing).length > 0) || messageCount === 0)
+        Object.keys(existing ?? {}).length > 0
+      ) {
+        return true;
+      }
+      if (
+        loadedSessionsRef.current.has(sessionId) &&
+        messageCount === 0
       ) {
         return true;
       }
@@ -354,18 +357,54 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         const detail = await fetchAgentSessionDetail(sessionId);
         loadedSessionsRef.current.add(sessionId);
         const latest = stateRef.current;
+        const prevSession = latest.sessions[sessionId];
+        const prevMessages = latest.messagesBySession[sessionId] ?? {};
+        const mergedMessages = mergeMessagesFromRemote(
+          prevMessages,
+          normalizeHistoricalMessages(detail.messages),
+        );
+        const mergedSession = mergeSessionFromRemote(prevSession, {
+          ...detail.session,
+          activeJobId: prevSession?.activeJobId,
+        });
         persist({
           ...latest,
           sessions: {
             ...latest.sessions,
-            [sessionId]: {
-              ...detail.session,
-              activeJobId: latest.sessions[sessionId]?.activeJobId,
-            },
+            [sessionId]: mergedSession,
           },
           messagesBySession: {
             ...latest.messagesBySession,
-            [sessionId]: normalizeHistoricalMessages(detail.messages),
+            [sessionId]: mergedMessages,
+          },
+        });
+        void reconcileAppliedFileProposals({
+          sessionId,
+          messages: mergedMessages,
+          messageIds: mergedSession.messageIds,
+          project: activeProject ?? null,
+          workspaceRoot: rootPath,
+          updateBlock: (messageId, blockIndex, patch) => {
+            const snap = stateRef.current;
+            const sessionMessages = {
+              ...(snap.messagesBySession[sessionId] ?? {}),
+            };
+            const existing = sessionMessages[messageId];
+            if (!existing) return;
+            sessionMessages[messageId] = {
+              ...existing,
+              blocks: existing.blocks.map((b, i) =>
+                i === blockIndex ? ({ ...b, ...patch } as MessageBlock) : b,
+              ),
+              updatedAt: Date.now(),
+            };
+            persist({
+              ...snap,
+              messagesBySession: {
+                ...snap.messagesBySession,
+                [sessionId]: sessionMessages,
+              },
+            });
           },
         });
         return true;
@@ -385,7 +424,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [persist, removeGhostSession, reportRemoteSessionError, showToast],
+    [activeProject, persist, removeGhostSession, reportRemoteSessionError, rootPath, showToast],
   );
 
   const loadMoreSessions = useCallback(async () => {
@@ -414,10 +453,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         ) {
           continue;
         }
-        sessions[session.id] = {
-          ...session,
-          activeJobId: latest.sessions[session.id]?.activeJobId,
-        };
+        sessions[session.id] = mergeSessionFromRemote(
+          latest.sessions[session.id],
+          {
+            ...session,
+            activeJobId: latest.sessions[session.id]?.activeJobId,
+          },
+        );
         if (!messagesBySession[session.id]) {
           messagesBySession[session.id] = {};
         }
@@ -669,10 +711,18 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     [updateMessage],
   );
 
+  const disposeBlockPersistence = useCallback(async (jobId: string) => {
+    const persistence = blockPersistenceByJobRef.current.get(jobId);
+    if (!persistence) return;
+    blockPersistenceByJobRef.current.delete(jobId);
+    await persistence.dispose();
+  }, []);
+
   const attachJobListener = useCallback(
     (jobId: string, sessionId: string, messageId: string) => {
       return subscribeJobEvents(jobId, (event) => {
         if (event.type === 'done') {
+          void disposeBlockPersistence(jobId);
           const latest = stateRef.current;
           const sessionMessages = {
             ...(latest.messagesBySession[sessionId] ?? {}),
@@ -717,6 +767,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         }
 
         if (event.type === 'error') {
+          void disposeBlockPersistence(jobId);
           const latest = stateRef.current;
           const sessionMessages = {
             ...(latest.messagesBySession[sessionId] ?? {}),
@@ -799,7 +850,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         }));
       });
     },
-    [persist, updateMessage],
+    [disposeBlockPersistence, persist, updateMessage],
   );
 
   const createSession = useCallback(() => {
@@ -1111,6 +1162,18 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       messageIds.push(assistantMessageId);
 
       const jobId = createAgentId('job');
+      const blockPersistence = tokenHolder.getAccessToken()
+        ? (() => {
+            const persistence = new ChatBlockPersistence();
+            persistence.attach({
+              sessionId,
+              assistantMessageId,
+              clientJobId: jobId,
+            });
+            blockPersistenceByJobRef.current.set(jobId, persistence);
+            return persistence;
+          })()
+        : null;
       const nextTitle =
         session.title === '新对话' || isEdit
           ? buildSessionTitle(trimmed)
@@ -1143,329 +1206,69 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
       attachJobListener(jobId, sessionId, assistantMessageId);
       setPreparingContext(true);
-      const baseClientContext = buildClientContextPayload({
+      // 异步获取本地 MCP Server URL（Electron 环境下可用）
+      const mcpServerUrl: string | null =
+        (await (window as Window & typeof globalThis & {
+          electron?: { mcp?: { getServerUrl?: () => Promise<string | null> } };
+        }).electron?.mcp?.getServerUrl?.()) ?? null;
+
+      let clientContext = buildClientContextPayload({
         rootPath,
         activeFilePath,
         activeProject: activeProject ?? null,
         agentMode,
         detectionModels: pretrainedModels,
+        mcpServerUrl,
       });
 
-      let turnUnderstanding: TurnUnderstandingResult | null = null;
-      let effectiveUserContent = trimmed;
-
-      if (tokenHolder.getAccessToken() && !options?.forceTurnKind) {
+      if (tokenHolder.getAccessToken()) {
         try {
-          turnUnderstanding = await understandTurn({
+          const turnUnderstanding = await understandTurn({
             providerId: selectedProvider.id,
             userContent: trimmed,
-            clientContext: baseClientContext,
+            clientContext,
             sessionId,
             userMessageId: userMessageIdForJob,
             assistantMessageId,
             truncateFromMessageId,
           });
-          effectiveUserContent = turnUnderstanding.resolvedUserContent;
-        } catch (err) {
-          if (isAuthError(err)) {
-            showToast(resolveErrorMessage(err, '登录已过期，请重新登录'), {
-              type: 'error',
-            });
-            throw err;
-          }
-          showToast('回合理解失败，已按原文处理', { type: 'info' });
+          clientContext = { ...clientContext, turnUnderstanding };
+        } catch {
+          // 回合理解为可选增强，失败时不阻塞对话
         }
       }
 
-      const clientContext = buildClientContextPayload({
-        rootPath,
-        activeFilePath,
-        activeProject: activeProject ?? null,
-        agentMode,
-        detectionModels: pretrainedModels,
-        turnKind: options?.forceTurnKind ?? turnUnderstanding?.turnKind ?? null,
-        turnUnderstanding,
-      });
+      // 构建客户端工具上下文（有标注项目时传入，供 Agent 调用客户端工具使用）
+      const clientToolContext: ClientToolContext | null = activeProject
+        ? {
+            project: buildAnnotationProjectSnapshot(
+              activeProject,
+              pretrainedModels,
+            ),
+            detectionModels: pretrainedModels,
+            currentFileAbsolutePath: activeFilePath,
+          }
+        : null;
 
       try {
-        const turnKind: TurnKind =
-          options?.forceTurnKind ?? turnUnderstanding?.turnKind ?? 'converse';
-
-        if (turnKind === 'unsupported') {
-          throw new Error('当前无法处理该请求，请检查项目类型或描述');
-        }
-
-        const canAnnotate =
-          Boolean(activeProject) &&
-          activeProject?.modality === 'image' &&
-          activeProject?.annotationType === 'bbox';
-
-        if (
-          (isBatchAnnotationTurnKind(turnKind) ||
-            isMutationAnnotationTurnKind(turnKind)) &&
-          !canAnnotate
-        ) {
-          throw new Error('标注 Agent 需要已打开的图片 bbox 标注项目');
-        }
-
-        if (isMutationAnnotationTurnKind(turnKind)) {
-          if (!isAgentMutationEnabled()) {
-            throw new Error('标注变更功能未启用');
-          }
-          if (!tokenHolder.getAccessToken()) {
-            throw new Error('请先登录后再使用标注功能');
-          }
-          const snapshot: AnnotationProjectSnapshot =
-            buildAnnotationProjectSnapshot(activeProject!, pretrainedModels);
-          const persistence = new AnnotationRunPersistence();
-          let persistenceStarted = false;
-          try {
-            await persistence.start({
-              providerId: selectedProvider.id,
-              sessionId,
-              clientJobId: jobId,
-              userContent: effectiveUserContent,
-              userMessageId: userMessageIdForJob,
-              assistantMessageId,
-              truncateFromMessageId,
-              clientContext,
-            });
-            persistenceStarted = true;
-            await startAnnotationMutationJobRunner({
-              jobId,
-              providerId: selectedProvider.id,
-              userRequest: effectiveUserContent,
-              sessionId,
-              project: snapshot,
-              currentFileAbsolutePath: activeFilePath,
-              onPersistEvent: (event) => persistence.push(event),
-            });
-            const finalMessage =
-              stateRef.current.messagesBySession[sessionId]?.[
-                assistantMessageId
-              ];
-            if (finalMessage?.status === 'stopped') {
-              await persistence.finalize({ status: 'stopped' });
-            } else if (finalMessage?.status === 'error') {
-              await persistence.finalize({
-                status: 'error',
-                error: finalMessage.error ?? '标注变更失败',
-              });
-            } else {
-              await persistence.finalize({ status: 'done' });
-            }
-          } catch (innerErr) {
-            if (persistenceStarted) {
-              await persistence
-                .finalize({
-                  status: 'error',
-                  error:
-                    innerErr instanceof Error
-                      ? innerErr.message
-                      : '标注变更失败',
-                })
-                .catch(() => undefined);
-            }
-            throw innerErr;
-          }
-        } else if (isAnalysisTurnKind(turnKind)) {
-          if (!isAgentAnalysisEnabled()) {
-            throw new Error('数据分析功能未启用');
-          }
-          if (!tokenHolder.getAccessToken()) {
-            throw new Error('请先登录后再使用数据分析');
-          }
-          if (!activeProject) {
-            throw new Error('数据分析需要已打开的标注项目');
-          }
-          const snapshot: AnnotationProjectSnapshot =
-            buildAnnotationProjectSnapshot(activeProject, pretrainedModels);
-          const persistence = new AnnotationRunPersistence();
-          let persistenceStarted = false;
-          try {
-            await persistence.start({
-              providerId: selectedProvider.id,
-              sessionId,
-              clientJobId: jobId,
-              userContent: effectiveUserContent,
-              userMessageId: userMessageIdForJob,
-              assistantMessageId,
-              truncateFromMessageId,
-              clientContext,
-            });
-            persistenceStarted = true;
-            await startAnalysisJobRunner({
-              jobId,
-              providerId: selectedProvider.id,
-              userRequest: effectiveUserContent,
-              sessionId,
-              project: snapshot,
-              onPersistEvent: (event) => persistence.push(event),
-            });
-            const finalMessage =
-              stateRef.current.messagesBySession[sessionId]?.[
-                assistantMessageId
-              ];
-            if (finalMessage?.status === 'stopped') {
-              await persistence.finalize({ status: 'stopped' });
-            } else if (finalMessage?.status === 'error') {
-              await persistence.finalize({
-                status: 'error',
-                error: finalMessage.error ?? '数据分析失败',
-              });
-            } else {
-              await persistence.finalize({ status: 'done' });
-            }
-          } catch (innerErr) {
-            if (persistenceStarted) {
-              await persistence
-                .finalize({
-                  status: 'error',
-                  error:
-                    innerErr instanceof Error
-                      ? innerErr.message
-                      : '数据分析失败',
-                })
-                .catch(() => undefined);
-            }
-            throw innerErr;
-          }
-        } else if (isDocumentTurnKind(turnKind)) {
-          if (!isAgentDocumentWriteEnabled()) {
-            throw new Error('报告/文档生成功能未启用');
-          }
-          if (!tokenHolder.getAccessToken()) {
-            throw new Error('请先登录后再生成报告');
-          }
-          if (!activeProject) {
-            throw new Error('生成报告需要已打开的标注项目');
-          }
-          const snapshot: AnnotationProjectSnapshot =
-            buildAnnotationProjectSnapshot(activeProject, pretrainedModels);
-          const persistence = new AnnotationRunPersistence();
-          let persistenceStarted = false;
-          try {
-            await persistence.start({
-              providerId: selectedProvider.id,
-              sessionId,
-              clientJobId: jobId,
-              userContent: effectiveUserContent,
-              userMessageId: userMessageIdForJob,
-              assistantMessageId,
-              truncateFromMessageId,
-              clientContext,
-            });
-            persistenceStarted = true;
-            await startReportJobRunner({
-              jobId,
-              providerId: selectedProvider.id,
-              userRequest: effectiveUserContent,
-              sessionId,
-              project: snapshot,
-              turnKind,
-              onPersistEvent: (event) => persistence.push(event),
-            });
-            const finalMessage =
-              stateRef.current.messagesBySession[sessionId]?.[
-                assistantMessageId
-              ];
-            if (finalMessage?.status === 'stopped') {
-              await persistence.finalize({ status: 'stopped' });
-            } else if (finalMessage?.status === 'error') {
-              await persistence.finalize({
-                status: 'error',
-                error: finalMessage.error ?? '报告生成失败',
-              });
-            } else {
-              await persistence.finalize({ status: 'done' });
-            }
-          } catch (innerErr) {
-            if (persistenceStarted) {
-              await persistence
-                .finalize({
-                  status: 'error',
-                  error:
-                    innerErr instanceof Error
-                      ? innerErr.message
-                      : '报告生成失败',
-                })
-                .catch(() => undefined);
-            }
-            throw innerErr;
-          }
-        } else if (isBatchAnnotationTurnKind(turnKind)) {
-          if (!tokenHolder.getAccessToken()) {
-            throw new Error('请先登录后再使用标注功能');
-          }
-          const snapshot: AnnotationProjectSnapshot =
-            buildAnnotationProjectSnapshot(activeProject!, pretrainedModels);
-          const persistence = new AnnotationRunPersistence();
-          let persistenceStarted = false;
-          try {
-            await persistence.start({
-              providerId: selectedProvider.id,
-              sessionId,
-              clientJobId: jobId,
-              userContent: effectiveUserContent,
-              userMessageId: userMessageIdForJob,
-              assistantMessageId,
-              truncateFromMessageId,
-              clientContext,
-            });
-            persistenceStarted = true;
-            await startAnnotationBatchJobRunner({
-              jobId,
-              providerId: selectedProvider.id,
-              userRequest: effectiveUserContent,
-              sessionId,
-              project: snapshot,
-              currentFileAbsolutePath: activeFilePath,
-              detectionModels: pretrainedModels,
-              onPersistEvent: (event) => persistence.push(event),
-            });
-            const finalMessage =
-              stateRef.current.messagesBySession[sessionId]?.[
-                assistantMessageId
-              ];
-            if (finalMessage?.status === 'stopped') {
-              await persistence.finalize({ status: 'stopped' });
-            } else if (finalMessage?.status === 'error') {
-              await persistence.finalize({
-                status: 'error',
-                error: finalMessage.error ?? '批量标注失败',
-              });
-            } else {
-              await persistence.finalize({ status: 'done' });
-            }
-          } catch (innerErr) {
-            if (persistenceStarted) {
-              await persistence
-                .finalize({
-                  status: 'error',
-                  error:
-                    innerErr instanceof Error
-                      ? innerErr.message
-                      : '批量标注失败',
-                })
-                .catch(() => undefined);
-            }
-            throw innerErr;
-          }
-        } else {
-          await startChatJob({
-            jobId,
-            session: nextSession,
-            messageIds,
-            sessionMessages,
-            providerId: selectedProvider.id,
-            userMessageId: userMessageIdForJob,
-            assistantMessageId,
-            userContent: effectiveUserContent,
-            truncateFromMessageId,
-            clientContext,
-          });
-        }
+        await startChatJob({
+          jobId,
+          session: nextSession,
+          messageIds,
+          sessionMessages,
+          providerId: selectedProvider.id,
+          userMessageId: userMessageIdForJob,
+          assistantMessageId,
+          userContent: trimmed,
+          truncateFromMessageId,
+          clientContext,
+          clientToolContext,
+          onPersistEvent: blockPersistence
+            ? (event) => blockPersistence.push(event)
+            : undefined,
+        });
       } catch (err) {
+        await disposeBlockPersistence(jobId);
         updateMessage(sessionId, assistantMessageId, (message) => ({
           ...message,
           status: 'error',
@@ -1495,6 +1298,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       activeProject,
       agentMode,
       attachJobListener,
+      disposeBlockPersistence,
       pretrainedModels,
       editTargetMessageId,
       ensureSessionLoaded,
@@ -1654,14 +1458,74 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const getSessionMessages = useCallback(
     (sessionId: string) => {
-      const session = state.messagesBySession[sessionId] ?? {};
-      const ids = state.sessions[sessionId]?.messageIds ?? [];
+      const messagesMap = state.messagesBySession[sessionId] ?? {};
+      const ids = resolveSessionMessageIds(
+        state.sessions[sessionId],
+        messagesMap,
+      );
       return ids
-        .map((id) => session[id])
+        .map((id) => messagesMap[id])
         .filter((message): message is ChatMessage => Boolean(message));
     },
     [state.messagesBySession, state.sessions],
   );
+
+  const pendingProposalCount = useMemo(() => {
+    const sessionId = state.activeSessionId;
+    if (!sessionId) return 0;
+    const messagesMap = state.messagesBySession[sessionId] ?? {};
+    const ids = resolveSessionMessageIds(state.sessions[sessionId], messagesMap);
+    const messages = ids
+      .map((id) => messagesMap[id])
+      .filter((message): message is ChatMessage => Boolean(message));
+    return countPendingProposals(messages);
+  }, [state.activeSessionId, state.messagesBySession, state.sessions]);
+
+  const applyAllPendingChanges = useCallback(async () => {
+    const sessionId = stateRef.current.activeSessionId;
+    if (!sessionId || applyingAllPending) return;
+    const messagesMap = stateRef.current.messagesBySession[sessionId] ?? {};
+    const ids = resolveSessionMessageIds(
+      stateRef.current.sessions[sessionId],
+      messagesMap,
+    );
+    const messages = ids
+      .map((id) => messagesMap[id])
+      .filter((message): message is ChatMessage => Boolean(message));
+    if (countPendingProposals(messages) === 0) return;
+
+    setApplyingAllPending(true);
+    try {
+      const result = await applyAllPendingProposals({
+        sessionId,
+        messages,
+        project: activeProject ?? null,
+        workspaceRoot: rootPath,
+        updateBlock: (messageId, blockIndex, patch) => {
+          updateMessageBlocks(sessionId, messageId, (blocks) =>
+            blocks.map((b, i) => (i === blockIndex ? ({ ...b, ...patch } as MessageBlock) : b)),
+          );
+        },
+        onSyncWarning: (message) => {
+          showToast(message, { type: 'info' });
+        },
+      });
+      if (result.applied > 0) {
+        showToast(`已应用 ${result.applied} 项变更`, { type: 'success' });
+      }
+      if (result.errors.length > 0) {
+        showToast(result.errors[0], { type: 'error' });
+      }
+    } finally {
+      setApplyingAllPending(false);
+    }
+  }, [
+    activeProject,
+    applyingAllPending,
+    rootPath,
+    showToast,
+    updateMessageBlocks,
+  ]);
 
   const activeSession = useMemo(
     () =>
@@ -1721,6 +1585,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       getSessionMessages,
       loadMoreSessions,
       loadOlderMessages,
+      pendingProposalCount,
+      applyAllPendingChanges,
+      applyingAllPending,
     }),
     [
       state,
@@ -1754,6 +1621,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       getSessionMessages,
       loadMoreSessions,
       loadOlderMessages,
+      pendingProposalCount,
+      applyAllPendingChanges,
+      applyingAllPending,
     ],
   );
 

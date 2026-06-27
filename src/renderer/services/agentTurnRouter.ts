@@ -59,6 +59,7 @@ export function buildApiClientContext(
           project_directory_path: snap.directoryPath ?? null,
         }
       : null,
+    mcp_server_url: clientContext.mcpServerUrl ?? null,
   };
 }
 

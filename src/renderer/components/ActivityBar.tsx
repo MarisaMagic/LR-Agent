@@ -1,57 +1,25 @@
-import { VscodeIcon } from '@vscode-elements/react-elements';
-import { useEffect, useRef, type ComponentRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import UserAvatar from './UserAvatar';
 import { MoonIcon, SunIcon } from './ThemeToggleIcons';
+import ActivityIcon from './ActivityIcon';
 import './ActivityBar.css';
 
-export type LeftPanel = 'explorer' | 'annotations' | 'models' | 'llmProviders' | 'settings';
+export type LeftPanel =
+  | 'explorer'
+  | 'annotations'
+  | 'models'
+  | 'llmProviders'
+  | 'settings';
 export type RightPanel = 'agent' | 'annotation';
 
 interface ActivityBarProps {
-  side: 'left' | 'right';
-  activePanel: LeftPanel | RightPanel | null;
+  activePanel: LeftPanel | null;
   onExplorerClick?: () => void;
   onAnnotationsClick?: () => void;
   onModelsClick?: () => void;
   onLlmProvidersClick?: () => void;
   onSettingsClick?: () => void;
-  onAgentClick?: () => void;
-  /** When open, render an extra 「标注列表」icon on the right bar */
-  showAnnotationToolbar?: boolean;
-  onAnnotationPanelClick?: () => void;
-}
-
-function ActivityIcon({
-  name,
-  label,
-  active,
-  onClick,
-}: {
-  name: string;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  const ref = useRef<ComponentRef<typeof VscodeIcon>>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return undefined;
-
-    const handler = () => onClick();
-    el.addEventListener('vsc-click', handler);
-    return () => el.removeEventListener('vsc-click', handler);
-  }, [onClick]);
-
-  return (
-    <div
-      className={`activity-icon-wrap ${active ? 'activity-icon-active' : ''}`}
-    >
-      <VscodeIcon ref={ref} name={name} size={24} actionIcon label={label} />
-    </div>
-  );
 }
 
 function ThemeToggleButton({ onClick }: { onClick: () => void }) {
@@ -103,75 +71,50 @@ function AccountAvatarButton({
 }
 
 export default function ActivityBar({
-  side,
   activePanel,
   onExplorerClick,
   onAnnotationsClick,
   onModelsClick,
   onLlmProvidersClick,
   onSettingsClick,
-  onAgentClick,
-  showAnnotationToolbar,
-  onAnnotationPanelClick,
 }: ActivityBarProps) {
   const { toggleDarkLight } = useTheme();
 
-  if (side === 'left') {
-    return (
-      <nav className="activity-bar activity-bar-left" aria-label="主活动栏">
-        <div className="activity-bar-top">
-          <ActivityIcon
-            name="files"
-            label="资源管理器"
-            active={activePanel === 'explorer'}
-            onClick={onExplorerClick ?? (() => undefined)}
-          />
-          <ActivityIcon
-            name="list-unordered"
-            label="标注任务"
-            active={activePanel === 'annotations'}
-            onClick={onAnnotationsClick ?? (() => undefined)}
-          />
-          <ActivityIcon
-            name="layers"
-            label="预训练模型"
-            active={activePanel === 'models'}
-            onClick={onModelsClick ?? (() => undefined)}
-          />
-          <ActivityIcon
-            name="copilot"
-            label="大模型配置"
-            active={activePanel === 'llmProviders'}
-            onClick={onLlmProvidersClick ?? (() => undefined)}
-          />
-        </div>
-        <div className="activity-bar-bottom">
-          <ThemeToggleButton onClick={toggleDarkLight} />
-          <AccountAvatarButton
-            active={activePanel === 'settings'}
-            onClick={onSettingsClick ?? (() => undefined)}
-          />
-        </div>
-      </nav>
-    );
-  }
-
   return (
-    <nav className="activity-bar activity-bar-right" aria-label="辅助活动栏">
-      {showAnnotationToolbar && (
+    <nav className="activity-bar activity-bar-left" aria-label="主活动栏">
+      <div className="activity-bar-top">
         <ActivityIcon
-          name="tag"
-          label="标注列表"
-          active={activePanel === 'annotation'}
-          onClick={onAnnotationPanelClick ?? (() => undefined)}
+          name="files"
+          label="资源管理器"
+          active={activePanel === 'explorer'}
+          onClick={onExplorerClick ?? (() => undefined)}
         />
-      )}
-      <ActivityIcon
-        name="comment-discussion"
-        label="AI Agent"
-        active={activePanel === 'agent'}
-        onClick={onAgentClick ?? (() => undefined)}
-      />
+        <ActivityIcon
+          name="list-unordered"
+          label="标注任务"
+          active={activePanel === 'annotations'}
+          onClick={onAnnotationsClick ?? (() => undefined)}
+        />
+        <ActivityIcon
+          name="layers"
+          label="预训练模型"
+          active={activePanel === 'models'}
+          onClick={onModelsClick ?? (() => undefined)}
+        />
+        <ActivityIcon
+          name="copilot"
+          label="大模型配置"
+          active={activePanel === 'llmProviders'}
+          onClick={onLlmProvidersClick ?? (() => undefined)}
+        />
+      </div>
+      <div className="activity-bar-bottom">
+        <ThemeToggleButton onClick={toggleDarkLight} />
+        <AccountAvatarButton
+          active={activePanel === 'settings'}
+          onClick={onSettingsClick ?? (() => undefined)}
+        />
+      </div>
     </nav>
   );
 }

@@ -250,6 +250,43 @@ export default class MenuBuilder {
         ],
       },
       {
+        label: '&Edit',
+        submenu: [
+          {
+            label: '&Undo',
+            accelerator: 'Ctrl+Z',
+            click: () => this.sendToRenderer('edit:undo'),
+          },
+          {
+            label: '&Redo',
+            accelerator: 'Ctrl+Y',
+            click: () => this.sendToRenderer('edit:redo'),
+          },
+          { type: 'separator' },
+          {
+            label: 'Cu&t',
+            accelerator: 'Ctrl+X',
+            click: () => this.sendToRenderer('edit:cut'),
+          },
+          {
+            label: '&Copy',
+            accelerator: 'Ctrl+C',
+            click: () => this.sendToRenderer('edit:copy'),
+          },
+          {
+            label: '&Paste',
+            accelerator: 'Ctrl+V',
+            click: () => this.sendToRenderer('edit:paste'),
+          },
+          { type: 'separator' },
+          {
+            label: 'Select &All',
+            accelerator: 'Ctrl+A',
+            click: () => this.sendToRenderer('edit:selectAll'),
+          },
+        ],
+      },
+      {
         label: '&View',
         submenu: [
           {

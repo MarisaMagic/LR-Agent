@@ -48,7 +48,7 @@
   --vscode-activityBar-foreground: #ffffff;
   --vscode-activityBar-inactiveForeground: #858585;
 
-  --vscode-titleBar-activeBackground: #181818;
+  --vscode-titleBar-activeBackground: var(--vscode-activityBar-background);
   --vscode-titleBar-activeForeground: #cccccc;
 
   --vscode-editor-background: #1e1e1e;
@@ -69,6 +69,15 @@
   --vscode-inputValidation-errorForeground: #f48771;
   --vscode-inputValidation-errorBackground: #5a1d1d;
   --vscode-inputValidation-errorBorder: #be1100;
+
+  --vscode-settings-dropdownBackground: var(--vscode-input-background);
+  --vscode-settings-dropdownForeground: var(--vscode-input-foreground);
+  --vscode-settings-dropdownBorder: var(--vscode-input-border);
+  --vscode-settings-dropdownListBorder: var(--vscode-panel-border);
+  --vscode-dropdown-background: var(--vscode-input-background);
+  --vscode-dropdown-foreground: var(--vscode-input-foreground);
+  --vscode-dropdown-border: var(--vscode-input-border);
+  --vscode-widget-shadow: rgba(0, 0, 0, 0.36);
 
   --vscode-button-background: #dbb018;
   --vscode-button-foreground: #1e1e1e;
@@ -132,7 +141,7 @@
   --vscode-activityBar-foreground: #333333;
   --vscode-activityBar-inactiveForeground: #616161;
 
-  --vscode-titleBar-activeBackground: #dddddd;
+  --vscode-titleBar-activeBackground: var(--vscode-activityBar-background);
   --vscode-titleBar-activeForeground: #333333;
 
   --vscode-editor-background: #ffffff;
@@ -153,6 +162,15 @@
   --vscode-inputValidation-errorForeground: #a1260d;
   --vscode-inputValidation-errorBackground: #f2dede;
   --vscode-inputValidation-errorBorder: #be1100;
+
+  --vscode-settings-dropdownBackground: var(--vscode-input-background);
+  --vscode-settings-dropdownForeground: var(--vscode-input-foreground);
+  --vscode-settings-dropdownBorder: var(--vscode-input-border);
+  --vscode-settings-dropdownListBorder: var(--vscode-panel-border);
+  --vscode-dropdown-background: var(--vscode-input-background);
+  --vscode-dropdown-foreground: var(--vscode-input-foreground);
+  --vscode-dropdown-border: var(--vscode-input-border);
+  --vscode-widget-shadow: rgba(0, 0, 0, 0.16);
 
   --vscode-button-background: #f0c830;
   --vscode-button-foreground: #1e1e1e;

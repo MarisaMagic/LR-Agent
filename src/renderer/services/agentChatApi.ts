@@ -205,6 +205,26 @@ export async function deleteAgentSessionRemote(sessionId: string): Promise<void>
   });
 }
 
+export async function patchAgentMessageBlockRemote(options: {
+  sessionId: string;
+  messageId: string;
+  blockType?: string;
+  blockIndex?: number;
+  patch: Record<string, unknown>;
+}): Promise<void> {
+  await apiFetch<{ ok: boolean }>(
+    `/agent/messages/${encodeURIComponent(options.messageId)}/blocks?session_id=${encodeURIComponent(options.sessionId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        block_type: options.blockType ?? null,
+        block_index: options.blockIndex ?? null,
+        patch: options.patch,
+      }),
+    },
+  );
+}
+
 export async function loadRemoteAgentChatStateForProject(
   annotationProjectId: string | null,
 ): Promise<

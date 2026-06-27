@@ -41,7 +41,8 @@
 
 .annotation-right-label-more-btn--open {
   opacity: 1;
-  box-shadow: 0 0 0 2px var(--vscode-focusBorder, #007fd4);
+  box-shadow: none;
+  background: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.31));
 }
 
 .annotation-right-label-more-btn .codicon {

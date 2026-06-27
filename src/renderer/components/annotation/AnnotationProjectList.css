@@ -45,8 +45,12 @@
 }
 
 .annotation-project-card-active {
-  border-color: var(--lr-accent, #dbb018);
-  box-shadow: inset 0 0 0 1px rgba(219, 176, 24, 0.25);
+  border-color: var(--vscode-panel-border, #3c3c3c);
+  box-shadow: none;
+}
+
+.annotation-project-card-active .annotation-project-card-body {
+  background: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
 .annotation-project-card-menu-open {
@@ -178,7 +182,7 @@
 }
 
 .annotation-project-menu button:hover {
-  background: var(--vscode-menu-selectionBackground, #094771);
+  background: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
 .annotation-project-menu button.danger {

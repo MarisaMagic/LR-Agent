@@ -1,6 +1,7 @@
 import path from 'path';
 import { open } from 'fs/promises';
 import fs from 'fs-extra';
+import chokidar from 'chokidar';
 import {
   app,
   BrowserWindow,
@@ -21,6 +22,11 @@ import registerPreAnnotHandlers from './preAnnot/preAnnotHandlers';
 import { registerAnalysisHandlers } from './analysis/analysisHandlers';
 import { registerWorkspaceHandlers } from './workspace/workspaceHandlers';
 import registerAnnotationAgentHandlers from './annotation/agent/handlers';
+import {
+  startMcpServer,
+  stopMcpServer,
+  getMcpServerUrl,
+} from './mcp/server';
 import {
   getAnnotationProjects,
   removeProjectDirConfig,
@@ -88,6 +94,64 @@ const DEFAULT_IGNORE_DIRS = new Set([
   '.cache',
 ]);
 
+// ── 文件系统监听器（chokidar） ──
+
+let workspaceWatcher: chokidar.FSWatcher | null = null;
+
+function stopWatchingWorkspace(): void {
+  if (workspaceWatcher) {
+    workspaceWatcher.close();
+    workspaceWatcher = null;
+  }
+}
+
+function startWatchingWorkspace(rootPath: string): void {
+  stopWatchingWorkspace();
+
+  workspaceWatcher = chokidar.watch(rootPath, {
+    ignored: [
+      /(^|[\/\\])\./,          // 隐藏文件/目录
+      '**/node_modules/**',
+      '**/.git/**',
+      '**/dist/**',
+      '**/release/**',
+      '**/.cache/**',
+      '**/__pycache__/**',
+      '**/*.pyc',
+    ],
+    ignoreInitial: true,
+    awaitWriteFinish: {
+      stabilityThreshold: 300,
+      pollInterval: 100,
+    },
+  });
+
+  const notify = (filePath: string) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('file-system:changed', filePath);
+    });
+  };
+
+  workspaceWatcher.on('add', notify);
+  workspaceWatcher.on('change', notify);
+  workspaceWatcher.on('unlink', notify);
+  workspaceWatcher.on('addDir', notify);
+  workspaceWatcher.on('unlinkDir', notify);
+}
+
+// ── IPC: 工作区文件监听控制 ──
+
+ipcMain.handle(
+  'workspace:startWatch',
+  async (_event, rootPath: string) => {
+    startWatchingWorkspace(rootPath);
+  },
+);
+
+ipcMain.handle('workspace:stopWatch', async () => {
+  stopWatchingWorkspace();
+});
+
 function normalizePath(filePath: string): string {
   return path.normalize(filePath);
 }
@@ -113,6 +177,130 @@ ipcMain.handle('fs:readFileBuffer', async (_event, filePath: string) => {
 ipcMain.handle('shell:openPath', async (_event, filePath: string) => {
   return shell.openPath(filePath);
 });
+
+ipcMain.handle(
+  'dialog:confirm',
+  async (
+    _event,
+    options: { title?: string; message: string },
+  ) => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (!win) return { confirmed: false };
+    const result = await dialog.showMessageBox(win, {
+      type: 'warning',
+      title: options.title || '确认',
+      message: options.message,
+      buttons: ['确定', '取消'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    return { confirmed: result.response === 0 };
+  },
+);
+
+// ── IPC: 文件操作（创建、删除、重命名） ──
+
+ipcMain.handle(
+  'workspace:createFile',
+  async (_event, dirPath: string, fileName: string) => {
+    try {
+      const filePath = path.join(dirPath, fileName);
+      // 检查同名文件是否已存在
+      if (await fs.pathExists(filePath)) {
+        return { success: false, error: 'file_exists' };
+      }
+      await fs.writeFile(filePath, '');
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('file-system:changed', dirPath);
+      });
+      return { success: true, filePath };
+    } catch (error) {
+      console.error('Error creating file:', error);
+      return { success: false, error: String(error) };
+    }
+  },
+);
+
+ipcMain.handle(
+  'workspace:createFolder',
+  async (_event, dirPath: string, folderName: string) => {
+    try {
+      const folderPath = path.join(dirPath, folderName);
+      if (await fs.pathExists(folderPath)) {
+        return { success: false, error: 'folder_exists' };
+      }
+      await fs.ensureDir(folderPath);
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('file-system:changed', dirPath);
+      });
+      return { success: true, folderPath };
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      return { success: false, error: String(error) };
+    }
+  },
+);
+
+ipcMain.handle(
+  'workspace:deleteEntry',
+  async (_event, entryPath: string) => {
+    try {
+      await shell.trashItem(entryPath);
+      const parentDir = path.dirname(entryPath);
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('file-system:changed', parentDir);
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting entry:', error);
+      return { success: false, error: String(error) };
+    }
+  },
+);
+
+ipcMain.handle(
+  'workspace:renameEntry',
+  async (_event, oldPath: string, newName: string) => {
+    try {
+      const dir = path.dirname(oldPath);
+      const newPath = path.join(dir, newName);
+      if (await fs.pathExists(newPath)) {
+        return { success: false, error: 'target_exists' };
+      }
+      await fs.move(oldPath, newPath);
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('file-system:changed', dir);
+      });
+      return { success: true, oldPath, newPath };
+    } catch (error) {
+      console.error('Error renaming entry:', error);
+      return { success: false, error: String(error) };
+    }
+  },
+);
+
+ipcMain.handle(
+  'workspace:moveEntry',
+  async (_event, srcPath: string, destDir: string) => {
+    try {
+      const name = path.basename(srcPath);
+      const destPath = path.join(destDir, name);
+      if (await fs.pathExists(destPath)) {
+        return { success: false, error: 'target_exists' };
+      }
+      await fs.move(srcPath, destPath);
+      const srcDir = path.dirname(srcPath);
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('file-system:changed', srcDir);
+        win.webContents.send('file-system:changed', destDir);
+      });
+      return { success: true, oldPath: srcPath, newPath: destPath };
+    } catch (error) {
+      console.error('Error moving entry:', error);
+      return { success: false, error: String(error) };
+    }
+  },
+);
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
@@ -419,18 +607,30 @@ app.on('window-all-closed', () => {
   }
 });
 
+// IPC: renderer 查询 MCP Server URL
+ipcMain.handle('mcp:getServerUrl', () => getMcpServerUrl());
+
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
     registerAuthHandlers();
     registerPretrainedModelHandlers();
     registerPreAnnotHandlers();
     registerAnalysisHandlers();
     registerWorkspaceHandlers();
     registerAnnotationAgentHandlers();
+    // 启动本地 MCP Server（异步，失败不阻断窗口创建）
+    startMcpServer().catch((err) =>
+      console.error('[MCP] Failed to start MCP server:', err),
+    );
     createWindow();
     app.on('activate', () => {
       if (mainWindow === null) createWindow();
     });
   })
   .catch(console.log);
+
+app.on('before-quit', () => {
+  stopWatchingWorkspace();
+  stopMcpServer();
+});

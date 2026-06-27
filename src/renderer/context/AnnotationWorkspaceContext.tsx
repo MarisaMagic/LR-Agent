@@ -709,8 +709,10 @@ export function AnnotationWorkspaceProvider({
 
       try {
         const raw = await readFileAnnotationDoc(projDir, rel);
+        if (cancelled) return;
         const parsed = raw ? parseFileAnnotationDocument(raw) : null;
         const stats = await statsForPath(activeFilePath);
+        if (cancelled) return;
 
         if (parsed) {
           const { annotations: ann, ...meta } = parsed;

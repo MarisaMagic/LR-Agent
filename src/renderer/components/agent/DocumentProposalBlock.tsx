@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { VscodeButton } from '@vscode-elements/react-elements';
+import { useAgentChat } from '../../context/AgentChatContext';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useToast } from '../../context/ToastContext';
 import { isAgentDocumentWriteEnabled } from '../../services/agentFeatureFlags';
@@ -14,6 +15,7 @@ interface DocumentProposalBlockProps {
   onStatusChange: (status: 'pending' | 'applied' | 'dismissed') => void;
 }
 
+/** @deprecated 使用 AgentFileChangeBlock + Keep All 栏 */
 export default function DocumentProposalBlock({
   title,
   content,
@@ -23,7 +25,9 @@ export default function DocumentProposalBlock({
 }: DocumentProposalBlockProps) {
   const { activeProject } = useAnnotation();
   const { showToast } = useToast();
+  const { pendingProposalCount } = useAgentChat();
   const [saving, setSaving] = useState(false);
+  const hideInlineActions = pendingProposalCount > 0;
 
   const handleSave = useCallback(async () => {
     if (!isAgentDocumentWriteEnabled()) {
@@ -37,7 +41,7 @@ export default function DocumentProposalBlock({
     }
     setSaving(true);
     try {
-      const result = await window.electron?.workspace?.writeMarkdownFile({
+      const result = await window.electron?.workspace?.writeTextFile({
         rootDir: root,
         relativePath: suggestedRelativePath,
         content,
@@ -70,6 +74,7 @@ export default function DocumentProposalBlock({
       <div className="annotation-proposal-title">{title}</div>
       <AgentMarkdown content={content} />
       <div className="annotation-proposal-stats">建议路径：{suggestedRelativePath}</div>
+      {!hideInlineActions ? (
       <div className="annotation-proposal-actions">
         <VscodeButton disabled={disabled} onClick={() => void handleSave()}>
           {status === 'applied' ? '已保存' : saving ? '保存中…' : '保存到项目'}
@@ -82,6 +87,7 @@ export default function DocumentProposalBlock({
           忽略
         </VscodeButton>
       </div>
+      ) : null}
     </div>
   );
 }
