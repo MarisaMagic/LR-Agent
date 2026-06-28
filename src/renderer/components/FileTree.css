@@ -37,6 +37,8 @@
 .file-tree-scrollable {
   --file-tree-row-height: 28px;
   --file-tree-icon-size: 22px;
+  --file-tree-arrow-width: 30px;
+  --file-tree-inline-icon-size: 22px;
 }
 
 .file-tree-scrollable vscode-tree {
@@ -92,6 +94,15 @@
   padding: 0;
 }
 
+.file-tree-scrollable vscode-tree-item[branch]::part(icon-container),
+.file-tree-scrollable vscode-tree-item:not([branch])::part(icon-container) {
+  display: none;
+  width: 0;
+  min-width: 0;
+  max-width: 0;
+  margin-right: 0;
+}
+
 .file-tree-scrollable vscode-tree-item::part(content) {
   display: flex;
   align-items: center;
@@ -112,6 +123,26 @@
   --internal-selectionIconForeground: var(--vscode-icon-foreground, #cccccc);
 }
 
+.file-tree-item-row {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  overflow: visible !important;
+}
+
+.file-tree-item-glyph {
+  flex-shrink: 0;
+  box-sizing: content-box;
+  width: 16px;
+  padding-left: 8px;
+  padding-right: 6px;
+  margin-left: calc(-1 * var(--file-tree-arrow-width));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
 .file-tree-item-label {
   display: inline-flex;
   align-items: center;
@@ -121,20 +152,24 @@
   white-space: nowrap;
 }
 
-.file-tree-scrollable [data-file-path] {
+.file-tree-scrollable vscode-tree-item:not([branch])::part(label) {
+  overflow: visible;
+}
+
+.file-tree-scrollable .file-tree-item-label[data-file-path] {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.file-tree-scrollable .file-type-icon.file-tree-icon {
-  width: var(--file-tree-icon-size);
-  height: var(--file-tree-icon-size);
-  min-width: var(--file-tree-icon-size);
-  min-height: var(--file-tree-icon-size);
-  max-width: var(--file-tree-icon-size);
-  max-height: var(--file-tree-icon-size);
+.file-tree-scrollable .file-type-icon.file-tree-inline-icon {
+  width: var(--file-tree-inline-icon-size);
+  height: var(--file-tree-inline-icon-size);
+  min-width: var(--file-tree-inline-icon-size);
+  min-height: var(--file-tree-inline-icon-size);
+  max-width: var(--file-tree-inline-icon-size);
+  max-height: var(--file-tree-inline-icon-size);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -145,9 +180,9 @@
   padding: 0;
 }
 
-.file-tree-scrollable .file-type-icon.file-tree-icon svg {
-  width: var(--file-tree-icon-size);
-  height: var(--file-tree-icon-size);
+.file-tree-scrollable .file-type-icon.file-tree-inline-icon svg {
+  width: var(--file-tree-inline-icon-size);
+  height: var(--file-tree-inline-icon-size);
   max-width: 100%;
   max-height: 100%;
   display: block;

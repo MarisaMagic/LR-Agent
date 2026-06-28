@@ -72,6 +72,41 @@ const EXT_TO_LANGUAGE: Record<string, string> = {
   log: 'plaintext',
 };
 
+const MARKDOWN_LANGUAGE_ALIASES: Record<string, string> = {
+  sh: 'bash',
+  shell: 'bash',
+  console: 'bash',
+  zsh: 'bash',
+  dockerfile: 'bash',
+  js: 'javascript',
+  jsx: 'javascript',
+  mjs: 'javascript',
+  cjs: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
+  py: 'python',
+  pyw: 'python',
+  yml: 'yaml',
+  html: 'xml',
+  htm: 'xml',
+  svg: 'xml',
+  vue: 'xml',
+  md: 'markdown',
+  rs: 'rust',
+  kt: 'kotlin',
+  kts: 'kotlin',
+  cs: 'csharp',
+  rb: 'ruby',
+  cc: 'cpp',
+  cxx: 'cpp',
+  hpp: 'cpp',
+  h: 'c',
+  jsonc: 'json',
+  scss: 'css',
+  sass: 'css',
+  less: 'css',
+};
+
 let registered = false;
 
 function ensureLanguagesRegistered(): void {
@@ -112,6 +147,29 @@ export function highlightCode(content: string, filePath: string): string {
   const language = getHighlightLanguage(filePath);
   if (language && hljs.getLanguage(language)) {
     return hljs.highlight(content, { language }).value;
+  }
+
+  return hljs.highlightAuto(content).value;
+}
+
+export function normalizeMarkdownLanguage(lang: string): string | null {
+  const trimmed = lang.trim().toLowerCase();
+  if (!trimmed || trimmed === 'text' || trimmed === 'plaintext') {
+    return null;
+  }
+  const aliased = MARKDOWN_LANGUAGE_ALIASES[trimmed] ?? trimmed;
+  return aliased;
+}
+
+export function highlightMarkdownCode(
+  content: string,
+  language?: string | null,
+): string {
+  ensureLanguagesRegistered();
+
+  const normalized = language ? normalizeMarkdownLanguage(language) : null;
+  if (normalized && hljs.getLanguage(normalized)) {
+    return hljs.highlight(content, { language: normalized }).value;
   }
 
   return hljs.highlightAuto(content).value;

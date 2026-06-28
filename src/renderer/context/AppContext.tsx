@@ -385,6 +385,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const isRoot = folderPath === workspace.rootPath;
 
       if (!isRoot && node?.type === 'folder') {
+        if (node.children !== undefined) {
+          setWorkspace({ expandedPaths: expanded });
+          return;
+        }
+
         dispatchWorkspace({
           type: 'SET',
           payload: { expandedPaths: expanded },

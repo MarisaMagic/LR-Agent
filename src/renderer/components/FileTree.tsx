@@ -15,7 +15,6 @@ import {
   type ComponentRef,
 } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
-import FileTypeIcon from './FileTypeIcon';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
 import { useApp } from '../context/AppContext';
 import { useAnnotation } from '../context/AnnotationContext';
@@ -199,7 +198,7 @@ export default function FileTree() {
     if (!treeEl) return undefined;
 
     const sync = () => {
-      syncTreeOpenState(treeEl, expandedPaths);
+      syncTreeOpenState(treeEl, expandedPaths, rootPath ?? '');
       syncActiveFileSelection(treeEl, activeFilePath);
     };
 
@@ -208,6 +207,7 @@ export default function FileTree() {
     return () => cancelAnimationFrame(frameId);
   }, [activeFilePath, expandedPaths, tree, rootPath]);
 
+  const rootOpen = expandedPaths.has(rootPath ?? '');
   const onTreeSelect = useCallback(
     (event: VscTreeSelectEvent) => {
       const item = Array.isArray(event.detail)
@@ -487,18 +487,6 @@ export default function FileTree() {
               open={expandedPaths.has(rootPath)}
               selected={activeFilePath === rootPath}
             >
-              <FileTypeIcon
-                slot="icon-branch"
-                path={rootPath}
-                isFolder
-                isOpen={false}
-              />
-              <FileTypeIcon
-                slot="icon-branch-opened"
-                path={rootPath}
-                isFolder
-                isOpen
-              />
               <span className="file-tree-item-label" data-file-path={rootPath}>
                 {basename(rootPath)}
               </span>
@@ -508,6 +496,7 @@ export default function FileTree() {
                   node={node}
                   expandedPaths={expandedPaths}
                   activeFilePath={activeFilePath}
+                  parentOpen={rootOpen}
                 />
               ))}
             </VscodeTreeItem>

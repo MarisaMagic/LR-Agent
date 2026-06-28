@@ -20,6 +20,7 @@ import { useApp } from '../context/AppContext';
 import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
 import { basename, getExtension } from '../types/file';
 import { getHighlightLanguage } from '../utils/syntaxHighlight';
+import { createMarkdownCodeComponents } from './markdown/markdownCodeComponents';
 import {
   getAdjacentSiblingFile,
   listSiblingFiles,
@@ -178,6 +179,7 @@ export default function FileViewer({ filePath }: FileViewerProps) {
   const isKeypointAnnotator =
     annotationWorkspace.imageAnnotationType === 'keypoint';
   const viewerType = useMemo(() => getViewerType(filePath), [filePath]);
+  const markdownComponents = useMemo(() => createMarkdownCodeComponents(), []);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [docxHtml, setDocxHtml] = useState<string | null>(null);
   const [binaryUrl, setBinaryUrl] = useState<string | null>(null);
@@ -488,7 +490,7 @@ export default function FileViewer({ filePath }: FileViewerProps) {
       body = (
         <VscodeScrollable className="viewer-body markdown-content">
           {textContent ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {textContent}
             </ReactMarkdown>
           ) : (

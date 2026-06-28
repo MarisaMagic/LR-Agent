@@ -85,6 +85,16 @@ const FOLDER_SVG = {
   ),
 };
 
+/** Seti `default` 图标（1200×1000）在目录树中视觉偏大；改用 32×32 通用文件轮廓（与 mdo 等语言图标同画布） */
+const SETI_DEFAULT_ICON_SVG = getThemedIcon('default.txt').svg ?? '';
+const GENERIC_FILE_SVG = normalizeSetiSvg(
+  `<svg viewBox="0 0 32 32"><path d="M22.9 9.1H9.4L6 16s3.4 6.8 3.4 6.9h13.5c1.7 0 3.1-1.4 3.1-3.1v-7.7c0-1.6-1.3-3-3.1-3zm1.6 10.8c0 .9-.7 1.5-1.5 1.5H10.6s-3.1-4.9-3.1-5.2l3.1-5.5H23c.9 0 1.5.7 1.5 1.5v7.7z"/><path d="M10.8 18.2h12.2v1h-12.2zm0 2.8h12.2v1h-12.2zm0 2.8h8v1h-8z"/></svg>`,
+);
+
+function isSetiDefaultIcon(svg: string | undefined): boolean {
+  return Boolean(svg && svg === SETI_DEFAULT_ICON_SVG);
+}
+
 function lookupFileIcon(fileName: string) {
   const normalized = normalizeFileNameForSeti(fileName);
   const candidates =
@@ -94,7 +104,11 @@ function lookupFileIcon(fileName: string) {
     .map((name) => getThemedIcon(name))
     .find((result) => Boolean(result.svg));
 
-  return matched ?? getThemedIcon('default.txt');
+  const result = matched ?? getThemedIcon('default.txt');
+  if (isSetiDefaultIcon(result.svg)) {
+    return { svg: GENERIC_FILE_SVG, color: result.color };
+  }
+  return result;
 }
 
 export function getSetiFileIconSvg(filePath: string): string {

@@ -9,48 +9,44 @@ interface FileTreeVscItemProps {
   node: FileNode;
   expandedPaths: Set<string>;
   activeFilePath: string | null;
+  parentOpen: boolean;
 }
 
 export default function FileTreeVscItem({
   node,
   expandedPaths,
   activeFilePath,
+  parentOpen,
 }: FileTreeVscItemProps) {
   const isFolder = node.type === 'folder';
   const isExpanded = expandedPaths.has(node.path);
+  const effectiveOpen = isFolder && isExpanded && parentOpen;
   const isSelected = activeFilePath === node.path;
 
   return (
     <VscodeTreeItem
       slot="children"
       branch={isFolder}
-      open={isExpanded}
+      open={effectiveOpen}
       selected={isSelected}
     >
       {isFolder ? (
-        <>
-          <FileTypeIcon
-            slot="icon-branch"
-            path={node.path}
-            isFolder
-            isOpen={false}
-          />
-          <FileTypeIcon
-            slot="icon-branch-opened"
-            path={node.path}
-            isFolder
-            isOpen
-          />
-        </>
+        <span className="file-tree-item-label" data-file-path={node.path}>
+          {node.name}
+        </span>
       ) : (
-        <FileTypeIcon slot="icon-leaf" path={node.path} />
+        <span className="file-tree-item-row">
+          <span className="file-tree-item-glyph" aria-hidden="true">
+            <FileTypeIcon
+              path={node.path}
+              className="file-tree-inline-icon"
+            />
+          </span>
+          <span className="file-tree-item-label" data-file-path={node.path}>
+            {node.name}
+          </span>
+        </span>
       )}
-      <span
-        className={isFolder ? 'file-tree-item-label' : undefined}
-        data-file-path={node.path}
-      >
-        {node.name}
-      </span>
       {node.isLoading ? <VscodeProgressRing slot="decoration" /> : null}
       {isFolder && node.children
         ? node.children.map((child) => (
@@ -59,6 +55,7 @@ export default function FileTreeVscItem({
               node={child}
               expandedPaths={expandedPaths}
               activeFilePath={activeFilePath}
+              parentOpen={effectiveOpen}
             />
           ))
         : null}

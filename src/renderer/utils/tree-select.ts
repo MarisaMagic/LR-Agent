@@ -1,4 +1,5 @@
 import type { VscTreeSelectEvent } from '@vscode-elements/elements/dist/vscode-tree/vscode-tree.js';
+import { dirname } from '../types/file';
 
 export function getPathFromTreeItem(item: Element): string | null {
   const pathEl = item.querySelector('[data-file-path]');
@@ -27,17 +28,36 @@ type TreeItemElement = HTMLElement & {
   branch?: boolean;
 };
 
-/** 将 WC 内部 open 与 React expandedPaths 对齐（方案 A：仅 React 驱动展开） */
+/** 当前路径的所有祖先（不含 rootPath）是否均已展开 */
+export function areAncestorsExpanded(
+  path: string,
+  rootPath: string,
+  expandedPaths: Set<string>,
+): boolean {
+  if (path === rootPath) return true;
+  let current = dirname(path);
+  while (current !== rootPath && current !== path) {
+    if (!expandedPaths.has(current)) return false;
+    path = current;
+    current = dirname(current);
+  }
+  return true;
+}
+
+/** 将 WC 内部 open 与 React expandedPaths 对齐 */
 export function syncTreeOpenState(
   tree: Element,
   expandedPaths: Set<string>,
+  rootPath: string,
 ): void {
   tree.querySelectorAll('vscode-tree-item').forEach((el) => {
     const item = el as TreeItemElement;
     if (!item.branch) return;
     const path = getPathFromTreeItem(el);
     if (path) {
-      item.open = expandedPaths.has(path);
+      item.open =
+        expandedPaths.has(path) &&
+        areAncestorsExpanded(path, rootPath, expandedPaths);
     }
   });
 }

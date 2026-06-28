@@ -117,6 +117,7 @@
   --lr-menu-shadow: rgba(0, 0, 0, 0.4);
   --lr-viewer-code-background: #2d2d2d;
   --lr-viewer-table-header-background: #2d2d2d;
+  --vscode-textCodeBlock-background: #2d2d2d;
 }
 
 [data-theme='light'] {
@@ -210,6 +211,7 @@
   --lr-menu-shadow: rgba(0, 0, 0, 0.16);
   --lr-viewer-code-background: #f3f3f3;
   --lr-viewer-table-header-background: #f3f3f3;
+  --vscode-textCodeBlock-background: #f6f8fa;
 }
 
 html.theme-transition,
