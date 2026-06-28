@@ -6,7 +6,9 @@ if (process.env.NODE_ENV === 'development') {
   window.addEventListener(
     'error',
     (event) => {
-      if (isResizeObserverLoopError(event.message)) {
+      const message = event.message ?? event.error?.message;
+      if (isResizeObserverLoopError(message)) {
+        event.preventDefault();
         event.stopImmediatePropagation();
       }
     },

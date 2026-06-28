@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { useAnnotation } from '../context/AnnotationContext';
 import appIcon from '../../../assets/icon.png';
 import { LeftSidebarToggle, RightSidebarToggle } from './LayoutControls';
+import PopoverMotion from '../motion/PopoverMotion';
 import './TitleBar.css';
 
 const IS_DEV =
@@ -30,14 +31,21 @@ function acceleratorLabel(acc: string): string {
 }
 
 function MenuDropdown({
+  open,
   items,
   onClose,
 }: {
+  open: boolean;
   items: MenuItemConfig[];
   onClose: () => void;
 }) {
   return (
-    <div className="title-bar-menu-dropdown" role="menu">
+    <PopoverMotion
+      open={open}
+      className="title-bar-menu-dropdown"
+      origin="top"
+      role="menu"
+    >
       {items.map((item, index) => {
         if (item.separator) {
           return (
@@ -69,7 +77,7 @@ function MenuDropdown({
           </button>
         );
       })}
-    </div>
+    </PopoverMotion>
   );
 }
 
@@ -257,9 +265,11 @@ export default function TitleBar() {
               >
                 {label}
               </button>
-              {openMenu === id && (
-                <MenuDropdown items={items} onClose={() => setOpenMenu(null)} />
-              )}
+              <MenuDropdown
+                open={openMenu === id}
+                items={items}
+                onClose={() => setOpenMenu(null)}
+              />
             </div>
           ))}
         </nav>

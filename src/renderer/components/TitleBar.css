@@ -66,6 +66,7 @@
   border-radius: 4px;
   background: var(--vscode-menu-background, #252526);
   box-shadow: 0 4px 16px var(--lr-menu-shadow, rgba(0, 0, 0, 0.4));
+  transform-origin: top left;
 }
 
 .title-bar-menu-item {

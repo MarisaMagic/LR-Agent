@@ -20,6 +20,10 @@ export function createResizeObserver(
   });
 }
 
-export function isResizeObserverLoopError(message: string): boolean {
-  return message.includes(RESIZE_OBSERVER_LOOP_MSG);
+export function isResizeObserverLoopError(
+  message: string | undefined,
+): boolean {
+  return (
+    typeof message === 'string' && message.includes(RESIZE_OBSERVER_LOOP_MSG)
+  );
 }
