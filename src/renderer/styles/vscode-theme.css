@@ -100,7 +100,8 @@
   --vscode-menu-foreground: #cccccc;
   --vscode-menu-border: #454545;
   --vscode-menu-separatorBackground: #454545;
-  --vscode-menu-selectionBackground: rgba(204, 167, 0, 0.28);
+  --vscode-menu-selectionBackground: var(--vscode-list-hoverBackground);
+  --vscode-menu-selectionForeground: var(--vscode-menu-foreground);
 
   --vscode-notifications-background: #252526;
 
@@ -194,7 +195,8 @@
   --vscode-menu-foreground: #333333;
   --vscode-menu-border: #cecece;
   --vscode-menu-separatorBackground: #d4d4d4;
-  --vscode-menu-selectionBackground: rgba(219, 176, 24, 0.22);
+  --vscode-menu-selectionBackground: var(--vscode-list-hoverBackground);
+  --vscode-menu-selectionForeground: var(--vscode-menu-foreground);
 
   --vscode-notifications-background: #ffffff;
 

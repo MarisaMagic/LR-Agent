@@ -36,8 +36,14 @@
 }
 
 .lr-context-menu-item:hover:not(:disabled) {
-  background-color: var(--vscode-menu-selectionBackground, #094771);
-  color: var(--vscode-menu-selectionForeground, #ffffff);
+  background-color: var(
+    --vscode-menu-selectionBackground,
+    var(--vscode-list-hoverBackground, #2a2d2e)
+  );
+  color: var(
+    --vscode-menu-selectionForeground,
+    var(--vscode-menu-foreground, #cccccc)
+  );
 }
 
 .lr-context-menu-item--disabled {
