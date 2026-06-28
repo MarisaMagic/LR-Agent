@@ -11,6 +11,9 @@ import {
 } from 'react';
 import { DirectoryItem } from '../../main/preload';
 import { FileNode } from '../types/file';
+import { getRelativeProjectPath } from '../utils/projectPaths';
+import { isMonacoEditableFile } from '../utils/editorFileTypes';
+import { getWorkModeExternal } from './workModeBridge';
 
 const STORAGE_KEYS = {
   leftWidth: 'lr-agent:leftWidth',
@@ -237,6 +240,16 @@ interface WorkspaceState {
   activeFilePath: string | null;
 }
 
+export interface EditorTab {
+  id: string;
+  filePath: string;
+  dirty: boolean;
+  /** Preview tabs are replaced by the next single-click file selection. */
+  preview: boolean;
+  /** In-memory buffer when edited; undefined until loaded or changed. */
+  content?: string;
+}
+
 export interface FileClipboard {
   action: 'cut' | 'copy';
   paths: string[];
@@ -258,9 +271,18 @@ interface AppContextValue {
   tree: FileNode[];
   expandedPaths: Set<string>;
   activeFilePath: string | null;
+  openTabs: EditorTab[];
+  activeTabId: string | null;
   openFolder: (dirPath?: string) => Promise<void>;
   toggleFolder: (folderPath: string) => Promise<void>;
   selectFile: (filePath: string) => void;
+  previewFileInEditor: (filePath: string) => void;
+  openFileInEditor: (filePath: string) => void;
+  setActiveTab: (tabId: string) => void;
+  pinTab: (tabId: string) => void;
+  closeTab: (tabId: string) => boolean;
+  markTabDirty: (tabId: string, dirty: boolean, content?: string) => void;
+  saveActiveTab: () => Promise<boolean>;
   refreshTree: () => Promise<void>;
   fileClipboard: FileClipboard | null;
   setFileClipboard: (clipboard: FileClipboard | null) => void;
@@ -324,6 +346,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
   );
 
+  const [editorTabs, setEditorTabs] = useState<EditorTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const editorTabsRef = useRef(editorTabs);
+  const activeTabIdRef = useRef(activeTabId);
+  editorTabsRef.current = editorTabs;
+  activeTabIdRef.current = activeTabId;
+
+  const syncActiveFilePath = useCallback((tabs: EditorTab[], tabId: string | null) => {
+    const tab = tabs.find((item) => item.id === tabId);
+    setWorkspace({ activeFilePath: tab?.filePath ?? null });
+  }, []);
+
   const setWorkspace = (partial: Partial<WorkspaceState>) => {
     dispatchWorkspace({ type: 'SET', payload: partial });
   };
@@ -344,6 +378,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         expandedPaths: expanded,
         activeFilePath: null,
       });
+      setEditorTabs([]);
+      setActiveTabId(null);
       localStorage.setItem(STORAGE_KEYS.lastWorkspace, dirPath);
       window.electron.ipcRenderer.invoke('workspace:startWatch', dirPath);
     },
@@ -419,9 +455,179 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  const selectFile = useCallback((filePath: string) => {
-    setWorkspace({ activeFilePath: filePath });
+  const openFileInEditor = useCallback(
+    (filePath: string) => {
+      setEditorTabs((prev) => {
+        const existing = prev.find((tab) => tab.filePath === filePath);
+        if (existing) {
+          setActiveTabId(existing.id);
+          const next = prev.map((tab) =>
+            tab.id === existing.id ? { ...tab, preview: false } : tab,
+          );
+          syncActiveFilePath(next, existing.id);
+          return next;
+        }
+
+        if (getWorkModeExternal() === 'annotation') {
+          const id = crypto.randomUUID();
+          const next = [{ id, filePath, dirty: false, preview: false }];
+          setActiveTabId(id);
+          syncActiveFilePath(next, id);
+          return next;
+        }
+
+        const id = crypto.randomUUID();
+        const next = [...prev, { id, filePath, dirty: false, preview: false }];
+        setActiveTabId(id);
+        syncActiveFilePath(next, id);
+        return next;
+      });
+    },
+    [syncActiveFilePath],
+  );
+
+  const previewFileInEditor = useCallback(
+    (filePath: string) => {
+      setEditorTabs((prev) => {
+        const existing = prev.find((tab) => tab.filePath === filePath);
+        if (existing) {
+          setActiveTabId(existing.id);
+          syncActiveFilePath(prev, existing.id);
+          return prev;
+        }
+
+        if (getWorkModeExternal() === 'annotation') {
+          const id = crypto.randomUUID();
+          const next = [{ id, filePath, dirty: false, preview: false }];
+          setActiveTabId(id);
+          syncActiveFilePath(next, id);
+          return next;
+        }
+
+        const previewTab = prev.find((tab) => tab.preview && !tab.dirty);
+        if (previewTab) {
+          const next = prev.map((tab) =>
+            tab.id === previewTab.id
+              ? {
+                  ...tab,
+                  filePath,
+                  dirty: false,
+                  preview: true,
+                  content: undefined,
+                }
+              : tab,
+          );
+          setActiveTabId(previewTab.id);
+          syncActiveFilePath(next, previewTab.id);
+          return next;
+        }
+
+        const id = crypto.randomUUID();
+        const next = [...prev, { id, filePath, dirty: false, preview: true }];
+        setActiveTabId(id);
+        syncActiveFilePath(next, id);
+        return next;
+      });
+    },
+    [syncActiveFilePath],
+  );
+
+  const selectFile = useCallback(
+    (filePath: string) => {
+      previewFileInEditor(filePath);
+    },
+    [previewFileInEditor],
+  );
+
+  const setActiveTab = useCallback(
+    (tabId: string) => {
+      setActiveTabId(tabId);
+      syncActiveFilePath(editorTabsRef.current, tabId);
+    },
+    [syncActiveFilePath],
+  );
+
+  const pinTab = useCallback((tabId: string) => {
+    setEditorTabs((prev) =>
+      prev.map((tab) =>
+        tab.id === tabId ? { ...tab, preview: false } : tab,
+      ),
+    );
   }, []);
+
+  const closeTab = useCallback(
+    (tabId: string): boolean => {
+      const tab = editorTabsRef.current.find((item) => item.id === tabId);
+      if (!tab) return true;
+      if (
+        tab.dirty &&
+        !window.confirm(`「${tab.filePath.split(/[/\\]/).pop()}」有未保存的更改，确定关闭？`)
+      ) {
+        return false;
+      }
+      const nextTabs = editorTabsRef.current.filter((item) => item.id !== tabId);
+      let nextActiveId = activeTabIdRef.current;
+      if (activeTabIdRef.current === tabId) {
+        const closedIndex = editorTabsRef.current.findIndex(
+          (item) => item.id === tabId,
+        );
+        const fallback =
+          nextTabs[closedIndex] ?? nextTabs[closedIndex - 1] ?? null;
+        nextActiveId = fallback?.id ?? null;
+      }
+      setEditorTabs(nextTabs);
+      setActiveTabId(nextActiveId);
+      syncActiveFilePath(nextTabs, nextActiveId);
+      return true;
+    },
+    [syncActiveFilePath],
+  );
+
+  const markTabDirty = useCallback(
+    (tabId: string, dirty: boolean, content?: string) => {
+      setEditorTabs((prev) =>
+        prev.map((tab) =>
+          tab.id === tabId
+            ? {
+                ...tab,
+                dirty,
+                preview: dirty ? false : tab.preview,
+                content: content !== undefined ? content : tab.content,
+              }
+            : tab,
+        ),
+      );
+    },
+    [],
+  );
+
+  const saveActiveTab = useCallback(async (): Promise<boolean> => {
+    const rootPath = workspace.rootPath;
+    const tabId = activeTabIdRef.current;
+    if (!rootPath || !tabId) return false;
+    const tab = editorTabsRef.current.find((item) => item.id === tabId);
+    if (!tab || !tab.dirty) return false;
+    if (!isMonacoEditableFile(tab.filePath)) return false;
+
+    const relativePath = getRelativeProjectPath(rootPath, tab.filePath);
+    if (!relativePath) return false;
+
+    let content = tab.content;
+    if (content === undefined) {
+      content =
+        (await window.electron.fileSystem?.readFile(tab.filePath)) ?? '';
+    }
+
+    const result = await window.electron.workspace?.writeTextFile({
+      rootDir: rootPath,
+      relativePath,
+      content,
+    });
+    if (!result?.success) return false;
+
+    markTabDirty(tabId, false, content);
+    return true;
+  }, [workspace.rootPath, markTabDirty]);
 
   const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(
     null,
@@ -444,6 +650,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (nextActive) {
       const stats = await window.electron.fileSystem?.getFileStats(nextActive);
       if (!stats) nextActive = null;
+    }
+
+    let nextTabs = editorTabsRef.current;
+    if (nextActive !== activeFilePath) {
+      nextTabs = editorTabsRef.current.filter(
+        (tab) => tab.filePath !== activeFilePath,
+      );
+      const nextActiveId =
+        activeTabIdRef.current &&
+        nextTabs.some((tab) => tab.id === activeTabIdRef.current)
+          ? activeTabIdRef.current
+          : (nextTabs[nextTabs.length - 1]?.id ?? null);
+      setEditorTabs(nextTabs);
+      setActiveTabId(nextActiveId);
     }
 
     const treeUnchanged = childrenSameReferences(newTree, tree);
@@ -583,9 +803,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       tree: workspace.tree,
       expandedPaths: workspace.expandedPaths,
       activeFilePath: workspace.activeFilePath,
+      openTabs: editorTabs,
+      activeTabId,
       openFolder,
       toggleFolder,
       selectFile,
+      previewFileInEditor,
+      openFileInEditor,
+      setActiveTab,
+      pinTab,
+      closeTab,
+      markTabDirty,
+      saveActiveTab,
       refreshTree,
       fileClipboard,
       setFileClipboard,
@@ -599,9 +828,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       expandLeftSidebar,
       expandRightSidebar,
       workspace,
+      editorTabs,
+      activeTabId,
       openFolder,
       toggleFolder,
       selectFile,
+      previewFileInEditor,
+      openFileInEditor,
+      setActiveTab,
+      pinTab,
+      closeTab,
+      markTabDirty,
+      saveActiveTab,
       refreshTree,
       fileClipboard,
     ],

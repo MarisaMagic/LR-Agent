@@ -115,12 +115,19 @@ function pendingToolCallsFromEvent(event: StreamEvent): ClientToolCall[] | null 
   return null;
 }
 
+const ANNOTATION_CLIENT_TOOLS = new Set([
+  'execute_batch_annotation',
+  'mutate_annotation',
+  'analyze_data',
+]);
+
 async function runClientTool(
   toolCall: ClientToolCall,
   jobId: string,
   providerId: string,
   sessionId: string | undefined,
   ctx: ClientToolContext | null,
+  clientContext: ClientContextPayload | null | undefined,
   signal: AbortSignal,
   onPersistEvent?: (event: StreamEvent) => void,
 ): Promise<string> {
@@ -132,6 +139,19 @@ async function runClientTool(
     emitJobEvent(jobId, event);
     onPersistEvent?.(event);
   };
+
+  if (
+    clientContext?.workMode === 'editor' &&
+    ANNOTATION_CLIENT_TOOLS.has(toolCall.name)
+  ) {
+    return formatClientToolResult({
+      status: 'error',
+      tool: toolCall.name,
+      user_request: userRequest,
+      summary: '编辑器模式下不可用标注工具',
+      message: 'annotation_tools_disabled_in_editor_mode',
+    });
+  }
 
   if (toolCall.name === 'execute_batch_annotation') {
     if (!ctx) {
@@ -351,6 +371,7 @@ export async function startChatJob(options: {
           options.providerId,
           options.session.id,
           options.clientToolContext ?? null,
+          options.clientContext,
           controller.signal,
           options.onPersistEvent,
         );

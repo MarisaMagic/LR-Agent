@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { getAnnotationWorkspaceAgentSnapshot } from '../services/annotationAgentBridge';
+import { buildClientContextPayload } from '../services/agentClientContextBuilder';
 import {
   buildSessionTitle,
   createAgentId,
@@ -60,7 +60,6 @@ import {
   normalizeProjectTabs,
 } from '../services/agentProjectBootstrap';
 import { buildAnnotationProjectSnapshot } from '../services/buildProjectSnapshot';
-import { getRelativeProjectPath } from '../utils/projectPaths';
 import tokenHolder from '../services/tokenHolder';
 import { useAuth } from './AuthContext';
 import {
@@ -77,6 +76,7 @@ import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import { usePretrainedModels } from './PretrainedModelsContext';
 import { shouldClearSummaryOnEdit } from '../services/chatContextUtils';
 import { useAnnotation } from './AnnotationContext';
+import { useWorkMode } from './WorkModeContext';
 import { useApp } from './AppContext';
 import { useLlmProviders } from './LlmProvidersContext';
 import { useToast } from './ToastContext';
@@ -155,77 +155,13 @@ function normalizeLoadedState(state: AgentChatPersistedState): AgentChatPersiste
   return next;
 }
 
-function buildClientContextPayload(
-  options: {
-    rootPath: string | null;
-    activeFilePath: string | null;
-    activeProject: AnnotationProject | null;
-    agentMode: AgentInteractionMode;
-    detectionModels: PretrainedModelConfig[];
-    selectedAnnotationId?: string | null;
-    selectedAnnotationIds?: string[];
-    mcpServerUrl?: string | null;
-  },
-): ClientContextPayload {
-  const activeRelativePath =
-    options.activeProject && options.activeFilePath
-      ? getRelativeProjectPath(
-          options.activeProject.directoryPath,
-          options.activeFilePath,
-        )
-      : null;
-
-  const base: ClientContextPayload = {
-    workspaceRoot: options.rootPath,
-    activeFilePath: options.activeFilePath,
-    activeRelativePath,
-    projectDirectoryPath: options.activeProject?.directoryPath ?? null,
-    activeAnnotationProjectId: options.activeProject?.id ?? null,
-    annotationProjectModality: options.activeProject?.modality ?? null,
-    annotationProjectType: options.activeProject?.annotationType ?? null,
-    agentMode: options.agentMode,
-    selectedAnnotationId: options.selectedAnnotationId ?? null,
-    selectedAnnotationIds: options.selectedAnnotationIds ?? [],
-    mcpServerUrl: options.mcpServerUrl ?? null,
-  };
-  const wsSnap = getAnnotationWorkspaceAgentSnapshot();
-  if (
-    wsSnap.selectedAnnotationId &&
-    !base.selectedAnnotationId &&
-    wsSnap.workspaceProjectId === options.activeProject?.id
-  ) {
-    base.selectedAnnotationId = wsSnap.selectedAnnotationId;
-    base.selectedAnnotationIds = wsSnap.selectedAnnotationIds.length
-      ? wsSnap.selectedAnnotationIds
-      : [wsSnap.selectedAnnotationId];
-  }
-
-  if (!options.activeProject) return base;
-  const snap = buildAnnotationProjectSnapshot(
-    options.activeProject,
-    options.detectionModels,
-  );
-  return {
-    ...base,
-    annotationProjectSnapshot: {
-      projectId: snap.projectId,
-      name: snap.name,
-      directoryPath: snap.directoryPath,
-      modality: snap.modality,
-      annotationType: snap.annotationType,
-      annotationTypeLabel: snap.annotationTypeLabel,
-      labels: snap.labels,
-      detectionModels: snap.detectionModels ?? [],
-    },
-  };
-}
-
 export function AgentChatProvider({ children }: { children: ReactNode }) {
   const { providers, defaultProvider } = useLlmProviders();
   const { showToast } = useToast();
   const { status: authStatus } = useAuth();
   const { rootPath, activeFilePath } = useApp();
   const { activeProject } = useAnnotation();
+  const { workMode } = useWorkMode();
   const { models: pretrainedModels } = usePretrainedModels();
   const [state, setState] = useState<AgentChatPersistedState>(() =>
     createEmptyChatState(),
@@ -290,11 +226,19 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const setAgentMode = useCallback(
     (mode: AgentInteractionMode) => {
+      if (workMode === 'editor' && mode === 'annotation') return;
       setAgentModeState(mode);
       persistUiSlice({ agentMode: mode });
     },
-    [persistUiSlice],
+    [persistUiSlice, workMode],
   );
+
+  useEffect(() => {
+    if (workMode === 'editor' && agentMode !== 'chat') {
+      setAgentModeState('chat');
+      persistUiSlice({ agentMode: 'chat' });
+    }
+  }, [workMode, agentMode, persistUiSlice]);
 
   const removeGhostSession = useCallback(
     (sessionId: string) => {
@@ -1217,6 +1161,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         activeFilePath,
         activeProject: activeProject ?? null,
         agentMode,
+        workMode,
         detectionModels: pretrainedModels,
         mcpServerUrl,
       });
@@ -1239,16 +1184,17 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       }
 
       // 构建客户端工具上下文（有标注项目时传入，供 Agent 调用客户端工具使用）
-      const clientToolContext: ClientToolContext | null = activeProject
-        ? {
-            project: buildAnnotationProjectSnapshot(
-              activeProject,
-              pretrainedModels,
-            ),
-            detectionModels: pretrainedModels,
-            currentFileAbsolutePath: activeFilePath,
-          }
-        : null;
+      const clientToolContext: ClientToolContext | null =
+        workMode === 'annotation' && activeProject
+          ? {
+              project: buildAnnotationProjectSnapshot(
+                activeProject,
+                pretrainedModels,
+              ),
+              detectionModels: pretrainedModels,
+              currentFileAbsolutePath: activeFilePath,
+            }
+          : null;
 
       try {
         await startChatJob({

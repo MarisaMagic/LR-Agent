@@ -170,6 +170,7 @@ export default function FileTree() {
     openFolder,
     toggleFolder,
     selectFile,
+    openFileInEditor,
     refreshTree,
     fileClipboard,
     setFileClipboard,
@@ -232,6 +233,18 @@ export default function FileTree() {
       }
     },
     [toggleFolder, selectFile, expandedPaths],
+  );
+
+  const handleDoubleClick = useCallback(
+    (event: React.MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const found = findContextTarget(target);
+      if (!found || found.isFolder) return;
+
+      event.preventDefault();
+      openFileInEditor(found.filePath);
+    },
+    [openFileInEditor],
   );
 
   // ── 右键菜单 ──
@@ -456,7 +469,11 @@ export default function FileTree() {
         : '请输入文件名：';
 
   return (
-    <div className="file-tree" onContextMenu={handleContextMenu}>
+    <div
+      className="file-tree"
+      onContextMenu={handleContextMenu}
+      onDoubleClick={handleDoubleClick}
+    >
       <VscodeToolbarContainer className="file-tree-toolbar">
         <VscodeClickableToolbarButton
           icon="folder-opened"

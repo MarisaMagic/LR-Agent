@@ -4,6 +4,7 @@
 
 import path from 'path';
 import webpack from 'webpack';
+import MonacoWebpackPlugin from 'monaco-editor-webpack-plugin';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
 import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
@@ -92,6 +93,10 @@ const configuration: webpack.Configuration = {
         test: /\.(png|jpg|jpeg|gif)$/i,
         type: 'asset/resource',
       },
+      {
+        resourceQuery: /url/,
+        type: 'asset/resource',
+      },
       // SVG
       {
         test: /\.svg$/,
@@ -137,6 +142,28 @@ const configuration: webpack.Configuration = {
 
     new MiniCssExtractPlugin({
       filename: 'style.css',
+    }),
+
+    new MonacoWebpackPlugin({
+      publicPath: './',
+      languages: [
+        'javascript',
+        'typescript',
+        'python',
+        'json',
+        'markdown',
+        'yaml',
+        'sql',
+        'cpp',
+        'csharp',
+        'go',
+        'rust',
+        'java',
+        'html',
+        'xml',
+        'shell',
+        'plaintext',
+      ],
     }),
 
     new BundleAnalyzerPlugin({

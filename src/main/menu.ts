@@ -112,6 +112,12 @@ export default class MenuBuilder {
           accelerator: 'Command+A',
           selector: 'selectAll:',
         },
+        { type: 'separator' },
+        {
+          label: 'Save',
+          accelerator: 'Command+S',
+          click: () => this.sendToRenderer('edit:save'),
+        },
       ],
     };
     const sidebarViewItems: MenuItemConstructorOptions[] = [
@@ -283,6 +289,12 @@ export default class MenuBuilder {
             label: 'Select &All',
             accelerator: 'Ctrl+A',
             click: () => this.sendToRenderer('edit:selectAll'),
+          },
+          { type: 'separator' },
+          {
+            label: '&Save',
+            accelerator: 'Ctrl+S',
+            click: () => this.sendToRenderer('edit:save'),
           },
         ],
       },

@@ -36,6 +36,7 @@ export type Channels =
   | 'edit:copy'
   | 'edit:paste'
   | 'edit:selectAll'
+  | 'edit:save'
   | 'dialog:confirm';
 
 export interface DirectoryItem {

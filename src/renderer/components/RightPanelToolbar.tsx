@@ -4,12 +4,14 @@ import './RightPanelToolbar.css';
 
 interface RightPanelToolbarProps {
   activePanel: RightPanel;
+  annotationTabDisabled?: boolean;
   onAnnotationClick: () => void;
   onAgentClick: () => void;
 }
 
 export default function RightPanelToolbar({
   activePanel,
+  annotationTabDisabled = false,
   onAnnotationClick,
   onAgentClick,
 }: RightPanelToolbarProps) {
@@ -18,12 +20,18 @@ export default function RightPanelToolbar({
       <div
         role="tab"
         aria-selected={activePanel === 'annotation'}
-        className="right-panel-icon-tab"
+        aria-disabled={annotationTabDisabled || undefined}
+        className={`right-panel-icon-tab${annotationTabDisabled ? ' right-panel-icon-tab--disabled' : ''}`}
       >
         <ActivityIcon
           name="tag"
-          label="标注列表"
-          active={activePanel === 'annotation'}
+          label={
+            annotationTabDisabled
+              ? '标注列表（编辑器模式下不可用）'
+              : '标注列表'
+          }
+          active={activePanel === 'annotation' && !annotationTabDisabled}
+          disabled={annotationTabDisabled}
           onClick={onAnnotationClick}
         />
       </div>

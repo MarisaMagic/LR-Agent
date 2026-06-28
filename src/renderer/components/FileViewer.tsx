@@ -15,7 +15,7 @@ import {
 } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Document, Page, pdfjs } from 'react-pdf';
+import { Document, Page } from 'react-pdf';
 import { useApp } from '../context/AppContext';
 import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
 import { basename, getExtension } from '../types/file';
@@ -35,8 +35,6 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
 import ContextMenu, { type ContextMenuItem } from './ContextMenu';
 import './FileViewer.css';
-
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 const IMAGE_EXTENSIONS = new Set([
   'png',
@@ -166,9 +164,19 @@ function FileHeader({
 
 interface FileViewerProps {
   filePath: string | null;
+  embedded?: boolean;
+  /** Hide the in-viewer file header (e.g. editor tabs already show the file name). */
+  hideFileHeader?: boolean;
+  /** When true, defer/cancel heavy file loads (inactive tabs). */
+  loadPaused?: boolean;
 }
 
-export default function FileViewer({ filePath }: FileViewerProps) {
+export default function FileViewer({
+  filePath,
+  embedded = false,
+  hideFileHeader = false,
+  loadPaused = false,
+}: FileViewerProps) {
   const { selectFile } = useApp();
   const annotationWorkspace = useAnnotationWorkspace();
   const showImageAnnotator = annotationWorkspace.workspaceEnabled;
@@ -266,6 +274,18 @@ export default function FileViewer({ filePath }: FileViewerProps) {
     setContextMenu(null);
   }, []);
 
+  const prevShowImageAnnotatorRef = useRef(showImageAnnotator);
+  const [imageViewGeneration, setImageViewGeneration] = useState(0);
+
+  useEffect(() => {
+    if (prevShowImageAnnotatorRef.current && !showImageAnnotator) {
+      closeContextMenu();
+      window.getSelection()?.removeAllRanges();
+      setImageViewGeneration((generation) => generation + 1);
+    }
+    prevShowImageAnnotatorRef.current = showImageAnnotator;
+  }, [showImageAnnotator, closeContextMenu]);
+
   const contextMenuItems: ContextMenuItem[] = useMemo(() => {
     return [
       {
@@ -330,6 +350,19 @@ export default function FileViewer({ filePath }: FileViewerProps) {
   );
 
   useEffect(() => {
+    if (loadPaused) {
+      setBinaryUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setPdfData(null);
+      setTextContent(null);
+      setDocxHtml(null);
+      setLoading(false);
+      setError(null);
+      return undefined;
+    }
+
     setTextContent(null);
     setDocxHtml(null);
     setBinaryUrl(null);
@@ -408,7 +441,7 @@ export default function FileViewer({ filePath }: FileViewerProps) {
       revoked = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [filePath, viewerType]);
+  }, [filePath, viewerType, loadPaused]);
 
   const handleOpenExternal = async () => {
     if (!filePath) return;
@@ -454,7 +487,10 @@ export default function FileViewer({ filePath }: FileViewerProps) {
       );
     } else if (viewerType === 'image' && binaryUrl) {
       body = (
-        <div className="viewer-body image-container image-container--fabric">
+        <div
+          key={`image-view-${imageViewGeneration}-${showImageAnnotator ? 'fabric' : 'preview'}`}
+          className="viewer-body image-container image-container--fabric"
+        >
           {showImageAnnotator ? (
             isKeypointAnnotator ? (
               <ImageFabricKeypointAnnotationEditor
@@ -538,6 +574,7 @@ export default function FileViewer({ filePath }: FileViewerProps) {
   };
 
   if (!filePath) {
+    if (embedded) return null;
     return (
       <div className="file-viewer-empty">
         <VscodeIcon name="files" size={48} />
@@ -562,7 +599,7 @@ export default function FileViewer({ filePath }: FileViewerProps) {
       onKeyDown={handleKeyDown}
       onContextMenu={handleContextMenu}
     >
-      <FileHeader {...fileHeaderProps} />
+      {!hideFileHeader ? <FileHeader {...fileHeaderProps} /> : null}
       {renderBody()}
       {contextMenu && (
         <ContextMenu

@@ -14,19 +14,82 @@
   );
 }
 
+.editor-center {
+  flex: 1;
+  min-width: 480px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.editor-tab-strip {
+  display: flex;
+  flex-shrink: 0;
+  height: var(--file-header-height, 35px);
+  min-height: var(--file-header-height, 35px);
+  overflow: hidden;
+  border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder, #252526);
+}
+
+.editor-tab-strip-sash {
+  flex-shrink: 0;
+  width: 4px;
+  background: var(--vscode-editorGroupHeader-tabsBackground, #252526);
+}
+
+.editor-tab-strip:has(.editor-tab:first-child.editor-tab--active)
+  .editor-tab-strip-sash {
+  background: var(--vscode-editor-background, #1e1e1e);
+  border-bottom: 1px solid var(--vscode-editor-background, #1e1e1e);
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
+}
+
+.editor-tab-strip-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  min-height: 0;
+}
+
+.editor-tab-strip-fill {
+  flex: 1;
+  min-width: 0;
+  background: var(--vscode-editorGroupHeader-tabsBackground, #252526);
+}
+
+.editor-tab-strip .editor-tab-bar {
+  flex: 1;
+  min-width: 0;
+  border-bottom: none;
+}
+
+.editor-center-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
 .main-content {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background: var(--vscode-editor-background, #1e1e1e);
   overflow: hidden;
-  min-width: 480px;
 }
 
 .main-content-body {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .resizer {
@@ -77,4 +140,9 @@
 .layout.is-resizing-right .resizer-right::after {
   width: 2px;
   background: var(--vscode-titleBar-activeBackground, #333333);
+}
+
+/* 中间区域顶栏常驻，resizer 不再重复绘制顶栏色带 */
+.layout--editor-top-band .resizer-left {
+  background: transparent;
 }

@@ -24,3 +24,7 @@
 .right-panel-icon-toolbar .activity-icon-wrap.activity-icon-active {
   border-radius: 4px;
 }
+
+.right-panel-icon-tab--disabled {
+  cursor: not-allowed;
+}

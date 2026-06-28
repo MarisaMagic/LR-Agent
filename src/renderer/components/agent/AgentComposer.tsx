@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { useAgentChat } from '../../context/AgentChatContext';
 import { useAnnotation } from '../../context/AnnotationContext';
+import { useWorkMode } from '../../context/WorkModeContext';
 import { useLlmProviders } from '../../context/LlmProvidersContext';
 import AgentModePicker from './AgentModePicker';
 import AgentModelPicker from './AgentModelPicker';
@@ -30,8 +31,10 @@ export default function AgentComposer() {
     setAgentMode,
   } = useAgentChat();
   const { activeProject } = useAnnotation();
+  const { workMode } = useWorkMode();
   const { providers, defaultProvider } = useLlmProviders();
   const showAnnotateMode =
+    workMode === 'annotation' &&
     activeProject?.modality === 'image' &&
     activeProject.annotationType === 'bbox';
   const textareaRef = useRef<HTMLTextAreaElement>(null);

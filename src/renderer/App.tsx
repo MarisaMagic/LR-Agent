@@ -8,6 +8,7 @@ import {
 import AppShell from './components/AppShell';
 import { AppProvider } from './context/AppContext';
 import { AnnotationProvider } from './context/AnnotationContext';
+import { WorkModeProvider } from './context/WorkModeContext';
 import { AnnotationWorkspaceProvider } from './context/AnnotationWorkspaceContext';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
@@ -34,6 +35,7 @@ function MainAppRoutes() {
           <PretrainedModelsProvider>
             <LlmProvidersProvider>
               <AnnotationProvider>
+                <WorkModeProvider>
                 <AgentChatProvider>
                   <AnnotationWorkspaceProvider>
                     <AppShell>
@@ -51,6 +53,7 @@ function MainAppRoutes() {
                     </AppShell>
                   </AnnotationWorkspaceProvider>
                 </AgentChatProvider>
+                </WorkModeProvider>
               </AnnotationProvider>
             </LlmProvidersProvider>
           </PretrainedModelsProvider>

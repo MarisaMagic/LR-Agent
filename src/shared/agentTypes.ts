@@ -337,6 +337,7 @@ export interface ClientContextPayload {
   annotationProjectModality?: string | null;
   annotationProjectType?: string | null;
   agentMode?: AgentInteractionMode | null;
+  workMode?: 'editor' | 'annotation' | null;
   selectedAnnotationId?: string | null;
   selectedAnnotationIds?: string[];
   turnKind?: TurnKind | null;

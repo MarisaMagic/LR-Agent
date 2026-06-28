@@ -22,15 +22,13 @@ import {
 } from '../services/annotationProjectStore';
 import { useApp } from './AppContext';
 import { useToast } from './ToastContext';
+import { setWorkModeExternal } from './workModeBridge';
 
 const STORAGE_KEYS = {
   lastAnnotationProjectId: 'lr-agent:lastAnnotationProjectId',
 };
 
-export type AppMode = 'browse' | 'annotation';
-
 interface AnnotationContextValue {
-  mode: AppMode;
   projects: AnnotationProject[];
   activeProject: AnnotationProject | null;
   loading: boolean;
@@ -63,7 +61,6 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
   const { openFolder } = useApp();
   const { showToast } = useToast();
 
-  const [mode, setMode] = useState<AppMode>('browse');
   const [projects, setProjects] = useState<AnnotationProject[]>([]);
   const [activeProject, setActiveProject] = useState<AnnotationProject | null>(
     null,
@@ -106,7 +103,7 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
         if (!valid || cancelled) return;
 
         setActiveProject(lastProject);
-        setMode('annotation');
+        setWorkModeExternal('annotation', { silent: true });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -210,7 +207,7 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
 
       await openFolder(project.directoryPath);
       setActiveProject(nextProject);
-      setMode('annotation');
+      setWorkModeExternal('annotation');
       localStorage.setItem(STORAGE_KEYS.lastAnnotationProjectId, projectId);
       await refreshProjects();
       showToast(`已打开标注任务「${nextProject.name}」`, { type: 'success' });
@@ -229,7 +226,7 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
 
       if (activeProject?.id === projectId) {
         setActiveProject(null);
-        setMode('browse');
+        setWorkModeExternal('editor', { silent: true });
         localStorage.removeItem(STORAGE_KEYS.lastAnnotationProjectId);
       }
 
@@ -241,7 +238,7 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
 
   const clearActiveProject = useCallback(() => {
     setActiveProject(null);
-    setMode('browse');
+    setWorkModeExternal('editor', { silent: true });
     localStorage.removeItem(STORAGE_KEYS.lastAnnotationProjectId);
   }, []);
 
@@ -261,7 +258,6 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AnnotationContextValue>(
     () => ({
-      mode,
       projects,
       activeProject,
       loading,
@@ -283,7 +279,6 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
       showProjectInFolder,
     }),
     [
-      mode,
       projects,
       activeProject,
       loading,

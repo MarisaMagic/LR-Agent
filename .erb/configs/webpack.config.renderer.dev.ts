@@ -2,6 +2,7 @@ import 'webpack-dev-server';
 import path from 'path';
 import fs from 'fs';
 import webpack from 'webpack';
+import MonacoWebpackPlugin from 'monaco-editor-webpack-plugin';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import chalk from 'chalk';
 import { merge } from 'webpack-merge';
@@ -116,6 +117,10 @@ const configuration: webpack.Configuration = {
         test: /\.(png|jpg|jpeg|gif)$/i,
         type: 'asset/resource',
       },
+      {
+        resourceQuery: /url/,
+        type: 'asset/resource',
+      },
       // SVG
       {
         test: /\.svg$/,
@@ -172,6 +177,28 @@ const configuration: webpack.Configuration = {
     }),
 
     new ReactRefreshWebpackPlugin(),
+
+    new MonacoWebpackPlugin({
+      publicPath: '/',
+      languages: [
+        'javascript',
+        'typescript',
+        'python',
+        'json',
+        'markdown',
+        'yaml',
+        'sql',
+        'cpp',
+        'csharp',
+        'go',
+        'rust',
+        'java',
+        'html',
+        'xml',
+        'shell',
+        'plaintext',
+      ],
+    }),
 
     new HtmlWebpackPlugin({
       filename: path.join('index.html'),

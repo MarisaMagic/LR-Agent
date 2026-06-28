@@ -5,6 +5,7 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import ActivityBar, { type LeftPanel, type RightPanel } from './ActivityBar';
@@ -12,12 +13,15 @@ import AnnotationRightPanel from './annotation/AnnotationRightPanel';
 import AgentPanel from './agent/AgentPanel';
 import EmailVerifyBanner from './EmailVerifyBanner';
 import FileTree from './FileTree';
-import FileViewer from './FileViewer';
+import EditorTabBar from './editor/EditorTabBar';
+import EditorWorkspace from './editor/EditorWorkspace';
 import LlmProvidersPanel from './llmProviders/LlmProvidersPanel';
 import PretrainedModelsPanel from './pretrainedModels/PretrainedModelsPanel';
 import SettingsPanel from './SettingsPanel';
 import Sidebar from './Sidebar';
 import PanelTransition from '../motion/PanelTransition';
+import WorkModeContentTransition from '../motion/WorkModeContentTransition';
+import { motionDuration, motionEase } from '../motion/tokens';
 import AnnotationProjectPanel from './annotation/AnnotationProjectPanel';
 import CreateAnnotationProjectWizard from './annotation/CreateAnnotationProjectWizard';
 import EditAnnotationProjectModal from './annotation/EditAnnotationProjectModal';
@@ -25,6 +29,7 @@ import ExportAnnotationWizard from './annotation/ExportAnnotationWizard';
 import RightPanelToolbar from './RightPanelToolbar';
 import { useAnnotation } from '../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
+import { useWorkMode } from '../context/WorkModeContext';
 import './Layout.css';
 
 const ACTIVITY_BAR_WIDTH = 48;
@@ -58,7 +63,11 @@ export default function Layout() {
     setRightWidth,
     toggleLeftSidebar,
     expandLeftSidebar,
-    activeFilePath,
+    openTabs,
+    activeTabId,
+    setActiveTab,
+    closeTab,
+    pinTab,
   } = useApp();
   const { refreshUser } = useAuth();
   const {
@@ -69,8 +78,9 @@ export default function Layout() {
     exportingProject,
     closeExportProject,
     activeProject,
-    mode,
   } = useAnnotation();
+  const { workMode } = useWorkMode();
+  const reducedMotion = useReducedMotion();
 
   const resizeSideRef = useRef<'left' | 'right' | null>(null);
   const resizeDraftRef = useRef<number | null>(null);
@@ -84,18 +94,20 @@ export default function Layout() {
   const [leftPanel, setLeftPanel] = useState<LeftPanel>('explorer');
 
   const [rightPanel, setRightPanel] = useState<RightPanel>('agent');
-  const annotationToolbarActive =
-    Boolean(activeProject) && mode === 'annotation';
+  const annotationModeActive =
+    workMode === 'annotation' && Boolean(activeProject);
+  const showRightPanelToolbar = workMode === 'editor' || annotationModeActive;
+  const annotationTabDisabled = workMode === 'editor';
   const { workspaceEnabled: imageAnnotationToolbarVisible } =
     useAnnotationWorkspace();
 
   useEffect(() => {
-    if (annotationToolbarActive) {
+    if (annotationModeActive) {
       setRightPanel('annotation');
-    } else {
+    } else if (workMode === 'editor') {
       setRightPanel('agent');
     }
-  }, [annotationToolbarActive]);
+  }, [annotationModeActive, workMode]);
 
   useEffect(() => {
     refreshUser().catch(() => undefined);
@@ -317,10 +329,12 @@ export default function Layout() {
 
   const leftPanelActive = !leftCollapsed ? leftPanel : null;
   const leftSidebarTitle = LEFT_PANEL_TITLES[leftPanel];
+  const showEditorTabStrip =
+    workMode === 'editor' && openTabs.length > 0;
 
   return (
     <div
-      className={`layout${resizingSide ? ` is-resizing is-resizing-${resizingSide}` : ''}${imageAnnotationToolbarVisible ? ' layout--image-annotation-toolbar' : ''}`}
+      className={`layout${resizingSide ? ` is-resizing is-resizing-${resizingSide}` : ''}${imageAnnotationToolbarVisible ? ' layout--image-annotation-toolbar' : ''} layout--editor-top-band`}
     >
       <ActivityBar
         activePanel={leftPanelActive}
@@ -343,21 +357,62 @@ export default function Layout() {
         </PanelTransition>
       </Sidebar>
 
-      {!leftCollapsed && (
-        <button
-          type="button"
-          className="resizer resizer-left"
-          onMouseDown={startResize('left')}
-          aria-label="调整左侧栏宽度"
-        />
-      )}
-
-      <main className="main-content">
-        <EmailVerifyBanner />
-        <div className="main-content-body">
-          <FileViewer filePath={activeFilePath} />
+      <div className="editor-center">
+        <div
+          className={`editor-tab-strip${showEditorTabStrip ? '' : ' editor-tab-strip--empty'}`}
+        >
+          {!leftCollapsed ? (
+            <div className="editor-tab-strip-sash" aria-hidden />
+          ) : null}
+          {showEditorTabStrip ? (
+            <AnimatePresence initial={false} mode="wait">
+              <motion.div
+                key="editor-tab-bar"
+                className="editor-tab-strip-tabs"
+                initial={
+                  reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }
+                }
+                animate={{ opacity: 1, y: 0 }}
+                exit={
+                  reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }
+                }
+                transition={{
+                  duration: reducedMotion ? 0.1 : motionDuration.tab,
+                  ease: motionEase,
+                }}
+              >
+                <EditorTabBar
+                  tabs={openTabs}
+                  activeTabId={activeTabId}
+                  onSelectTab={setActiveTab}
+                  onCloseTab={closeTab}
+                  onPinTab={pinTab}
+                />
+              </motion.div>
+            </AnimatePresence>
+          ) : (
+            <div className="editor-tab-strip-fill" aria-hidden="true" />
+          )}
         </div>
-      </main>
+        <div className="editor-center-body">
+          {!leftCollapsed ? (
+            <button
+              type="button"
+              className="resizer resizer-left"
+              onMouseDown={startResize('left')}
+              aria-label="调整左侧栏宽度"
+            />
+          ) : null}
+          <main className="main-content">
+            <EmailVerifyBanner />
+            <div className="main-content-body">
+              <WorkModeContentTransition workMode={workMode}>
+                <EditorWorkspace />
+              </WorkModeContentTransition>
+            </div>
+          </main>
+        </div>
+      </div>
 
       {!rightCollapsed && (
         <button
@@ -375,11 +430,16 @@ export default function Layout() {
         isResizing={resizingSide === 'right'}
         showHeader={false}
       >
-        {annotationToolbarActive ? (
+        {showRightPanelToolbar ? (
           <>
             <RightPanelToolbar
               activePanel={rightPanel}
-              onAnnotationClick={() => setRightPanel('annotation')}
+              annotationTabDisabled={annotationTabDisabled}
+              onAnnotationClick={() => {
+                if (!annotationTabDisabled) {
+                  setRightPanel('annotation');
+                }
+              }}
               onAgentClick={() => setRightPanel('agent')}
             />
             <PanelTransition
@@ -387,7 +447,7 @@ export default function Layout() {
               className="sidebar-panel-motion"
               direction="up"
             >
-              {rightPanel === 'annotation' ? (
+              {rightPanel === 'annotation' && !annotationTabDisabled ? (
                 <AnnotationRightPanel />
               ) : (
                 <AgentPanel />

@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { useApp } from './AppContext';
 import { useAnnotation } from './AnnotationContext';
+import { useWorkMode } from './WorkModeContext';
 import {
   parseFileAnnotationDocument,
   FILE_ANNOTATION_SCHEMA_VERSION,
@@ -286,12 +287,13 @@ export function AnnotationWorkspaceProvider({
   children: ReactNode;
 }) {
   const { activeFilePath, rootPath } = useApp();
-  const { activeProject, mode } = useAnnotation();
+  const { activeProject } = useAnnotation();
+  const { workMode } = useWorkMode();
   const activeProjectRef = useRef(activeProject);
   activeProjectRef.current = activeProject;
 
   const annotationPanelVisible = Boolean(
-    activeProject && mode === 'annotation',
+    workMode === 'annotation' && activeProject,
   );
 
   const projectRootMatched = useMemo(() => {

@@ -1,5 +1,7 @@
+import { VscodeIcon } from '@vscode-elements/react-elements';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useWorkMode } from '../context/WorkModeContext';
 import UserAvatar from './UserAvatar';
 import { MoonIcon, SunIcon } from './ThemeToggleIcons';
 import ActivityIcon from './ActivityIcon';
@@ -20,6 +22,33 @@ interface ActivityBarProps {
   onModelsClick?: () => void;
   onLlmProvidersClick?: () => void;
   onSettingsClick?: () => void;
+}
+
+function WorkModeToggleButton() {
+  const { workMode, toggleWorkMode } = useWorkMode();
+  const isEditor = workMode === 'editor';
+  const label = isEditor
+    ? '编辑器模式（点击切换到标注模式）'
+    : '标注模式（点击切换到编辑器模式）';
+
+  return (
+    <button
+      type="button"
+      className={`activity-work-mode-toggle${isEditor ? '' : ' activity-work-mode-toggle--active'}`}
+      aria-label={label}
+      title={label}
+      onClick={toggleWorkMode}
+    >
+      <span className="activity-work-mode-toggle-icon" key={workMode}>
+        <VscodeIcon
+          name={isEditor ? 'edit' : 'tag'}
+          size={24}
+          actionIcon
+          label={label}
+        />
+      </span>
+    </button>
+  );
 }
 
 function ThemeToggleButton({ onClick }: { onClick: () => void }) {
@@ -109,6 +138,7 @@ export default function ActivityBar({
         />
       </div>
       <div className="activity-bar-bottom">
+        <WorkModeToggleButton />
         <ThemeToggleButton onClick={toggleDarkLight} />
         <AccountAvatarButton
           active={activePanel === 'settings'}
