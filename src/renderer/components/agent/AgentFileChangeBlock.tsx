@@ -5,6 +5,7 @@ import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import { basename } from '../../types/file';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useApp } from '../../context/AppContext';
+import { useWorkMode } from '../../context/WorkModeContext';
 import {
   computeLineDiff,
   pickCollapsedDiffLines,
@@ -12,6 +13,7 @@ import {
   type DiffDisplayLine,
 } from '../../utils/fileDiffStats';
 import { readWorkspaceTextFile } from '../../utils/workspaceFileRead';
+import { resolveWorkspaceAbsolutePath } from '../../utils/workspacePaths';
 import { highlightCode } from '../../utils/syntaxHighlight';
 import './AgentFileChangeBlock.css';
 
@@ -89,17 +91,12 @@ export default function AgentFileChangeBlock({
   status,
 }: AgentFileChangeBlockProps) {
   const { activeProject } = useAnnotation();
-  const { rootPath } = useApp();
+  const { rootPath, openFileInEditor } = useApp();
+  const { setWorkMode } = useWorkMode();
   const [oldContent, setOldContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(status === 'pending');
   const [showFullDiff, setShowFullDiff] = useState(false);
 
-  useEffect(() => {
-    if (status === 'applied') {
-      setExpanded(false);
-    }
-  }, [status]);
   const anchorId = proposalAnchorId(messageId, blockIndex);
 
   useEffect(() => {
@@ -129,9 +126,16 @@ export default function AgentFileChangeBlock({
     return pickCollapsedDiffLines(diffResult.lines, 2);
   }, [diffResult]);
 
-  const toggleExpanded = useCallback(() => {
-    setExpanded((open) => !open);
-  }, []);
+  const handleOpenInEditor = useCallback(() => {
+    const absolutePath = resolveWorkspaceAbsolutePath(
+      relativePath,
+      activeProject ?? null,
+      rootPath,
+    );
+    if (!absolutePath) return;
+    setWorkMode('editor', { silent: true });
+    openFileInEditor(absolutePath);
+  }, [activeProject, openFileInEditor, relativePath, rootPath, setWorkMode]);
 
   const statsLabel = diffResult ? (
     <span className="agent-file-change-block__stats">
@@ -163,10 +167,9 @@ export default function AgentFileChangeBlock({
       <button
         type="button"
         className="agent-file-change-block__header"
-        aria-expanded={expanded}
-        onClick={toggleExpanded}
+        aria-label={`在编辑器中打开 ${fileName}`}
+        onClick={handleOpenInEditor}
       >
-        <VscodeIcon name={expanded ? 'chevron-down' : 'chevron-right'} size={12} />
         <FileTypeIcon path={relativePath} size={14} />
         <span className="agent-file-change-block__name" title={relativePath}>
           {fileName}
@@ -177,51 +180,50 @@ export default function AgentFileChangeBlock({
         ) : null}
       </button>
 
-      {expanded ? (
-        <div className="agent-file-change-block__body">
-          {loading || !diffResult || !collapsed ? (
-            <div className="agent-file-change-block__loading">
-              {loading ? '加载 diff…' : '正在生成内容…'}
-            </div>
-          ) : (
-            <div
-              className={`agent-file-change-block__diff-wrap${
-                canExpandDiff && !showFullDiff
-                  ? ' agent-file-change-block__diff-wrap--clamped'
-                  : ''
-              }${canExpandDiff ? ' agent-file-change-block__diff-wrap--expandable' : ''}${
-                showFullDiff ? ' agent-file-change-block__diff-wrap--full' : ''
-              }`}
+      <div className="agent-file-change-block__body">
+        {loading || !diffResult || !collapsed ? (
+          <div className="agent-file-change-block__loading">
+            {loading ? '加载 diff…' : '正在生成内容…'}
+          </div>
+        ) : (
+          <div
+            className={`agent-change-block__body-wrap agent-file-change-block__diff-wrap${
+              canExpandDiff && !showFullDiff
+                ? ' agent-file-change-block__diff-wrap--clamped'
+                : ''
+            }${canExpandDiff ? ' agent-change-block__body-wrap--expandable' : ''}${
+              showFullDiff
+                ? ' agent-change-block__body-wrap--full agent-file-change-block__diff-wrap--full'
+                : ''
+            }`}
+          >
+            <OverlayVerticalScrollArea
+              enabled={diffScrollable}
+              maxHeight="calc(1.5em * 24 + 8px)"
+              disabledContentClassName="agent-file-change-block__diff"
+              contentClassName="agent-file-change-block__diff"
+              observeKey={diffResult.lines.length}
             >
-              <OverlayVerticalScrollArea
-                enabled={diffScrollable}
-                maxHeight="calc(1.5em * 24 + 8px)"
-                reserveBottom={canExpandDiff && showFullDiff ? 28 : 0}
-                disabledContentClassName="agent-file-change-block__diff"
-                contentClassName="agent-file-change-block__diff"
-                observeKey={diffResult.lines.length}
+              <DiffLines lines={diffResult.lines} relativePath={relativePath} />
+            </OverlayVerticalScrollArea>
+            {canExpandDiff ? (
+              <button
+                type="button"
+                className="agent-change-block__expand"
+                aria-expanded={showFullDiff}
+                aria-label={showFullDiff ? '收起变更' : '展开全部变更'}
+                title={showFullDiff ? '收起' : '展开全部变更'}
+                onClick={() => setShowFullDiff((full) => !full)}
               >
-                <DiffLines lines={diffResult.lines} relativePath={relativePath} />
-              </OverlayVerticalScrollArea>
-              {canExpandDiff ? (
-                <button
-                  type="button"
-                  className="agent-file-change-block__expand"
-                  aria-expanded={showFullDiff}
-                  aria-label={showFullDiff ? '收起变更' : '展开全部变更'}
-                  title={showFullDiff ? '收起' : '展开全部变更'}
-                  onClick={() => setShowFullDiff((full) => !full)}
-                >
-                  <VscodeIcon
-                    name={showFullDiff ? 'chevron-up' : 'chevron-down'}
-                    size={14}
-                  />
-                </button>
-              ) : null}
-            </div>
-          )}
-        </div>
-      ) : null}
+                <VscodeIcon
+                  name={showFullDiff ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                />
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

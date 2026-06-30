@@ -1,10 +1,16 @@
+@import './AgentChangeBlock.shared.css';
+
 .agent-file-change-block {
   margin: 8px 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  border: var(--agent-change-block-border);
+  border-radius: var(--agent-change-block-radius);
+  background: var(--agent-change-block-bg);
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--agent-change-block-font-size);
+  --agent-change-block-fade-to: var(
+    --vscode-editor-background,
+    rgba(0, 0, 0, 0.15)
+  );
 }
 
 .agent-file-change-block--applied {
@@ -19,14 +25,14 @@
   min-height: 32px;
   padding: 4px 8px;
   border: none;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--agent-change-block-header-bg);
   color: var(--vscode-foreground, #cccccc);
   cursor: pointer;
   text-align: left;
 }
 
 .agent-file-change-block__header:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--agent-change-block-header-hover);
 }
 
 .agent-file-change-block__name {
@@ -65,11 +71,12 @@
 }
 
 .agent-file-change-block__body {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: var(--agent-change-block-body-border);
 }
 
-.agent-file-change-block__diff-wrap {
-  position: relative;
+.agent-file-change-block__diff-wrap--full .agent-file-change-block__diff,
+.agent-file-change-block__diff-wrap--full .overlay-vertical-scroll-area__content {
+  max-height: calc(1.5em * 24 + 8px);
 }
 
 .agent-file-change-block__diff-wrap--clamped .agent-file-change-block__diff {
@@ -148,41 +155,4 @@
 .agent-file-change-block__loading {
   padding: 8px 12px;
   color: rgba(255, 255, 255, 0.5);
-}
-
-.agent-file-change-block__expand {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  min-height: 32px;
-  padding: 0 0 4px;
-  border: none;
-  background: transparent !important;
-  color: rgba(255, 255, 255, 0.55);
-  cursor: pointer;
-  transition: color 0.15s ease;
-}
-
-.agent-file-change-block__expand:hover {
-  background: transparent !important;
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.agent-file-change-block__expand:focus-visible {
-  outline: none;
-}
-
-.agent-file-change-block__expand:focus-visible vscode-icon {
-  outline: 1px solid rgba(255, 255, 255, 0.35);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-
-.agent-file-change-block__expand vscode-icon {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
 }

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { useTheme } from '../../context/ThemeContext';
-import { getHighlightLanguage } from '../../utils/syntaxHighlight';
+import {
+  attachDocumentToEditor,
+  getDocumentModel,
+  getSavedText,
+  hasDocument,
+  markDocumentSaved,
+  openDocument,
+} from './editorDocumentStore';
 import {
   scheduleEditorLayout,
   waitForEditorContainer,
@@ -15,17 +22,18 @@ const EDITOR_LINE_HEIGHT = 22;
 interface MonacoTextEditorProps {
   filePath: string;
   tabId: string;
-  initialContent?: string;
+  /** Used only on first open when no cached model exists in the document store. */
+  bootstrapContent?: string;
   dirty?: boolean;
   readOnly?: boolean;
   visible?: boolean;
-  onDirtyChange: (tabId: string, dirty: boolean, content: string) => void;
+  onDirtyChange: (tabId: string, dirty: boolean) => void;
 }
 
 export default function MonacoTextEditor({
   filePath,
   tabId,
-  initialContent,
+  bootstrapContent,
   dirty = false,
   readOnly = false,
   visible = true,
@@ -35,15 +43,10 @@ export default function MonacoTextEditor({
   const [loading, setLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const modelsRef = useRef(new Map<string, monaco.editor.ITextModel>());
-  const savedContentByPathRef = useRef(new Map<string, string>());
-  const viewStateByPathRef = useRef(
-    new Map<string, monaco.editor.ICodeEditorViewState | null>(),
-  );
   const currentPathRef = useRef('');
   const currentTabIdRef = useRef(tabId);
   const onDirtyChangeRef = useRef(onDirtyChange);
-  const applyingModelChangeRef = useRef(false);
+  const bootstrapContentRef = useRef(bootstrapContent);
   const disposablesRef = useRef<monaco.IDisposable[]>([]);
   const loadGenerationRef = useRef(0);
   const readOnlyRef = useRef(readOnly);
@@ -51,12 +54,9 @@ export default function MonacoTextEditor({
 
   currentTabIdRef.current = tabId;
   onDirtyChangeRef.current = onDirtyChange;
+  bootstrapContentRef.current = bootstrapContent;
   readOnlyRef.current = readOnly;
   themeRef.current = effectiveTheme;
-
-  const getLanguage = useCallback((path: string) => {
-    return getHighlightLanguage(path) ?? 'plaintext';
-  }, []);
 
   const ensureEditor = useCallback(async (): Promise<monaco.editor.IStandaloneCodeEditor | null> => {
     if (editorRef.current) return editorRef.current;
@@ -82,15 +82,14 @@ export default function MonacoTextEditor({
     editorRef.current = editorInstance;
 
     const changeDisposable = editorInstance.onDidChangeModelContent(() => {
-      if (applyingModelChangeRef.current) return;
       const path = currentPathRef.current;
       const currentTabId = currentTabIdRef.current;
       const model = editorInstance.getModel();
       if (!path || !currentTabId || !model) return;
 
       const next = model.getValue();
-      const saved = savedContentByPathRef.current.get(path) ?? '';
-      onDirtyChangeRef.current(currentTabId, next !== saved, next);
+      const saved = getSavedText(path);
+      onDirtyChangeRef.current(currentTabId, next !== saved);
     });
     disposablesRef.current.push(changeDisposable);
 
@@ -104,10 +103,6 @@ export default function MonacoTextEditor({
       disposablesRef.current = [];
       editorRef.current?.dispose();
       editorRef.current = null;
-      modelsRef.current.forEach((model) => model.dispose());
-      modelsRef.current.clear();
-      savedContentByPathRef.current.clear();
-      viewStateByPathRef.current.clear();
       currentPathRef.current = '';
     };
   }, []);
@@ -145,64 +140,38 @@ export default function MonacoTextEditor({
       if (isStale() || !editorInstance) return;
 
       const previousPath = currentPathRef.current;
-      if (previousPath && previousPath !== filePath) {
-        viewStateByPathRef.current.set(
-          previousPath,
-          editorInstance.saveViewState(),
-        );
-      }
+      const existingModel = getDocumentModel(filePath);
 
-      const existingModel = modelsRef.current.get(filePath);
-      const existingContent = existingModel?.getValue();
       if (
         existingModel &&
-        (initialContent === undefined || existingContent === initialContent)
+        editorInstance.getModel() === existingModel &&
+        previousPath === filePath
       ) {
-        if (isStale()) return;
-        currentPathRef.current = filePath;
-        editorInstance.setModel(existingModel);
-        const viewState = viewStateByPathRef.current.get(filePath);
-        if (viewState) editorInstance.restoreViewState(viewState);
-        scheduleEditorLayout(editorInstance);
         setLoading(false);
         return;
       }
 
-      let next = initialContent;
-      if (next === undefined) {
-        next = (await window.electron.fileSystem?.readFile(filePath)) ?? '';
-      }
-      if (isStale()) return;
-
-      const uri = monaco.Uri.file(filePath);
-      let model =
-        modelsRef.current.get(filePath) ?? monaco.editor.getModel(uri);
-      if (!model) {
-        model = monaco.editor.createModel(next, getLanguage(filePath), uri);
-        savedContentByPathRef.current.set(filePath, next);
-      }
-      modelsRef.current.set(filePath, model);
-
-      if (initialContent !== undefined && model.getValue() !== next) {
-        applyingModelChangeRef.current = true;
-        try {
-          model.setValue(next);
-        } finally {
-          applyingModelChangeRef.current = false;
+      let text: string | undefined;
+      if (hasDocument(filePath)) {
+        text = existingModel?.getValue();
+      } else {
+        text = bootstrapContentRef.current;
+        if (text === undefined) {
+          text = (await window.electron.fileSystem?.readFile(filePath)) ?? '';
         }
       }
+      if (isStale() || text === undefined) return;
 
-      if (!savedContentByPathRef.current.has(filePath)) {
-        savedContentByPathRef.current.set(filePath, next);
-      }
-
+      const model = openDocument(filePath, text);
       if (isStale()) return;
 
-      monaco.editor.setModelLanguage(model, getLanguage(filePath));
+      attachDocumentToEditor(
+        editorInstance,
+        filePath,
+        model,
+        previousPath,
+      );
       currentPathRef.current = filePath;
-      editorInstance.setModel(model);
-      const viewState = viewStateByPathRef.current.get(filePath);
-      if (viewState) editorInstance.restoreViewState(viewState);
       scheduleEditorLayout(editorInstance);
       setLoading(false);
     };
@@ -217,7 +186,7 @@ export default function MonacoTextEditor({
     return () => {
       cancelled = true;
     };
-  }, [ensureEditor, filePath, getLanguage, initialContent, visible]);
+  }, [ensureEditor, filePath, visible]);
 
   useEffect(() => {
     if (!visible || !editorRef.current) return;
@@ -225,11 +194,8 @@ export default function MonacoTextEditor({
   }, [visible]);
 
   useEffect(() => {
-    const editorInstance = editorRef.current;
-    if (!editorInstance || !filePath || dirty) return;
-    const model = modelsRef.current.get(filePath);
-    if (!model) return;
-    savedContentByPathRef.current.set(filePath, model.getValue());
+    if (!filePath || dirty) return;
+    markDocumentSaved(filePath);
   }, [dirty, filePath]);
 
   return (

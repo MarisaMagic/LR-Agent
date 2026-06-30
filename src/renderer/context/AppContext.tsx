@@ -13,6 +13,11 @@ import { DirectoryItem } from '../../main/preload';
 import { FileNode } from '../types/file';
 import { getRelativeProjectPath } from '../utils/projectPaths';
 import { isMonacoEditableFile } from '../utils/editorFileTypes';
+import {
+  getDocumentModel,
+  markDocumentSaved,
+  syncDocumentRefCounts,
+} from '../components/editor/editorDocumentStore';
 import { getWorkModeExternal } from './workModeBridge';
 
 const STORAGE_KEYS = {
@@ -246,7 +251,7 @@ export interface EditorTab {
   dirty: boolean;
   /** Preview tabs are replaced by the next single-click file selection. */
   preview: boolean;
-  /** In-memory buffer when edited; undefined until loaded or changed. */
+  /** Save-time snapshot; not fed back into Monaco during editing. */
   content?: string;
 }
 
@@ -350,8 +355,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const editorTabsRef = useRef(editorTabs);
   const activeTabIdRef = useRef(activeTabId);
+  const prevEditorTabsRef = useRef<EditorTab[]>([]);
   editorTabsRef.current = editorTabs;
   activeTabIdRef.current = activeTabId;
+
+  useEffect(() => {
+    syncDocumentRefCounts(prevEditorTabsRef.current, editorTabs);
+    prevEditorTabsRef.current = editorTabs;
+  }, [editorTabs]);
 
   const syncActiveFilePath = useCallback((tabs: EditorTab[], tabId: string | null) => {
     const tab = tabs.find((item) => item.id === tabId);
@@ -612,7 +623,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const relativePath = getRelativeProjectPath(rootPath, tab.filePath);
     if (!relativePath) return false;
 
-    let content = tab.content;
+    let content = getDocumentModel(tab.filePath)?.getValue();
+    if (content === undefined) {
+      content = tab.content;
+    }
     if (content === undefined) {
       content =
         (await window.electron.fileSystem?.readFile(tab.filePath)) ?? '';
@@ -625,6 +639,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     if (!result?.success) return false;
 
+    markDocumentSaved(tab.filePath, content);
     markTabDirty(tabId, false, content);
     return true;
   }, [workspace.rootPath, markTabDirty]);

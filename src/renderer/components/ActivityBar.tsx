@@ -41,7 +41,7 @@ function WorkModeToggleButton() {
     >
       <span className="activity-work-mode-toggle-icon" key={workMode}>
         <VscodeIcon
-          name={isEditor ? 'edit' : 'tag'}
+          name={isEditor ? 'edit-sparkle' : 'inspect'}
           size={24}
           actionIcon
           label={label}

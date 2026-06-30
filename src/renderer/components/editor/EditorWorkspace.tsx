@@ -32,8 +32,8 @@ export default function EditorWorkspace() {
   );
 
   const handleDirtyChange = useCallback(
-    (tabId: string, dirty: boolean, content: string) => {
-      markTabDirty(tabId, dirty, content);
+    (tabId: string, dirty: boolean) => {
+      markTabDirty(tabId, dirty);
     },
     [markTabDirty],
   );
@@ -98,7 +98,6 @@ export default function EditorWorkspace() {
           <MonacoTextEditor
             filePath={showSharedMonaco ? activeTab?.filePath ?? '' : ''}
             tabId={activeTab?.id ?? ''}
-            initialContent={activeTab?.content}
             dirty={activeTab?.dirty ?? false}
             readOnly={false}
             visible={showSharedMonaco}
