@@ -50,9 +50,8 @@
   flex-direction: column;
   gap: 4px;
   padding: 10px 12px 8px;
-  border-color: var(--vscode-focusBorder, #007fd4);
+  border-color: rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.03);
-  box-shadow: 0 0 0 1px rgba(0, 127, 212, 0.2);
   cursor: default;
 }
 

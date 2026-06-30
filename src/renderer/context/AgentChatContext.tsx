@@ -233,12 +233,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     [persistUiSlice, workMode],
   );
 
-  useEffect(() => {
-    if (workMode === 'editor' && agentMode !== 'chat') {
-      setAgentModeState('chat');
-      persistUiSlice({ agentMode: 'chat' });
-    }
-  }, [workMode, agentMode, persistUiSlice]);
+  // 编辑器模式下不再强制锁定为 chat 模式，允许用户手动切换 Ask / Agent
 
   const removeGhostSession = useCallback(
     (sessionId: string) => {
@@ -1195,6 +1190,29 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               currentFileAbsolutePath: activeFilePath,
             }
           : null;
+
+      // Debug: 发送前上下文摘要
+      if (
+        typeof window !== 'undefined' &&
+        (window as any).__LR_AGENT_DEBUG__
+      ) {
+        const displayContent = trimmed.length > 120 ? trimmed.slice(0, 120) + '…' : trimmed;
+        console.log(
+          '%c[LR-Agent]%c 📤 发送消息 %c"%s"%c (session=%s provider=%s)',
+          'color: #ff9800; font-weight:bold;', '',
+          'color: #e0e0e0;', displayContent, '',
+          sessionId.slice(0, 12), selectedProvider.id.slice(0, 12),
+        );
+        if (clientContext?.turnUnderstanding) {
+          const tu = clientContext.turnUnderstanding;
+          console.log(
+            '%c[LR-Agent]%c    turnUnderstanding: turnKind=%c%s%c needsVision=%c%s',
+            'color: #ff9800; font-weight:bold;', '',
+            'color: #4caf50;', tu.turnKind, '',
+            'color: #888;', tu.needsVisionInput,
+          );
+        }
+      }
 
       try {
         await startChatJob({

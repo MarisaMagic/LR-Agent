@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { VscodeIcon } from '@vscode-elements/react-elements';
 import FileTypeIcon from '../FileTypeIcon';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import { basename } from '../../types/file';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useApp } from '../../context/AppContext';
@@ -58,7 +59,7 @@ function DiffLines({
   relativePath: string;
 }) {
   return (
-    <div className="agent-file-change-block__diff">
+    <>
       {lines.map((line, index) => (
         <div
           key={`${line.kind}-${index}`}
@@ -76,7 +77,7 @@ function DiffLines({
           <DiffLineContent text={line.text} relativePath={relativePath} />
         </div>
       ))}
-    </div>
+    </>
   );
 }
 
@@ -152,6 +153,7 @@ export default function AgentFileChangeBlock({
   }, [collapsed, diffResult]);
 
   const fileName = basename(relativePath);
+  const diffScrollable = showFullDiff || !canExpandDiff;
 
   return (
     <div
@@ -187,9 +189,20 @@ export default function AgentFileChangeBlock({
                 canExpandDiff && !showFullDiff
                   ? ' agent-file-change-block__diff-wrap--clamped'
                   : ''
-              }${canExpandDiff ? ' agent-file-change-block__diff-wrap--expandable' : ''}`}
+              }${canExpandDiff ? ' agent-file-change-block__diff-wrap--expandable' : ''}${
+                showFullDiff ? ' agent-file-change-block__diff-wrap--full' : ''
+              }`}
             >
-              <DiffLines lines={diffResult.lines} relativePath={relativePath} />
+              <OverlayVerticalScrollArea
+                enabled={diffScrollable}
+                maxHeight="calc(1.5em * 24 + 8px)"
+                reserveBottom={canExpandDiff && showFullDiff ? 28 : 0}
+                disabledContentClassName="agent-file-change-block__diff"
+                contentClassName="agent-file-change-block__diff"
+                observeKey={diffResult.lines.length}
+              >
+                <DiffLines lines={diffResult.lines} relativePath={relativePath} />
+              </OverlayVerticalScrollArea>
               {canExpandDiff ? (
                 <button
                   type="button"

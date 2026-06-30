@@ -3,6 +3,17 @@ import type { AnnotationBatchProposal } from './annotationAgentTypes';
 /** Agent 流水线类型：与 UI 标题、阶段标签一一对应 */
 export type PipelineKind = 'batch' | 'analysis' | 'mutation' | 'report';
 
+/** Agent 任务生命周期状态（与后端 JobState 一致）。 */
+export enum JobState {
+  Registered = 'registered',
+  Streaming = 'streaming',
+  ToolPending = 'tool_pending',
+  Resuming = 'resuming',
+  Done = 'done',
+  Error = 'error',
+  Cancelled = 'cancelled',
+}
+
 export interface LlmProviderConfig {
   id: string;
   name: string;
@@ -301,14 +312,9 @@ export type StreamEvent =
   | {
       type: 'tool_pending';
       toolCalls: ClientToolCall[];
-    }
-  | {
-      /** @deprecated 使用 tool_pending */
-      type: 'client_tool_pending';
-      clientToolCalls: ClientToolCall[];
     };
 
-/** 异步工具调用描述（来自 tool_pending / client_tool_pending 事件）。 */
+/** 异步工具调用描述（来自 tool_pending 事件）。 */
 export interface ClientToolCall {
   toolCallId: string;
   name: string;

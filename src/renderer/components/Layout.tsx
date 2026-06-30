@@ -29,7 +29,7 @@ import ExportAnnotationWizard from './annotation/ExportAnnotationWizard';
 import RightPanelToolbar from './RightPanelToolbar';
 import { useAnnotation } from '../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
-import { useWorkMode } from '../context/WorkModeContext';
+import { useWorkMode, type WorkMode } from '../context/WorkModeContext';
 import './Layout.css';
 
 const ACTIVITY_BAR_WIDTH = 48;
@@ -93,21 +93,27 @@ export default function Layout() {
   } | null>(null);
   const [leftPanel, setLeftPanel] = useState<LeftPanel>('explorer');
 
-  const [rightPanel, setRightPanel] = useState<RightPanel>('agent');
+  const [rightPanelByMode, setRightPanelByMode] = useState<
+    Record<WorkMode, RightPanel>
+  >({
+    editor: 'agent',
+    annotation: 'annotation',
+  });
   const annotationModeActive =
     workMode === 'annotation' && Boolean(activeProject);
   const showRightPanelToolbar = workMode === 'editor' || annotationModeActive;
   const annotationTabDisabled = workMode === 'editor';
+  const rightPanel = rightPanelByMode[workMode];
   const { workspaceEnabled: imageAnnotationToolbarVisible } =
     useAnnotationWorkspace();
 
-  useEffect(() => {
-    if (annotationModeActive) {
-      setRightPanel('annotation');
-    } else if (workMode === 'editor') {
-      setRightPanel('agent');
-    }
-  }, [annotationModeActive, workMode]);
+  const setRightPanelForMode = useCallback(
+    (panel: RightPanel) => {
+      if (workMode === 'editor' && panel === 'annotation') return;
+      setRightPanelByMode((prev) => ({ ...prev, [workMode]: panel }));
+    },
+    [workMode],
+  );
 
   useEffect(() => {
     refreshUser().catch(() => undefined);
@@ -437,10 +443,10 @@ export default function Layout() {
               annotationTabDisabled={annotationTabDisabled}
               onAnnotationClick={() => {
                 if (!annotationTabDisabled) {
-                  setRightPanel('annotation');
+                  setRightPanelForMode('annotation');
                 }
               }}
-              onAgentClick={() => setRightPanel('agent')}
+              onAgentClick={() => setRightPanelForMode('agent')}
             />
             <PanelTransition
               panelKey={rightPanel}

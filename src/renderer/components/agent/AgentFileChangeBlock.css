@@ -35,6 +35,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--vscode-font-family);
 }
 
 .agent-file-change-block__stats {
@@ -76,15 +77,10 @@
   overflow: hidden;
 }
 
-.agent-file-change-block__diff-wrap--expandable:not(.agent-file-change-block__diff-wrap--clamped)
-  .agent-file-change-block__diff {
-  padding-bottom: 28px;
-}
-
 .agent-file-change-block__diff {
   margin: 0;
   padding: 4px 0;
-  overflow-x: auto;
+  overflow-x: hidden;
   font-family: var(--vscode-editor-font-family, 'Consolas', 'Monaco', monospace);
   font-size: var(--vscode-editor-font-size, 13px);
   line-height: 1.5;
@@ -96,7 +92,8 @@
   align-items: baseline;
   min-height: 1.5em;
   padding: 0 8px;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .agent-file-change-block__diff-line--added {
@@ -125,7 +122,8 @@
   padding: 0 !important;
   margin: 0;
   border: none;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .agent-file-change-block__diff-plain {
@@ -134,7 +132,8 @@
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* highlight.js 主题会给 .hljs 加强制 block 背景；diff 行内仅保留 token 颜色 */

@@ -4,6 +4,7 @@ import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import type { AgentSession } from '../../types/agent';
 import { useAgentChat } from '../../context/AgentChatContext';
 import { getPopoverMotionProps } from '../../motion/PopoverMotion';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './AgentHistoryPopover.css';
 
 interface AgentHistoryPopoverProps {
@@ -172,8 +173,9 @@ export default function AgentHistoryPopover({
         />
       </div>
 
-      <div
-        className="agent-history-groups"
+      <OverlayVerticalScrollArea
+        className="agent-history-groups-scroll"
+        fillHost
         onScroll={(event) => {
           const el = event.currentTarget;
           if (
@@ -185,6 +187,7 @@ export default function AgentHistoryPopover({
           }
         }}
       >
+        <div className="agent-history-groups">
         {groups.length === 0 ? (
           <div className="agent-history-empty">暂无历史对话</div>
         ) : (
@@ -243,7 +246,8 @@ export default function AgentHistoryPopover({
         {loadingMoreSessions ? (
           <div className="agent-history-loading">加载中…</div>
         ) : null}
-      </div>
+        </div>
+      </OverlayVerticalScrollArea>
         </m.div>
       )}
     </AnimatePresence>,

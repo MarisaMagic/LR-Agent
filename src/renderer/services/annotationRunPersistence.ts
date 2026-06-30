@@ -38,8 +38,7 @@ export function shouldPersistClientStreamEvent(event: StreamEvent): boolean {
     event.type === 'preparing' ||
     event.type === 'route_decided' ||
     event.type === 'context_updated' ||
-    event.type === 'tool_pending' ||
-    event.type === 'client_tool_pending'
+    event.type === 'tool_pending'
   ) {
     return false;
   }

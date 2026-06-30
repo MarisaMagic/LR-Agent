@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { VscodeLabel } from '@vscode-elements/react-elements';
 import { useAgentChat } from '../../context/AgentChatContext';
-import VscodeScrollHost from '../VscodeScrollHost';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import AgentMessageItem from './AgentMessageItem';
 import ContextMenu, { type ContextMenuItem } from '../ContextMenu';
 import './AgentMessageList.css';
@@ -76,9 +76,11 @@ export default function AgentMessageList() {
   }
 
   return (
-    <VscodeScrollHost
+    <OverlayVerticalScrollArea
       className="agent-message-list-scroll"
-      scrollableClassName="agent-message-list-scrollable"
+      contentClassName="agent-message-list-scrollable"
+      fillHost
+      observeKey={scrollKey}
       onScroll={(event) => {
         const el = event.currentTarget;
         if (
@@ -118,6 +120,6 @@ export default function AgentMessageList() {
           onClose={closeContextMenu}
         />
       )}
-    </VscodeScrollHost>
+    </OverlayVerticalScrollArea>
   );
 }

@@ -12,6 +12,7 @@ import {
 } from '../../services/annotationAgent/pipelineKinds';
 import type { PipelineKind } from '../../types/agent';
 import { formatAnalysisStdout } from '../../services/agentDataAnalysis/analysisOutputFormat';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './AgentAnnotationPipelineBlock.css';
 
 export interface PipelineAnalysisDetail {
@@ -196,7 +197,8 @@ export default function AgentAnnotationPipelineBlock({
                   : ''}
                 ）
               </summary>
-              <ul className="agent-pipeline-list agent-pipeline-list--nested">
+              <OverlayVerticalScrollArea maxHeight="160px">
+                <ul className="agent-pipeline-list agent-pipeline-list--nested">
                 {workerSteps.map((step) => {
                   const rowKey =
                     resolvePipelineImagePath(step) ?? `${step.stage}-${step.message}`;
@@ -224,7 +226,8 @@ export default function AgentAnnotationPipelineBlock({
                     </li>
                   );
                 })}
-              </ul>
+                </ul>
+              </OverlayVerticalScrollArea>
             </details>
           ) : null}
         </div>

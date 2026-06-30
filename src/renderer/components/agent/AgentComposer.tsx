@@ -34,9 +34,10 @@ export default function AgentComposer() {
   const { workMode } = useWorkMode();
   const { providers, defaultProvider } = useLlmProviders();
   const showAnnotateMode =
-    workMode === 'annotation' &&
-    activeProject?.modality === 'image' &&
-    activeProject.annotationType === 'bbox';
+    (workMode === 'annotation' &&
+     activeProject?.modality === 'image' &&
+     activeProject.annotationType === 'bbox') ||
+    workMode === 'editor';
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const enabledProviders = useMemo(
@@ -91,13 +92,7 @@ export default function AgentComposer() {
             ref={textareaRef}
             className="agent-composer-input"
             value={composerDraft}
-            placeholder={
-              showAnnotateMode
-                ? agentMode === 'annotation'
-                  ? '可指代当前打开图或上文路径，如：标注这张图片、data/2.jpg'
-                  : '可问标注内容或看图，如：2.jpg 标了谁、图里有几个人'
-                : 'Plan, Build, / for skills, @ for context'
-            }
+            placeholder="请描述任务，如：辅助标注、数据分析、生成报告等"
             rows={1}
             onChange={(event) => {
               setComposerDraft(event.target.value);

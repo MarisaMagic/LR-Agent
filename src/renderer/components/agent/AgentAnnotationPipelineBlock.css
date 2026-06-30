@@ -35,8 +35,6 @@
 
 .agent-pipeline-list--nested {
   margin-top: 6px;
-  max-height: 160px;
-  overflow-y: auto;
 }
 
 .agent-pipeline-step {

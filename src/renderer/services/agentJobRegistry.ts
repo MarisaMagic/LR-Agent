@@ -1,3 +1,4 @@
+import { JobState } from '../../shared/agentTypes';
 import type {
   AgentSession,
   ChatMessage,
@@ -19,12 +20,14 @@ import { startAnnotationMutationJob } from './annotationMutationBatchJob';
 import { startAnalysisBatchJob } from './analysisBatchJob';
 import { cancelChatJobOnApi } from './llmProviderApi';
 import tokenHolder from './tokenHolder';
+import { createDebugLogger } from './agentDebugLogger';
 
 export type JobEventListener = (event: StreamEvent) => void;
 
 interface RunningJob {
   controller: AbortController;
   listeners: Set<JobEventListener>;
+  state: JobState;
 }
 
 const runningJobs = new Map<string, RunningJob>();
@@ -69,6 +72,11 @@ export function isJobRunning(jobId: string): boolean {
   return runningJobs.has(jobId);
 }
 
+export function getJobState(jobId: string): JobState | null {
+  const job = runningJobs.get(jobId);
+  return job ? job.state : null;
+}
+
 export function stopJob(jobId: string): void {
   const job = runningJobs.get(jobId);
   if (!job) return;
@@ -108,9 +116,6 @@ function formatClientToolResult(payload: ClientToolResultPayload): string {
 function pendingToolCallsFromEvent(event: StreamEvent): ClientToolCall[] | null {
   if (event.type === 'tool_pending') {
     return event.toolCalls;
-  }
-  if (event.type === 'client_tool_pending') {
-    return event.clientToolCalls;
   }
   return null;
 }
@@ -305,15 +310,55 @@ export async function startChatJob(options: {
   const job: RunningJob = {
     controller,
     listeners: new Set(),
+    state: JobState.Registered,
   };
   runningJobs.set(options.jobId, job);
   attachPendingListeners(options.jobId, job);
 
   const useBackend = Boolean(tokenHolder.getAccessToken());
 
-  // ── 内部：执行一轮 SSE 流并处理 client_tool_pending 的 resume 循环 ──────
+  // ── Debug Logger ────────────────────────────────────────────────────────
+  const debugLogger = createDebugLogger(options.jobId);
+  debugLogger.logJobState(JobState.Registered);
+
+  // Log send context once at entry
+  const msgsForSend = buildBackendMessages(
+    options.messageIds,
+    options.sessionMessages,
+  );
+  debugLogger.logSendContext({
+    jobId: options.jobId,
+    providerId: options.providerId,
+    sessionId: options.session.id,
+    messages: msgsForSend,
+    userContent: options.userContent,
+    clientContext: options.clientContext,
+    clientToolResults: undefined,
+  });
+
+  // ── 内部：执行一轮 SSE 流并处理 tool_pending 的 resume 循环 ──────
   const runLoop = async (accumulatedResults: ClientToolResult[] = []): Promise<void> => {
     if (controller.signal.aborted) return;
+
+    // 若携带累积结果，标记为 resume 状态并记录
+    if (accumulatedResults.length > 0) {
+      job.state = JobState.Resuming;
+      debugLogger.logJobState(JobState.Resuming);
+      // Log resume send context
+      const resumeMsgs = buildBackendMessages(
+        options.messageIds,
+        options.sessionMessages,
+      );
+      debugLogger.logSendContext({
+        jobId: options.jobId,
+        providerId: options.providerId,
+        sessionId: options.session.id,
+        messages: resumeMsgs,
+        userContent: options.userContent,
+        clientContext: options.clientContext,
+        clientToolResults: accumulatedResults,
+      });
+    }
 
     const stream = useBackend
       ? streamChatViaBackend(
@@ -341,19 +386,41 @@ export async function startChatJob(options: {
     let pendingToolCalls: ClientToolCall[] | null = null;
     let finished = false;
 
+    // 累积本轮 LLM 输出的文本
+    let accumulatedText = '';
+
     for await (const event of stream) {
       emitJobEvent(options.jobId, event);
       options.onPersistEvent?.(event);
 
+      // 收集 text_delta 文本用于最终汇总
+      if (event.type === 'text_delta') {
+        accumulatedText += event.content;
+      }
+
+      // 调试输出（text_delta/reasoning_delta 不逐条打印）
+      if (event.type !== 'text_delta' && event.type !== 'reasoning_delta') {
+        debugLogger.logEvent(event);
+      }
+
       if (event.type === 'done') {
+        job.state = JobState.Done;
+        debugLogger.logJobState(JobState.Done);
+        debugLogger.logTextOutput(accumulatedText);
         finished = true;
         break;
       }
       if (event.type === 'error' || controller.signal.aborted) {
+        job.state = controller.signal.aborted ? JobState.Cancelled : JobState.Error;
+        debugLogger.logJobState(job.state);
+        debugLogger.logTextOutput(accumulatedText);
         break;
       }
       const pending = pendingToolCallsFromEvent(event);
       if (pending) {
+        job.state = JobState.ToolPending;
+        debugLogger.logJobState(JobState.ToolPending);
+        debugLogger.logTextOutput(accumulatedText);
         pendingToolCalls = pending;
         break;
       }
@@ -365,6 +432,11 @@ export async function startChatJob(options: {
     if (pendingToolCalls && pendingToolCalls.length > 0) {
       const results: ClientToolResult[] = [];
       for (const toolCall of pendingToolCalls) {
+        // Debug: log client tool dispatch
+        console.log(
+          `%c[LR-Agent]%c ⚡ runClientTool %c${toolCall.name}`,
+          'color: #ff9800; font-weight:bold;', '', 'color: #4caf50;',
+        );
         const result = await runClientTool(
           toolCall,
           options.jobId,
@@ -380,6 +452,10 @@ export async function startChatJob(options: {
           name: toolCall.name,
           result,
         });
+        console.log(
+          `%c[LR-Agent]%c ⚡ clientToolResult %c${toolCall.name}%c → ${result.slice(0, 120)}`,
+          'color: #ff9800; font-weight:bold;', '', 'color: #4caf50;', '',
+        );
         if (controller.signal.aborted) return;
       }
       const allResults = [...accumulatedResults, ...results];
@@ -399,9 +475,14 @@ export async function startChatJob(options: {
     if (err instanceof DOMException && err.name === 'AbortError') {
       return;
     }
+    const errorMsg = err instanceof Error ? err.message : '流式请求失败';
+    console.log(
+      `%c[LR-Agent]%c ❌ startChatJob error %c${errorMsg}`,
+      'color: #ff9800; font-weight:bold;', '', 'color: #f44336; font-weight:bold;',
+    );
     emitJobEvent(options.jobId, {
       type: 'error',
-      message: err instanceof Error ? err.message : '流式请求失败',
+      message: errorMsg,
     });
   } finally {
     runningJobs.delete(options.jobId);

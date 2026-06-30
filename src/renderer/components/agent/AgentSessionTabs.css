@@ -1,6 +1,6 @@
 .agent-session-tabs {
   --agent-tab-bar-height: 40px;
-  --agent-tab-scrollbar-height: 3px;
+  --agent-tab-scrollbar-height: 4px;
 
   display: flex;
   align-items: stretch;
@@ -54,10 +54,10 @@
   top: 0;
   height: var(--agent-tab-scrollbar-height);
   min-width: 32px;
-  border-radius: 1px;
-  background: var(--vscode-scrollbarSlider-background);
+  border-radius: 999px;
+  background: var(--agent-overlay-scrollbar-thumb, rgba(255, 255, 255, 0.22));
   opacity: 0;
-  transition: opacity 0.12s ease;
+  transition: opacity 0.12s ease, background 0.12s ease;
   pointer-events: auto;
 }
 
@@ -72,7 +72,10 @@
 
 .agent-session-tab-scroller:hover .agent-session-tab-scrollbar-thumb:hover,
 .agent-session-tab-scroller.is-scrolling .agent-session-tab-scrollbar-thumb {
-  background: var(--vscode-scrollbarSlider-hoverBackground);
+  background: var(
+    --agent-overlay-scrollbar-thumb-hover,
+    rgba(255, 255, 255, 0.36)
+  );
 }
 
 .agent-session-tab {

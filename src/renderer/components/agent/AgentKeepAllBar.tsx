@@ -4,6 +4,7 @@ import { useAgentChat } from '../../context/AgentChatContext';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useApp } from '../../context/AppContext';
 import FileTypeIcon from '../FileTypeIcon';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import { basename } from '../../types/file';
 import {
   collectPendingChangeItems,
@@ -28,7 +29,7 @@ export default function AgentKeepAllBar() {
   const { activeProject } = useAnnotation();
   const { rootPath } = useApp();
 
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [itemStats, setItemStats] = useState<ItemStats>({});
 
   const changeItems = useMemo(() => {
@@ -135,7 +136,8 @@ export default function AgentKeepAllBar() {
         </div>
       </div>
       {expanded && changeItems.length > 0 ? (
-        <ul className="agent-keep-all-bar__list">
+        <OverlayVerticalScrollArea maxHeight="200px">
+          <ul className="agent-keep-all-bar__list">
           {changeItems.map((item) => {
             const stats = itemStats[item.id];
             return (
@@ -178,7 +180,8 @@ export default function AgentKeepAllBar() {
               </li>
             );
           })}
-        </ul>
+          </ul>
+        </OverlayVerticalScrollArea>
       ) : null}
     </div>
   );

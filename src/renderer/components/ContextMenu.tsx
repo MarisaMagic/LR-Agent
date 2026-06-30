@@ -21,6 +21,15 @@ interface ContextMenuProps {
 const MENU_MAX_HEIGHT = 400;
 const MENU_WIDTH = 220;
 const MENU_ITEM_HEIGHT = 30;
+const SEPARATOR_HEIGHT = 9;  // 1px height + 4px top margin + 4px bottom margin
+const MENU_PADDING_V = 8;    // 4px top + 4px bottom
+
+function estimateMenuHeight(items: ContextMenuItem[]): number {
+  const separatorCount = items.filter((i) => i.separatorAfter).length;
+  return items.length * MENU_ITEM_HEIGHT
+    + separatorCount * SEPARATOR_HEIGHT
+    + MENU_PADDING_V;
+}
 
 export default function ContextMenu({ items, x, y, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -29,17 +38,24 @@ export default function ContextMenu({ items, x, y, onClose }: ContextMenuProps) 
     let adjustedX = x;
     let adjustedY = y;
 
-    // 加进来后立即修正一次基本溢出
+    // 水平溢出修正
     if (adjustedX + MENU_WIDTH > window.innerWidth) {
       adjustedX = window.innerWidth - MENU_WIDTH - 4;
     }
     if (adjustedX < 0) adjustedX = 4;
 
-    const estimatedHeight = items.length * MENU_ITEM_HEIGHT;
-    if (adjustedY + estimatedHeight > window.innerHeight) {
-      adjustedY = window.innerHeight - estimatedHeight - 4;
+    // 垂直方向：下方空间不足时向上翻转
+    const totalHeight = estimateMenuHeight(items);
+    if (adjustedY + totalHeight > window.innerHeight) {
+      // 下方不够，尝试翻转向上
+      if (adjustedY - totalHeight >= 0) {
+        adjustedY = adjustedY - totalHeight;
+      } else {
+        // 上下都不够，贴窗口底部
+        adjustedY = Math.max(4, window.innerHeight - totalHeight - 4);
+      }
     }
-    if (adjustedY < 0) adjustedY = 4;
+    // 上方不够时不再额外处理（上面有检查 adjustedY - totalHeight >= 0）
 
     return { x: adjustedX, y: adjustedY };
   });

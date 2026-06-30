@@ -171,10 +171,10 @@ export async function* streamChatViaBackend(
       for (const event of parsed.events) {
         yield event;
         if (event.type === 'done' || event.type === 'error') return;
-        if (event.type === 'tool_pending' || event.type === 'client_tool_pending') return;
+        if (event.type === 'tool_pending') return;
       }
     }
-    // 仅在正常结束（非 client_tool_pending）时补发 done 事件
+    // 仅在正常结束（非 tool_pending）时补发 done 事件
     if (!signal.aborted) {
       yield { type: 'done' };
     }

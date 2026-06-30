@@ -7,6 +7,11 @@
   overflow: hidden;
   background: var(--vscode-sideBar-background, #252526);
 
+  --agent-overlay-scrollbar-size: 6px;
+  --agent-overlay-scrollbar-inset: 3px;
+  --agent-overlay-scrollbar-thumb: rgba(255, 255, 255, 0.22);
+  --agent-overlay-scrollbar-thumb-hover: rgba(255, 255, 255, 0.36);
+
   /* Panel base: align with app --vscode-font-size (15px), not legacy 13px hardcodes */
   font-size: var(--vscode-font-size, 15px);
   --agent-font-body: 1em;
@@ -15,4 +20,9 @@
   --agent-font-meta: 0.867em;
   --agent-font-caption: 0.8em;
   --agent-font-code: 0.933em;
+}
+
+[data-theme='light'] .agent-panel-root {
+  --agent-overlay-scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --agent-overlay-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
 }

@@ -11,6 +11,16 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
   overflow: hidden;
   transform-origin: top right;
+
+  --agent-overlay-scrollbar-size: 6px;
+  --agent-overlay-scrollbar-inset: 3px;
+  --agent-overlay-scrollbar-thumb: rgba(255, 255, 255, 0.22);
+  --agent-overlay-scrollbar-thumb-hover: rgba(255, 255, 255, 0.36);
+}
+
+[data-theme='light'] .agent-history-popover {
+  --agent-overlay-scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --agent-overlay-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
 }
 
 .agent-history-search {
@@ -41,9 +51,13 @@
   color: var(--vscode-input-placeholderForeground, #8a8a8a);
 }
 
+.agent-history-groups-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
 .agent-history-groups {
   flex: 1;
-  overflow: auto;
   padding: 6px 0 8px;
 }
 

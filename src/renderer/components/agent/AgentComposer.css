@@ -23,10 +23,8 @@
 }
 
 .agent-composer-box:focus-within {
-  border-color: var(--vscode-focusBorder, #007fd4);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    0 0 0 1px rgba(0, 127, 212, 0.25);
+  border-color: var(--vscode-input-border, #3e3e42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .agent-composer-input {
