@@ -13,20 +13,20 @@
   margin-bottom: 0;
 }
 
-.agent-markdown pre {
+.agent-markdown .agent-scrollable-pre {
   margin: 0.5em 0;
+}
+
+.agent-markdown .agent-scrollable-pre__viewport {
   padding: 10px 12px;
-  border-radius: 6px;
-  overflow-x: auto;
   background: var(--vscode-textCodeBlock-background, #1e1e1e);
   border: 1px solid var(--vscode-panel-border, #3c3c3c);
 }
 
-.agent-markdown pre code.hljs {
+.agent-markdown .agent-scrollable-pre__code code.hljs {
   display: block;
   background: transparent !important;
   padding: 0;
-  overflow-x: auto;
 }
 
 .agent-markdown code {

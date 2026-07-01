@@ -6,6 +6,7 @@ import { executeAnalysisScript } from '../../services/agentDataAnalysis/dataAnal
 import { buildAnnotationStatsSnapshot } from '../../services/agentDataAnalysis/buildAnnotationStatsSnapshot';
 import { formatAnalysisStdout } from '../../services/agentDataAnalysis/analysisOutputFormat';
 import { useAnnotation } from '../../context/AnnotationContext';
+import AgentScrollablePre from './AgentScrollablePre';
 import './AgentAnnotationPipelineBlock.css';
 
 interface AnalysisScriptProposalBlockProps {
@@ -109,7 +110,9 @@ export default function AnalysisScriptProposalBlock({
             </button>
           ) : null}
           {scriptExpanded && script ? (
-            <pre className="agent-pipeline-embedded-pre">{script}</pre>
+            <AgentScrollablePre className="agent-pipeline-embedded-pre">
+              {script}
+            </AgentScrollablePre>
           ) : null}
           {result ? (
             <button
@@ -126,9 +129,9 @@ export default function AnalysisScriptProposalBlock({
             </button>
           ) : null}
           {outputExpanded && result ? (
-            <pre className="agent-pipeline-embedded-pre">
+            <AgentScrollablePre className="agent-pipeline-embedded-pre">
               {formatAnalysisStdout(result)}
-            </pre>
+            </AgentScrollablePre>
           ) : null}
           {error ? (
             <div className="agent-pipeline-embedded-error">{error}</div>

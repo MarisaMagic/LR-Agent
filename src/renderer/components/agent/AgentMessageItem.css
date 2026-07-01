@@ -179,7 +179,7 @@
   display: inline-block;
   margin-left: 2px;
   animation: agent-cursor-blink 1s step-end infinite;
-  color: var(--vscode-focusBorder, #007fd4);
+  color: var(--vscode-foreground, #cccccc);
 }
 
 @keyframes agent-cursor-blink {

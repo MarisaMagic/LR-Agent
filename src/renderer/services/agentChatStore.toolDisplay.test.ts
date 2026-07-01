@@ -1,5 +1,53 @@
 import { applyStreamEventToBlocks } from './agentChatStore';
-import { summarizeToolArgumentsForDisplay } from './toolDisplayUtils';
+import {
+  formatToolCallLabel,
+  isExplorationTool,
+  summarizeToolArgumentsForDisplay,
+  summarizeToolResultForDisplay,
+} from './toolDisplayUtils';
+
+describe('isExplorationTool', () => {
+  it('recognizes exploration tools', () => {
+    expect(isExplorationTool('grep_workspace')).toBe(true);
+    expect(isExplorationTool('read_workspace_file')).toBe(true);
+    expect(isExplorationTool('write_workspace_file')).toBe(false);
+  });
+});
+
+describe('formatToolCallLabel', () => {
+  it('formats read with line range', () => {
+    const label = formatToolCallLabel(
+      'read_workspace_file',
+      JSON.stringify({ relative_path: 'src/Foo.tsx', start_line: 1, end_line: 80 }),
+    );
+    expect(label).toBe('Read src/Foo.tsx L1-80');
+  });
+
+  it('formats grep', () => {
+    const label = formatToolCallLabel(
+      'grep_workspace',
+      JSON.stringify({ pattern: 'AgentMode', path: 'src' }),
+    );
+    expect(label).toBe('Grepped AgentMode in src');
+  });
+
+  it('formats list directory', () => {
+    const label = formatToolCallLabel(
+      'list_workspace_directory',
+      JSON.stringify({ relative_dir: 'src' }),
+    );
+    expect(label).toBe('Listed src');
+  });
+});
+
+describe('summarizeToolResultForDisplay', () => {
+  it('truncates long grep results', () => {
+    const long = `${'line\n'.repeat(500)}tail`;
+    const display = summarizeToolResultForDisplay('grep_workspace', long);
+    expect(display.length).toBeLessThan(long.length);
+    expect(display).toContain('字符');
+  });
+});
 
 describe('summarizeToolArgumentsForDisplay', () => {
   it('replaces write_workspace_file content with size summary', () => {

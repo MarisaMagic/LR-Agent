@@ -1,5 +1,10 @@
 import { VscodeIcon } from '@vscode-elements/react-elements';
 import type { MessageBlock } from '../../types/agent';
+import {
+  formatToolCallLabel,
+  summarizeToolResultForDisplay,
+} from '../../services/toolDisplayUtils';
+import AgentScrollablePre from './AgentScrollablePre';
 import './AgentReasoningBlock.css'; /* shared tool + reasoning tokens */
 
 interface AgentToolCallBlockProps {
@@ -11,6 +16,11 @@ export default function AgentToolCallBlock({
   block,
   onToggle,
 }: AgentToolCallBlockProps) {
+  const label = formatToolCallLabel(block.name, block.arguments);
+  const displayResult = block.result
+    ? summarizeToolResultForDisplay(block.name, block.result)
+    : undefined;
+
   return (
     <div className="agent-tool-block">
       <button type="button" className="agent-block-toggle" onClick={onToggle}>
@@ -19,7 +29,7 @@ export default function AgentToolCallBlock({
           size={12}
         />
         <span>
-          {block.name}
+          {label}
           {block.status === 'running' ? ' · 进行中' : ''}
         </span>
       </button>
@@ -27,12 +37,12 @@ export default function AgentToolCallBlock({
         <div className="agent-tool-body">
           <div className="agent-tool-section">
             <div className="agent-tool-label">参数</div>
-            <pre>{block.arguments || '{}'}</pre>
+            <AgentScrollablePre>{block.arguments || '{}'}</AgentScrollablePre>
           </div>
-          {block.result && (
+          {displayResult && (
             <div className="agent-tool-section">
               <div className="agent-tool-label">结果</div>
-              <pre>{block.result}</pre>
+              <AgentScrollablePre>{displayResult}</AgentScrollablePre>
             </div>
           )}
         </div>

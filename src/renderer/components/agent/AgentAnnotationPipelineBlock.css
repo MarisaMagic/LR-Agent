@@ -112,13 +112,18 @@
 .agent-pipeline-embedded-pre {
   margin: 2px 0 6px 16px;
   padding: 8px;
-  border-radius: 6px;
   font-size: var(--agent-font-meta);
   line-height: 1.45;
-  overflow-x: auto;
   white-space: pre-wrap;
   background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.12));
   color: var(--vscode-foreground, #cccccc);
+}
+
+.agent-pipeline-embedded-pre .agent-scrollable-pre__code {
+  white-space: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
 .agent-pipeline-embedded-error {

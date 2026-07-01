@@ -8,6 +8,8 @@ import { useAgentChat } from '../../context/AgentChatContext';
 import AgentMarkdown from './AgentMarkdown';
 import AgentReasoningBlock from './AgentReasoningBlock';
 import AgentToolCallBlock from './AgentToolCallBlock';
+import AgentExplorationBlock from './AgentExplorationBlock';
+import { buildAssistantRenderSegments } from './explorationRenderUtils';
 import AgentAnnotationPipelineBlock from './AgentAnnotationPipelineBlock';
 import AgentFileChangeBlock from './AgentFileChangeBlock';
 import AgentAnnotationChangeBlock from './AgentAnnotationChangeBlock';
@@ -132,127 +134,143 @@ export default function AgentAssistantMessage({
   const analysisProposalForPipeline = embeddedAnalysis
     ? findAnalysisScriptProposal(message.blocks)
     : undefined;
+  const renderSegments = buildAssistantRenderSegments(message.blocks);
+
+  const renderBlock = (block: ChatMessage['blocks'][number], index: number) => {
+    if ((block as { type: string }).type === 'mode_suggestion') {
+      return null;
+    }
+    if (block.type === 'reasoning') {
+      return (
+        <AgentReasoningBlock
+          key={`reasoning-${index}`}
+          block={block}
+          streaming={isStreaming && index === message.blocks.length - 1}
+          onToggle={() => handleToggle(index)}
+        />
+      );
+    }
+    if (block.type === 'tool_call') {
+      if (shouldHideToolCallInChat(block, message.blocks)) {
+        return null;
+      }
+      return (
+        <AgentToolCallBlock
+          key={block.id}
+          block={block}
+          onToggle={() => handleToggle(index)}
+        />
+      );
+    }
+    if (block.type === 'annotation_pipeline') {
+      const isAnalysisPipeline =
+        block.pipelineKind === 'analysis' ||
+        block.steps.some((s) =>
+          ['collect', 'execute', 'summarize'].includes(s.stage),
+        );
+      const analysisDetail =
+        isAnalysisPipeline && analysisProposalForPipeline
+          ? {
+              script: analysisProposalForPipeline.script,
+              explanation: analysisProposalForPipeline.explanation,
+              status: analysisProposalForPipeline.status,
+              result: analysisProposalForPipeline.result,
+              error: analysisProposalForPipeline.error,
+            }
+          : undefined;
+      return (
+        <AgentAnnotationPipelineBlock
+          key={`pipeline-${block.pipelineKind ?? 'batch'}`}
+          steps={block.steps}
+          collapsed={block.collapsed}
+          streaming={isStreaming}
+          pipelineCompleted={pipelineCompleted}
+          pipelineKind={block.pipelineKind ?? 'batch'}
+          analysisDetail={analysisDetail}
+          onToggle={() => handleToggle(index)}
+        />
+      );
+    }
+    if (block.type === 'text' && block.content) {
+      if (shouldSkipRedundantProposalText(block.content, message.blocks)) {
+        return null;
+      }
+      return <AgentMarkdown key={`text-${index}`} content={block.content} />;
+    }
+    if (isFileProposalBlock(block)) {
+      if (block.status === 'dismissed') {
+        return null;
+      }
+      return (
+        <AgentFileChangeBlock
+          key={`file-${index}`}
+          messageId={message.id}
+          blockIndex={index}
+          relativePath={block.suggestedRelativePath}
+          newContent={block.content}
+          status={block.status}
+        />
+      );
+    }
+    if (block.type === 'annotation_proposal') {
+      if (block.status === 'dismissed') {
+        return null;
+      }
+      return (
+        <AgentAnnotationChangeBlock
+          key={`annotation-${index}`}
+          messageId={message.id}
+          blockIndex={index}
+          proposal={block.proposal}
+          status={block.status}
+        />
+      );
+    }
+    if (block.type === 'analysis_script_proposal') {
+      if (embeddedAnalysis) {
+        return null;
+      }
+      if (!shouldRenderProposalSummaryOnly(block)) {
+        return null;
+      }
+      const summary = proposalBlockSummaryLine(block, index);
+      if (!summary) {
+        return null;
+      }
+      return (
+        <div
+          key={summary.key}
+          className={
+            summary.tone === 'error'
+              ? 'agent-proposal-summary agent-proposal-summary--error'
+              : 'agent-proposal-summary'
+          }
+        >
+          {summary.text}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="agent-message-item agent-message-item--assistant">
       <div className="agent-assistant-content">
-        {message.blocks.map((block, index) => {
-          if ((block as { type: string }).type === 'mode_suggestion') {
-            return null;
-          }
-          if (block.type === 'reasoning') {
+        {renderSegments.map((segment) => {
+          if (segment.kind === 'exploration') {
+            const streamingExploration =
+              isStreaming &&
+              segment.tools.some((tool) => tool.status === 'running');
             return (
-              <AgentReasoningBlock
-                key={`reasoning-${index}`}
-                block={block}
-                streaming={isStreaming && index === message.blocks.length - 1}
-                onToggle={() => handleToggle(index)}
+              <AgentExplorationBlock
+                key={segment.key}
+                tools={segment.tools}
+                summary={segment.summary}
+                streaming={streamingExploration}
               />
             );
           }
-          if (block.type === 'tool_call') {
-            if (shouldHideToolCallInChat(block, message.blocks)) {
-              return null;
-            }
-            return (
-              <AgentToolCallBlock
-                key={block.id}
-                block={block}
-                onToggle={() => handleToggle(index)}
-              />
-            );
-          }
-          if (block.type === 'annotation_pipeline') {
-            const isAnalysisPipeline =
-              block.pipelineKind === 'analysis' ||
-              block.steps.some((s) =>
-                ['collect', 'execute', 'summarize'].includes(s.stage),
-              );
-            const analysisDetail =
-              isAnalysisPipeline && analysisProposalForPipeline
-                ? {
-                    script: analysisProposalForPipeline.script,
-                    explanation: analysisProposalForPipeline.explanation,
-                    status: analysisProposalForPipeline.status,
-                    result: analysisProposalForPipeline.result,
-                    error: analysisProposalForPipeline.error,
-                  }
-                : undefined;
-            return (
-              <AgentAnnotationPipelineBlock
-                key={`pipeline-${block.pipelineKind ?? 'batch'}`}
-                steps={block.steps}
-                collapsed={block.collapsed}
-                streaming={isStreaming}
-                pipelineCompleted={pipelineCompleted}
-                pipelineKind={block.pipelineKind ?? 'batch'}
-                analysisDetail={analysisDetail}
-                onToggle={() => handleToggle(index)}
-              />
-            );
-          }
-          if (block.type === 'text' && block.content) {
-            if (shouldSkipRedundantProposalText(block.content, message.blocks)) {
-              return null;
-            }
-            return (
-              <AgentMarkdown key={`text-${index}`} content={block.content} />
-            );
-          }
-          if (isFileProposalBlock(block)) {
-            if (block.status === 'dismissed') {
-              return null;
-            }
-            return (
-              <AgentFileChangeBlock
-                key={`file-${index}`}
-                messageId={message.id}
-                blockIndex={index}
-                relativePath={block.suggestedRelativePath}
-                newContent={block.content}
-                status={block.status}
-              />
-            );
-          }
-          if (block.type === 'annotation_proposal') {
-            if (block.status === 'dismissed') {
-              return null;
-            }
-            return (
-              <AgentAnnotationChangeBlock
-                key={`annotation-${index}`}
-                messageId={message.id}
-                blockIndex={index}
-                proposal={block.proposal}
-                status={block.status}
-              />
-            );
-          }
-          if (block.type === 'analysis_script_proposal') {
-            if (embeddedAnalysis) {
-              return null;
-            }
-            if (!shouldRenderProposalSummaryOnly(block)) {
-              return null;
-            }
-            const summary = proposalBlockSummaryLine(block, index);
-            if (!summary) {
-              return null;
-            }
-            return (
-              <div
-                key={summary.key}
-                className={
-                  summary.tone === 'error'
-                    ? 'agent-proposal-summary agent-proposal-summary--error'
-                    : 'agent-proposal-summary'
-                }
-              >
-                {summary.text}
-              </div>
-            );
-          }
-          return null;
+          return renderBlock(segment.block, segment.index);
         })}
 
         {isStreaming && (

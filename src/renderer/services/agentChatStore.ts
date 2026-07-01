@@ -22,7 +22,7 @@ import {
 } from './annotationAgent/pipelineImageSteps';
 import { labelForPipelineStage } from './annotationAgent/pipelineStages';
 import { WORKSPACE_AGENT_UI_KEY } from '../../shared/agentTypes';
-import { summarizeToolArgumentsForDisplay } from './toolDisplayUtils';
+import { summarizeToolArgumentsForDisplay, summarizeToolResultForDisplay } from './toolDisplayUtils';
 
 const STORAGE_KEY = 'lr-agent:agentChatState';
 const UI_STORAGE_KEY = 'lr-agent:agentChatUi';
@@ -431,7 +431,7 @@ export function applyStreamEventToBlocks(
       if (block.type === 'tool_call') {
         next[idx] = {
           ...block,
-          result: event.result,
+          result: summarizeToolResultForDisplay(block.name, event.result),
           status: 'done',
           collapsed: true,
         };

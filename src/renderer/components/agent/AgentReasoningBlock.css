@@ -67,15 +67,18 @@
   margin-bottom: 4px;
 }
 
-.agent-tool-body pre {
-  margin: 0;
+.agent-tool-body .agent-scrollable-pre__viewport {
   padding: 8px;
-  border-radius: 6px;
   font-size: var(--agent-font-meta);
   line-height: 1.45;
-  overflow-x: auto;
   background: var(--vscode-textCodeBlock-background, #1e1e1e);
   color: var(--vscode-foreground, #cccccc);
+}
+
+.agent-tool-body .agent-scrollable-pre__code {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
 .agent-proposal-summary {

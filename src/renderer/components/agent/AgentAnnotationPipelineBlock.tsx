@@ -13,6 +13,7 @@ import {
 import type { PipelineKind } from '../../types/agent';
 import { formatAnalysisStdout } from '../../services/agentDataAnalysis/analysisOutputFormat';
 import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
+import AgentScrollablePre from './AgentScrollablePre';
 import './AgentAnnotationPipelineBlock.css';
 
 export interface PipelineAnalysisDetail {
@@ -88,7 +89,9 @@ function PipelineAnalysisEmbedded({ detail }: { detail: PipelineAnalysisDetail }
         </button>
       ) : null}
       {scriptOpen && detail.script ? (
-        <pre className="agent-pipeline-embedded-pre">{detail.script}</pre>
+        <AgentScrollablePre className="agent-pipeline-embedded-pre">
+          {detail.script}
+        </AgentScrollablePre>
       ) : null}
       {detail.result ? (
         <button
@@ -102,9 +105,9 @@ function PipelineAnalysisEmbedded({ detail }: { detail: PipelineAnalysisDetail }
         </button>
       ) : null}
       {outputOpen && detail.result ? (
-        <pre className="agent-pipeline-embedded-pre">
+        <AgentScrollablePre className="agent-pipeline-embedded-pre">
           {formatAnalysisStdout(detail.result)}
-        </pre>
+        </AgentScrollablePre>
       ) : null}
     </div>
   );

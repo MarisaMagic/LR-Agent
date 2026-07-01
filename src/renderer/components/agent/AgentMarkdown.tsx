@@ -12,7 +12,10 @@ interface AgentMarkdownProps {
 }
 
 export default function AgentMarkdown({ content }: AgentMarkdownProps) {
-  const components = useMemo(() => createMarkdownCodeComponents(), []);
+  const components = useMemo(
+    () => createMarkdownCodeComponents({ overlayHorizontalScroll: true }),
+    [],
+  );
 
   return (
     <div className="agent-markdown">

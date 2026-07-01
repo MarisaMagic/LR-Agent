@@ -9,6 +9,9 @@
 
   --agent-overlay-scrollbar-size: 6px;
   --agent-overlay-scrollbar-inset: 3px;
+  --agent-overlay-horizontal-scrollbar-height: 4px;
+  --agent-overlay-horizontal-scrollbar-inset-x: 12px;
+  --agent-overlay-horizontal-scrollbar-inset-y: 8px;
   --agent-overlay-scrollbar-thumb: rgba(255, 255, 255, 0.22);
   --agent-overlay-scrollbar-thumb-hover: rgba(255, 255, 255, 0.36);
 
