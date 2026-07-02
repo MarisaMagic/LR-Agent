@@ -1,4 +1,4 @@
-import { buildApiClientContext } from './agentTurnRouter';
+import { buildApiClientContext } from './agentClientContext';
 import type { ClientContextPayload } from '../../shared/agentTypes';
 
 describe('buildApiClientContext', () => {

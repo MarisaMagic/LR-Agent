@@ -7,7 +7,6 @@ import type {
   MessageBlock,
   ProjectAgentUiState,
   StreamEvent,
-  TurnKind,
 } from '../../shared/agentTypes';
 import {
   isFileProposalBlock,
@@ -164,6 +163,8 @@ export function loadAgentChatState(): AgentChatPersistedState {
 }
 
 export function persistAgentChatState(state: AgentChatPersistedState): void {
+  // Always persist to localStorage as a fast in-memory-like cache
+  // The SQLite DB is the source of truth, updated through AgentChatContext
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -397,23 +398,40 @@ export function applyStreamEventToBlocks(
   }
 
   if (event.type === 'tool_start') {
+    const toolCallId =
+      (event as Record<string, unknown>).toolCallId as string | undefined ??
+      (event as Record<string, unknown>).tool_call_id as string | undefined ??
+      '';
     const existingIdx = next.findIndex(
-      (block) => block.type === 'tool_call' && block.id === event.toolCallId,
+      (block) => block.type === 'tool_call' && block.id === toolCallId,
     );
     if (existingIdx >= 0) {
       const block = next[existingIdx];
       if (block.type === 'tool_call') {
-        const mergedArgs = block.arguments + event.arguments;
+        // 仅当已有 arguments 为合法 JSON 且非空对象时才合并；否则直接覆盖
+        let argsValid = false;
+        try {
+          const parsed = JSON.parse(block.arguments);
+          argsValid =
+            typeof parsed === 'object' &&
+            parsed !== null &&
+            Object.keys(parsed as Record<string, unknown>).length > 0;
+        } catch {
+          // block.arguments 已损坏，不合并
+        }
+        const resolved = argsValid
+          ? block.arguments + event.arguments
+          : event.arguments;
         next[existingIdx] = {
           ...block,
-          arguments: summarizeToolArgumentsForDisplay(block.name, mergedArgs),
+          arguments: summarizeToolArgumentsForDisplay(block.name, resolved),
         };
       }
       return next;
     }
     next.push({
       type: 'tool_call',
-      id: event.toolCallId,
+      id: toolCallId,
       name: event.name,
       arguments: summarizeToolArgumentsForDisplay(event.name, event.arguments),
       status: 'running',
@@ -423,8 +441,12 @@ export function applyStreamEventToBlocks(
   }
 
   if (event.type === 'tool_result') {
+    const toolCallId =
+      (event as Record<string, unknown>).toolCallId as string | undefined ??
+      (event as Record<string, unknown>).tool_call_id as string | undefined ??
+      '';
     const idx = next.findIndex(
-      (block) => block.type === 'tool_call' && block.id === event.toolCallId,
+      (block) => block.type === 'tool_call' && block.id === toolCallId,
     );
     if (idx >= 0) {
       const block = next[idx];
@@ -604,38 +626,6 @@ export function getUserTextFromMessage(message: ChatMessage): string {
 }
 
 export { resolveUserMessageIdForJob } from './userMessageIdForJob';
-
-/** 重新生成时保持与原助手回复同一条流水线（批量 vs 对话）。 */
-export function inferRegenerateTurnKind(
-  assistantMessage: ChatMessage,
-): TurnKind | undefined {
-  if (assistantMessage.role !== 'assistant') {
-    return undefined;
-  }
-  const wasMutation = assistantMessage.blocks.some((block) => {
-    if (block.type !== 'annotation_proposal') return false;
-    return block.proposal.changes.some(
-      (c) => c.operation === 'patch' || c.operation === 'delete',
-    );
-  });
-  if (wasMutation) return 'mutate_annotation';
-
-  const wasBatch = assistantMessage.blocks.some(
-    (block) =>
-      block.type === 'annotation_proposal' || block.type === 'annotation_pipeline',
-  );
-  if (wasBatch) return 'execute_batch';
-
-  const wasAnalysis = assistantMessage.blocks.some(
-    (block) => block.type === 'analysis_script_proposal',
-  );
-  if (wasAnalysis) return 'analyze_data';
-
-  const wasDocument = assistantMessage.blocks.some(isFileProposalBlock);
-  if (wasDocument) return 'generate_document';
-
-  return 'converse';
-}
 
 export function buildApiMessages(
   messageIds: string[],

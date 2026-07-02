@@ -13,7 +13,10 @@ import checkNodeEnv from '../scripts/check-node-env';
 checkNodeEnv('development');
 
 /** CSS/font-only packages have no JS entry for DllPlugin; loaded via renderer webpack. */
-const dllExcludedDependencies = new Set(['@vscode/codicons']);
+const dllExcludedDependencies = new Set([
+  '@vscode/codicons',
+  '@modelcontextprotocol/sdk',
+]);
 
 const dist = webpackPaths.dllPath;
 

@@ -175,7 +175,6 @@ export default function AgentHistoryPopover({
 
       <OverlayVerticalScrollArea
         className="agent-history-groups-scroll"
-        fillHost
         onScroll={(event) => {
           const el = event.currentTarget;
           if (

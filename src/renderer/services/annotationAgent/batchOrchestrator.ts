@@ -174,6 +174,10 @@ export async function* runAnnotationBatchJob(options: {
   currentFileAbsolutePath: string | null;
   detectionModels: PretrainedModelConfig[];
   isCancelled?: () => boolean;
+  providerApiKey?: string;
+  providerBaseUrl?: string;
+  providerModel?: string;
+  providerSupportsVision?: boolean;
 }): AsyncGenerator<AnnotationProgressEvent> {
   const { project, userRequest, providerId } = options;
 
@@ -229,6 +233,10 @@ export async function* runAnnotationBatchJob(options: {
       labelCandidates,
       detectionModels: detectionSummaries,
       project,
+      providerApiKey: options.providerApiKey ?? '',
+      providerBaseUrl: options.providerBaseUrl ?? '',
+      providerModel: options.providerModel ?? '',
+      providerSupportsVision: options.providerSupportsVision ?? false,
     });
     effectiveUserRequest =
       prepared.resolved_user_request?.trim() || userRequest;
@@ -383,6 +391,10 @@ export async function* runAnnotationBatchJob(options: {
           event.detail,
           event.imagePath ?? image.relativePath,
         )),
+        providerApiKey: options.providerApiKey ?? '',
+        providerBaseUrl: options.providerBaseUrl ?? '',
+        providerModel: options.providerModel ?? '',
+        providerSupportsVision: options.providerSupportsVision ?? false,
       });
       if (result.elapsedMs == null) {
         result.elapsedMs = Math.round(performance.now() - imageStarted);

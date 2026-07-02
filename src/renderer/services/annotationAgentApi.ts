@@ -50,10 +50,18 @@ export async function prepareBatchAnnotation(
     project: AnnotationProjectSnapshot | null;
     defaultConfThreshold?: number;
     defaultIouThreshold?: number;
+    providerApiKey?: string;
+    providerBaseUrl?: string;
+    providerModel?: string;
+    providerSupportsVision?: boolean;
   },
 ): Promise<BatchPrepareResult> {
   const body: Record<string, unknown> = {
     provider_id: providerId,
+    api_key: options.providerApiKey ?? '',
+    base_url: options.providerBaseUrl ?? '',
+    model: options.providerModel ?? '',
+    supports_vision: options.providerSupportsVision ?? false,
     user_request: options.userRequest,
     session_id: options.sessionId ?? null,
     current_relative_path: options.currentRelativePath,
@@ -108,12 +116,18 @@ export async function prepareMutationAnnotation(
     labelCandidates: Array<{ id: string; name: string }>;
     project: AnnotationProjectSnapshot | null;
     selectedAnnotationIds?: string[];
+    providerApiKey?: string;
+    providerBaseUrl?: string;
+    providerModel?: string;
   },
 ): Promise<MutationPrepareResult> {
   return postAnnotationLlm<MutationPrepareResult>(
     '/agent/annotation/mutation-prepare',
     {
       provider_id: providerId,
+      api_key: options.providerApiKey ?? '',
+      base_url: options.providerBaseUrl ?? '',
+      model: options.providerModel ?? '',
       user_request: options.userRequest,
       session_id: options.sessionId ?? null,
       current_relative_path: options.currentRelativePath,
@@ -200,12 +214,20 @@ export async function mapDetectionBoxesUnified(
     judgeFeedback?: string;
     previousMappings?: Array<{ box_index: number; label_id: string; reason?: string }>;
     attempt?: number;
+    providerApiKey?: string;
+    providerBaseUrl?: string;
+    providerModel?: string;
+    providerSupportsVision?: boolean;
   },
 ): Promise<MapDetectionBoxesUnifiedResult> {
   return postAnnotationLlm<MapDetectionBoxesUnifiedResult>(
     '/agent/annotation/map-detection-boxes',
     {
       provider_id: providerId,
+      api_key: options.providerApiKey ?? '',
+      base_url: options.providerBaseUrl ?? '',
+      model: options.providerModel ?? '',
+      supports_vision: options.providerSupportsVision ?? false,
       user_request: options.userRequest,
       intent_summary: options.intentSummary,
       label_candidates: options.labelCandidates,
@@ -245,6 +267,10 @@ export async function judgeDetectionLabels(
     imageBase64?: string;
     attempt?: number;
     maxRetries?: number;
+    providerApiKey?: string;
+    providerBaseUrl?: string;
+    providerModel?: string;
+    providerSupportsVision?: boolean;
   },
 ): Promise<JudgeDetectionLabelsResult> {
   const result = await postAnnotationLlm<{
@@ -269,6 +295,10 @@ export async function judgeDetectionLabels(
     checkedBoxes?: number;
   }>('/agent/annotation/judge-detection-labels', {
     provider_id: providerId,
+    api_key: options.providerApiKey ?? '',
+    base_url: options.providerBaseUrl ?? '',
+    model: options.providerModel ?? '',
+    supports_vision: options.providerSupportsVision ?? false,
     user_request: options.userRequest,
     intent_summary: options.intentSummary,
     label_candidates: options.labelCandidates,

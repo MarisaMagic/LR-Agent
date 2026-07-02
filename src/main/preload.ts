@@ -358,6 +358,97 @@ const electronHandler = {
     getServerUrl: (): Promise<string | null> =>
       ipcRenderer.invoke('mcp:getServerUrl'),
   },
+  db: {
+    // ── Session operations ──
+    sessions: {
+      list: (options: {
+        limit?: number;
+        cursor?: string | null;
+        annotationProjectId?: string | null;
+        workspaceOnly?: boolean;
+      }): Promise<unknown> => ipcRenderer.invoke('db:sessions:list', options),
+      get: (sessionId: string): Promise<unknown> =>
+        ipcRenderer.invoke('db:sessions:get', sessionId),
+      create: (session: {
+        id: string;
+        title?: string;
+        annotationProjectId?: string | null;
+        interactionMode?: string | null;
+        providerId?: string | null;
+        model?: string | null;
+      }): Promise<unknown> => ipcRenderer.invoke('db:sessions:create', session),
+      update: (sessionId: string, patch: Record<string, unknown>): Promise<unknown> =>
+        ipcRenderer.invoke('db:sessions:update', sessionId, patch),
+      softDelete: (sessionId: string): Promise<void> =>
+        ipcRenderer.invoke('db:sessions:softDelete', sessionId),
+      getMessageIds: (sessionId: string): Promise<string[]> =>
+        ipcRenderer.invoke('db:sessions:getMessageIds', sessionId),
+      getMessageCount: (sessionId: string): Promise<number> =>
+        ipcRenderer.invoke('db:sessions:getMessageCount', sessionId),
+      getLastMessagePreview: (sessionId: string): Promise<string | null> =>
+        ipcRenderer.invoke('db:sessions:getLastMessagePreview', sessionId),
+      listWithStats: (options: unknown): Promise<unknown> =>
+        ipcRenderer.invoke('db:sessions:listWithStats', options),
+    },
+    // ── Message operations ──
+    messages: {
+      list: (sessionId: string, options: {
+        beforeMessageId?: string | null;
+        limit?: number;
+      }): Promise<unknown> => ipcRenderer.invoke('db:messages:list', sessionId, options),
+      create: (message: {
+        id: string;
+        sessionId: string;
+        role: string;
+        interactionMode?: string | null;
+        sortIndex?: number;
+        blocksJson?: string;
+        status?: string;
+        providerId?: string | null;
+        model?: string | null;
+        error?: string | null;
+      }): Promise<unknown> => ipcRenderer.invoke('db:messages:create', message),
+      update: (messageId: string, patch: Record<string, unknown>): Promise<unknown> =>
+        ipcRenderer.invoke('db:messages:update', messageId, patch),
+      deleteAfter: (sessionId: string, sortIndex: number): Promise<void> =>
+        ipcRenderer.invoke('db:messages:deleteAfter', sessionId, sortIndex),
+      get: (messageId: string): Promise<unknown> =>
+        ipcRenderer.invoke('db:messages:get', messageId),
+      deleteAfterId: (sessionId: string, messageId: string): Promise<void> =>
+        ipcRenderer.invoke('db:messages:deleteAfterId', sessionId, messageId),
+      cleanupStreaming: (sessionId?: string): Promise<number> =>
+        ipcRenderer.invoke('db:messages:cleanupStreaming', sessionId),
+      deleteBySession: (sessionId: string): Promise<void> =>
+        ipcRenderer.invoke('db:messages:deleteBySession', sessionId),
+      batchCreate: (messages: unknown[]): Promise<void> =>
+        ipcRenderer.invoke('db:messages:batchCreate', messages),
+      getForExport: (sessionId: string): Promise<unknown> =>
+        ipcRenderer.invoke('db:messages:getForExport', sessionId),
+    },
+    // ── Provider operations ──
+    providers: {
+      list: (): Promise<unknown> => ipcRenderer.invoke('db:providers:list'),
+      get: (id: string): Promise<unknown> => ipcRenderer.invoke('db:providers:get', id),
+      create: (provider: {
+        id: string;
+        name: string;
+        baseUrl: string;
+        apiKeyEncrypted: string;
+        encryptionKeyId?: string;
+        model: string;
+        enabled?: boolean;
+        isDefault?: boolean;
+        supportsVision?: boolean;
+      }): Promise<unknown> => ipcRenderer.invoke('db:providers:create', provider),
+      update: (id: string, patch: Record<string, unknown>): Promise<unknown> =>
+        ipcRenderer.invoke('db:providers:update', id, patch),
+      delete: (id: string): Promise<void> =>
+        ipcRenderer.invoke('db:providers:delete', id),
+      setDefault: (id: string): Promise<unknown> =>
+        ipcRenderer.invoke('db:providers:setDefault', id),
+      getDefault: (): Promise<unknown> => ipcRenderer.invoke('db:providers:getDefault'),
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

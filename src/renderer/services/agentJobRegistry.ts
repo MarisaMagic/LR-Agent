@@ -10,16 +10,11 @@ import type {
 import type { AnnotationProjectSnapshot } from '../../shared/annotationAgentTypes';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import { mockChatStream } from './agentStreamMock';
-import {
-  buildBackendMessages,
-  sessionContextPayload,
-  streamChatViaBackend,
-} from './backendChatClient';
+import { streamChatDirectly } from './localChatClient';
+import { buildBackendMessages, streamChatViaBackend } from './backendChatClient';
 import { startAnnotationBatchJob } from './annotationBatchJob';
 import { startAnnotationMutationJob } from './annotationMutationBatchJob';
 import { startAnalysisBatchJob } from './analysisBatchJob';
-import { cancelChatJobOnApi } from './llmProviderApi';
-import tokenHolder from './tokenHolder';
 import { createDebugLogger } from './agentDebugLogger';
 
 export type JobEventListener = (event: StreamEvent) => void;
@@ -83,9 +78,6 @@ export function stopJob(jobId: string): void {
   job.controller.abort();
   runningJobs.delete(jobId);
   pendingListeners.delete(jobId);
-  if (tokenHolder.getAccessToken()) {
-    cancelChatJobOnApi(jobId).catch(() => undefined);
-  }
 }
 
 /** 上下文参数：客户端工具执行时使用，无标注项目时为 null */
@@ -115,7 +107,8 @@ function formatClientToolResult(payload: ClientToolResultPayload): string {
 
 function pendingToolCallsFromEvent(event: StreamEvent): ClientToolCall[] | null {
   if (event.type === 'tool_pending') {
-    return event.toolCalls;
+    const e = event as Record<string, unknown>;
+    return (e.toolCalls ?? e.client_tool_calls) as ClientToolCall[] | null;
   }
   return null;
 }
@@ -135,10 +128,14 @@ async function runClientTool(
   clientContext: ClientContextPayload | null | undefined,
   signal: AbortSignal,
   onPersistEvent?: (event: StreamEvent) => void,
+  providerApiKey = '',
+  providerBaseUrl = '',
+  providerModel = '',
+  providerSupportsVision = false,
 ): Promise<string> {
   const userRequest =
-    (toolCall.arguments as { user_request?: string }).user_request ??
-    JSON.stringify(toolCall.arguments);
+    (toolCall.arguments as { user_request?: string }).user_request?.trim()
+    || JSON.stringify(toolCall.arguments);
 
   const emit = (event: StreamEvent): void => {
     emitJobEvent(jobId, event);
@@ -185,6 +182,10 @@ async function runClientTool(
         detectionModels: ctx.detectionModels,
         onEvent,
         signal: controller.signal,
+        providerApiKey,
+        providerBaseUrl,
+        providerModel,
+        providerSupportsVision,
       });
       return formatClientToolResult({
         status: batchResult.status === 'completed' ? 'completed' : batchResult.status,
@@ -295,11 +296,16 @@ export async function startChatJob(options: {
   messageIds: string[];
   sessionMessages: Record<string, ChatMessage>;
   providerId: string;
+  providerBaseUrl: string;
+  providerApiKey: string;
+  providerModel: string;
+  providerSupportsVision?: boolean;
   userMessageId: string;
   assistantMessageId: string;
   userContent: string;
   truncateFromMessageId?: string | null;
   clientContext?: ClientContextPayload;
+  systemPrompt?: string;
   /** 客户端工具执行所需上下文，有标注项目时传入 */
   clientToolContext?: ClientToolContext | null;
   onPersistEvent?: (event: StreamEvent) => void;
@@ -315,7 +321,14 @@ export async function startChatJob(options: {
   runningJobs.set(options.jobId, job);
   attachPendingListeners(options.jobId, job);
 
-  const useBackend = Boolean(tokenHolder.getAccessToken());
+  // 有工作区或标注项目上下文 → 需要工具 → 走后端 SSE
+  // 纯文本无上下文 → 直连 LLM
+  const needsTools = Boolean(
+    options.clientContext?.workspaceRoot ||
+    options.clientContext?.activeAnnotationProjectId ||
+    options.session.annotationProjectId,
+  );
+  const useDirect = !needsTools && Boolean(options.providerApiKey);
 
   // ── Debug Logger ────────────────────────────────────────────────────────
   const debugLogger = createDebugLogger(options.jobId);
@@ -344,26 +357,15 @@ export async function startChatJob(options: {
     if (accumulatedResults.length > 0) {
       job.state = JobState.Resuming;
       debugLogger.logJobState(JobState.Resuming);
-      // Log resume send context
-      const resumeMsgs = buildBackendMessages(
-        options.messageIds,
-        options.sessionMessages,
-      );
-      debugLogger.logSendContext({
-        jobId: options.jobId,
-        providerId: options.providerId,
-        sessionId: options.session.id,
-        messages: resumeMsgs,
-        userContent: options.userContent,
-        clientContext: options.clientContext,
-        clientToolResults: accumulatedResults,
-      });
     }
 
-    const stream = useBackend
-      ? streamChatViaBackend(
+    const stream = useDirect
+      ? streamChatDirectly(
           {
             providerId: options.providerId,
+            baseUrl: options.providerBaseUrl,
+            apiKey: options.providerApiKey,
+            model: options.providerModel,
             sessionId: options.session.id,
             userMessageId: options.userMessageId,
             assistantMessageId: options.assistantMessageId,
@@ -371,17 +373,49 @@ export async function startChatJob(options: {
               options.messageIds,
               options.sessionMessages,
             ),
-            context: sessionContextPayload(options.session),
-            clientJobId: options.jobId,
-            truncateFromMessageId: options.truncateFromMessageId,
             userContent: options.userContent,
-            clientContext: options.clientContext,
-            clientToolResults:
-              accumulatedResults.length > 0 ? accumulatedResults : undefined,
+            systemPrompt: options.systemPrompt,
           },
           controller.signal,
         )
-      : mockChatStream(options.userContent, controller.signal);
+      : needsTools
+        ? streamChatViaBackend(
+            {
+              providerId: options.providerId,
+              sessionId: options.session.id,
+              userMessageId: options.userMessageId,
+              assistantMessageId: options.assistantMessageId,
+              messages: buildBackendMessages(
+                options.messageIds,
+                options.sessionMessages,
+              ),
+              context: {
+                summary: options.session.contextSummary,
+                summaryUpToMessageId: options.session.summaryUpToMessageId,
+                config: {
+                  maxContextTokens: 12000,
+                  reserveCompletionTokens: 2048,
+                  maxTurnsInWindow: 20,
+                  summarizeTriggerRatio: 0.85,
+                  minTurnsBeforeSummarize: 6,
+                },
+              },
+              clientJobId: options.jobId,
+              truncateFromMessageId: options.truncateFromMessageId,
+              userContent: options.userContent,
+              clientContext: options.clientContext,
+              clientToolResults: accumulatedResults.length > 0
+                ? accumulatedResults
+                : undefined,
+              apiKey: options.providerApiKey,
+              baseUrl: options.providerBaseUrl,
+              model: options.providerModel,
+              supportsVision: options.providerSupportsVision,
+              systemPrompt: options.systemPrompt,
+            },
+            controller.signal,
+          )
+        : mockChatStream(options.userContent, controller.signal);
 
     let pendingToolCalls: ClientToolCall[] | null = null;
     let finished = false;
@@ -446,6 +480,10 @@ export async function startChatJob(options: {
           options.clientContext,
           controller.signal,
           options.onPersistEvent,
+          options.providerApiKey,
+          options.providerBaseUrl,
+          options.providerModel,
+          options.providerSupportsVision ?? false,
         );
         results.push({
           toolCallId: toolCall.toolCallId,
@@ -500,6 +538,10 @@ export async function startAnnotationBatchJobRunner(options: {
   currentFileAbsolutePath: string | null;
   detectionModels: PretrainedModelConfig[];
   onPersistEvent?: (event: StreamEvent) => void;
+  providerApiKey?: string;
+  providerBaseUrl?: string;
+  providerModel?: string;
+  providerSupportsVision?: boolean;
 }): Promise<void> {
   if (runningJobs.has(options.jobId)) return;
 
@@ -524,6 +566,10 @@ export async function startAnnotationBatchJobRunner(options: {
       signal: controller.signal,
       onEvent: (event) => emitJobEvent(options.jobId, event),
       onPersistEvent: options.onPersistEvent,
+      providerApiKey: options.providerApiKey ?? '',
+      providerBaseUrl: options.providerBaseUrl ?? '',
+      providerModel: options.providerModel ?? '',
+      providerSupportsVision: options.providerSupportsVision ?? false,
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {

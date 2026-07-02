@@ -27,6 +27,8 @@ import {
   stopMcpServer,
   getMcpServerUrl,
 } from './mcp/server';
+import { initializeDatabase, closeDatabase } from './db/database';
+import { registerDbHandlers } from './db/handlers';
 import {
   getAnnotationProjects,
   removeProjectDirConfig,
@@ -613,12 +615,16 @@ ipcMain.handle('mcp:getServerUrl', () => getMcpServerUrl());
 app
   .whenReady()
   .then(async () => {
+    // Initialize local SQLite database
+    await initializeDatabase();
+
     registerAuthHandlers();
     registerPretrainedModelHandlers();
     registerPreAnnotHandlers();
     registerAnalysisHandlers();
     registerWorkspaceHandlers();
     registerAnnotationAgentHandlers();
+    registerDbHandlers();
     // 启动本地 MCP Server（异步，失败不阻断窗口创建）
     startMcpServer().catch((err) =>
       console.error('[MCP] Failed to start MCP server:', err),
@@ -633,4 +639,5 @@ app
 app.on('before-quit', () => {
   stopWatchingWorkspace();
   stopMcpServer();
+  closeDatabase();
 });

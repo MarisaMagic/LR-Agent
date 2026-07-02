@@ -38,6 +38,10 @@ export async function runDeterministicSubImageAgent(options: {
     detail?: string;
     imagePath?: string;
   }) => void;
+  providerApiKey?: string;
+  providerBaseUrl?: string;
+  providerModel?: string;
+  providerSupportsVision?: boolean;
 }): Promise<FusionSubImageResult> {
   const { image, plan } = options;
   const base = {
@@ -151,6 +155,10 @@ export async function runDeterministicSubImageAgent(options: {
       judgeFeedback,
       previousMappings,
       attempt,
+      providerApiKey: options.providerApiKey ?? '',
+      providerBaseUrl: options.providerBaseUrl ?? '',
+      providerModel: options.providerModel ?? '',
+      providerSupportsVision: options.providerSupportsVision ?? false,
     });
 
     if (
@@ -172,6 +180,10 @@ export async function runDeterministicSubImageAgent(options: {
         judgeFeedback,
         previousMappings,
         attempt,
+        providerApiKey: options.providerApiKey ?? '',
+        providerBaseUrl: options.providerBaseUrl ?? '',
+        providerModel: options.providerModel ?? '',
+        providerSupportsVision: options.providerSupportsVision ?? false,
       });
     }
     timing.map_ms = (timing.map_ms ?? 0) + Math.round(performance.now() - tMap);
@@ -196,6 +208,10 @@ export async function runDeterministicSubImageAgent(options: {
         imageAbsolutePath: image.absolutePath,
         attempt,
         maxRetries,
+        providerApiKey: options.providerApiKey ?? '',
+        providerBaseUrl: options.providerBaseUrl ?? '',
+        providerModel: options.providerModel ?? '',
+        providerSupportsVision: options.providerSupportsVision ?? false,
       });
       if (judge.ok === false && judge.error === 'image_unavailable') {
         const fallbackBase64 = await ensureImageBase64();
@@ -209,6 +225,10 @@ export async function runDeterministicSubImageAgent(options: {
           imageBase64: fallbackBase64,
           attempt,
           maxRetries,
+          providerApiKey: options.providerApiKey ?? '',
+          providerBaseUrl: options.providerBaseUrl ?? '',
+          providerModel: options.providerModel ?? '',
+          providerSupportsVision: options.providerSupportsVision ?? false,
         });
       }
       return judge;

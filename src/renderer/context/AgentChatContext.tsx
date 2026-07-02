@@ -18,14 +18,19 @@ import {
   type ChatMessage,
   type ClientContextPayload,
   type MessageBlock,
-  type TurnKind,
 } from '../../shared/agentTypes';
 import {
   deleteAgentSessionRemote,
   fetchAgentSessionDetail,
   fetchAgentSessionsPage,
-  loadRemoteAgentChatStateForProject,
+  loadLocalAgentChatStateForProject,
   patchAgentSessionRemote,
+  createSessionLocally,
+  createMessageLocally,
+  updateMessageLocally,
+  deleteMessagesAfterLocally,
+  deleteMessagesAfterIdLocally,
+  cleanupStreamingLocally,
 } from '../services/agentChatApi';
 import {
   applyStreamEventToBlocks,
@@ -33,7 +38,6 @@ import {
   createEmptyProjectUi,
   finalizeAnnotationPipelineBlock,
   getUserTextFromMessage,
-  inferRegenerateTurnKind,
   mergeMessagesFromRemote,
   mergeSessionFromRemote,
   normalizeHistoricalMessages,
@@ -52,7 +56,7 @@ import {
   applyAllPendingProposals,
   countPendingProposals,
 } from '../services/agentProposalApply';
-import { reconcileAppliedFileProposals } from '../services/agentProposalReconcile';
+import { reconcileAppliedFileProposals, reconcileAppliedAnnotationProposals } from '../services/agentProposalReconcile';
 import { ChatBlockPersistence } from '../services/annotationRunPersistence';
 import {
   createDraftSession,
@@ -60,7 +64,6 @@ import {
   normalizeProjectTabs,
 } from '../services/agentProjectBootstrap';
 import { buildAnnotationProjectSnapshot } from '../services/buildProjectSnapshot';
-import tokenHolder from '../services/tokenHolder';
 import { useAuth } from './AuthContext';
 import {
   isJobRunning,
@@ -69,7 +72,6 @@ import {
   subscribeJobEvents,
   type ClientToolContext,
 } from '../services/agentJobRegistry';
-import { understandTurn } from '../services/agentTurnRouter';
 import type { AnnotationProjectSnapshot } from '../../shared/annotationAgentTypes';
 import type { AnnotationProject } from '../types/annotation';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
@@ -104,7 +106,7 @@ interface AgentChatContextValue {
   deleteSession: (sessionId: string) => void;
   sendMessage: (
     content: string,
-    options?: { editMessageId?: string; forceTurnKind?: TurnKind },
+    options?: { editMessageId?: string },
   ) => Promise<void>;
   stopGeneration: (sessionId?: string) => void;
   beginEditMessage: (messageId: string) => void;
@@ -146,7 +148,16 @@ function normalizeLoadedState(state: AgentChatPersistedState): AgentChatPersiste
   const next = { ...state };
   for (const sessionId of Object.keys(next.messagesBySession)) {
     const messages = next.messagesBySession[sessionId] ?? {};
-    next.messagesBySession[sessionId] = normalizeHistoricalMessages(messages);
+    // 将崩溃/重启残留的 streaming 状态消息统一标记为 stopped
+    const cleaned: Record<string, ChatMessage> = {};
+    for (const [msgId, msg] of Object.entries(messages)) {
+      if (msg.status === 'streaming') {
+        cleaned[msgId] = { ...msg, status: 'stopped', updatedAt: Date.now() };
+      } else {
+        cleaned[msgId] = msg;
+      }
+    }
+    next.messagesBySession[sessionId] = normalizeHistoricalMessages(cleaned);
     const session = next.sessions[sessionId];
     if (session?.activeJobId) {
       next.sessions[sessionId] = { ...session, activeJobId: undefined };
@@ -168,6 +179,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   );
   const initializedRef = useRef(false);
   const remoteHydratedRef = useRef(false);
+  const bootstrappedProjectIdRef = useRef<string | null | undefined>(undefined);
   const loadedSessionsRef = useRef<Set<string>>(new Set());
   const blockPersistenceByJobRef = useRef(new Map<string, ChatBlockPersistence>());
   const sessionsNextCursorRef = useRef<string | null>(null);
@@ -199,9 +211,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       const currentUi = getProjectUi(agentUiRef.current, pid);
       const nextUi = { ...currentUi, ...slice };
       agentUiRef.current = setProjectUi(agentUiRef.current, pid, nextUi);
-      if (tokenHolder.getAccessToken()) {
-        persistAgentChatUiState(agentUiRef.current);
-      }
+      persistAgentChatUiState(agentUiRef.current);
       if (slice.agentMode) {
         setAgentModeState(slice.agentMode);
       }
@@ -217,20 +227,17 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         openTabIds: next.openTabIds,
         activeSessionId: next.activeSessionId,
       });
-      if (!tokenHolder.getAccessToken()) {
-        persistAgentChatState(next);
-      }
+      persistAgentChatState(next);
     },
     [persistUiSlice],
   );
 
   const setAgentMode = useCallback(
     (mode: AgentInteractionMode) => {
-      if (workMode === 'editor' && mode === 'annotation') return;
       setAgentModeState(mode);
       persistUiSlice({ agentMode: mode });
     },
-    [persistUiSlice, workMode],
+    [persistUiSlice],
   );
 
   // 编辑器模式下不再强制锁定为 chat 模式，允许用户手动切换 Ask / Agent
@@ -272,7 +279,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const ensureSessionLoaded = useCallback(
     async (sessionId: string): Promise<boolean> => {
-      if (!tokenHolder.getAccessToken()) return true;
       const current = stateRef.current;
       if (!sessionHasHistoryContent(sessionId, current)) {
         return true;
@@ -346,28 +352,45 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             });
           },
         });
+        void reconcileAppliedAnnotationProposals({
+          sessionId,
+          messages: mergedMessages,
+          messageIds: mergedSession.messageIds,
+          project: activeProject ?? null,
+          updateBlock: (messageId, blockIndex, patch) => {
+            const snap = stateRef.current;
+            const sessionMessages = {
+              ...(snap.messagesBySession[sessionId] ?? {}),
+            };
+            const existing = sessionMessages[messageId];
+            if (!existing) return;
+            sessionMessages[messageId] = {
+              ...existing,
+              blocks: existing.blocks.map((b, i) =>
+                i === blockIndex ? ({ ...b, ...patch } as MessageBlock) : b,
+              ),
+              updatedAt: Date.now(),
+            };
+            persist({
+              ...snap,
+              messagesBySession: {
+                ...snap.messagesBySession,
+                [sessionId]: sessionMessages,
+              },
+            });
+          },
+        });
         return true;
       } catch (err) {
-        if (err instanceof ApiError && err.status === 404) {
-          if (sessionHasHistoryContent(sessionId, stateRef.current)) {
-            removeGhostSession(sessionId);
-            showToast('该对话未同步到云端，已从列表移除', { type: 'info' });
-          }
-          return false;
-        }
-        if (err instanceof ApiError && err.status === 429) {
-          reportRemoteSessionError(err, '操作过于频繁，请稍后再试');
-          return false;
-        }
-        reportRemoteSessionError(err, '加载对话失败，请重试');
+        showToast('加载对话失败，请重试', { type: 'error' });
         return false;
       }
     },
-    [activeProject, persist, removeGhostSession, reportRemoteSessionError, rootPath, showToast],
+    [activeProject, persist, rootPath, showToast],
   );
 
   const loadMoreSessions = useCallback(async () => {
-    if (!tokenHolder.getAccessToken() || !sessionsHasMore || loadingMoreSessions) {
+    if (loadingMoreSessions) {
       return;
     }
     const cursor = sessionsNextCursorRef.current;
@@ -418,7 +441,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const loadOlderMessages = useCallback(
     async (sessionId?: string) => {
       const targetId = sessionId ?? stateRef.current.activeSessionId;
-      if (!targetId || !tokenHolder.getAccessToken() || loadingOlderMessages) {
+      if (!targetId || loadingOlderMessages) {
         return;
       }
       const current = stateRef.current;
@@ -466,14 +489,23 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   );
 
   const bootstrapProjectAgent = useCallback(async () => {
-    loadedSessionsRef.current.clear();
     const projectId = activeProjectIdRef.current;
-    const remote = await loadRemoteAgentChatStateForProject(projectId);
+    // 避免项目未变化时重复 bootstrap
+    if (bootstrappedProjectIdRef.current === projectId) return;
+    bootstrappedProjectIdRef.current = projectId;
+
+    loadedSessionsRef.current.clear();
+    // 清理上次未正常完成的 streaming 状态消息
+    cleanupStreamingLocally().catch((err) =>
+      console.error('[DB] Failed to cleanup streaming messages:', err),
+    );
+    const remote = await loadLocalAgentChatStateForProject(projectId);
     const ui = getProjectUi(agentUiRef.current, projectId);
     let merged = mergeProjectSessionsIntoState(
       createEmptyChatState(),
       remote,
       projectId,
+      ui.openTabIds,
     );
     let { state: nextState, ui: nextUi } = normalizeProjectTabs(
       merged,
@@ -521,11 +553,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   }, [defaultProvider, ensureSessionLoaded]);
 
   useEffect(() => {
-    if (authStatus !== 'authenticated') {
-      remoteHydratedRef.current = false;
-      return;
-    }
-
+    // Always bootstrap from local SQLite regardless of auth status
     let cancelled = false;
     (async () => {
       try {
@@ -533,7 +561,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         if (!cancelled) remoteHydratedRef.current = true;
       } catch (err) {
         if (!cancelled) {
-          reportRemoteSessionError(err, '加载对话列表失败，请重试');
+          showToast('加载对话列表失败，请重试', { type: 'error' });
           remoteHydratedRef.current = true;
         }
       }
@@ -542,11 +570,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [authStatus, activeProject?.id, bootstrapProjectAgent, reportRemoteSessionError]);
+  }, [activeProject?.id, bootstrapProjectAgent]);
 
   useEffect(() => {
     if (authStatus === 'loading') return;
-    if (authStatus === 'authenticated') return;
     loadedSessionsRef.current.clear();
     persist(normalizeLoadedState(loadAgentChatState()));
     const projectId = activeProject?.id ?? null;
@@ -585,7 +612,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (authStatus === 'loading') return;
-    if (authStatus === 'authenticated' && !remoteHydratedRef.current) return;
     if (initializedRef.current) return;
     initializedRef.current = true;
     const current = stateRef.current;
@@ -702,6 +728,14 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
                 }
               : latest.sessions,
           });
+          // 写入最终 blocks 到 SQLite
+          const finalMsg = stateRef.current.messagesBySession[sessionId]?.[messageId];
+          if (finalMsg) {
+            updateMessageLocally(messageId, {
+              blocksJson: JSON.stringify(finalMsg.blocks),
+              status: 'done',
+            }).catch((err) => console.error('[DB] Failed to update message:', err));
+          }
           return;
         }
 
@@ -750,6 +784,15 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
                 }
               : latest.sessions,
           });
+          // 写入 error 到 SQLite
+          const errMsg = stateRef.current.messagesBySession[sessionId]?.[messageId];
+          if (errMsg) {
+            updateMessageLocally(messageId, {
+              blocksJson: JSON.stringify(errMsg.blocks),
+              status: 'error',
+              error: errMsg.error,
+            }).catch((err) => console.error('[DB] Failed to update message:', err));
+          }
           return;
         }
 
@@ -765,8 +808,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               [sessionId]: {
                 ...session,
                 contextSummary: event.summary,
-                summaryUpToMessageId: event.summaryUpToMessageId,
-                lastContextTokenEstimate: event.tokenEstimate,
+                summaryUpToMessageId: (event as Record<string, unknown>).summaryUpToMessageId as string | undefined ?? (event as Record<string, unknown>).summary_up_to_message_id as string | undefined,
+                lastContextTokenEstimate: (event as Record<string, unknown>).tokenEstimate as number | undefined ?? (event as Record<string, unknown>).token_estimate as number | undefined,
                 updatedAt: Date.now(),
               },
             },
@@ -897,13 +940,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         stopJob(session.activeJobId);
       }
 
-      if (tokenHolder.getAccessToken() && sessionHasHistoryContent(sessionId, current)) {
-        try {
-          await deleteAgentSessionRemote(sessionId);
-        } catch {
-          showToast('删除对话失败，请重试', { type: 'error' });
-          return;
-        }
+      if (sessionHasHistoryContent(sessionId, current)) {
+        deleteAgentSessionRemote(sessionId).catch((err) =>
+          console.error('[DB] Failed to delete session:', err),
+        );
       }
 
       loadedSessionsRef.current.delete(sessionId);
@@ -991,7 +1031,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const sendMessage = useCallback(
     async (
       content: string,
-      options?: { editMessageId?: string; forceTurnKind?: TurnKind },
+      options?: { editMessageId?: string },
     ) => {
       const trimmed = content.trim();
       if (!trimmed) return;
@@ -1002,7 +1042,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
       const wasDraft = !sessionHasHistoryContent(sessionId, current);
 
-      if (tokenHolder.getAccessToken() && !wasDraft) {
+      if (!wasDraft) {
         const loaded = await ensureSessionLoaded(sessionId);
         if (!loaded) return;
       }
@@ -1046,6 +1086,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           for (const removedId of removedIds) {
             delete sessionMessages[removedId];
           }
+          // 同步清理 SQLite 中编辑点之后的废弃消息
+          deleteMessagesAfterIdLocally(sessionId, editMessageId).catch(
+            (err) => console.error('[DB] Failed to cleanup after edit:', err),
+          );
           sessionMessages[editMessageId] = {
             ...sessionMessages[editMessageId],
             blocks: [{ type: 'text', content: trimmed }],
@@ -1101,18 +1145,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       messageIds.push(assistantMessageId);
 
       const jobId = createAgentId('job');
-      const blockPersistence = tokenHolder.getAccessToken()
-        ? (() => {
-            const persistence = new ChatBlockPersistence();
-            persistence.attach({
-              sessionId,
-              assistantMessageId,
-              clientJobId: jobId,
-            });
-            blockPersistenceByJobRef.current.set(jobId, persistence);
-            return persistence;
-          })()
-        : null;
       const nextTitle =
         session.title === '新对话' || isEdit
           ? buildSessionTitle(trimmed)
@@ -1141,6 +1173,51 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         },
       });
 
+      // ── 同步到 SQLite ──
+      // 首次发消息：创建 session
+      if (wasDraft) {
+        createSessionLocally({
+          id: sessionId,
+          title: nextTitle,
+          annotationProjectId: current.sessions[sessionId].annotationProjectId ?? activeProject?.id ?? null,
+          interactionMode: agentMode,
+          providerId: selectedProvider.id,
+          model: selectedProvider.model,
+        }).catch((err) => console.error('[DB] Failed to create session:', err));
+      }
+
+      // 用户消息：编辑时 update 已有消息，否则 create 新消息
+      const userMessageData = sessionMessages[userMessageIdForJob];
+      if (userMessageData) {
+        if (isEdit) {
+          updateMessageLocally(userMessageData.id, {
+            blocksJson: JSON.stringify(userMessageData.blocks),
+          }).catch((err) => console.error('[DB] Failed to update user message:', err));
+        } else {
+          createMessageLocally({
+            id: userMessageData.id,
+            sessionId,
+            role: userMessageData.role,
+            interactionMode: userMessageData.interactionMode,
+            blocksJson: JSON.stringify(userMessageData.blocks),
+            status: userMessageData.status,
+            providerId: userMessageData.providerId,
+            model: userMessageData.model,
+          }).catch((err) => console.error('[DB] Failed to create user message:', err));
+        }
+      }
+
+      // 助手消息占位
+      createMessageLocally({
+        id: assistantMessageId,
+        sessionId,
+        role: 'assistant',
+        blocksJson: '[]',
+        status: 'streaming',
+        providerId: selectedProvider.id,
+        model: selectedProvider.model,
+      }).catch((err) => console.error('[DB] Failed to create assistant message:', err));
+
       setComposerDraft('');
 
       attachJobListener(jobId, sessionId, assistantMessageId);
@@ -1161,22 +1238,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         mcpServerUrl,
       });
 
-      if (tokenHolder.getAccessToken()) {
-        try {
-          const turnUnderstanding = await understandTurn({
-            providerId: selectedProvider.id,
-            userContent: trimmed,
-            clientContext,
-            sessionId,
-            userMessageId: userMessageIdForJob,
-            assistantMessageId,
-            truncateFromMessageId,
-          });
-          clientContext = { ...clientContext, turnUnderstanding };
-        } catch {
-          // 回合理解为可选增强，失败时不阻塞对话
-        }
-      }
+      // Turn understanding removed — now handled locally or skipped
 
       // 构建客户端工具上下文（有标注项目时传入，供 Agent 调用客户端工具使用）
       const clientToolContext: ClientToolContext | null =
@@ -1192,7 +1254,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           : null;
 
       // Debug: 发送前上下文摘要
-      if (
+        if (
         typeof window !== 'undefined' &&
         (window as any).__LR_AGENT_DEBUG__
       ) {
@@ -1203,15 +1265,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           'color: #e0e0e0;', displayContent, '',
           sessionId.slice(0, 12), selectedProvider.id.slice(0, 12),
         );
-        if (clientContext?.turnUnderstanding) {
-          const tu = clientContext.turnUnderstanding;
-          console.log(
-            '%c[LR-Agent]%c    turnUnderstanding: turnKind=%c%s%c needsVision=%c%s',
-            'color: #ff9800; font-weight:bold;', '',
-            'color: #4caf50;', tu.turnKind, '',
-            'color: #888;', tu.needsVisionInput,
-          );
-        }
       }
 
       try {
@@ -1221,18 +1274,18 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           messageIds,
           sessionMessages,
           providerId: selectedProvider.id,
+          providerBaseUrl: selectedProvider.baseUrl,
+          providerApiKey: selectedProvider.apiKey,
+          providerModel: selectedProvider.model,
+          providerSupportsVision: selectedProvider.supportsVision,
           userMessageId: userMessageIdForJob,
           assistantMessageId,
           userContent: trimmed,
           truncateFromMessageId,
           clientContext,
           clientToolContext,
-          onPersistEvent: blockPersistence
-            ? (event) => blockPersistence.push(event)
-            : undefined,
         });
       } catch (err) {
-        await disposeBlockPersistence(jobId);
         updateMessage(sessionId, assistantMessageId, (message) => ({
           ...message,
           status: 'error',
@@ -1292,12 +1345,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           },
         },
       });
-      if (tokenHolder.getAccessToken()) {
-        patchAgentSessionRemote(sessionId, {
-          providerId: provider.id,
-          model: provider.model,
-        }).catch(() => undefined);
-      }
+      patchAgentSessionRemote(sessionId, {
+        providerId: provider.id,
+        model: provider.model,
+      }).catch((err) => console.error('[DB] Failed to update session provider:', err));
     },
     [persist, resolveProvider],
   );
@@ -1384,10 +1435,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       }
       if (!userMessageId || !userContent.trim()) return;
 
-      const forceTurnKind = inferRegenerateTurnKind(assistantMessage);
       await sendMessage(userContent, {
         editMessageId: userMessageId,
-        forceTurnKind,
       });
     },
     [agentMode, persist, sendMessage, stopGeneration],

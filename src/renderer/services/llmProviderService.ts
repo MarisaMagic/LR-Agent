@@ -6,11 +6,9 @@ import {
   createLlmProviderOnApi,
   deleteLlmProviderOnApi,
   fetchLlmProvidersFromApi,
-  migrateLocalProvidersToApi,
   setDefaultLlmProviderOnApi,
   updateLlmProviderOnApi,
 } from './llmProviderApi';
-import tokenHolder from './tokenHolder';
 
 const DEFAULT_PROVIDER_KEY = 'lr-agent:defaultLlmProviderId';
 
@@ -33,10 +31,6 @@ export function buildEmptyProvider(): LlmProviderConfig {
 }
 
 export async function loadLlmProviders(): Promise<LlmProviderConfig[]> {
-  if (!tokenHolder.getAccessToken()) {
-    return [];
-  }
-  await migrateLocalProvidersToApi();
   return fetchLlmProvidersFromApi();
 }
 

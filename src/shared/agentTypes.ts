@@ -139,68 +139,6 @@ export const DEFAULT_CHAT_CONTEXT_CONFIG: ChatContextConfig = {
 
 export type AgentInteractionMode = 'chat' | 'annotation';
 
-export type TurnKind =
-  | 'execute_batch'
-  | 'mutate_annotation'
-  | 'analyze_data'
-  | 'generate_report'
-  | 'generate_document'
-  | 'converse'
-  | 'clarify_scope'
-  | 'wants_batch'
-  | 'unsupported';
-
-export type TaskIntent =
-  | 'converse'
-  | 'query_annotation'
-  | 'execute_batch'
-  | 'mutate_annotation'
-  | 'edit_annotation'
-  | 'delete_annotation'
-  | 'analyze_data'
-  | 'generate_report'
-  | 'generate_document'
-  | 'clarify_scope'
-  | 'wants_batch'
-  | 'unsupported';
-
-export function isBatchAnnotationTurnKind(
-  turnKind: TurnKind | null | undefined,
-): boolean {
-  return turnKind === 'execute_batch' || turnKind === 'wants_batch';
-}
-
-export function isMutationAnnotationTurnKind(
-  turnKind: TurnKind | null | undefined,
-): boolean {
-  return turnKind === 'mutate_annotation';
-}
-
-export function isAnalysisTurnKind(
-  turnKind: TurnKind | null | undefined,
-): boolean {
-  return turnKind === 'analyze_data';
-}
-
-export function isDocumentTurnKind(
-  turnKind: TurnKind | null | undefined,
-): boolean {
-  return turnKind === 'generate_report' || turnKind === 'generate_document';
-}
-
-export interface TurnUnderstandingResult {
-  resolvedUserContent: string;
-  referencedRelativePaths: string[];
-  resolvedActiveRelativePath?: string | null;
-  taskIntent: TaskIntent;
-  turnKind: TurnKind;
-  needsVisionInput: boolean;
-  confidence: number;
-  scopeNotes: string;
-  reason: string;
-  userVisibleHint?: string | null;
-}
-
 export interface ProjectAgentUiState {
   openTabIds: string[];
   activeSessionId: string | null;
@@ -346,8 +284,6 @@ export interface ClientContextPayload {
   workMode?: 'editor' | 'annotation' | null;
   selectedAnnotationId?: string | null;
   selectedAnnotationIds?: string[];
-  turnKind?: TurnKind | null;
-  turnUnderstanding?: TurnUnderstandingResult | null;
   /** 本地 MCP Server 地址（Electron 启动时分配，如 "http://127.0.0.1:PORT"） */
   mcpServerUrl?: string | null;
   annotationProjectSnapshot?: {

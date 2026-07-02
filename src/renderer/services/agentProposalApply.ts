@@ -9,7 +9,6 @@ import { isAgentDocumentWriteEnabled } from './agentFeatureFlags';
 import { buildAnnotationStatsSnapshot } from './agentDataAnalysis/buildAnnotationStatsSnapshot';
 import { executeAnalysisScript } from './agentDataAnalysis/dataAnalysisRunner';
 import { patchAgentMessageBlockRemote } from './agentChatApi';
-import tokenHolder from './tokenHolder';
 
 export type PendingProposalRef = {
   messageId: string;
@@ -208,7 +207,6 @@ async function syncBlockStatusRemote(options: {
   patch: Record<string, unknown>;
   onSyncWarning?: (message: string) => void;
 }): Promise<void> {
-  if (!tokenHolder.getAccessToken()) return;
   try {
     await patchAgentMessageBlockRemote({
       sessionId: options.sessionId,
@@ -218,7 +216,7 @@ async function syncBlockStatusRemote(options: {
       patch: options.patch,
     });
   } catch {
-    options.onSyncWarning?.('状态未同步云端，刷新后可能再次提示 Keep All');
+    options.onSyncWarning?.('状态未持久化，刷新后可能再次提示 Keep All');
   }
 }
 

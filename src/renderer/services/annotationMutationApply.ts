@@ -209,7 +209,11 @@ function applyChangeToDoc(
   let annotations = [...parsed.annotations];
 
   if (op === 'append') {
-    annotations = [...annotations, ...(change.annotations ?? [])];
+    const existingIds = new Set(annotations.map((a) => a.id));
+    const deduped = (change.annotations ?? []).filter(
+      (ann) => !existingIds.has(ann.id),
+    );
+    annotations = [...annotations, ...deduped];
   } else if (op === 'replace' || op === 'replace_bboxes') {
     const nonBbox = annotations.filter((a) => a.kind !== 'bbox');
     annotations = [...nonBbox, ...(change.annotations ?? [])];

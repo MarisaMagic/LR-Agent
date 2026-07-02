@@ -42,13 +42,15 @@ export function mergeProjectSessionsIntoState(
     sessionOrder: string[];
   },
   annotationProjectId: string | null,
+  openTabIds?: string[],
 ): AgentChatPersistedState {
   const sessions = { ...current.sessions };
+  const tabSet = new Set(openTabIds ?? []);
   for (const [id, session] of Object.entries(incoming.sessions)) {
-    if (
-      sessionBelongsToProject(session, annotationProjectId) &&
-      (session.messageCount ?? 0) > 0
-    ) {
+    if (!sessionBelongsToProject(session, annotationProjectId)) continue;
+    // 保留 openTabIds 中引用的会话（即使 messageCount 为 0），
+    // 确保重启后已打开的标签页不会因 messageCount 过滤丢失
+    if (tabSet.has(id) || (session.messageCount ?? 0) > 0) {
       sessions[id] = mergeSessionFromRemote(current.sessions[id], session);
     }
   }

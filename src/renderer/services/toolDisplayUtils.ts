@@ -15,11 +15,15 @@ export function isExplorationTool(name: string): boolean {
   return EXPLORATION_TOOL_NAMES.has(name);
 }
 
-function parseArgs(argsJson: string): Record<string, unknown> {
+function parseArgs(argsJson: string): Record<string, unknown> | null {
   try {
-    return JSON.parse(argsJson) as Record<string, unknown>;
+    const parsed = JSON.parse(argsJson);
+    if (typeof parsed !== 'object' || parsed === null) {
+      return null;
+    }
+    return parsed as Record<string, unknown>;
   } catch {
-    return {};
+    return null;
   }
 }
 
@@ -38,6 +42,7 @@ export function formatToolCallLabel(name: string, argsJson: string): string {
   const args = parseArgs(argsJson);
 
   if (name === READ_WORKSPACE_FILE) {
+    if (!args) return 'Read';
     const p = pathFromArgs(args) || '当前文件';
     const start = args.start_line ?? args.startLine;
     const end = args.end_line ?? args.endLine;
@@ -50,12 +55,14 @@ export function formatToolCallLabel(name: string, argsJson: string): string {
   }
 
   if (name === GREP_WORKSPACE) {
+    if (!args) return 'Grepped';
     const pattern = String(args.pattern ?? '').trim() || '?';
     const scope = pathFromArgs(args) || 'workspace';
     return `Grepped ${pattern} in ${scope}`;
   }
 
   if (name === LIST_WORKSPACE_DIRECTORY) {
+    if (!args) return 'Listed';
     const dir = pathFromArgs(args) || '.';
     return `Listed ${dir}`;
   }
@@ -70,6 +77,9 @@ export function summarizeToolArgumentsForDisplay(
   if (name === WRITE_WORKSPACE_FILE) {
     try {
       const args = parseArgs(argsJson);
+      if (!args) {
+        return argsJson;
+      }
       const relativePath = pathFromArgs(args);
       const content = typeof args.content === 'string' ? args.content : '';
       const lineCount = content ? content.split('\n').length : 0;
@@ -91,11 +101,17 @@ export function summarizeToolArgumentsForDisplay(
 
   if (name === READ_WORKSPACE_FILE || name === GREP_WORKSPACE) {
     const args = parseArgs(argsJson);
+    if (!args) {
+      return argsJson;
+    }
     return JSON.stringify(args, null, 2);
   }
 
   if (name === LIST_WORKSPACE_DIRECTORY) {
     const args = parseArgs(argsJson);
+    if (!args) {
+      return argsJson;
+    }
     return JSON.stringify(args, null, 2);
   }
 

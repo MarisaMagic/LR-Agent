@@ -4,74 +4,56 @@ import type {
   ChatMessage,
   MessageBlock,
 } from '../../shared/agentTypes';
-import { apiFetch } from './api';
 
 const DEFAULT_SESSION_PAGE_SIZE = 50;
 const DEFAULT_MESSAGE_PAGE_SIZE = 50;
 
-interface AgentMessageApiRow {
+// ── Database row types (matching main process SQLite schema) ──────
+
+interface DbSessionRow {
+  id: string;
+  title: string;
+  annotation_project_id: string | null;
+  interaction_mode: string | null;
+  provider_id: string | null;
+  model: string | null;
+  context_summary: string | null;
+  summary_up_to_message_id: string | null;
+  last_context_token_estimate: number | null;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+}
+
+interface DbMessageRow {
   id: string;
   session_id: string;
   role: string;
-  blocks: MessageBlock[];
-  status: ChatMessage['status'];
-  interaction_mode?: string | null;
-  provider_id: string;
-  model: string;
-  error?: string | null;
+  interaction_mode: string | null;
+  sort_index: number;
+  blocks_json: string;
+  status: string;
+  provider_id: string | null;
+  model: string | null;
+  error: string | null;
   created_at: number;
   updated_at: number;
 }
 
-interface AgentSessionApiRow {
-  id: string;
-  title: string;
-  annotation_project_id?: string | null;
-  interaction_mode?: string | null;
-  provider_id: string;
-  model: string;
-  message_ids: string[];
-  message_count?: number;
-  last_message_preview?: string | null;
-  context_summary?: string | null;
-  summary_up_to_message_id?: string | null;
-  last_context_token_estimate?: number | null;
-  created_at: number;
-  updated_at: number;
+interface DbSessionListResult {
+  sessions: DbSessionRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
 }
 
-interface AgentSessionListApiResponse {
-  sessions: AgentSessionApiRow[];
-  next_cursor?: string | null;
-  has_more?: boolean;
+interface DbMessageListResult {
+  messages: DbMessageRow[];
+  hasMoreBefore: boolean;
 }
 
-interface AgentSessionDetailApiResponse {
-  session: AgentSessionApiRow;
-  messages: AgentMessageApiRow[];
-  has_more_before?: boolean;
-}
+// ── Mappers ────────────────────────────────────────────────────────
 
-function mapMessage(row: AgentMessageApiRow): ChatMessage {
-  const mode = row.interaction_mode;
-  const interactionMode =
-    mode === 'annotation' || mode === 'chat' ? mode : null;
-  return {
-    id: row.id,
-    sessionId: row.session_id,
-    role: row.role as ChatMessage['role'],
-    blocks: row.blocks ?? [],
-    status: row.status,
-    interactionMode,
-    providerId: row.provider_id,
-    model: row.model,
-    error: row.error ?? undefined,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function mapSession(row: AgentSessionApiRow): AgentSession {
+function mapDbSession(row: DbSessionRow): AgentSession {
   return {
     id: row.id,
     title: row.title,
@@ -80,11 +62,9 @@ function mapSession(row: AgentSessionApiRow): AgentSession {
       row.interaction_mode === 'annotation' || row.interaction_mode === 'chat'
         ? row.interaction_mode
         : null,
-    providerId: row.provider_id,
-    model: row.model,
-    messageIds: row.message_ids ?? [],
-    messageCount: row.message_count,
-    lastMessagePreview: row.last_message_preview ?? undefined,
+    providerId: row.provider_id ?? '',
+    model: row.model ?? '',
+    messageIds: [],
     contextSummary: row.context_summary ?? undefined,
     summaryUpToMessageId: row.summary_up_to_message_id ?? undefined,
     lastContextTokenEstimate: row.last_context_token_estimate ?? undefined,
@@ -93,13 +73,74 @@ function mapSession(row: AgentSessionApiRow): AgentSession {
   };
 }
 
+function mapDbMessage(row: DbMessageRow): ChatMessage {
+  const mode = row.interaction_mode;
+  const interactionMode =
+    mode === 'annotation' || mode === 'chat' ? mode : null;
+  let blocks: MessageBlock[] = [];
+  try {
+    blocks = JSON.parse(row.blocks_json);
+  } catch {
+    blocks = [];
+  }
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    role: row.role as ChatMessage['role'],
+    blocks,
+    status: row.status as ChatMessage['status'],
+    interactionMode,
+    providerId: row.provider_id ?? '',
+    model: row.model ?? '',
+    error: row.error ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// ── IPC helper ─────────────────────────────────────────────────────
+
+function getDb() {
+  return (window as unknown as { electron: { db: {
+    sessions: {
+      list: (opts: unknown) => Promise<DbSessionListResult>;
+      get: (id: string) => Promise<DbSessionRow | undefined>;
+      create: (s: unknown) => Promise<DbSessionRow>;
+      update: (id: string, p: unknown) => Promise<DbSessionRow | undefined>;
+      softDelete: (id: string) => Promise<void>;
+      getMessageIds: (id: string) => Promise<string[]>;
+      getMessageCount: (id: string) => Promise<number>;
+      getLastMessagePreview: (id: string) => Promise<string | null>;
+      listWithStats: (opts: unknown) => Promise<{
+        sessions: Array<DbSessionRow & { message_count: number; last_message_preview: string | null }>;
+        nextCursor: string | null;
+        hasMore: boolean;
+      }>;
+    };
+    messages: {
+      list: (sid: string, opts: unknown) => Promise<DbMessageListResult>;
+      get: (id: string) => Promise<DbMessageRow | undefined>;
+      create: (m: unknown) => Promise<DbMessageRow>;
+      update: (id: string, p: unknown) => Promise<DbMessageRow | undefined>;
+      deleteAfter: (sid: string, idx: number) => Promise<void>;
+      deleteAfterId: (sid: string, msgId: string) => Promise<void>;
+      cleanupStreaming: (sid?: string) => Promise<number>;
+      deleteBySession: (sid: string) => Promise<void>;
+      batchCreate: (msgs: unknown[]) => Promise<void>;
+      getForExport: (sid: string) => Promise<DbMessageRow[]>;
+    };
+  } } }).electron.db;
+}
+
+// ── Public API ─────────────────────────────────────────────────────
+
 export interface AgentSessionsPage {
   sessions: AgentSession[];
   nextCursor: string | null;
   hasMore: boolean;
 }
 
-export async function fetchAgentSessionsPage(
+export async function listSessionsLocally(
   options: {
     limit?: number;
     cursor?: string | null;
@@ -107,28 +148,30 @@ export async function fetchAgentSessionsPage(
     workspaceOnly?: boolean;
   } = {},
 ): Promise<AgentSessionsPage> {
-  const params = new URLSearchParams();
-  const limit = options.limit ?? DEFAULT_SESSION_PAGE_SIZE;
-  params.set('limit', String(limit));
-  if (options.cursor) {
-    params.set('cursor', options.cursor);
+  const db = getDb();
+  const result = await db.sessions.listWithStats({
+    limit: options.limit,
+    cursor: options.cursor,
+    annotationProjectId: options.annotationProjectId,
+    workspaceOnly: options.workspaceOnly,
+  });
+  const sessions: AgentSession[] = [];
+  for (const row of result.sessions) {
+    const session = mapDbSession(row);
+    session.messageCount = row.message_count;
+    session.lastMessagePreview = row.last_message_preview ?? undefined;
+    // messageIds 改为惰性加载：仅当前打开的 session 或展开列表详情时才加载
+    session.messageIds = [];
+    sessions.push(session);
   }
-  if (options.workspaceOnly) {
-    params.set('workspace_only', 'true');
-  } else if (options.annotationProjectId) {
-    params.set('annotation_project_id', options.annotationProjectId);
-  }
-  const data = await apiFetch<AgentSessionListApiResponse>(
-    `/agent/sessions?${params.toString()}`,
-  );
   return {
-    sessions: data.sessions.map(mapSession),
-    nextCursor: data.next_cursor ?? null,
-    hasMore: Boolean(data.has_more),
+    sessions,
+    nextCursor: result.nextCursor ?? null,
+    hasMore: Boolean(result.hasMore),
   };
 }
 
-export async function fetchAgentSessionDetail(
+export async function getSessionDetailLocally(
   sessionId: string,
   options: { limit?: number; beforeMessageId?: string | null } = {},
 ): Promise<{
@@ -136,101 +179,175 @@ export async function fetchAgentSessionDetail(
   messages: Record<string, ChatMessage>;
   hasMoreBefore: boolean;
 }> {
-  const params = new URLSearchParams();
+  const db = getDb();
   const limit = options.limit ?? DEFAULT_MESSAGE_PAGE_SIZE;
-  params.set('limit', String(limit));
-  if (options.beforeMessageId) {
-    params.set('before_message_id', options.beforeMessageId);
+  const sessionRow = await db.sessions.get(sessionId);
+  if (!sessionRow) {
+    throw new Error('Session not found');
   }
-  const query = params.toString();
-  const path = `/agent/sessions/${encodeURIComponent(sessionId)}${query ? `?${query}` : ''}`;
-  const data = await apiFetch<AgentSessionDetailApiResponse>(path);
 
-  const session = mapSession(data.session);
+  const messageResult = await db.messages.list(sessionId, {
+    limit,
+    beforeMessageId: options.beforeMessageId,
+  });
+
+  const session = mapDbSession(sessionRow);
+  const messageIds = await db.sessions.getMessageIds(sessionId);
+  const messageCount = await db.sessions.getMessageCount(sessionId);
+  session.messageIds = messageIds;
+  session.messageCount = messageCount;
+
   const messages: Record<string, ChatMessage> = {};
-  for (const row of data.messages) {
-    messages[row.id] = mapMessage(row);
+  for (const row of messageResult.messages) {
+    messages[row.id] = mapDbMessage(row);
   }
+
   return {
     session: {
       ...session,
-      hasMoreMessagesBefore: Boolean(data.has_more_before),
+      hasMoreMessagesBefore: messageResult.hasMoreBefore,
     },
     messages,
-    hasMoreBefore: Boolean(data.has_more_before),
+    hasMoreBefore: messageResult.hasMoreBefore,
   };
 }
 
-export async function createAgentSessionRemote(
+export async function createSessionLocally(
   session: Pick<
     AgentSession,
     'id' | 'title' | 'providerId' | 'model' | 'annotationProjectId' | 'interactionMode'
   >,
 ): Promise<AgentSession> {
-  const row = await apiFetch<AgentSessionApiRow>('/agent/sessions', {
-    method: 'POST',
-    body: JSON.stringify({
-      id: session.id,
-      title: session.title,
-      provider_id: session.providerId || null,
-      model: session.model || null,
-      annotation_project_id: session.annotationProjectId ?? null,
-      interaction_mode: session.interactionMode ?? null,
-    }),
+  const db = getDb();
+  const row = await db.sessions.create({
+    id: session.id,
+    title: session.title,
+    annotationProjectId: session.annotationProjectId,
+    interactionMode: session.interactionMode,
+    providerId: session.providerId || null,
+    model: session.model || null,
   });
-  return mapSession(row);
+  return mapDbSession(row);
 }
 
-export async function patchAgentSessionRemote(
+export async function updateSessionLocally(
   sessionId: string,
   patch: Partial<Pick<AgentSession, 'title' | 'providerId' | 'model'>>,
-): Promise<AgentSession> {
-  const row = await apiFetch<AgentSessionApiRow>(
-    `/agent/sessions/${encodeURIComponent(sessionId)}`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify({
-        title: patch.title,
-        provider_id: patch.providerId,
-        model: patch.model,
-      }),
-    },
-  );
-  return mapSession(row);
-}
-
-export async function deleteAgentSessionRemote(sessionId: string): Promise<void> {
-  await apiFetch<void>(`/agent/sessions/${encodeURIComponent(sessionId)}`, {
-    method: 'DELETE',
+): Promise<AgentSession | undefined> {
+  const db = getDb();
+  const row = await db.sessions.update(sessionId, {
+    title: patch.title,
+    providerId: patch.providerId,
+    model: patch.model,
   });
+  return row ? mapDbSession(row) : undefined;
 }
 
+export async function deleteSessionLocally(sessionId: string): Promise<void> {
+  const db = getDb();
+  await db.sessions.softDelete(sessionId);
+}
+
+export async function createMessageLocally(message: {
+  id: string;
+  sessionId: string;
+  role: string;
+  interactionMode?: string | null;
+  blocksJson?: string;
+  status?: string;
+  providerId?: string | null;
+  model?: string | null;
+  error?: string | null;
+}): Promise<ChatMessage> {
+  const db = getDb();
+  const row = await db.messages.create(message);
+  return mapDbMessage(row);
+}
+
+export async function updateMessageLocally(
+  messageId: string,
+  patch: {
+    blocksJson?: string;
+    status?: string;
+    error?: string | null;
+  },
+): Promise<ChatMessage | undefined> {
+  const db = getDb();
+  const row = await db.messages.update(messageId, patch);
+  return row ? mapDbMessage(row) : undefined;
+}
+
+export async function deleteMessagesAfterLocally(
+  sessionId: string,
+  sortIndex: number,
+): Promise<void> {
+  const db = getDb();
+  await db.messages.deleteAfter(sessionId, sortIndex);
+}
+
+export async function deleteMessagesAfterIdLocally(
+  sessionId: string,
+  messageId: string,
+): Promise<void> {
+  const db = getDb();
+  await db.messages.deleteAfterId(sessionId, messageId);
+}
+
+export async function cleanupStreamingLocally(sessionId?: string): Promise<number> {
+  const db = getDb();
+  return db.messages.cleanupStreaming(sessionId);
+}
+
+/** 更新指定消息中某个 block 的状态（标注提案、文件提案等），持久化到 SQLite。
+ *  若未指定 blockIndex，则自动查找第一个匹配 blockType 的块。 */
 export async function patchAgentMessageBlockRemote(options: {
   sessionId: string;
   messageId: string;
-  blockType?: string;
+  blockType: string;
   blockIndex?: number;
   patch: Record<string, unknown>;
 }): Promise<void> {
-  await apiFetch<{ ok: boolean }>(
-    `/agent/messages/${encodeURIComponent(options.messageId)}/blocks?session_id=${encodeURIComponent(options.sessionId)}`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify({
-        block_type: options.blockType ?? null,
-        block_index: options.blockIndex ?? null,
-        patch: options.patch,
-      }),
-    },
-  );
+  const db = getDb();
+  const row = await db.messages.get(options.messageId);
+  if (!row) {
+    console.error('[patchAgentMessageBlock] message not found:', options.messageId);
+    return;
+  }
+  let blocks: MessageBlock[];
+  try {
+    blocks = JSON.parse(row.blocks_json);
+  } catch {
+    blocks = [];
+  }
+  const idx =
+    options.blockIndex !== undefined
+      ? options.blockIndex
+      : blocks.findIndex((b) => b.type === options.blockType);
+  if (idx < 0) {
+    console.error(
+      `[patchAgentMessageBlock] block not found: type=${options.blockType}`,
+    );
+    return;
+  }
+  const block = blocks[idx];
+  if (block.type !== options.blockType) {
+    console.error(
+      `[patchAgentMessageBlock] block mismatch at index ${idx}: expected ${options.blockType}, got ${block.type}`,
+    );
+    return;
+  }
+  blocks[idx] = { ...block, ...options.patch } as MessageBlock;
+  await db.messages.update(options.messageId, {
+    blocksJson: JSON.stringify(blocks),
+  });
 }
 
-export async function loadRemoteAgentChatStateForProject(
+export async function loadLocalAgentChatStateForProject(
   annotationProjectId: string | null,
 ): Promise<
   AgentChatPersistedState & { sessionsNextCursor: string | null; sessionsHasMore: boolean }
 > {
-  const page = await fetchAgentSessionsPage(
+  const page = await listSessionsLocally(
     annotationProjectId
       ? { annotationProjectId }
       : { workspaceOnly: true },
@@ -243,12 +360,9 @@ export async function loadRemoteAgentChatStateForProject(
     .map((session) => session.id);
 
   for (const session of page.sessions) {
-    if ((session.messageCount ?? 0) <= 0) continue;
     sessionsMap[session.id] = session;
     messagesBySession[session.id] = {};
   }
-
-  const openTabIds = sessionOrder.length > 0 ? [sessionOrder[0]] : [];
 
   return {
     sessions: sessionsMap,
@@ -261,9 +375,19 @@ export async function loadRemoteAgentChatStateForProject(
   };
 }
 
-/** @deprecated prefer loadRemoteAgentChatStateForProject */
-export async function loadRemoteAgentChatState(): Promise<
+export async function loadLocalAgentChatState(): Promise<
   AgentChatPersistedState & { sessionsNextCursor: string | null; sessionsHasMore: boolean }
 > {
-  return loadRemoteAgentChatStateForProject(null);
+  return loadLocalAgentChatStateForProject(null);
 }
+
+// Re-export with backward-compatible names
+export {
+  listSessionsLocally as fetchAgentSessionsPage,
+  getSessionDetailLocally as fetchAgentSessionDetail,
+  createSessionLocally as createAgentSessionRemote,
+  updateSessionLocally as patchAgentSessionRemote,
+  deleteSessionLocally as deleteAgentSessionRemote,
+  loadLocalAgentChatStateForProject as loadRemoteAgentChatStateForProject,
+  loadLocalAgentChatState as loadRemoteAgentChatState,
+};

@@ -8,10 +8,7 @@ import type {
   StreamEvent,
 } from '../../shared/agentTypes';
 import { DEFAULT_CHAT_CONTEXT_CONFIG as defaultContextConfig } from '../../shared/agentTypes';
-import { ApiError } from '../types/auth';
-import { authFetch, parseApiError } from './authenticatedFetch';
-import tokenHolder from './tokenHolder';
-import { buildApiClientContext } from './agentTurnRouter';
+import { buildApiClientContext } from './agentClientContext';
 
 export interface BackendChatRequest {
   providerId: string;
@@ -30,6 +27,12 @@ export interface BackendChatRequest {
   clientContext?: ClientContextPayload;
   /** 上轮客户端工具执行结果，resume 时携带 */
   clientToolResults?: ClientToolResult[];
+  // Stateless backend fields (provider config from frontend)
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  supportsVision?: boolean;
+  systemPrompt?: string;
 }
 
 export function buildBackendMessages(
@@ -88,67 +91,66 @@ export async function* streamChatViaBackend(
   request: BackendChatRequest,
   signal: AbortSignal,
 ): AsyncGenerator<StreamEvent> {
-  if (!tokenHolder.getAccessToken()) {
-    yield { type: 'error', message: 'not_authenticated' };
-    return;
-  }
-
-  const body = {
-    provider_id: request.providerId,
-    session_id: request.sessionId,
-    client_job_id: request.clientJobId,
-    user_message_id: request.userMessageId,
-    assistant_message_id: request.assistantMessageId,
-    user_content: request.userContent,
-    truncate_from_message_id: request.truncateFromMessageId ?? null,
+  const body: Record<string, unknown> = {
+    api_key: request.apiKey,
+    base_url: request.baseUrl,
+    model: request.model,
     messages: request.messages.map((m) => ({
       role: m.role,
       content: m.content,
     })),
-    context: {
-      summary: request.context.summary,
-      summary_up_to_message_id: request.context.summaryUpToMessageId,
-      config: {
-        max_context_tokens: request.context.config.maxContextTokens,
-        reserve_completion_tokens: request.context.config.reserveCompletionTokens,
-        max_turns_in_window: request.context.config.maxTurnsInWindow,
-        summarize_trigger_ratio: request.context.config.summarizeTriggerRatio,
-        min_turns_before_summarize: request.context.config.minTurnsBeforeSummarize,
-      },
-    },
-    client_context: request.clientContext
-      ? buildApiClientContext(request.clientContext)
-      : undefined,
-    client_tool_results: request.clientToolResults?.length
-      ? request.clientToolResults.map((r) => ({
-          tool_call_id: r.toolCallId,
-          name: r.name,
-          result: r.result,
-        }))
-      : undefined,
+    user_content: request.userContent,
+    client_job_id: request.clientJobId,
   };
+
+  if (request.systemPrompt) {
+    body.system_prompt = request.systemPrompt;
+  }
+  if (request.supportsVision !== undefined) {
+    body.supports_vision = request.supportsVision;
+  }
+  if (request.context.summary) {
+    body.context_summary = request.context.summary;
+  }
+  if (request.context.summaryUpToMessageId) {
+    body.context_summary_up_to_message_id = request.context.summaryUpToMessageId;
+  }
+  if (request.clientContext) {
+    body.client_context = buildApiClientContext(request.clientContext);
+  }
+  if (request.clientToolResults?.length) {
+    body.client_tool_results = request.clientToolResults.map((r) => ({
+      tool_call_id: r.toolCallId,
+      name: r.name,
+      result: r.result,
+    }));
+  }
 
   let response: Response;
   try {
-    response = await authFetch(`${API_BASE_URL}/agent/chat/stream`, {
+    response = await fetch(`${API_BASE_URL}/agent/chat/stream`, {
       method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         Accept: 'text/event-stream',
       },
       body: JSON.stringify(body),
       signal,
     });
   } catch (err) {
-    if (err instanceof ApiError) {
-      yield { type: 'error', message: err.detail };
-      return;
-    }
-    throw err;
+    yield { type: 'error', message: err instanceof Error ? err.message : '网络请求失败' };
+    return;
   }
 
   if (!response.ok) {
-    const apiError = await parseApiError(response);
-    yield { type: 'error', message: apiError.detail };
+    let detail = `HTTP ${response.status}`;
+    try {
+      const errBody = await response.json();
+      detail = errBody?.detail ?? detail;
+    } catch {
+      // ignore
+    }
+    yield { type: 'error', message: detail };
     return;
   }
 
@@ -174,7 +176,6 @@ export async function* streamChatViaBackend(
         if (event.type === 'tool_pending') return;
       }
     }
-    // 仅在正常结束（非 tool_pending）时补发 done 事件
     if (!signal.aborted) {
       yield { type: 'done' };
     }

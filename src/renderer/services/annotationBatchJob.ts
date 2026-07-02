@@ -25,6 +25,10 @@ export async function startAnnotationBatchJob(options: {
   onEvent: (event: StreamEvent) => void;
   onPersistEvent?: (event: StreamEvent) => void;
   signal: AbortSignal;
+  providerApiKey?: string;
+  providerBaseUrl?: string;
+  providerModel?: string;
+  providerSupportsVision?: boolean;
 }): Promise<AnnotationBatchJobResult> {
   const emit = (event: StreamEvent): void => {
     options.onEvent(event);
@@ -49,6 +53,10 @@ export async function startAnnotationBatchJob(options: {
       currentFileAbsolutePath: options.currentFileAbsolutePath,
       detectionModels: options.detectionModels,
       isCancelled,
+      providerApiKey: options.providerApiKey ?? '',
+      providerBaseUrl: options.providerBaseUrl ?? '',
+      providerModel: options.providerModel ?? '',
+      providerSupportsVision: options.providerSupportsVision ?? false,
     })) {
       if (isCancelled()) break;
       mapAndEmit(event, emit);

@@ -22,7 +22,6 @@ import {
   upsertLlmProvider,
 } from '../services/llmProviderService';
 import { probeLlmProviderVisionOnApi } from '../services/llmProviderApi';
-import { useAuth } from './AuthContext';
 
 interface LlmProvidersContextValue {
   providers: LlmProviderConfig[];
@@ -40,7 +39,6 @@ const LlmProvidersContext = createContext<LlmProvidersContextValue | null>(
 );
 
 export function LlmProvidersProvider({ children }: { children: ReactNode }) {
-  const { status: authStatus } = useAuth();
   const [providers, setProviders] = useState<LlmProviderConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [defaultProviderId, setDefaultProviderId] = useState<string | null>(
@@ -63,15 +61,8 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (authStatus === 'authenticated') {
-      refreshProviders().catch(() => undefined);
-      return;
-    }
-    if (authStatus === 'unauthenticated') {
-      setProviders([]);
-      setLoading(false);
-    }
-  }, [authStatus, refreshProviders]);
+    refreshProviders().catch(() => undefined);
+  }, [refreshProviders]);
 
   const upsertProvider = useCallback(
     async (provider: LlmProviderConfig, isNew = false) => {

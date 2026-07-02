@@ -124,15 +124,6 @@ export class AgentDebugLogger {
         console.log(`  labels: ${snap.labels?.length ?? 0}`);
         console.log(`  detectionModels: ${snap.detectionModels?.map(m => m.name).join(', ') ?? 'none'}`);
       }
-      if (cc.turnUnderstanding) {
-        const tu = cc.turnUnderstanding;
-        console.groupCollapsed('turnUnderstanding');
-        console.log(`turnKind: ${tu.turnKind}`);
-        if (tu.reason) console.log(`reason: ${tu.reason}`);
-        if (tu.scopeNotes) console.log(`scopeNotes: ${tu.scopeNotes}`);
-        if (typeof tu.needsVisionInput === 'boolean') console.log(`needsVision: ${tu.needsVisionInput}`);
-        console.groupEnd();
-      }
       if (cc.mcpServerUrl) console.log(`mcpServer: ${cc.mcpServerUrl}`);
       if (cc.agentMode) console.log(`agentMode: ${cc.agentMode}`);
       if (cc.workMode) console.log(`workMode: ${cc.workMode}`);
@@ -187,6 +178,9 @@ export class AgentDebugLogger {
   logEvent(event: StreamEvent): void {
     if (!isDebugEnabled()) return;
 
+    // Normalize snake_case SSE fields (from model_dump_json) to camelCase
+    const e = event as Record<string, unknown>;
+
     switch (event.type) {
       case 'text_delta':
         // 每个 text_delta 单独打印太啰嗦，跳过；仅第一次输出特殊处理
@@ -197,33 +191,41 @@ export class AgentDebugLogger {
       case 'tool_start':
         this._logToolStart(event.name, event.arguments);
         break;
-      case 'tool_result':
-        this._logToolResult(event.toolCallId, event.result);
+      case 'tool_result': {
+        const toolCallId = (e.toolCallId ?? e.tool_call_id ?? '') as string;
+        this._logToolResult(toolCallId, event.result);
         break;
-      case 'tool_pending':
-        this._logToolPending(event.toolCalls);
+      }
+      case 'tool_pending': {
+        const toolCalls = (e.toolCalls ?? e.client_tool_calls ?? []) as ClientToolCall[];
+        this._logToolPending(toolCalls);
         break;
+      }
       case 'route_decided':
         this._logRouteDecided(event.mode, event.domain);
         break;
       case 'preparing':
         this._logPreparing(event.stage);
         break;
-      case 'context_updated':
-        this._logContextUpdated(event.summary, event.summaryUpToMessageId, event.tokenEstimate);
+      case 'context_updated': {
+        const summary = (e.summary ?? '') as string;
+        const msgId = (e.summaryUpToMessageId ?? e.summary_up_to_message_id ?? '') as string;
+        const tokens = (e.tokenEstimate ?? e.token_estimate ?? undefined) as number | undefined;
+        this._logContextUpdated(summary, msgId, tokens);
         break;
+      }
       case 'error':
         this._logError(event.message);
         break;
       case 'file_proposal_start':
         console.log(
-          `%c${LABEL_PREFIX}%c 📄 file_proposal_start %c${truncate(event.title, 40)}`,
+          `%c${LABEL_PREFIX}%c 📄 file_proposal_start %c${truncate((e.title ?? e.summary ?? '') as string, 40)}`,
           CSS.header, CSS.dim, CSS.value,
         );
         break;
       case 'file_proposal':
         console.log(
-          `%c${LABEL_PREFIX}%c ✅ file_proposal      %c${event.suggestedRelativePath}%c (${event.content.length} 字符)`,
+          `%c${LABEL_PREFIX}%c ✅ file_proposal      %c${(e.suggestedRelativePath ?? e.image_path ?? '') as string}%c (${String((e.content ?? '') as string).length} 字符)`,
           CSS.header, CSS.dim, CSS.value, CSS.muted,
         );
         break;
@@ -256,7 +258,7 @@ export class AgentDebugLogger {
         break;
       case 'document_proposal':
         console.log(
-          `%c${LABEL_PREFIX}%c 📋 document_proposal %c${truncate(event.title, 40)}`,
+          `%c${LABEL_PREFIX}%c 📋 document_proposal %c${truncate((e.title ?? e.summary ?? '') as string, 40)}`,
           CSS.header, CSS.dim, CSS.value,
         );
         break;

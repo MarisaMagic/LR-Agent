@@ -5,17 +5,9 @@ import {
   countPendingProposals,
 } from './agentProposalApply';
 import { patchAgentMessageBlockRemote } from './agentChatApi';
-import tokenHolder from './tokenHolder';
 
 jest.mock('./agentChatApi', () => ({
   patchAgentMessageBlockRemote: jest.fn().mockResolvedValue(undefined),
-}));
-
-jest.mock('./tokenHolder', () => ({
-  __esModule: true,
-  default: {
-    getAccessToken: jest.fn(() => 'token'),
-  },
 }));
 
 jest.mock('./agentFeatureFlags', () => ({
@@ -137,6 +129,5 @@ describe('applyAllPendingProposals', () => {
       blockIndex: 0,
       patch: { status: 'applied' },
     });
-    expect(tokenHolder.getAccessToken).toHaveBeenCalled();
   });
 });

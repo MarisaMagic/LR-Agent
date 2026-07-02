@@ -2,7 +2,8 @@
   position: fixed;
   z-index: 1200;
   width: min(320px, calc(100vw - 16px));
-  max-height: min(420px, calc(100vh - 80px));
+  min-height: 160px;
+  max-height: 640px;
   display: flex;
   flex-direction: column;
   border-radius: 10px;
@@ -27,13 +28,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--vscode-widget-border, #454545);
 }
 
 .agent-history-search-icon {
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: var(--agent-font-large);
+  font-size: var(--agent-font-body);
   flex-shrink: 0;
 }
 
@@ -58,18 +59,24 @@
 
 .agent-history-groups {
   flex: 1;
-  padding: 6px 0 8px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0 6px;
 }
 
 .agent-history-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px 14px;
   font-size: var(--agent-font-small);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
 .agent-history-group-label {
-  padding: 8px 14px 4px;
-  font-size: var(--agent-font-meta);
+  padding: 6px 14px 3px;
+  font-size: var(--agent-font-small);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--vscode-descriptionForeground, #9d9d9d);
@@ -93,13 +100,13 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
+  gap: 6px;
+  padding: 5px 8px;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--vscode-foreground, #cccccc);
-  font-size: var(--agent-font-body);
+  font-size: var(--agent-font-small);
   text-align: left;
   cursor: pointer;
 }
@@ -111,7 +118,7 @@
 
 .agent-history-row-icon {
   flex-shrink: 0;
-  font-size: var(--agent-font-large);
+  font-size: var(--agent-font-body);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -124,7 +131,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .agent-history-row-title {
@@ -150,13 +157,13 @@
 
 .agent-history-row-delete {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
   color: var(--vscode-descriptionForeground, #9d9d9d);
   cursor: pointer;

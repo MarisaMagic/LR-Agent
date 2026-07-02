@@ -1,7 +1,7 @@
 import type { ClientContextPayload, StreamEvent } from '../../shared/agentTypes';
 import { apiFetch } from './api';
 import { patchAgentMessageBlockRemote } from './agentChatApi';
-import { buildApiClientContext } from './agentTurnRouter';
+import { buildApiClientContext } from './agentClientContext';
 
 const FLUSH_MS = 300;
 const MAX_EVENTS_PER_BATCH = 40;
