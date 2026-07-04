@@ -59,6 +59,7 @@ export function getMessages(
 export function createMessage(message: {
   id: string;
   sessionId: string;
+  userId: string;
   role: string;
   interactionMode?: string | null;
   sortIndex?: number;
@@ -83,11 +84,12 @@ export function createMessage(message: {
   }
 
   db.run(`
-    INSERT INTO messages (id, session_id, role, interaction_mode, sort_index, blocks_json, status, provider_id, model, error, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO messages (id, session_id, user_id, role, interaction_mode, sort_index, blocks_json, status, provider_id, model, error, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     message.id,
     message.sessionId,
+    message.userId,
     message.role,
     message.interactionMode ?? null,
     finalSortIndex,
@@ -212,6 +214,7 @@ export function deleteMessagesBySession(sessionId: string): void {
 export function batchCreateMessages(messages: Array<{
   id: string;
   sessionId: string;
+  userId: string;
   role: string;
   interactionMode?: string | null;
   sortIndex: number;
@@ -228,11 +231,12 @@ export function batchCreateMessages(messages: Array<{
   db.transaction(() => {
     for (const msg of messages) {
       db.run(`
-        INSERT OR REPLACE INTO messages (id, session_id, role, interaction_mode, sort_index, blocks_json, status, provider_id, model, error, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO messages (id, session_id, user_id, role, interaction_mode, sort_index, blocks_json, status, provider_id, model, error, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         msg.id,
         msg.sessionId,
+        msg.userId,
         msg.role,
         msg.interactionMode ?? null,
         msg.sortIndex,
@@ -256,11 +260,3 @@ export function getSessionMessagesForExport(sessionId: string): MessageRow[] {
   ) as unknown as MessageRow[];
 }
 
-export function countMessagesForSession(sessionId: string): number {
-  const db = getDatabase();
-  const row = db.get(
-    'SELECT COUNT(*) as count FROM messages WHERE session_id = ?',
-    sessionId,
-  ) as { count: number } | undefined;
-  return row?.count ?? 0;
-}

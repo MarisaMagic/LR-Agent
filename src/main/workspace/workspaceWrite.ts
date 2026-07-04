@@ -2,7 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { isAllowedTextFileExtension } from '../../shared/workspaceTextExtensions';
 
-export function resolveScopedTextPath(
+function resolveScopedTextPath(
   rootDir: string,
   relativePath: string,
 ): { absolutePath: string; relativePath: string } | { error: string } {
@@ -75,9 +75,3 @@ export async function readScopedTextFile(
     };
   }
 }
-
-/** @deprecated 使用 writeScopedTextFile */
-export const resolveScopedMarkdownPath = resolveScopedTextPath;
-
-/** @deprecated 使用 writeScopedTextFile */
-export const writeScopedMarkdownFile = writeScopedTextFile;

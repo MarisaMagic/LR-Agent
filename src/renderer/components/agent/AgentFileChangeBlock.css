@@ -154,5 +154,5 @@
 
 .agent-file-change-block__loading {
   padding: 8px 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--agent-surface-muted-text);
 }

@@ -24,6 +24,7 @@ import {
   fetchAgentSessionDetail,
   fetchAgentSessionsPage,
   loadLocalAgentChatStateForProject,
+  backfillLegacyUserIdLocally,
   patchAgentSessionRemote,
   createSessionLocally,
   createMessageLocally,
@@ -44,7 +45,6 @@ import {
   resolveSessionMessageIds,
   resolveUserMessageIdForJob,
   getProjectUi,
-  loadAgentChatState,
   loadAgentChatUiState,
   persistAgentChatState,
   persistAgentChatUiState,
@@ -63,6 +63,7 @@ import {
   mergeProjectSessionsIntoState,
   normalizeProjectTabs,
 } from '../services/agentProjectBootstrap';
+import { shouldApplyBootstrapResult } from '../services/agentChatBootstrap';
 import { buildAnnotationProjectSnapshot } from '../services/buildProjectSnapshot';
 import { useAuth } from './AuthContext';
 import {
@@ -169,7 +170,8 @@ function normalizeLoadedState(state: AgentChatPersistedState): AgentChatPersiste
 export function AgentChatProvider({ children }: { children: ReactNode }) {
   const { providers, defaultProvider } = useLlmProviders();
   const { showToast } = useToast();
-  const { status: authStatus } = useAuth();
+  const { user, status: authStatus } = useAuth();
+  const currentUserId = user?.id ?? '';
   const { rootPath, activeFilePath } = useApp();
   const { activeProject } = useAnnotation();
   const { workMode } = useWorkMode();
@@ -180,6 +182,12 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const initializedRef = useRef(false);
   const remoteHydratedRef = useRef(false);
   const bootstrappedProjectIdRef = useRef<string | null | undefined>(undefined);
+  const bootstrappedUserIdRef = useRef<string | undefined>(undefined);
+  const bootstrapGenerationRef = useRef(0);
+  const currentUserIdRef = useRef(currentUserId);
+  currentUserIdRef.current = currentUserId;
+  const authStatusRef = useRef(authStatus);
+  authStatusRef.current = authStatus;
   const loadedSessionsRef = useRef<Set<string>>(new Set());
   const blockPersistenceByJobRef = useRef(new Map<string, ChatBlockPersistence>());
   const sessionsNextCursorRef = useRef<string | null>(null);
@@ -279,6 +287,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const ensureSessionLoaded = useCallback(
     async (sessionId: string): Promise<boolean> => {
+      const userId = currentUserIdRef.current;
+      if (authStatusRef.current === 'authenticated' && !userId) {
+        showToast('加载对话失败，请重试', { type: 'error' });
+        return false;
+      }
       const current = stateRef.current;
       if (!sessionHasHistoryContent(sessionId, current)) {
         return true;
@@ -299,7 +312,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         return true;
       }
       try {
-        const detail = await fetchAgentSessionDetail(sessionId);
+        const detail = await fetchAgentSessionDetail(userId, sessionId);
         loadedSessionsRef.current.add(sessionId);
         const latest = stateRef.current;
         const prevSession = latest.sessions[sessionId];
@@ -397,7 +410,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     if (!cursor) return;
     setLoadingMoreSessions(true);
     try {
-      const page = await fetchAgentSessionsPage({
+      const page = await fetchAgentSessionsPage(currentUserIdRef.current, {
         cursor,
         annotationProjectId: activeProjectIdRef.current,
         workspaceOnly: !activeProjectIdRef.current,
@@ -452,7 +465,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
       setLoadingOlderMessages(true);
       try {
-        const detail = await fetchAgentSessionDetail(targetId, {
+        const detail = await fetchAgentSessionDetail(currentUserIdRef.current, targetId, {
           beforeMessageId: oldestId,
         });
         const latest = stateRef.current;
@@ -489,17 +502,31 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   );
 
   const bootstrapProjectAgent = useCallback(async () => {
+    const generation = bootstrapGenerationRef.current;
+    const userId = currentUserIdRef.current;
     const projectId = activeProjectIdRef.current;
-    // 避免项目未变化时重复 bootstrap
-    if (bootstrappedProjectIdRef.current === projectId) return;
+    // 避免项目与用户未变化时重复 bootstrap
+    if (
+      bootstrappedProjectIdRef.current === projectId &&
+      bootstrappedUserIdRef.current === userId
+    ) {
+      return;
+    }
     bootstrappedProjectIdRef.current = projectId;
+    bootstrappedUserIdRef.current = userId;
 
     loadedSessionsRef.current.clear();
+    // 登录后将无 user_id 的历史数据归属到当前用户
+    if (userId) {
+      await backfillLegacyUserIdLocally(userId).catch((err) =>
+        console.error('[DB] Failed to backfill legacy user_id:', err),
+      );
+    }
     // 清理上次未正常完成的 streaming 状态消息
     cleanupStreamingLocally().catch((err) =>
       console.error('[DB] Failed to cleanup streaming messages:', err),
     );
-    const remote = await loadLocalAgentChatStateForProject(projectId);
+    const remote = await loadLocalAgentChatStateForProject(userId, projectId);
     const ui = getProjectUi(agentUiRef.current, projectId);
     let merged = mergeProjectSessionsIntoState(
       createEmptyChatState(),
@@ -537,12 +564,15 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       };
     }
 
+    if (!shouldApplyBootstrapResult(generation, bootstrapGenerationRef.current)) {
+      return;
+    }
+
     sessionsNextCursorRef.current = remote.sessionsNextCursor;
     setSessionsHasMore(remote.sessionsHasMore);
     agentUiRef.current = setProjectUi(agentUiRef.current, projectId, nextUi);
     persistAgentChatUiState(agentUiRef.current);
-    stateRef.current = nextState;
-    setState(nextState);
+    persist(nextState);
     setAgentModeState(nextUi.agentMode);
     if (
       nextState.activeSessionId &&
@@ -550,17 +580,28 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     ) {
       void ensureSessionLoaded(nextState.activeSessionId);
     }
-  }, [defaultProvider, ensureSessionLoaded]);
+  }, [currentUserId, defaultProvider, ensureSessionLoaded, persist]);
 
   useEffect(() => {
-    // Always bootstrap from local SQLite regardless of auth status
+    if (authStatus === 'loading') return;
+
     let cancelled = false;
+    const generation = ++bootstrapGenerationRef.current;
+
     (async () => {
       try {
         await bootstrapProjectAgent();
-        if (!cancelled) remoteHydratedRef.current = true;
+        if (
+          !cancelled &&
+          shouldApplyBootstrapResult(generation, bootstrapGenerationRef.current)
+        ) {
+          remoteHydratedRef.current = true;
+        }
       } catch (err) {
-        if (!cancelled) {
+        if (
+          !cancelled &&
+          shouldApplyBootstrapResult(generation, bootstrapGenerationRef.current)
+        ) {
           showToast('加载对话列表失败，请重试', { type: 'error' });
           remoteHydratedRef.current = true;
         }
@@ -570,12 +611,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [activeProject?.id, bootstrapProjectAgent]);
+  }, [activeProject?.id, authStatus, currentUserId, bootstrapProjectAgent, showToast]);
 
   useEffect(() => {
     if (authStatus === 'loading') return;
-    loadedSessionsRef.current.clear();
-    persist(normalizeLoadedState(loadAgentChatState()));
     const projectId = activeProject?.id ?? null;
     const ui = getProjectUi(agentUiRef.current, projectId);
     setAgentModeState(ui.agentMode);
@@ -941,7 +980,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       }
 
       if (sessionHasHistoryContent(sessionId, current)) {
-        deleteAgentSessionRemote(sessionId).catch((err) =>
+        deleteAgentSessionRemote(currentUserIdRef.current, sessionId).catch((err) =>
           console.error('[DB] Failed to delete session:', err),
         );
       }
@@ -1176,7 +1215,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       // ── 同步到 SQLite ──
       // 首次发消息：创建 session
       if (wasDraft) {
-        createSessionLocally({
+        createSessionLocally(currentUserIdRef.current, {
           id: sessionId,
           title: nextTitle,
           annotationProjectId: current.sessions[sessionId].annotationProjectId ?? activeProject?.id ?? null,
@@ -1197,6 +1236,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           createMessageLocally({
             id: userMessageData.id,
             sessionId,
+            userId: currentUserIdRef.current,
             role: userMessageData.role,
             interactionMode: userMessageData.interactionMode,
             blocksJson: JSON.stringify(userMessageData.blocks),
@@ -1211,6 +1251,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       createMessageLocally({
         id: assistantMessageId,
         sessionId,
+        userId: currentUserIdRef.current,
         role: 'assistant',
         blocksJson: '[]',
         status: 'streaming',
@@ -1345,7 +1386,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           },
         },
       });
-      patchAgentSessionRemote(sessionId, {
+      patchAgentSessionRemote(currentUserIdRef.current, sessionId, {
         providerId: provider.id,
         model: provider.model,
       }).catch((err) => console.error('[DB] Failed to update session provider:', err));

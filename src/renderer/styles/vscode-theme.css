@@ -23,6 +23,10 @@
   --vscode-font-size: 15px;
   --theme-transition-duration: 0.36s;
   --theme-transition-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  /* 中间 editor tab 栏与右侧 right-panel-icon-toolbar 对齐：2+32+2 padding */
+  --lr-top-toolbar-height: 36px;
+  /* Agent session tab 栏 / 标注 file-header 共用高度 */
+  --lr-agent-tab-bar-height: 40px;
 }
 
 :root,
@@ -55,6 +59,12 @@
   --vscode-editor-foreground: #d4d4d4;
   --vscode-editorGroup-border: #3e3e42;
   --vscode-editorGroupHeader-tabsBackground: #252526;
+  --vscode-tab-activeForeground: #ffffff;
+  --vscode-tab-inactiveForeground: #969696;
+  --vscode-tab-activeBackground: var(--vscode-editor-background);
+  --vscode-tab-inactiveBackground: var(--vscode-editorGroupHeader-tabsBackground);
+  --vscode-editorGroupHeader-tabsBorder: #252526;
+  --lr-agent-panel-background: var(--vscode-sideBar-background);
 
   --vscode-panel-background: #252526;
   --vscode-panel-border: #3e3e42;
@@ -150,6 +160,12 @@
   --vscode-editor-foreground: #000000;
   --vscode-editorGroup-border: #e5e5e5;
   --vscode-editorGroupHeader-tabsBackground: #f3f3f3;
+  --vscode-tab-activeForeground: #333333;
+  --vscode-tab-inactiveForeground: #888888;
+  --vscode-tab-activeBackground: #ffffff;
+  --vscode-tab-inactiveBackground: #f3f3f3;
+  --vscode-editorGroupHeader-tabsBorder: #e0e0e0;
+  --lr-agent-panel-background: #ffffff;
 
   --vscode-panel-background: #f3f3f3;
   --vscode-panel-border: #e5e5e5;

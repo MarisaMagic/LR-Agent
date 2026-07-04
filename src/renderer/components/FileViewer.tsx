@@ -18,7 +18,7 @@ import remarkGfm from 'remark-gfm';
 import { Document, Page } from 'react-pdf';
 import { useApp } from '../context/AppContext';
 import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
-import { basename, getExtension } from '../types/file';
+import { basename, dirname, getExtension } from '../types/file';
 import { getHighlightLanguage } from '../utils/syntaxHighlight';
 import { createMarkdownCodeComponents } from './markdown/markdownCodeComponents';
 import {
@@ -187,7 +187,13 @@ export default function FileViewer({
   const isKeypointAnnotator =
     annotationWorkspace.imageAnnotationType === 'keypoint';
   const viewerType = useMemo(() => getViewerType(filePath), [filePath]);
-  const markdownComponents = useMemo(() => createMarkdownCodeComponents(), []);
+  const markdownComponents = useMemo(
+    () =>
+      createMarkdownCodeComponents({
+        imageBaseDir: filePath ? dirname(filePath) : null,
+      }),
+    [filePath],
+  );
   const [textContent, setTextContent] = useState<string | null>(null);
   const [docxHtml, setDocxHtml] = useState<string | null>(null);
   const [binaryUrl, setBinaryUrl] = useState<string | null>(null);

@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import ActivityBar, { type LeftPanel, type RightPanel } from './ActivityBar';
 import AnnotationRightPanel from './annotation/AnnotationRightPanel';
 import AgentPanel from './agent/AgentPanel';
+import QualityDashboardPanel from './quality/QualityDashboardPanel';
 import EmailVerifyBanner from './EmailVerifyBanner';
 import FileTree from './FileTree';
 import EditorTabBar from './editor/EditorTabBar';
@@ -65,6 +66,7 @@ export default function Layout() {
     expandLeftSidebar,
     openTabs,
     activeTabId,
+    activeFilePath,
     setActiveTab,
     closeTab,
     pinTab,
@@ -103,6 +105,7 @@ export default function Layout() {
     workMode === 'annotation' && Boolean(activeProject);
   const showRightPanelToolbar = workMode === 'editor' || annotationModeActive;
   const annotationTabDisabled = workMode === 'editor';
+  const qualityTabDisabled = !annotationModeActive;
   const rightPanel = rightPanelByMode[workMode];
   const { workspaceEnabled: imageAnnotationToolbarVisible } =
     useAnnotationWorkspace();
@@ -110,6 +113,7 @@ export default function Layout() {
   const setRightPanelForMode = useCallback(
     (panel: RightPanel) => {
       if (workMode === 'editor' && panel === 'annotation') return;
+      if (workMode === 'editor' && panel === 'quality') return;
       setRightPanelByMode((prev) => ({ ...prev, [workMode]: panel }));
     },
     [workMode],
@@ -337,10 +341,12 @@ export default function Layout() {
   const leftSidebarTitle = LEFT_PANEL_TITLES[leftPanel];
   const showEditorTabStrip =
     workMode === 'editor' && openTabs.length > 0;
+  const showFileHeaderBand =
+    workMode === 'annotation' && Boolean(activeFilePath);
 
   return (
     <div
-      className={`layout${resizingSide ? ` is-resizing is-resizing-${resizingSide}` : ''}${imageAnnotationToolbarVisible ? ' layout--image-annotation-toolbar' : ''} layout--editor-top-band`}
+      className={`layout${resizingSide ? ` is-resizing is-resizing-${resizingSide}` : ''}${workMode === 'editor' ? ' layout--editor-work-mode' : ''}${showFileHeaderBand ? ' layout--file-header-band' : ''}${imageAnnotationToolbarVisible ? ' layout--image-annotation-toolbar' : ''} layout--editor-top-band`}
     >
       <ActivityBar
         activePanel={leftPanelActive}
@@ -417,17 +423,16 @@ export default function Layout() {
               </WorkModeContentTransition>
             </div>
           </main>
+          {!rightCollapsed ? (
+            <button
+              type="button"
+              className="resizer resizer-right"
+              onMouseDown={startResize('right')}
+              aria-label="调整右侧栏宽度"
+            />
+          ) : null}
         </div>
       </div>
-
-      {!rightCollapsed && (
-        <button
-          type="button"
-          className="resizer resizer-right"
-          onMouseDown={startResize('right')}
-          aria-label="调整右侧栏宽度"
-        />
-      )}
 
       <Sidebar
         side="right"
@@ -441,12 +446,18 @@ export default function Layout() {
             <RightPanelToolbar
               activePanel={rightPanel}
               annotationTabDisabled={annotationTabDisabled}
+              qualityTabDisabled={qualityTabDisabled}
               onAnnotationClick={() => {
                 if (!annotationTabDisabled) {
                   setRightPanelForMode('annotation');
                 }
               }}
               onAgentClick={() => setRightPanelForMode('agent')}
+              onQualityClick={() => {
+                if (!qualityTabDisabled) {
+                  setRightPanelForMode('quality');
+                }
+              }}
             />
             <PanelTransition
               panelKey={rightPanel}
@@ -455,6 +466,8 @@ export default function Layout() {
             >
               {rightPanel === 'annotation' && !annotationTabDisabled ? (
                 <AnnotationRightPanel />
+              ) : rightPanel === 'quality' && !qualityTabDisabled ? (
+                <QualityDashboardPanel />
               ) : (
                 <AgentPanel />
               )}

@@ -55,6 +55,21 @@
   cursor: default;
 }
 
+[data-theme='light'] .agent-user-bubble {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme='light'] .agent-user-bubble:hover:not(:disabled) {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme='light'] .agent-user-bubble--editing {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.02);
+}
+
 .agent-user-bubble-input {
   width: 100%;
   min-height: 24px;

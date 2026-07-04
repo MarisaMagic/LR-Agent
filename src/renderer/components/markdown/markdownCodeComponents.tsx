@@ -2,9 +2,14 @@ import type { ReactNode } from 'react';
 import type { Components } from 'react-markdown';
 import AgentScrollablePre from '../agent/AgentScrollablePre';
 import { highlightMarkdownCode } from '../../utils/syntaxHighlight';
+import MarkdownLocalImage from './MarkdownLocalImage';
 
 export interface MarkdownCodeComponentsOptions {
   overlayHorizontalScroll?: boolean;
+  /** Markdown 文件所在目录，用于解析相对路径图片 */
+  imageBaseDir?: string | null;
+  imageClassName?: string;
+  resolveImagePath?: (baseDir: string, src: string) => string | null;
 }
 
 function extractLanguage(className?: string): string | null {
@@ -19,9 +24,14 @@ function normalizeCodeContent(children: ReactNode): string {
 export function createMarkdownCodeComponents(
   options: MarkdownCodeComponentsOptions = {},
 ): Components {
-  const { overlayHorizontalScroll = false } = options;
+  const {
+    overlayHorizontalScroll = false,
+    imageBaseDir,
+    imageClassName,
+    resolveImagePath,
+  } = options;
 
-  return {
+  const components: Components = {
     pre({ children, ...props }) {
       if (overlayHorizontalScroll) {
         return <AgentScrollablePre {...props}>{children}</AgentScrollablePre>;
@@ -54,4 +64,18 @@ export function createMarkdownCodeComponents(
       );
     },
   };
+
+  if (imageBaseDir !== undefined) {
+    components.img = ({ src, alt }) => (
+      <MarkdownLocalImage
+        src={src}
+        alt={alt}
+        baseDir={imageBaseDir}
+        className={imageClassName}
+        resolveAbsolutePath={resolveImagePath}
+      />
+    );
+  }
+
+  return components;
 }

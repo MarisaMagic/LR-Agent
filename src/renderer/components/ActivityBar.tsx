@@ -13,7 +13,7 @@ export type LeftPanel =
   | 'models'
   | 'llmProviders'
   | 'settings';
-export type RightPanel = 'agent' | 'annotation';
+export type RightPanel = 'agent' | 'annotation' | 'quality';
 
 interface ActivityBarProps {
   activePanel: LeftPanel | null;

@@ -303,6 +303,65 @@ const electronHandler = {
     }): Promise<{ stdout: string; truncated: boolean }> =>
       ipcRenderer.invoke('analysis:runScript', payload),
   },
+  quality: {
+    createRun: (
+      projectDir: string,
+    ): Promise<{ runId: string; runAbsolutePath: string }> =>
+      ipcRenderer.invoke('quality:createRun', projectDir),
+    writeChart: (
+      projectDir: string,
+      runId: string,
+      fileName: string,
+      base64Png: string,
+    ): Promise<string> =>
+      ipcRenderer.invoke(
+        'quality:writeChart',
+        projectDir,
+        runId,
+        fileName,
+        base64Png,
+      ),
+    writeSnapshot: (
+      projectDir: string,
+      runId: string,
+      payload: unknown,
+    ): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('quality:writeSnapshot', projectDir, runId, payload),
+    writeFindings: (
+      projectDir: string,
+      runId: string,
+      payload: unknown,
+    ): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('quality:writeFindings', projectDir, runId, payload),
+    writeReport: (
+      projectDir: string,
+      runId: string,
+      markdown: string,
+      indexEntry: import('../shared/qualityReportTypes').QualityReportIndexEntry,
+    ): Promise<{ reportRelativePath: string; reportAbsolutePath: string }> =>
+      ipcRenderer.invoke(
+        'quality:writeReport',
+        projectDir,
+        runId,
+        markdown,
+        indexEntry,
+      ),
+    listReports: (
+      projectDir: string,
+    ): Promise<
+      import('../shared/qualityReportTypes').QualityReportIndexEntry[]
+    > => ipcRenderer.invoke('quality:listReports', projectDir),
+    readReport: (
+      projectDir: string,
+      runId: string,
+    ): Promise<{
+      markdown: string;
+      runAbsolutePath: string;
+      chartsDir: string;
+    } | null> => ipcRenderer.invoke('quality:readReport', projectDir, runId),
+    getRunPath: (projectDir: string, runId: string): Promise<string> =>
+      ipcRenderer.invoke('quality:getRunPath', projectDir, runId),
+  },
   workspace: {
     writeTextFile: (payload: {
       rootDir: string;
@@ -362,33 +421,45 @@ const electronHandler = {
     // ── Session operations ──
     sessions: {
       list: (options: {
+        userId: string;
         limit?: number;
         cursor?: string | null;
         annotationProjectId?: string | null;
         workspaceOnly?: boolean;
       }): Promise<unknown> => ipcRenderer.invoke('db:sessions:list', options),
-      get: (sessionId: string): Promise<unknown> =>
-        ipcRenderer.invoke('db:sessions:get', sessionId),
+      get: (sessionId: string, userId: string): Promise<unknown> =>
+        ipcRenderer.invoke('db:sessions:get', sessionId, userId),
       create: (session: {
         id: string;
+        userId: string;
         title?: string;
         annotationProjectId?: string | null;
         interactionMode?: string | null;
         providerId?: string | null;
         model?: string | null;
       }): Promise<unknown> => ipcRenderer.invoke('db:sessions:create', session),
-      update: (sessionId: string, patch: Record<string, unknown>): Promise<unknown> =>
-        ipcRenderer.invoke('db:sessions:update', sessionId, patch),
-      softDelete: (sessionId: string): Promise<void> =>
-        ipcRenderer.invoke('db:sessions:softDelete', sessionId),
+      update: (sessionId: string, userId: string, patch: Record<string, unknown>): Promise<unknown> =>
+        ipcRenderer.invoke('db:sessions:update', sessionId, userId, patch),
+      softDelete: (sessionId: string, userId: string): Promise<void> =>
+        ipcRenderer.invoke('db:sessions:softDelete', sessionId, userId),
       getMessageIds: (sessionId: string): Promise<string[]> =>
         ipcRenderer.invoke('db:sessions:getMessageIds', sessionId),
       getMessageCount: (sessionId: string): Promise<number> =>
         ipcRenderer.invoke('db:sessions:getMessageCount', sessionId),
       getLastMessagePreview: (sessionId: string): Promise<string | null> =>
         ipcRenderer.invoke('db:sessions:getLastMessagePreview', sessionId),
-      listWithStats: (options: unknown): Promise<unknown> =>
+      listWithStats: (options: {
+        userId: string;
+        limit?: number;
+        cursor?: string | null;
+        annotationProjectId?: string | null;
+        workspaceOnly?: boolean;
+      }): Promise<unknown> =>
         ipcRenderer.invoke('db:sessions:listWithStats', options),
+      backfillLegacyUserId: (userId: string): Promise<{
+        sessionsUpdated: number;
+        messagesUpdated: number;
+      }> => ipcRenderer.invoke('db:sessions:backfillLegacyUserId', userId),
     },
     // ── Message operations ──
     messages: {
@@ -399,6 +470,7 @@ const electronHandler = {
       create: (message: {
         id: string;
         sessionId: string;
+        userId: string;
         role: string;
         interactionMode?: string | null;
         sortIndex?: number;

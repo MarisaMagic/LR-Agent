@@ -116,6 +116,10 @@ function getDb() {
         nextCursor: string | null;
         hasMore: boolean;
       }>;
+      backfillLegacyUserId: (userId: string) => Promise<{
+        sessionsUpdated: number;
+        messagesUpdated: number;
+      }>;
     };
     messages: {
       list: (sid: string, opts: unknown) => Promise<DbMessageListResult>;
@@ -141,6 +145,7 @@ export interface AgentSessionsPage {
 }
 
 export async function listSessionsLocally(
+  userId: string,
   options: {
     limit?: number;
     cursor?: string | null;
@@ -150,6 +155,7 @@ export async function listSessionsLocally(
 ): Promise<AgentSessionsPage> {
   const db = getDb();
   const result = await db.sessions.listWithStats({
+    userId,
     limit: options.limit,
     cursor: options.cursor,
     annotationProjectId: options.annotationProjectId,
@@ -172,6 +178,7 @@ export async function listSessionsLocally(
 }
 
 export async function getSessionDetailLocally(
+  userId: string,
   sessionId: string,
   options: { limit?: number; beforeMessageId?: string | null } = {},
 ): Promise<{
@@ -181,7 +188,7 @@ export async function getSessionDetailLocally(
 }> {
   const db = getDb();
   const limit = options.limit ?? DEFAULT_MESSAGE_PAGE_SIZE;
-  const sessionRow = await db.sessions.get(sessionId);
+  const sessionRow = await db.sessions.get(sessionId, userId);
   if (!sessionRow) {
     throw new Error('Session not found');
   }
@@ -213,6 +220,7 @@ export async function getSessionDetailLocally(
 }
 
 export async function createSessionLocally(
+  userId: string,
   session: Pick<
     AgentSession,
     'id' | 'title' | 'providerId' | 'model' | 'annotationProjectId' | 'interactionMode'
@@ -220,6 +228,7 @@ export async function createSessionLocally(
 ): Promise<AgentSession> {
   const db = getDb();
   const row = await db.sessions.create({
+    userId,
     id: session.id,
     title: session.title,
     annotationProjectId: session.annotationProjectId,
@@ -231,11 +240,12 @@ export async function createSessionLocally(
 }
 
 export async function updateSessionLocally(
+  userId: string,
   sessionId: string,
   patch: Partial<Pick<AgentSession, 'title' | 'providerId' | 'model'>>,
 ): Promise<AgentSession | undefined> {
   const db = getDb();
-  const row = await db.sessions.update(sessionId, {
+  const row = await db.sessions.update(sessionId, userId, {
     title: patch.title,
     providerId: patch.providerId,
     model: patch.model,
@@ -243,14 +253,15 @@ export async function updateSessionLocally(
   return row ? mapDbSession(row) : undefined;
 }
 
-export async function deleteSessionLocally(sessionId: string): Promise<void> {
+export async function deleteSessionLocally(userId: string, sessionId: string): Promise<void> {
   const db = getDb();
-  await db.sessions.softDelete(sessionId);
+  await db.sessions.softDelete(sessionId, userId);
 }
 
 export async function createMessageLocally(message: {
   id: string;
   sessionId: string;
+  userId: string;
   role: string;
   interactionMode?: string | null;
   blocksJson?: string;
@@ -342,12 +353,21 @@ export async function patchAgentMessageBlockRemote(options: {
   });
 }
 
+export async function backfillLegacyUserIdLocally(
+  userId: string,
+): Promise<{ sessionsUpdated: number; messagesUpdated: number }> {
+  const db = getDb();
+  return db.sessions.backfillLegacyUserId(userId);
+}
+
 export async function loadLocalAgentChatStateForProject(
+  userId: string,
   annotationProjectId: string | null,
 ): Promise<
   AgentChatPersistedState & { sessionsNextCursor: string | null; sessionsHasMore: boolean }
 > {
   const page = await listSessionsLocally(
+    userId,
     annotationProjectId
       ? { annotationProjectId }
       : { workspaceOnly: true },
@@ -375,10 +395,10 @@ export async function loadLocalAgentChatStateForProject(
   };
 }
 
-export async function loadLocalAgentChatState(): Promise<
+export async function loadLocalAgentChatState(userId: string): Promise<
   AgentChatPersistedState & { sessionsNextCursor: string | null; sessionsHasMore: boolean }
 > {
-  return loadLocalAgentChatStateForProject(null);
+  return loadLocalAgentChatStateForProject(userId, null);
 }
 
 // Re-export with backward-compatible names

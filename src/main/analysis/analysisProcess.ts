@@ -20,7 +20,7 @@ interface IpcMessage {
   kind?: string;
 }
 
-export function getAnalysisRoot(): string {
+function getAnalysisRoot(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'analysis');
   }

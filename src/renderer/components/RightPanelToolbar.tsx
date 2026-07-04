@@ -5,15 +5,19 @@ import './RightPanelToolbar.css';
 interface RightPanelToolbarProps {
   activePanel: RightPanel;
   annotationTabDisabled?: boolean;
+  qualityTabDisabled?: boolean;
   onAnnotationClick: () => void;
   onAgentClick: () => void;
+  onQualityClick: () => void;
 }
 
 export default function RightPanelToolbar({
   activePanel,
   annotationTabDisabled = false,
+  qualityTabDisabled = false,
   onAnnotationClick,
   onAgentClick,
+  onQualityClick,
 }: RightPanelToolbarProps) {
   return (
     <div className="right-panel-icon-toolbar" role="tablist">
@@ -45,6 +49,24 @@ export default function RightPanelToolbar({
           label="AI Agent"
           active={activePanel === 'agent'}
           onClick={onAgentClick}
+        />
+      </div>
+      <div
+        role="tab"
+        aria-selected={activePanel === 'quality'}
+        aria-disabled={qualityTabDisabled || undefined}
+        className={`right-panel-icon-tab${qualityTabDisabled ? ' right-panel-icon-tab--disabled' : ''}`}
+      >
+        <ActivityIcon
+          name="graph-line"
+          label={
+            qualityTabDisabled
+              ? '质量看板（标注模式下不可用）'
+              : '质量看板'
+          }
+          active={activePanel === 'quality' && !qualityTabDisabled}
+          disabled={qualityTabDisabled}
+          onClick={onQualityClick}
         />
       </div>
     </div>

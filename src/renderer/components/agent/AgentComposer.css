@@ -1,7 +1,7 @@
 .agent-composer {
   flex-shrink: 0;
   padding: 12px 30px 8px;
-  background: var(--vscode-sideBar-background, #252526);
+  background: var(--lr-agent-panel-background);
 }
 
 .agent-composer-form {
@@ -15,7 +15,7 @@
   padding: 10px 10px 6px;
   border-radius: 10px;
   border: 1px solid var(--vscode-input-border, #3e3e42);
-  background: var(--vscode-input-background, #2b2d31);
+  background: var(--vscode-input-background, #3c3c3c);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   transition:
     border-color 0.15s ease,
@@ -110,4 +110,15 @@
 
 .agent-composer-send:disabled {
   pointer-events: none;
+}
+
+[data-theme='light'] .agent-composer-box,
+[data-theme='light'] .agent-composer-box:focus-within {
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+[data-theme='light'] .agent-composer-send:not(.agent-composer-send--ready):not(
+    .agent-composer-send--stop
+  ) {
+  color: rgba(0, 0, 0, 0.35);
 }

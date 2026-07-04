@@ -31,7 +31,7 @@ const pending = new Map<string, PendingEntry>();
 
 const INFERENCE_TIMEOUT_MS = 5 * 60 * 1000;
 
-export function getInferenceRoot(): string {
+function getInferenceRoot(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'inference');
   }

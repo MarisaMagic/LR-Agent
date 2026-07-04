@@ -7,6 +7,7 @@ export function registerDbHandlers(): void {
   // ── Session handlers ──────────────────────────────────────────────
 
   ipcMain.handle('db:sessions:list', (_event, options: {
+    userId: string;
     limit?: number;
     cursor?: string | null;
     annotationProjectId?: string | null;
@@ -15,12 +16,13 @@ export function registerDbHandlers(): void {
     return sessionRepo.listSessions(options);
   });
 
-  ipcMain.handle('db:sessions:get', (_event, sessionId: string) => {
-    return sessionRepo.getSession(sessionId);
+  ipcMain.handle('db:sessions:get', (_event, sessionId: string, userId: string) => {
+    return sessionRepo.getSession(sessionId, userId);
   });
 
   ipcMain.handle('db:sessions:create', (_event, session: {
     id: string;
+    userId: string;
     title?: string;
     annotationProjectId?: string | null;
     interactionMode?: string | null;
@@ -30,12 +32,12 @@ export function registerDbHandlers(): void {
     return sessionRepo.createSession(session);
   });
 
-  ipcMain.handle('db:sessions:update', (_event, sessionId: string, patch: Record<string, unknown>) => {
-    return sessionRepo.updateSession(sessionId, patch as Parameters<typeof sessionRepo.updateSession>[1]);
+  ipcMain.handle('db:sessions:update', (_event, sessionId: string, userId: string, patch: Record<string, unknown>) => {
+    return sessionRepo.updateSession(sessionId, userId, patch as Parameters<typeof sessionRepo.updateSession>[2]);
   });
 
-  ipcMain.handle('db:sessions:softDelete', (_event, sessionId: string) => {
-    sessionRepo.softDeleteSession(sessionId);
+  ipcMain.handle('db:sessions:softDelete', (_event, sessionId: string, userId: string) => {
+    sessionRepo.softDeleteSession(sessionId, userId);
   });
 
   ipcMain.handle('db:sessions:getMessageIds', (_event, sessionId: string) => {
@@ -51,12 +53,17 @@ export function registerDbHandlers(): void {
   });
 
   ipcMain.handle('db:sessions:listWithStats', (_event, options: {
+    userId: string;
     limit?: number;
     cursor?: string | null;
     annotationProjectId?: string | null;
     workspaceOnly?: boolean;
   }) => {
     return sessionRepo.listSessionsWithStats(options);
+  });
+
+  ipcMain.handle('db:sessions:backfillLegacyUserId', (_event, userId: string) => {
+    return sessionRepo.backfillLegacyUserId(userId);
   });
 
   // ── Message handlers ──────────────────────────────────────────────
@@ -71,6 +78,7 @@ export function registerDbHandlers(): void {
   ipcMain.handle('db:messages:create', (_event, message: {
     id: string;
     sessionId: string;
+    userId: string;
     role: string;
     interactionMode?: string | null;
     sortIndex?: number;

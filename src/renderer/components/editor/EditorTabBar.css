@@ -28,12 +28,13 @@
   max-width: 200px;
   flex-shrink: 0;
   box-sizing: border-box;
-  border-right: 1px solid var(--vscode-editorGroupHeader-tabsBorder, #252526);
+  background: var(--vscode-tab-inactiveBackground, #252526);
+  border-right: 1px solid var(--vscode-editorGroupHeader-tabsBorder, #3e3e42);
 }
 
 .editor-tab--active {
-  background: var(--vscode-editor-background, #1e1e1e);
-  border-bottom: 1px solid var(--vscode-editor-background, #1e1e1e);
+  background: var(--vscode-tab-activeBackground, #1e1e1e);
+  border-bottom: 1px solid var(--vscode-tab-activeBackground, #1e1e1e);
   margin-bottom: -1px;
   position: relative;
   z-index: 1;
@@ -46,7 +47,7 @@
   flex: 1;
   min-width: 0;
   padding: 0 8px;
-  height: 35px;
+  height: var(--lr-top-toolbar-height, 36px);
   border: none;
   background: transparent;
   color: var(--vscode-tab-inactiveForeground, #969696);
@@ -55,7 +56,7 @@
 }
 
 .editor-tab--active .editor-tab-main {
-  color: var(--vscode-tab-activeForeground, #ffffff);
+  color: var(--vscode-tab-activeForeground, #cccccc);
 }
 
 .editor-tab-name {
@@ -73,7 +74,7 @@
 }
 
 .editor-tab-dirty {
-  color: var(--vscode-tab-activeForeground, #ffffff);
+  color: var(--vscode-tab-activeForeground, #cccccc);
   font-size: 10px;
   line-height: 1;
 }
@@ -83,7 +84,7 @@
   align-items: center;
   justify-content: center;
   width: 28px;
-  height: 35px;
+  height: var(--lr-top-toolbar-height, 36px);
   padding: 0;
   border: none;
   background: transparent;

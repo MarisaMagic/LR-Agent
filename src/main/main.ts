@@ -22,6 +22,7 @@ import registerPreAnnotHandlers from './preAnnot/preAnnotHandlers';
 import { registerAnalysisHandlers } from './analysis/analysisHandlers';
 import { registerWorkspaceHandlers } from './workspace/workspaceHandlers';
 import registerAnnotationAgentHandlers from './annotation/agent/handlers';
+import registerQualityReportHandlers from './annotation/quality/handlers';
 import {
   startMcpServer,
   stopMcpServer,
@@ -624,6 +625,7 @@ app
     registerAnalysisHandlers();
     registerWorkspaceHandlers();
     registerAnnotationAgentHandlers();
+    registerQualityReportHandlers();
     registerDbHandlers();
     // 启动本地 MCP Server（异步，失败不阻断窗口创建）
     startMcpServer().catch((err) =>

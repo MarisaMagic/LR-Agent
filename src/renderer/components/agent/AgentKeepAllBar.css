@@ -1,9 +1,11 @@
+@import './AgentChangeBlock.shared.css';
+
 .agent-keep-all-bar {
   flex-shrink: 0;
   margin: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--agent-surface-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--agent-surface-bg);
   overflow: hidden;
 }
 
@@ -31,7 +33,7 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--agent-surface-secondary-text);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -39,7 +41,7 @@
 }
 
 .agent-keep-all-bar__review:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--agent-surface-bg-hover);
 }
 
 .agent-keep-all-bar__review:disabled {
@@ -64,7 +66,7 @@
 }
 
 .agent-keep-all-bar__toggle:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--agent-surface-bg-hover);
 }
 
 .agent-keep-all-bar__title {
@@ -77,9 +79,9 @@
   justify-content: center;
   min-height: 28px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--agent-surface-border);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--agent-surface-bg-hover);
   color: var(--vscode-foreground, #cccccc);
   font-size: 12px;
   font-weight: 500;
@@ -90,8 +92,8 @@
 }
 
 .agent-keep-all-bar__button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: var(--agent-surface-bg-hover);
+  border-color: var(--agent-surface-border);
 }
 
 .agent-keep-all-bar__button:disabled {
@@ -123,7 +125,7 @@
 }
 
 .agent-keep-all-bar__item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--agent-surface-bg);
 }
 
 .agent-keep-all-bar__meta {
@@ -157,6 +159,6 @@
 
 .agent-keep-all-bar__summary {
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--agent-surface-muted-text);
   font-size: 11px;
 }

@@ -7,7 +7,7 @@
 
 .file-header {
   box-sizing: border-box;
-  height: var(--file-header-height, 35px);
+  height: var(--file-header-height, var(--lr-agent-tab-bar-height, 40px));
   padding: 0 12px;
   background: var(--vscode-editorGroupHeader-tabsBackground, #252526);
   font-size: var(--vscode-font-size, 15px);
@@ -248,6 +248,18 @@
 .markdown-content img {
   max-width: 100%;
   height: auto;
+}
+
+.markdown-local-image__loading,
+.markdown-local-image__failed {
+  display: inline-block;
+  color: var(--vscode-descriptionForeground, #858585);
+  font-size: 0.9em;
+  margin: 4px 0;
+}
+
+.markdown-local-image__failed {
+  color: var(--vscode-errorForeground, #f48771);
 }
 
 /* 图片查看器 */

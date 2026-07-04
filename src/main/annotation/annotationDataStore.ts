@@ -8,7 +8,7 @@ const FILES_DIR = 'files';
 const INDEX_FILE = 'index.json';
 
 /** Schema for annotations/index.json */
-export interface AnnotationIndexFilePayload {
+interface AnnotationIndexFilePayload {
   schemaVersion: number;
   projectId: string;
   files: Record<
@@ -42,16 +42,16 @@ function docPath(projectDir: string, fileKey: string): string {
   return path.join(filesDir(projectDir), `${fileKey}.json`);
 }
 
-export function normalizeRelativePath(relativePath: string): string {
+function normalizeRelativePath(relativePath: string): string {
   return relativePath.split(/[/\\]/).filter(Boolean).join('/');
 }
 
-export function computeFileKey(relativePath: string): string {
+function computeFileKey(relativePath: string): string {
   const normalized = normalizeRelativePath(relativePath);
   return crypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
 }
 
-export async function readAnnotationIndex(
+async function readAnnotationIndex(
   projectDir: string,
 ): Promise<AnnotationIndexFilePayload | null> {
   return readIndex(projectDir);

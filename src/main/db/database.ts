@@ -155,7 +155,7 @@ export async function initializeDatabase(): Promise<void> {
   }
 }
 
-export function flushDatabase(): void {
+function flushDatabase(): void {
   if (!_db) return;
   // 立即取消待执行的防抖写入并执行同步落盘
   if (flushTimer) {
@@ -249,5 +249,23 @@ function runMigrations(): void {
     )
   `);
 
+  // user_id multi-user isolation migration
+  _addColumnIfMissing(d, 'sessions', 'user_id', 'TEXT NOT NULL DEFAULT \'\'');
+  _addColumnIfMissing(d, 'messages', 'user_id', 'TEXT NOT NULL DEFAULT \'\'');
+  d.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`);
+  d.exec(`CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)`);
+
   console.log('[DB] Migrations completed successfully');
+}
+
+function _addColumnIfMissing(d: SqlJsDatabase, table: string, column: string, definition: string): void {
+  const rows = d.all(`PRAGMA table_info(${table})`) as { name: string }[];
+  if (rows.some((r) => r.name === column)) {
+    return;
+  }
+  try {
+    d.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  } catch (err) {
+    console.error(`[DB] Failed to add column ${column} to ${table}:`, err);
+  }
 }

@@ -81,7 +81,7 @@
 }
 
 .agent-annotation-change-block__item:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.35);
+  outline: 1px solid var(--agent-surface-focus-outline);
   outline-offset: 1px;
 }
 
@@ -96,6 +96,6 @@
 
 .agent-annotation-change-block__summary {
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--agent-surface-muted-text);
   font-size: 11px;
 }

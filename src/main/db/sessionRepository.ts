@@ -24,6 +24,7 @@ export interface SessionListResult {
 const DEFAULT_PAGE_SIZE = 50;
 
 export function listSessions(options: {
+  userId: string;
   limit?: number;
   cursor?: string | null;
   annotationProjectId?: string | null;
@@ -32,8 +33,8 @@ export function listSessions(options: {
   const db = getDatabase();
   const limit = options.limit ?? DEFAULT_PAGE_SIZE;
 
-  let sql = 'SELECT * FROM sessions WHERE deleted_at IS NULL';
-  const params: unknown[] = [];
+  let sql = 'SELECT * FROM sessions WHERE deleted_at IS NULL AND user_id = ?';
+  const params: unknown[] = [options.userId];
 
   if (options.annotationProjectId) {
     sql += ' AND annotation_project_id = ?';
@@ -76,6 +77,7 @@ export interface SessionWithStatsRow extends SessionRow {
 }
 
 export function listSessionsWithStats(options: {
+  userId: string;
   limit?: number;
   cursor?: string | null;
   annotationProjectId?: string | null;
@@ -85,8 +87,8 @@ export function listSessionsWithStats(options: {
   const limit = options.limit ?? DEFAULT_PAGE_SIZE;
 
   // 1) 分页查询会话
-  let sql = 'SELECT * FROM sessions WHERE deleted_at IS NULL';
-  const params: unknown[] = [];
+  let sql = 'SELECT * FROM sessions WHERE deleted_at IS NULL AND user_id = ?';
+  const params: unknown[] = [options.userId];
 
   if (options.annotationProjectId) {
     sql += ' AND annotation_project_id = ?';
@@ -170,16 +172,17 @@ export function listSessionsWithStats(options: {
   return { sessions: result, nextCursor, hasMore };
 }
 
-export function getSession(sessionId: string): SessionRow | undefined {
+export function getSession(sessionId: string, userId: string): SessionRow | undefined {
   const db = getDatabase();
   return db.get(
-    'SELECT * FROM sessions WHERE id = ? AND deleted_at IS NULL',
-    sessionId,
+    'SELECT * FROM sessions WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+    sessionId, userId,
   ) as SessionRow | undefined;
 }
 
 export function createSession(session: {
   id: string;
+  userId: string;
   title?: string;
   annotationProjectId?: string | null;
   interactionMode?: string | null;
@@ -189,10 +192,11 @@ export function createSession(session: {
   const db = getDatabase();
   const now = Date.now();
   db.run(`
-    INSERT INTO sessions (id, title, annotation_project_id, interaction_mode, provider_id, model, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO sessions (id, user_id, title, annotation_project_id, interaction_mode, provider_id, model, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     session.id,
+    session.userId,
     session.title ?? '新对话',
     session.annotationProjectId ?? null,
     session.interactionMode ?? null,
@@ -201,11 +205,12 @@ export function createSession(session: {
     now,
     now,
   );
-  return getSession(session.id)!;
+  return getSession(session.id, session.userId)!;
 }
 
 export function updateSession(
   sessionId: string,
+  userId: string,
   patch: Partial<{
     title: string;
     providerId: string | null;
@@ -254,26 +259,27 @@ export function updateSession(
     params.push(patch.lastContextTokenEstimate);
   }
 
-  if (sets.length === 0) return getSession(sessionId);
+  if (sets.length === 0) return getSession(sessionId, userId);
 
   sets.push('updated_at = ?');
   params.push(Date.now());
   params.push(sessionId);
+  params.push(userId);
 
   db.run(
-    `UPDATE sessions SET ${sets.join(', ')} WHERE id = ? AND deleted_at IS NULL`,
+    `UPDATE sessions SET ${sets.join(', ')} WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
     ...params,
   );
 
-  return getSession(sessionId);
+  return getSession(sessionId, userId);
 }
 
-export function softDeleteSession(sessionId: string): void {
+export function softDeleteSession(sessionId: string, userId: string): void {
   const db = getDatabase();
   const now = Date.now();
   db.run(
-    'UPDATE sessions SET deleted_at = ?, updated_at = ? WHERE id = ?',
-    now, now, sessionId,
+    'UPDATE sessions SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+    now, now, sessionId, userId,
   );
   // Cascade delete all messages for this session
   db.run('DELETE FROM messages WHERE session_id = ?', sessionId);
@@ -297,6 +303,43 @@ export function getSessionMessageCount(sessionId: string): number {
   return row?.count ?? 0;
 }
 
+/** Assign legacy rows (user_id = '') to the current logged-in user. */
+export function backfillLegacyUserId(userId: string): {
+  sessionsUpdated: number;
+  messagesUpdated: number;
+} {
+  const db = getDatabase();
+  const now = Date.now();
+
+  const sessionRow = db.get(
+    "SELECT COUNT(*) as count FROM sessions WHERE user_id = '' AND deleted_at IS NULL",
+  ) as { count: number } | undefined;
+  const sessionsUpdated = sessionRow?.count ?? 0;
+
+  if (sessionsUpdated > 0) {
+    db.run(
+      "UPDATE sessions SET user_id = ?, updated_at = ? WHERE user_id = '' AND deleted_at IS NULL",
+      userId,
+      now,
+    );
+  }
+
+  const messageRow = db.get(
+    "SELECT COUNT(*) as count FROM messages WHERE user_id = ''",
+  ) as { count: number } | undefined;
+  const messagesUpdated = messageRow?.count ?? 0;
+
+  if (messagesUpdated > 0) {
+    db.run(
+      "UPDATE messages SET user_id = ?, updated_at = ? WHERE user_id = ''",
+      userId,
+      now,
+    );
+  }
+
+  return { sessionsUpdated, messagesUpdated };
+}
+
 export function getLastMessagePreview(sessionId: string): string | null {
   const db = getDatabase();
   const rows = db.all(
@@ -316,9 +359,3 @@ export function getLastMessagePreview(sessionId: string): string | null {
   return null;
 }
 
-export function listAllSessionsForExport(): SessionRow[] {
-  const db = getDatabase();
-  return db.all(
-    'SELECT * FROM sessions WHERE deleted_at IS NULL',
-  ) as unknown as SessionRow[];
-}

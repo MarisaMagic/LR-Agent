@@ -23,7 +23,7 @@ function isImageFile(filePath: string): boolean {
   return IMAGE_EXT.has(base.slice(dot + 1).toLowerCase());
 }
 
-export interface GlobProjectImagesOptions {
+interface GlobProjectImagesOptions {
   parentFolder?: string;
   namePattern?: string;
   limit?: number;
@@ -60,7 +60,7 @@ export async function globProjectImages(
   return { count: matched.length, images: matched };
 }
 
-export interface DirEntry {
+interface DirEntry {
   name: string;
   relativePath: string;
   kind: 'file' | 'directory';
