@@ -30,6 +30,14 @@ import ImageFabricAnnotationEditor from './annotation/ImageFabricAnnotationEdito
 import ImageFabricRotatedBboxAnnotationEditor from './annotation/ImageFabricRotatedBboxAnnotationEditor';
 import ImageFabricPolygonAnnotationEditor from './annotation/ImageFabricPolygonAnnotationEditor';
 import ImageFabricKeypointAnnotationEditor from './annotation/ImageFabricKeypointAnnotationEditor';
+import ImageCaptionEditor from './annotation/ImageCaptionEditor';
+import ImageClassificationEditor from './annotation/ImageClassificationEditor';
+import TextSpanNerEditor from './annotation/TextSpanNerEditor';
+import TextClassificationEditor from './annotation/TextClassificationEditor';
+import TextInstructionEditor from './annotation/TextInstructionEditor';
+import TextPreferenceEditor from './annotation/TextPreferenceEditor';
+import TextConversationEditor from './annotation/TextConversationEditor';
+import TextCotEditor from './annotation/TextCotEditor';
 import FileTypeIcon from './FileTypeIcon';
 import 'react-pdf/dist/Page/TextLayer.css';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
@@ -186,6 +194,13 @@ export default function FileViewer({
     annotationWorkspace.imageAnnotationType === 'rotated_bbox';
   const isKeypointAnnotator =
     annotationWorkspace.imageAnnotationType === 'keypoint';
+  const isCaptionAnnotator =
+    annotationWorkspace.imageAnnotationType === 'caption';
+  const isClassificationAnnotator =
+    annotationWorkspace.imageAnnotationType === 'classification';
+  const showTextAnnotator =
+    annotationWorkspace.workspaceEnabled &&
+    annotationWorkspace.textAnnotationType !== null;
   const viewerType = useMemo(() => getViewerType(filePath), [filePath]);
   const markdownComponents = useMemo(
     () =>
@@ -226,8 +241,19 @@ export default function FileViewer({
       document.removeEventListener('selectionchange', onSelectionChange);
   }, [filePath]);
 
-  // 点击时聚焦主区域
-  const handleMainClick = useCallback(() => {
+  // 点击时聚焦主区域（不抢夺 textarea/input/select/button/contentEditable 等已有焦点元素的焦点）
+  const handleMainClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const tag = target.tagName;
+    if (
+      tag === 'INPUT' ||
+      tag === 'TEXTAREA' ||
+      tag === 'SELECT' ||
+      tag === 'BUTTON' ||
+      target.isContentEditable
+    ) {
+      return;
+    }
     viewerRef.current?.focus();
   }, []);
 
@@ -513,6 +539,16 @@ export default function FileViewer({
                 imageUrl={binaryUrl}
                 imagePath={filePath!}
               />
+            ) : isCaptionAnnotator ? (
+              <ImageCaptionEditor
+                imageUrl={binaryUrl}
+                imagePath={filePath!}
+              />
+            ) : isClassificationAnnotator ? (
+              <ImageClassificationEditor
+                imageUrl={binaryUrl}
+                imagePath={filePath!}
+              />
             ) : (
               <ImageFabricAnnotationEditor
                 imageUrl={binaryUrl}
@@ -552,6 +588,40 @@ export default function FileViewer({
         </VscodeScrollable>
       );
     } else if (viewerType === 'text' && textContent !== null) {
+      // 文本标注路由
+      const textType = annotationWorkspace.textAnnotationType;
+      if (showTextAnnotator && textType) {
+        switch (textType) {
+          case 'span_ner':
+            body = <TextSpanNerEditor />;
+            break;
+          case 'text_classification':
+            body = <TextClassificationEditor />;
+            break;
+          case 'instruction':
+            body = <TextInstructionEditor />;
+            break;
+          case 'preference':
+            body = <TextPreferenceEditor />;
+            break;
+          case 'conversation':
+            body = <TextConversationEditor />;
+            break;
+          case 'cot':
+            body = <TextCotEditor />;
+            break;
+          default:
+            body = (
+              <VscodeScrollable className="viewer-body text-content">
+                {highlightLanguage ? (
+                  <HighlightedCodeBlock content={textContent} filePath={filePath!} />
+                ) : (
+                  <pre className="code-block">{textContent}</pre>
+                )}
+              </VscodeScrollable>
+            );
+        }
+      } else {
       body = (
         <VscodeScrollable className="viewer-body text-content">
           {highlightLanguage ? (
@@ -561,6 +631,7 @@ export default function FileViewer({
           )}
         </VscodeScrollable>
       );
+      }
     } else {
       body = (
         <div className="viewer-body error-state">
@@ -580,6 +651,46 @@ export default function FileViewer({
   };
 
   if (!filePath) {
+    // Freeform mode: LLM text annotation without a file
+    const freeformTextType = annotationWorkspace.textAnnotationType;
+    const freeformLLM =
+      annotationWorkspace.freeformMode ||
+      (freeformTextType &&
+        (freeformTextType === 'instruction' ||
+          freeformTextType === 'preference' ||
+          freeformTextType === 'conversation' ||
+          freeformTextType === 'cot') &&
+        annotationWorkspace.workspaceEnabled);
+
+    if (freeformLLM && freeformTextType) {
+      switch (freeformTextType) {
+        case 'instruction':
+          return (
+            <div className="file-viewer" tabIndex={0}>
+              <TextInstructionEditor />
+            </div>
+          );
+        case 'preference':
+          return (
+            <div className="file-viewer" tabIndex={0}>
+              <TextPreferenceEditor />
+            </div>
+          );
+        case 'conversation':
+          return (
+            <div className="file-viewer" tabIndex={0}>
+              <TextConversationEditor />
+            </div>
+          );
+        case 'cot':
+          return (
+            <div className="file-viewer" tabIndex={0}>
+              <TextCotEditor />
+            </div>
+          );
+      }
+    }
+
     if (embedded) return null;
     return (
       <div className="file-viewer-empty">

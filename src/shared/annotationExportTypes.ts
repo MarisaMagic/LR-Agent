@@ -190,6 +190,15 @@ export function getExportFormatsForType(
       return IMAGE_KEYPOINT_FORMATS;
     case 'rotated_bbox':
       return IMAGE_ROTATED_BBOX_FORMATS;
+    case 'caption':
+    case 'classification':
+      return [
+        {
+          id: 'lr_agent',
+          label: 'LR-Agent 原生 JSON',
+          description: '完整保留 annotations/files 结构备份',
+        },
+      ];
     default:
       return [
         {
@@ -208,7 +217,9 @@ export function isImageAnnotationType(
     value === 'bbox' ||
     value === 'polygon' ||
     value === 'keypoint' ||
-    value === 'rotated_bbox'
+    value === 'rotated_bbox' ||
+    value === 'caption' ||
+    value === 'classification'
   );
 }
 

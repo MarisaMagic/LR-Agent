@@ -742,7 +742,7 @@ export default function PretrainedModelFormModal({
         <VscodeButton secondary type="button" onClick={onClose}>
           取消
         </VscodeButton>
-        <VscodeButton type="submit" disabled={submitting}>
+        <VscodeButton secondary type="submit" disabled={submitting}>
           {submitting ? '保存中…' : '保存'}
         </VscodeButton>
       </div>

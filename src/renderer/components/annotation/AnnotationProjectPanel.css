@@ -13,6 +13,10 @@
   gap: 2px;
 }
 
+.annotation-project-toolbar vscode-toolbar-button:focus:not(:focus-visible) {
+  --vscode-focusBorder: transparent;
+}
+
 .annotation-project-scroll-host {
   flex: 1;
   min-height: 0;

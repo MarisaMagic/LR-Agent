@@ -13,6 +13,10 @@
   gap: 2px;
 }
 
+.pretrained-models-toolbar vscode-toolbar-button:focus:not(:focus-visible) {
+  --vscode-focusBorder: transparent;
+}
+
 .pretrained-models-filter {
   display: flex;
   gap: 4px;

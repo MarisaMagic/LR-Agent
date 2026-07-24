@@ -12,7 +12,7 @@ import PreAnnotToolbarSection from './PreAnnotToolbarSection';
 import './ImageAnnotationToolbar.css';
 
 export interface ImageAnnotationToolbarProps {
-  mode?: 'bbox' | 'rotated_bbox' | 'polygon' | 'keypoint';
+  mode?: 'bbox' | 'rotated_bbox' | 'polygon' | 'keypoint' | 'caption' | 'classification';
   imagePath?: string;
   canvasReady?: boolean;
   imageNatural?: { w: number; h: number };
@@ -136,6 +136,10 @@ export default function ImageAnnotationToolbar({
           >
             {mode === 'rotated_bbox' ? '画旋转框 (B)' : '画框 (B)'}
           </VscodeButton>
+        ) : mode === 'caption' || mode === 'classification' ? (
+          <span className="image-annotation-toolbar-hint">
+            {mode === 'caption' ? '图片内容描述' : '整图分类标签'}
+          </span>
         ) : (
           <VscodeButton
             secondary
@@ -146,16 +150,18 @@ export default function ImageAnnotationToolbar({
             多边形 (P)
           </VscodeButton>
         )}
-        <VscodeButton
-          secondary
-          className={`image-annotation-tool-btn${tool === 'select' ? ' image-annotation-tool-btn--active' : ''}`}
-          aria-pressed={tool === 'select'}
-          onClick={() => setToolAndFocus('select')}
-        >
-          选择 (V)
-        </VscodeButton>
+        {mode !== 'caption' && mode !== 'classification' && (
+          <VscodeButton
+            secondary
+            className={`image-annotation-tool-btn${tool === 'select' ? ' image-annotation-tool-btn--active' : ''}`}
+            aria-pressed={tool === 'select'}
+            onClick={() => setToolAndFocus('select')}
+          >
+            选择 (V)
+          </VscodeButton>
+        )}
       </div>
-      {mode === 'keypoint' ? (
+      {mode === 'caption' ? null : mode === 'keypoint' ? (
         <div className="image-annotation-toolbar-labels">
           <KeypointTemplateSelector />
         </div>
@@ -177,7 +183,7 @@ export default function ImageAnnotationToolbar({
           )}
         </div>
       )}
-      {imagePath ? (
+      {imagePath && mode !== 'caption' && mode !== 'classification' ? (
         <PreAnnotToolbarSection
           mode={mode}
           imagePath={imagePath}

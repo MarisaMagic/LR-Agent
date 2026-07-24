@@ -11,10 +11,18 @@ import {
 } from '../../types/annotation';
 import type {
   BboxAnnotation,
+  CaptionAnnotation,
+  ClassificationAnnotation,
   ImagePointAnnotation,
   PolygonAnnotation,
   PoseAnnotation,
   RotatedBboxAnnotation,
+  SpanAnnotation,
+  TextClassificationAnnotation,
+  InstructionAnnotation,
+  PreferenceAnnotation,
+  ConversationAnnotation,
+  CotAnnotation,
 } from '../../types/annotationDocument';
 import { getKeypointTemplate } from '../../types/keypointTemplate';
 import { useAnnotation } from '../../context/AnnotationContext';
@@ -438,6 +446,601 @@ function renderKeypointWorkspaceBody(
   );
 }
 
+function renderCaptionWorkspaceBody(
+  project: AnnotationProject,
+  workspaceEnabled: boolean,
+  loadError: string | null,
+  captionAnnotations: CaptionAnnotation[],
+  selectedAnnotationId: string | null,
+  selectAnnotation: (id: string | null) => void,
+  deleteAnnotation: (annotationId: string) => void,
+): ReactElement {
+  if (!workspaceEnabled) {
+    return (
+      <p className="annotation-right-muted">
+        请在资源管理器中选择一张项目内的图片。
+      </p>
+    );
+  }
+  if (loadError) {
+    return <p className="annotation-right-error">{loadError}</p>;
+  }
+
+  if (captionAnnotations.length === 0) {
+    return <p className="annotation-right-muted">暂无描述。请在编辑区添加。</p>;
+  }
+
+  const GRANULARITY_LABELS: Record<string, string> = {
+    brief: '简短',
+    detailed: '详细',
+    dense: '密集',
+  };
+
+  return (
+    <VscodeScrollHost
+      className="annotation-right-scroll-host"
+      scrollableClassName="annotation-right-scrollable"
+    >
+      <AnnotationMotionList className="annotation-right-items">
+        {captionAnnotations.map((ann, idx) => {
+          const selected = ann.id === selectedAnnotationId;
+          const selectItem = () => selectAnnotation(selected ? null : ann.id);
+          return (
+            <AnnotationMotionListItem
+              key={ann.id}
+              layoutKey={ann.id}
+              className={`annotation-right-item${selected ? ' annotation-right-item--active' : ''}`}
+              style={getAnnotationItemStyle()}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selected}
+              aria-label={`选择描述 ${idx + 1}`}
+              onClick={selectItem}
+              onKeyDown={handleAnnotationItemKeyDown(selectItem)}
+            >
+              <div className="annotation-right-item-row">
+                <div className="annotation-right-item-label-group">
+                  <span className="annotation-right-item-main">
+                    <span className="annotation-right-index">#{idx + 1}</span>
+                    <span className="annotation-right-suffix">
+                      {GRANULARITY_LABELS[ann.granularity] ?? ann.granularity}
+                    </span>
+                  </span>
+                  <p className="annotation-right-caption-summary">
+                    {ann.text.length > 60
+                      ? ann.text.slice(0, 60) + '…'
+                      : ann.text}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="annotation-right-label-more-btn annotation-right-item-label-more-btn annotation-right-delete"
+                  aria-label="删除描述"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    deleteAnnotation(ann.id);
+                  }}
+                >
+                  <span className="codicon codicon-trash" aria-hidden />
+                </button>
+              </div>
+            </AnnotationMotionListItem>
+          );
+        })}
+      </AnnotationMotionList>
+    </VscodeScrollHost>
+  );
+}
+
+function renderClassificationWorkspaceBody(
+  project: AnnotationProject,
+  workspaceEnabled: boolean,
+  loadError: string | null,
+  classificationAnnotations: ClassificationAnnotation[],
+  selectedAnnotationId: string | null,
+  selectAnnotation: (id: string | null) => void,
+  updateAnnotationLabel: (annotationId: string, labelId: string) => void,
+  deleteAnnotation: (annotationId: string) => void,
+): ReactElement {
+  if (!workspaceEnabled) {
+    return (
+      <p className="annotation-right-muted">
+        请在资源管理器中选择一张项目内的图片。
+      </p>
+    );
+  }
+  if (loadError) {
+    return <p className="annotation-right-error">{loadError}</p>;
+  }
+
+  if (classificationAnnotations.length === 0) {
+    return <p className="annotation-right-muted">未分配分类标签。</p>;
+  }
+
+  return (
+    <VscodeScrollHost
+      className="annotation-right-list-host"
+      scrollableClassName="annotation-right-list-scroll"
+    >
+      <AnnotationMotionList className="annotation-right-items">
+        {classificationAnnotations.map((ann, idx) => {
+          const selected = ann.id === selectedAnnotationId;
+          const activeLabel = project.labels.find(
+            (l) => l.id === ann.labelId,
+          );
+          const selectItem = () => selectAnnotation(ann.id);
+          return (
+            <AnnotationMotionListItem
+              key={ann.id}
+              layoutKey={ann.id}
+              className={`annotation-right-item${selected ? ' annotation-right-item--active' : ''}`}
+              style={getAnnotationItemStyle(activeLabel?.color)}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selected}
+              aria-label={`选择分类 ${idx + 1}`}
+              onClick={selectItem}
+              onKeyDown={handleAnnotationItemKeyDown(selectItem)}
+            >
+              <AnnotationListRow
+                index={idx}
+                labelId={ann.labelId}
+                labels={project.labels}
+                onChangeLabel={(lid) => updateAnnotationLabel(ann.id, lid)}
+                onDelete={() => deleteAnnotation(ann.id)}
+              />
+            </AnnotationMotionListItem>
+          );
+        })}
+      </AnnotationMotionList>
+    </VscodeScrollHost>
+  );
+}
+
+// ── 文本标注渲染函数 ──
+
+function renderSpanNerWorkspaceBody(
+  project: AnnotationProject,
+  workspaceEnabled: boolean,
+  loadError: string | null,
+  spanAnnotations: SpanAnnotation[],
+  selectedAnnotationId: string | null,
+  selectAnnotation: (id: string | null) => void,
+  updateAnnotationLabel: (annotationId: string, labelId: string) => void,
+  deleteAnnotation: (annotationId: string) => void,
+): ReactElement {
+  if (!workspaceEnabled) {
+    return (
+      <p className="annotation-right-muted">
+        请在资源管理器中选择项目内的文本文件。
+      </p>
+    );
+  }
+  if (loadError) {
+    return <p className="annotation-right-error">{loadError}</p>;
+  }
+
+  if (spanAnnotations.length === 0) {
+    return (
+      <p className="annotation-right-muted">
+        在文本编辑区选中文字后按 Ctrl+E 或点击「标注选中文本」创建实体标注。
+      </p>
+    );
+  }
+
+  return (
+    <VscodeScrollHost
+      className="annotation-right-list-host"
+      scrollableClassName="annotation-right-list-scroll"
+    >
+      <AnnotationMotionList className="annotation-right-items">
+        {spanAnnotations.map((ann, idx) => {
+          const selected = ann.id === selectedAnnotationId;
+          const activeLabel = project.labels.find((l) => l.id === ann.labelId);
+          const selectItem = () => selectAnnotation(ann.id);
+          return (
+            <AnnotationMotionListItem
+              key={ann.id}
+              layoutKey={ann.id}
+              className={`annotation-right-item${selected ? ' annotation-right-item--active' : ''}`}
+              style={getAnnotationItemStyle(activeLabel?.color)}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selected}
+              aria-label={`选择标注 ${idx + 1}`}
+              onClick={selectItem}
+              onKeyDown={handleAnnotationItemKeyDown(selectItem)}
+            >
+              <AnnotationListRow
+                index={idx}
+                labelId={ann.labelId}
+                labels={project.labels}
+                onChangeLabel={(lid) => updateAnnotationLabel(ann.id, lid)}
+                onDelete={() => deleteAnnotation(ann.id)}
+                suffix={`[${ann.start}-${ann.end}]`}
+              />
+            </AnnotationMotionListItem>
+          );
+        })}
+      </AnnotationMotionList>
+    </VscodeScrollHost>
+  );
+}
+
+function renderTextClassificationWorkspaceBody(
+  project: AnnotationProject,
+  workspaceEnabled: boolean,
+  loadError: string | null,
+  textClassificationAnnotations: TextClassificationAnnotation[],
+  selectedAnnotationId: string | null,
+  selectAnnotation: (id: string | null) => void,
+  updateAnnotationLabel: (annotationId: string, labelId: string) => void,
+  deleteAnnotation: (annotationId: string) => void,
+): ReactElement {
+  if (!workspaceEnabled) {
+    return (
+      <p className="annotation-right-muted">
+        请在资源管理器中选择项目内的文本文件。
+      </p>
+    );
+  }
+  if (loadError) {
+    return <p className="annotation-right-error">{loadError}</p>;
+  }
+
+  if (textClassificationAnnotations.length === 0) {
+    return <p className="annotation-right-muted">未分配分类标签。</p>;
+  }
+
+  return (
+    <VscodeScrollHost
+      className="annotation-right-list-host"
+      scrollableClassName="annotation-right-list-scroll"
+    >
+      <AnnotationMotionList className="annotation-right-items">
+        {textClassificationAnnotations.map((ann, idx) => {
+          const selected = ann.id === selectedAnnotationId;
+          const activeLabel = project.labels.find((l) => l.id === ann.labelId);
+          const selectItem = () => selectAnnotation(ann.id);
+          return (
+            <AnnotationMotionListItem
+              key={ann.id}
+              layoutKey={ann.id}
+              className={`annotation-right-item${selected ? ' annotation-right-item--active' : ''}`}
+              style={getAnnotationItemStyle(activeLabel?.color)}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selected}
+              aria-label={`选择分类 ${idx + 1}`}
+              onClick={selectItem}
+              onKeyDown={handleAnnotationItemKeyDown(selectItem)}
+            >
+              <AnnotationListRow
+                index={idx}
+                labelId={ann.labelId}
+                labels={project.labels}
+                onChangeLabel={(lid) => updateAnnotationLabel(ann.id, lid)}
+                onDelete={() => deleteAnnotation(ann.id)}
+              />
+            </AnnotationMotionListItem>
+          );
+        })}
+      </AnnotationMotionList>
+    </VscodeScrollHost>
+  );
+}
+
+function truncateText(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  return `${text.slice(0, maxLen)}…`;
+}
+
+function renderTextEntryDeleteButton(
+  annId: string,
+  deleteAnnotation: (id: string) => void,
+  ariaLabel: string,
+): ReactElement {
+  return (
+    <button
+      type="button"
+      className="annotation-right-label-more-btn annotation-right-item-label-more-btn annotation-right-delete"
+      aria-label={ariaLabel}
+      onClick={(event) => {
+        event.stopPropagation();
+        deleteAnnotation(annId);
+      }}
+    >
+      <span className="codicon codicon-trash" aria-hidden />
+    </button>
+  );
+}
+
+function renderInstructionWorkspaceBody(
+  workspaceEnabled: boolean,
+  loadError: string | null,
+  instructionAnnotations: InstructionAnnotation[],
+  selectedAnnotationId: string | null,
+  selectAnnotation: (id: string | null) => void,
+  deleteAnnotation: (id: string) => void,
+): ReactElement {
+  if (!workspaceEnabled) {
+    return (
+      <p className="annotation-right-muted">
+        请在资源管理器中选择项目内的文本文件。
+      </p>
+    );
+  }
+  if (loadError) {
+    return <p className="annotation-right-error">{loadError}</p>;
+  }
+  if (instructionAnnotations.length === 0) {
+    return <p className="annotation-right-muted">暂无条目，请在编辑区添加。</p>;
+  }
+  return (
+    <VscodeScrollHost
+      className="annotation-right-list-host"
+      scrollableClassName="annotation-right-list-scroll"
+    >
+      <AnnotationMotionList className="annotation-right-items">
+        {instructionAnnotations.map((ann, idx) => {
+          const selected = ann.id === selectedAnnotationId;
+          const selectItem = () => selectAnnotation(selected ? null : ann.id);
+          return (
+            <AnnotationMotionListItem
+              key={ann.id}
+              layoutKey={ann.id}
+              className={`annotation-right-item${selected ? ' annotation-right-item--active' : ''}`}
+              style={getAnnotationItemStyle()}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selected}
+              aria-label={`选择指令条目 ${idx + 1}`}
+              onClick={selectItem}
+              onKeyDown={handleAnnotationItemKeyDown(selectItem)}
+            >
+              <div className="annotation-right-item-row">
+                <div className="annotation-right-item-label-group">
+                  <span className="annotation-right-item-main">
+                    <span className="annotation-right-index">#{idx + 1}</span>
+                  </span>
+                  <p className="annotation-right-caption-summary">
+                    {truncateText(ann.instruction, 60)}
+                  </p>
+                  <p className="annotation-right-text-entry-meta">
+                    Output: {truncateText(ann.output, 48)}
+                  </p>
+                </div>
+                {renderTextEntryDeleteButton(
+                  ann.id,
+                  deleteAnnotation,
+                  `删除指令条目 ${idx + 1}`,
+                )}
+              </div>
+            </AnnotationMotionListItem>
+          );
+        })}
+      </AnnotationMotionList>
+    </VscodeScrollHost>
+  );
+}
+
+function renderPreferenceWorkspaceBody(
+  workspaceEnabled: boolean,
+  loadError: string | null,
+  preferenceAnnotations: PreferenceAnnotation[],
+  selectedAnnotationId: string | null,
+  selectAnnotation: (id: string | null) => void,
+  deleteAnnotation: (id: string) => void,
+): ReactElement {
+  if (!workspaceEnabled) {
+    return (
+      <p className="annotation-right-muted">
+        请在资源管理器中选择项目内的文本文件。
+      </p>
+    );
+  }
+  if (loadError) {
+    return <p className="annotation-right-error">{loadError}</p>;
+  }
+  if (preferenceAnnotations.length === 0) {
+    return <p className="annotation-right-muted">暂无条目，请在编辑区添加。</p>;
+  }
+  return (
+    <VscodeScrollHost
+      className="annotation-right-list-host"
+      scrollableClassName="annotation-right-list-scroll"
+    >
+      <AnnotationMotionList className="annotation-right-items">
+        {preferenceAnnotations.map((ann, idx) => {
+          const selected = ann.id === selectedAnnotationId;
+          const selectItem = () => selectAnnotation(selected ? null : ann.id);
+          return (
+            <AnnotationMotionListItem
+              key={ann.id}
+              layoutKey={ann.id}
+              className={`annotation-right-item${selected ? ' annotation-right-item--active' : ''}`}
+              style={getAnnotationItemStyle()}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selected}
+              aria-label={`选择偏好条目 ${idx + 1}`}
+              onClick={selectItem}
+              onKeyDown={handleAnnotationItemKeyDown(selectItem)}
+            >
+              <div className="annotation-right-item-row">
+                <div className="annotation-right-item-label-group">
+                  <span className="annotation-right-item-main">
+                    <span className="annotation-right-index">#{idx + 1}</span>
+                  </span>
+                  <p className="annotation-right-caption-summary">
+                    {truncateText(ann.prompt, 60)}
+                  </p>
+                  <p className="annotation-right-text-entry-meta annotation-right-text-entry-meta--chosen">
+                    Chosen: {truncateText(ann.chosen, 40)}
+                  </p>
+                  <p className="annotation-right-text-entry-meta annotation-right-text-entry-meta--rejected">
+                    Rejected: {truncateText(ann.rejected, 40)}
+                  </p>
+                </div>
+                {renderTextEntryDeleteButton(
+                  ann.id,
+                  deleteAnnotation,
+                  `删除偏好条目 ${idx + 1}`,
+                )}
+              </div>
+            </AnnotationMotionListItem>
+          );
+        })}
+      </AnnotationMotionList>
+    </VscodeScrollHost>
+  );
+}
+
+function renderConversationWorkspaceBody(
+  workspaceEnabled: boolean,
+  loadError: string | null,
+  conversationAnnotations: ConversationAnnotation[],
+  selectedAnnotationId: string | null,
+  selectAnnotation: (id: string | null) => void,
+  deleteAnnotation: (id: string) => void,
+): ReactElement {
+  if (!workspaceEnabled) {
+    return (
+      <p className="annotation-right-muted">
+        请在资源管理器中选择项目内的文本文件。
+      </p>
+    );
+  }
+  if (loadError) {
+    return <p className="annotation-right-error">{loadError}</p>;
+  }
+  if (conversationAnnotations.length === 0) {
+    return <p className="annotation-right-muted">暂无条目，请在编辑区添加。</p>;
+  }
+  return (
+    <VscodeScrollHost
+      className="annotation-right-list-host"
+      scrollableClassName="annotation-right-list-scroll"
+    >
+      <AnnotationMotionList className="annotation-right-items">
+        {conversationAnnotations.map((ann, idx) => {
+          const firstUser =
+            ann.turns.find((t) => t.role === 'user')?.content ??
+            ann.turns[0]?.content ??
+            '';
+          const selected = ann.id === selectedAnnotationId;
+          const selectItem = () => selectAnnotation(selected ? null : ann.id);
+          return (
+            <AnnotationMotionListItem
+              key={ann.id}
+              layoutKey={ann.id}
+              className={`annotation-right-item${selected ? ' annotation-right-item--active' : ''}`}
+              style={getAnnotationItemStyle()}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selected}
+              aria-label={`选择对话条目 ${idx + 1}`}
+              onClick={selectItem}
+              onKeyDown={handleAnnotationItemKeyDown(selectItem)}
+            >
+              <div className="annotation-right-item-row">
+                <div className="annotation-right-item-label-group">
+                  <span className="annotation-right-item-main">
+                    <span className="annotation-right-index">
+                      #{idx + 1} · {ann.turns.length} 轮
+                    </span>
+                  </span>
+                  <p className="annotation-right-caption-summary">
+                    {truncateText(firstUser, 60)}
+                  </p>
+                </div>
+                {renderTextEntryDeleteButton(
+                  ann.id,
+                  deleteAnnotation,
+                  `删除对话条目 ${idx + 1}`,
+                )}
+              </div>
+            </AnnotationMotionListItem>
+          );
+        })}
+      </AnnotationMotionList>
+    </VscodeScrollHost>
+  );
+}
+
+function renderCotWorkspaceBody(
+  workspaceEnabled: boolean,
+  loadError: string | null,
+  cotAnnotations: CotAnnotation[],
+  selectedAnnotationId: string | null,
+  selectAnnotation: (id: string | null) => void,
+  deleteAnnotation: (id: string) => void,
+): ReactElement {
+  if (!workspaceEnabled) {
+    return (
+      <p className="annotation-right-muted">
+        请在资源管理器中选择项目内的文本文件。
+      </p>
+    );
+  }
+  if (loadError) {
+    return <p className="annotation-right-error">{loadError}</p>;
+  }
+  if (cotAnnotations.length === 0) {
+    return <p className="annotation-right-muted">暂无条目，请在编辑区添加。</p>;
+  }
+  return (
+    <VscodeScrollHost
+      className="annotation-right-list-host"
+      scrollableClassName="annotation-right-list-scroll"
+    >
+      <AnnotationMotionList className="annotation-right-items">
+        {cotAnnotations.map((ann, idx) => {
+          const selected = ann.id === selectedAnnotationId;
+          const selectItem = () => selectAnnotation(selected ? null : ann.id);
+          return (
+            <AnnotationMotionListItem
+              key={ann.id}
+              layoutKey={ann.id}
+              className={`annotation-right-item${selected ? ' annotation-right-item--active' : ''}`}
+              style={getAnnotationItemStyle()}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selected}
+              aria-label={`选择思维链条目 ${idx + 1}`}
+              onClick={selectItem}
+              onKeyDown={handleAnnotationItemKeyDown(selectItem)}
+            >
+              <div className="annotation-right-item-row">
+                <div className="annotation-right-item-label-group">
+                  <span className="annotation-right-item-main">
+                    <span className="annotation-right-index">
+                      #{idx + 1} · {ann.steps.length} 步
+                    </span>
+                  </span>
+                  {ann.input ? (
+                    <p className="annotation-right-text-entry-meta">
+                      Input: {truncateText(ann.input, 48)}
+                    </p>
+                  ) : null}
+                  <p className="annotation-right-caption-summary">
+                    Answer: {truncateText(ann.answer, 48)}
+                  </p>
+                </div>
+                {renderTextEntryDeleteButton(
+                  ann.id,
+                  deleteAnnotation,
+                  `删除思维链条目 ${idx + 1}`,
+                )}
+              </div>
+            </AnnotationMotionListItem>
+          );
+        })}
+      </AnnotationMotionList>
+    </VscodeScrollHost>
+  );
+}
+
 export default function AnnotationRightPanel() {
   const { activeProject, openExportProject } = useAnnotation();
   const {
@@ -449,6 +1052,17 @@ export default function AnnotationRightPanel() {
     polygonAnnotations,
     poseAnnotations,
     pointAnnotations,
+    captionAnnotations,
+    classificationAnnotations,
+    spanAnnotations,
+    textClassificationAnnotations,
+    instructionAnnotations,
+    preferenceAnnotations,
+    conversationAnnotations,
+    cotAnnotations,
+    textAnnotationType,
+    textContent,
+    textContentLoading,
     dirty,
     saving,
     loadError,
@@ -498,13 +1112,48 @@ export default function AnnotationRightPanel() {
   const isImageKeypoint =
     activeProject.modality === 'image' &&
     activeProject.annotationType === 'keypoint';
+  const isImageCaption =
+    activeProject.modality === 'image' &&
+    activeProject.annotationType === 'caption';
+  const isImageClassification =
+    activeProject.modality === 'image' &&
+    activeProject.annotationType === 'classification';
+  const isTextSpanNer =
+    activeProject.modality === 'text' &&
+    activeProject.annotationType === 'span_ner';
+  const isTextClassification =
+    activeProject.modality === 'text' &&
+    activeProject.annotationType === 'text_classification';
+  const isInstruction =
+    activeProject.modality === 'text' &&
+    activeProject.annotationType === 'instruction';
+  const isPreference =
+    activeProject.modality === 'text' &&
+    activeProject.annotationType === 'preference';
+  const isConversation =
+    activeProject.modality === 'text' &&
+    activeProject.annotationType === 'conversation';
+  const isCot =
+    activeProject.modality === 'text' &&
+    activeProject.annotationType === 'cot';
+  const isTextLlm =
+    isInstruction || isPreference || isConversation || isCot;
   const isImageAnnotatable =
     isImageBbox ||
     isImagePolygon ||
     isImageRotatedBbox ||
-    isImageKeypoint;
+    isImageKeypoint ||
+    isImageCaption ||
+    isImageClassification;
+  const isTextAnnotatable =
+    isTextSpanNer ||
+    isTextClassification ||
+    isInstruction ||
+    isPreference ||
+    isConversation ||
+    isCot;
 
-  if (!isImageAnnotatable) {
+  if (!isImageAnnotatable && !isTextAnnotatable) {
     const modalityLabel = TASK_TYPE_CONFIG[activeProject.modality].label;
     const kindLabel = getAnnotationTypeLabel(
       activeProject.modality,
@@ -561,6 +1210,7 @@ export default function AnnotationRightPanel() {
         </div>
       </header>
 
+      {!isTextLlm && (
       <section className="annotation-right-section">
         {isImageKeypoint ? (
           <>
@@ -569,6 +1219,26 @@ export default function AnnotationRightPanel() {
             <p className="annotation-right-muted annotation-right-template-note">
               放置骨架时自动使用模板对应标签（如 person / hand / face）。
             </p>
+          </>
+        ) : isImageCaption ? (
+          <h4 className="annotation-right-heading">图片内容描述</h4>
+        ) : isTextSpanNer || isTextClassification ? (
+          <>
+            <h4 className="annotation-right-heading">标注用标签</h4>
+            {activeProject.labels.length === 0 ? (
+              <p className="annotation-right-muted">
+                未定义标签。请在「标注任务」中编辑项目并添加类别。
+              </p>
+            ) : (
+              <AnnotationDrawLabelPicker
+                className="annotation-right-chip-row"
+                variant="panel"
+                labels={activeProject.labels}
+                labelUsage={labelUsage}
+                activeLabelId={activeLabelId}
+                onSelect={setActiveLabelId}
+              />
+            )}
           </>
         ) : (
           <>
@@ -590,6 +1260,7 @@ export default function AnnotationRightPanel() {
           </>
         )}
       </section>
+      )}
 
       <section className="annotation-right-section annotation-right-section--grow">
         <h4 className="annotation-right-heading">
@@ -599,7 +1270,15 @@ export default function AnnotationRightPanel() {
               ? '当前图片多边形'
               : isImageRotatedBbox
                 ? '当前图片旋转矩形框'
-                : '当前图片矩形框'}
+                : isImageCaption
+                  ? '当前图片描述'
+                  : isImageClassification
+                    ? '当前图片分类'
+                    : isTextSpanNer
+                      ? '当前文本实体标注'
+                      : isTextClassification
+                        ? '当前文本分类'
+                        : '数据集条目'}
         </h4>
         {isImageKeypoint
           ? renderKeypointWorkspaceBody(
@@ -638,16 +1317,95 @@ export default function AnnotationRightPanel() {
                 updateAnnotationLabel,
                 deleteAnnotation,
               )
-            : renderBboxWorkspaceBody(
-                activeProject,
-                workspaceEnabled,
-                loadError,
-                bboxAnnotations,
-                selectedAnnotationId,
-                selectAnnotation,
-                updateAnnotationLabel,
-                deleteAnnotation,
-              )}
+            : isImageCaption
+              ? renderCaptionWorkspaceBody(
+                  activeProject,
+                  workspaceEnabled,
+                  loadError,
+                  captionAnnotations,
+                  selectedAnnotationId,
+                  selectAnnotation,
+                  deleteAnnotation,
+                )
+              : isImageClassification
+                ? renderClassificationWorkspaceBody(
+                    activeProject,
+                    workspaceEnabled,
+                    loadError,
+                    classificationAnnotations,
+                    selectedAnnotationId,
+                    selectAnnotation,
+                    updateAnnotationLabel,
+                    deleteAnnotation,
+                  )
+                : isTextSpanNer
+                  ? renderSpanNerWorkspaceBody(
+                      activeProject,
+                      workspaceEnabled,
+                      loadError,
+                      spanAnnotations,
+                      selectedAnnotationId,
+                      selectAnnotation,
+                      updateAnnotationLabel,
+                      deleteAnnotation,
+                    )
+                  : isTextClassification
+                    ? renderTextClassificationWorkspaceBody(
+                        activeProject,
+                        workspaceEnabled,
+                        loadError,
+                        textClassificationAnnotations,
+                        selectedAnnotationId,
+                        selectAnnotation,
+                        updateAnnotationLabel,
+                        deleteAnnotation,
+                      )
+                    : isInstruction
+                      ? renderInstructionWorkspaceBody(
+                          workspaceEnabled,
+                          loadError,
+                          instructionAnnotations,
+                          selectedAnnotationId,
+                          selectAnnotation,
+                          deleteAnnotation,
+                        )
+                      : isPreference
+                        ? renderPreferenceWorkspaceBody(
+                            workspaceEnabled,
+                            loadError,
+                            preferenceAnnotations,
+                            selectedAnnotationId,
+                            selectAnnotation,
+                            deleteAnnotation,
+                          )
+                        : isConversation
+                          ? renderConversationWorkspaceBody(
+                              workspaceEnabled,
+                              loadError,
+                              conversationAnnotations,
+                              selectedAnnotationId,
+                              selectAnnotation,
+                              deleteAnnotation,
+                            )
+                          : isCot
+                            ? renderCotWorkspaceBody(
+                                workspaceEnabled,
+                                loadError,
+                                cotAnnotations,
+                                selectedAnnotationId,
+                                selectAnnotation,
+                                deleteAnnotation,
+                              )
+                            : renderBboxWorkspaceBody(
+                          activeProject,
+                          workspaceEnabled,
+                          loadError,
+                          bboxAnnotations,
+                          selectedAnnotationId,
+                          selectAnnotation,
+                          updateAnnotationLabel,
+                          deleteAnnotation,
+                        )}
       </section>
     </div>
   );

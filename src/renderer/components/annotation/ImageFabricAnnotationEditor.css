@@ -12,7 +12,6 @@
   min-width: 0;
   overflow-x: auto;
   overflow-y: auto;
-  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
   background: var(--vscode-editor-background, #1e1e1e);

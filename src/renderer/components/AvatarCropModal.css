@@ -37,7 +37,7 @@
 
 .avatar-crop-zoom {
   width: 100%;
-  accent-color: var(--vscode-button-background, #dbb018);
+  accent-color: var(--vscode-button-background, #888888);
 }
 
 .avatar-crop-error {

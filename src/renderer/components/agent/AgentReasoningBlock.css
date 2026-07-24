@@ -76,6 +76,7 @@
 }
 
 .agent-tool-body .agent-scrollable-pre__code {
+  font-family: Consolas, 'Courier New', monospace;
   font-size: inherit;
   line-height: inherit;
   color: inherit;

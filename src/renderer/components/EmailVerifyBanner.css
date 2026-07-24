@@ -5,25 +5,25 @@
   justify-content: space-between;
   gap: 12px;
   padding: 8px 14px;
-  background: rgba(204, 167, 0, 0.15);
-  border-bottom: 1px solid rgba(204, 167, 0, 0.35);
-  color: var(--lr-accent-muted, #f0d970);
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
+  border-bottom: 1px solid var(--vscode-panel-border, #3e3e42);
+  color: var(--vscode-foreground, #cccccc);
   font-size: 14px;
 }
 
 .email-verify-banner-btn {
   flex-shrink: 0;
   padding: 4px 12px;
-  border: 1px solid rgba(204, 167, 0, 0.5);
+  border: 1px solid var(--vscode-panel-border, #3e3e42);
   border-radius: 4px;
-  background: rgba(204, 167, 0, 0.2);
-  color: var(--lr-accent-muted, #f0d970);
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
+  color: var(--vscode-foreground, #cccccc);
   font-size: 13px;
   cursor: pointer;
 }
 
 .email-verify-banner-btn:hover:not(:disabled) {
-  background: rgba(204, 167, 0, 0.3);
+  background: var(--vscode-list-activeSelectionBackground, rgba(255, 255, 255, 0.08));
 }
 
 .email-verify-banner-btn:disabled {

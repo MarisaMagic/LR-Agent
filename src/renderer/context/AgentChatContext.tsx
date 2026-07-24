@@ -505,11 +505,65 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     const generation = bootstrapGenerationRef.current;
     const userId = currentUserIdRef.current;
     const projectId = activeProjectIdRef.current;
-    // 避免项目与用户未变化时重复 bootstrap
+    // 避免项目与用户未变化时重复 bootstrap 的全部流程。
+    // 但如果外部依赖（如 defaultProvider）变化导致 callback 被重建，
+    // 前一次异步 bootstrap 的结果可能因 generation 检查被丢弃，
+    // 此时需要做轻量回复：跳过 DB 清理操作，仅确保 sessions 和草稿标签页有效。
     if (
       bootstrappedProjectIdRef.current === projectId &&
       bootstrappedUserIdRef.current === userId
     ) {
+      const remote = await loadLocalAgentChatStateForProject(userId, projectId);
+      const current = stateRef.current;
+      const ui = getProjectUi(agentUiRef.current, projectId);
+      let merged = mergeProjectSessionsIntoState(
+        current,
+        remote,
+        projectId,
+        current.openTabIds,
+      );
+      let { state: nextState, ui: nextUi } = normalizeProjectTabs(
+        merged,
+        { ...ui, openTabIds: current.openTabIds },
+        projectId,
+      );
+
+      if (nextUi.openTabIds.length === 0) {
+        const provider = defaultProvider;
+        const session = createDraftSession(
+          projectId,
+          provider ? { id: provider.id, model: provider.model } : null,
+          getProjectUi(agentUiRef.current, projectId).agentMode,
+        );
+        nextState = {
+          ...nextState,
+          sessions: { ...nextState.sessions, [session.id]: session },
+          openTabIds: [session.id],
+          activeSessionId: session.id,
+          messagesBySession: {
+            ...nextState.messagesBySession,
+            [session.id]: nextState.messagesBySession[session.id] ?? {},
+          },
+        };
+        nextUi = {
+          ...nextUi,
+          openTabIds: [session.id],
+          activeSessionId: session.id,
+        };
+      }
+
+      sessionsNextCursorRef.current = remote.sessionsNextCursor;
+      setSessionsHasMore(remote.sessionsHasMore);
+      agentUiRef.current = setProjectUi(agentUiRef.current, projectId, nextUi);
+      persistAgentChatUiState(agentUiRef.current);
+      persist(nextState);
+      setAgentModeState(nextUi.agentMode);
+      if (
+        nextState.activeSessionId &&
+        sessionHasHistoryContent(nextState.activeSessionId, nextState)
+      ) {
+        void ensureSessionLoaded(nextState.activeSessionId);
+      }
       return;
     }
     bootstrappedProjectIdRef.current = projectId;
@@ -615,6 +669,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (authStatus === 'loading') return;
+    if (!remoteHydratedRef.current) return;
     const projectId = activeProject?.id ?? null;
     const ui = getProjectUi(agentUiRef.current, projectId);
     setAgentModeState(ui.agentMode);

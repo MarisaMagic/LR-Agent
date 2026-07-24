@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import * as echarts from 'echarts/core';
 import { BarChart, GaugeChart, PieChart, RadarChart } from 'echarts/charts';
 import {
@@ -9,7 +9,9 @@ import {
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
+import { useLayoutResizing } from '../../hooks/useLayoutResizing';
 import { applyChartTheme } from '../../services/annotationQuality/chartTheme';
+import { createResizeObserver } from '../../utils/resizeObserver';
 
 echarts.use([
   BarChart,
@@ -29,6 +31,14 @@ interface QualityEChartProps {
   height?: number;
 }
 
+function scheduleChartResize(chart: echarts.ECharts): void {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      chart.resize();
+    });
+  });
+}
+
 export default function QualityEChart({
   option,
   isDark,
@@ -36,6 +46,13 @@ export default function QualityEChart({
 }: QualityEChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
+  const isLayoutResizing = useLayoutResizing();
+
+  const resizeChart = useCallback(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    scheduleChartResize(chart);
+  }, []);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -44,13 +61,13 @@ export default function QualityEChart({
     const chart = echarts.init(el, undefined, { renderer: 'canvas' });
     chartRef.current = chart;
 
-    const observer = new ResizeObserver(() => {
-      chart.resize();
+    const observer = createResizeObserver(() => {
+      scheduleChartResize(chart);
     });
-    observer.observe(el);
+    observer?.observe(el);
 
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
       chart.dispose();
       chartRef.current = null;
     };
@@ -60,7 +77,14 @@ export default function QualityEChart({
     const chart = chartRef.current;
     if (!chart) return;
     chart.setOption(applyChartTheme(option, isDark), true);
-  }, [option, isDark]);
+    resizeChart();
+  }, [option, isDark, resizeChart]);
+
+  useEffect(() => {
+    if (!isLayoutResizing) {
+      resizeChart();
+    }
+  }, [isLayoutResizing, resizeChart]);
 
   return (
     <div

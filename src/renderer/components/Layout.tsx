@@ -15,6 +15,7 @@ import QualityDashboardPanel from './quality/QualityDashboardPanel';
 import EmailVerifyBanner from './EmailVerifyBanner';
 import FileTree from './FileTree';
 import EditorTabBar from './editor/EditorTabBar';
+import EditorFileSiblingNav from './editor/EditorFileSiblingNav';
 import EditorWorkspace from './editor/EditorWorkspace';
 import LlmProvidersPanel from './llmProviders/LlmProvidersPanel';
 import PretrainedModelsPanel from './pretrainedModels/PretrainedModelsPanel';
@@ -29,7 +30,6 @@ import EditAnnotationProjectModal from './annotation/EditAnnotationProjectModal'
 import ExportAnnotationWizard from './annotation/ExportAnnotationWizard';
 import RightPanelToolbar from './RightPanelToolbar';
 import { useAnnotation } from '../context/AnnotationContext';
-import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
 import { useWorkMode, type WorkMode } from '../context/WorkModeContext';
 import './Layout.css';
 
@@ -67,6 +67,7 @@ export default function Layout() {
     openTabs,
     activeTabId,
     activeFilePath,
+    selectFile,
     setActiveTab,
     closeTab,
     pinTab,
@@ -107,8 +108,6 @@ export default function Layout() {
   const annotationTabDisabled = workMode === 'editor';
   const qualityTabDisabled = !annotationModeActive;
   const rightPanel = rightPanelByMode[workMode];
-  const { workspaceEnabled: imageAnnotationToolbarVisible } =
-    useAnnotationWorkspace();
 
   const setRightPanelForMode = useCallback(
     (panel: RightPanel) => {
@@ -339,14 +338,16 @@ export default function Layout() {
 
   const leftPanelActive = !leftCollapsed ? leftPanel : null;
   const leftSidebarTitle = LEFT_PANEL_TITLES[leftPanel];
-  const showEditorTabStrip =
-    workMode === 'editor' && openTabs.length > 0;
-  const showFileHeaderBand =
-    workMode === 'annotation' && Boolean(activeFilePath);
+  const showEditorTabStrip = openTabs.length > 0;
+  /** 仅图片标注且已选文件时 ImageAnnotationToolbar 才会挂载 */
+  const showImageAnnotationToolbarBand =
+    workMode === 'annotation' &&
+    activeProject?.modality === 'image' &&
+    Boolean(activeFilePath);
 
   return (
     <div
-      className={`layout${resizingSide ? ` is-resizing is-resizing-${resizingSide}` : ''}${workMode === 'editor' ? ' layout--editor-work-mode' : ''}${showFileHeaderBand ? ' layout--file-header-band' : ''}${imageAnnotationToolbarVisible ? ' layout--image-annotation-toolbar' : ''} layout--editor-top-band`}
+      className={`layout${resizingSide ? ` is-resizing is-resizing-${resizingSide}` : ''}${workMode === 'editor' ? ' layout--editor-work-mode' : ''}${showImageAnnotationToolbarBand ? ' layout--image-annotation-toolbar' : ''} layout--editor-top-band`}
     >
       <ActivityBar
         activePanel={leftPanelActive}
@@ -380,7 +381,11 @@ export default function Layout() {
             <AnimatePresence initial={false} mode="wait">
               <motion.div
                 key="editor-tab-bar"
-                className="editor-tab-strip-tabs"
+                className={`editor-tab-strip-tabs${
+                  workMode === 'annotation' && activeFilePath
+                    ? ' editor-tab-strip-tabs--annotation'
+                    : ''
+                }`}
                 initial={
                   reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }
                 }
@@ -400,6 +405,15 @@ export default function Layout() {
                   onCloseTab={closeTab}
                   onPinTab={pinTab}
                 />
+                {workMode === 'annotation' && activeFilePath ? (
+                  <>
+                    <EditorFileSiblingNav
+                      filePath={activeFilePath}
+                      onSelectFile={selectFile}
+                    />
+                    <div className="editor-tab-strip-spacer" aria-hidden />
+                  </>
+                ) : null}
               </motion.div>
             </AnimatePresence>
           ) : (

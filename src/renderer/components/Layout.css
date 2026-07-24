@@ -69,7 +69,33 @@
   flex: 1;
   min-width: 0;
   display: flex;
+  flex-direction: row;
+  align-items: stretch;
   min-height: 0;
+}
+
+.editor-tab-strip-tabs--annotation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  background: var(--vscode-editorGroupHeader-tabsBackground, #252526);
+}
+
+.editor-tab-strip-tabs--annotation .editor-tab-bar-scroller {
+  grid-column: 1;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.editor-tab-strip-tabs--annotation .editor-file-sibling-nav {
+  grid-column: 2;
+  justify-self: center;
+  align-self: center;
+}
+
+.editor-tab-strip-spacer {
+  grid-column: 3;
 }
 
 .editor-tab-strip-fill {
@@ -78,7 +104,7 @@
   background: var(--vscode-editorGroupHeader-tabsBackground, #252526);
 }
 
-.editor-tab-strip .editor-tab-bar {
+.editor-tab-strip .editor-tab-bar-scroller {
   flex: 1;
   min-width: 0;
   border-bottom: none;
@@ -110,6 +136,22 @@
   z-index: 1;
 }
 
+.layout--image-annotation-toolbar.layout--editor-top-band
+  .editor-center-body::before {
+  background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.layout--image-annotation-toolbar.layout--editor-top-band .resizer-left {
+  background: linear-gradient(
+    to bottom,
+    var(--vscode-editor-background, #1e1e1e) 0,
+    var(--vscode-editor-background, #1e1e1e)
+      var(--layout-body-top-band-height),
+    var(--vscode-editor-background, #1e1e1e)
+      var(--layout-body-top-band-height)
+  );
+}
+
 .main-content {
   flex: 1;
   min-width: 0;
@@ -134,14 +176,23 @@
   flex-shrink: 0;
   padding: 0;
   border: none;
+  cursor: col-resize;
+}
+
+/* 顶栏色带仅同步左侧 resizer；右侧与右栏背景一致，避免出现填色块 */
+.layout--editor-top-band .resizer-left {
   background: linear-gradient(
     to bottom,
     var(--vscode-editorGroupHeader-tabsBackground, #252526) 0,
     var(--vscode-editorGroupHeader-tabsBackground, #252526)
-      var(--layout-top-band-height),
-    transparent var(--layout-top-band-height)
+      var(--layout-body-top-band-height),
+    var(--vscode-editor-background, #1e1e1e)
+      var(--layout-body-top-band-height)
   );
-  cursor: col-resize;
+}
+
+.layout--editor-top-band .resizer-right {
+  background: var(--lr-agent-panel-background);
 }
 
 .resizer::before {
@@ -176,9 +227,4 @@
 .layout.is-resizing-right .resizer-right::after {
   width: 2px;
   background: var(--vscode-titleBar-activeBackground, #333333);
-}
-
-/* 顶栏色带由 editor-center-body::before 统一绘制 */
-.layout--editor-top-band .resizer {
-  background: transparent;
 }

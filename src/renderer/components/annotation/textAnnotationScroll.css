@@ -1,0 +1,54 @@
+/* 文本标注中间区共享滚动条：透明 track + 细窄 thumb，对齐图片编辑器 */
+.text-annotation-scroll,
+.text-source-preview-scroll,
+.text-lfm-form,
+.text-classification-text-scroll,
+.text-classification-labels-panel {
+  scrollbar-width: thin;
+  scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.text-annotation-scroll::-webkit-scrollbar,
+.text-source-preview-scroll::-webkit-scrollbar,
+.text-lfm-form::-webkit-scrollbar,
+.text-classification-text-scroll::-webkit-scrollbar,
+.text-classification-labels-panel::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.text-annotation-scroll::-webkit-scrollbar-track,
+.text-source-preview-scroll::-webkit-scrollbar-track,
+.text-lfm-form::-webkit-scrollbar-track,
+.text-classification-text-scroll::-webkit-scrollbar-track,
+.text-classification-labels-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.text-annotation-scroll::-webkit-scrollbar-thumb,
+.text-source-preview-scroll::-webkit-scrollbar-thumb,
+.text-lfm-form::-webkit-scrollbar-thumb,
+.text-classification-text-scroll::-webkit-scrollbar-thumb,
+.text-classification-labels-panel::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-background);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.text-annotation-scroll::-webkit-scrollbar-thumb:hover,
+.text-source-preview-scroll::-webkit-scrollbar-thumb:hover,
+.text-lfm-form::-webkit-scrollbar-thumb:hover,
+.text-classification-text-scroll::-webkit-scrollbar-thumb:hover,
+.text-classification-labels-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--vscode-scrollbarSlider-hoverBackground);
+  background-clip: padding-box;
+}
+
+.text-annotation-scroll::-webkit-scrollbar-corner,
+.text-source-preview-scroll::-webkit-scrollbar-corner,
+.text-lfm-form::-webkit-scrollbar-corner,
+.text-classification-text-scroll::-webkit-scrollbar-corner,
+.text-classification-labels-panel::-webkit-scrollbar-corner {
+  background: transparent;
+}

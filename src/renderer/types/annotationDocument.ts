@@ -76,10 +76,73 @@ export interface ImagePointAnnotation extends AnnotationBase {
   y: number;
 }
 
+export type CaptionGranularity = 'brief' | 'detailed' | 'dense';
+
+/** Natural-language image description */
+export interface CaptionAnnotation extends AnnotationBase {
+  kind: 'caption';
+  /** Natural language description text */
+  text: string;
+  /** Description granularity level */
+  granularity: CaptionGranularity;
+  /** Language code, e.g. 'zh', 'en'. Default 'zh' */
+  language?: string;
+}
+
+/** Whole-image multi-label classification. labelId carries the class. */
+export interface ClassificationAnnotation extends AnnotationBase {
+  kind: 'classification';
+}
+
 export interface SpanAnnotation extends AnnotationBase {
   kind: 'span_ner';
   start: number;
   end: number;
+}
+
+export interface TextClassificationAnnotation extends AnnotationBase {
+  kind: 'text_classification';
+  note?: string;
+}
+
+export interface InstructionAnnotation extends AnnotationBase {
+  kind: 'instruction';
+  instruction: string;
+  input?: string;
+  output: string;
+}
+
+export interface PreferenceAnnotation extends AnnotationBase {
+  kind: 'preference';
+  prompt: string;
+  chosen: string;
+  rejected: string;
+  preferenceNote?: string;
+}
+
+export type ConversationRole = 'user' | 'assistant';
+
+export interface ConversationTurn {
+  role: ConversationRole;
+  content: string;
+}
+
+export interface ConversationAnnotation extends AnnotationBase {
+  kind: 'conversation';
+  turns: ConversationTurn[];
+}
+
+export interface CotStep {
+  description: string;
+  conclusion: string;
+}
+
+export interface CotAnnotation extends AnnotationBase {
+  kind: 'cot';
+  instruction?: string;
+  input?: string;
+  steps: CotStep[];
+  answer: string;
 }
 
 export type AnnotationInstance =
@@ -88,7 +151,14 @@ export type AnnotationInstance =
   | PolygonAnnotation
   | PoseAnnotation
   | ImagePointAnnotation
-  | SpanAnnotation;
+  | CaptionAnnotation
+  | ClassificationAnnotation
+  | SpanAnnotation
+  | TextClassificationAnnotation
+  | InstructionAnnotation
+  | PreferenceAnnotation
+  | ConversationAnnotation
+  | CotAnnotation;
 
 export const FILE_ANNOTATION_SCHEMA_VERSION = 1;
 
@@ -275,6 +345,157 @@ export function parseBboxAnnotation(
   };
 }
 
+/** CaptionGranularity valid values */
+const VALID_GRANULARITY: Set<string> = new Set(['brief', 'detailed', 'dense']);
+
+function parseGranularity(raw: unknown): CaptionGranularity {
+  if (typeof raw === 'string' && VALID_GRANULARITY.has(raw)) {
+    return raw as CaptionGranularity;
+  }
+  return 'brief';
+}
+
+export function parseCaptionAnnotation(
+  raw: Record<string, unknown>,
+): CaptionAnnotation | null {
+  if (raw.kind !== 'caption' || typeof raw.text !== 'string') return null;
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
+  return {
+    ...base,
+    kind: 'caption',
+    text: raw.text,
+    granularity: parseGranularity(raw.granularity),
+    language: typeof raw.language === 'string' ? raw.language : undefined,
+  };
+}
+
+export function parseClassificationAnnotation(
+  raw: Record<string, unknown>,
+): ClassificationAnnotation | null {
+  if (raw.kind !== 'classification') return null;
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
+  return {
+    ...base,
+    kind: 'classification',
+  };
+}
+
+export function parseTextClassificationAnnotation(
+  raw: Record<string, unknown>,
+): TextClassificationAnnotation | null {
+  if (raw.kind !== 'text_classification') return null;
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
+  return {
+    ...base,
+    kind: 'text_classification',
+    note: typeof raw.note === 'string' ? raw.note : undefined,
+  };
+}
+
+export function parseInstructionAnnotation(
+  raw: Record<string, unknown>,
+): InstructionAnnotation | null {
+  if (
+    raw.kind !== 'instruction' ||
+    typeof raw.instruction !== 'string' ||
+    typeof raw.output !== 'string'
+  ) return null;
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
+  return {
+    ...base,
+    kind: 'instruction',
+    instruction: raw.instruction,
+    input: typeof raw.input === 'string' ? raw.input : undefined,
+    output: raw.output,
+  };
+}
+
+export function parsePreferenceAnnotation(
+  raw: Record<string, unknown>,
+): PreferenceAnnotation | null {
+  if (
+    raw.kind !== 'preference' ||
+    typeof raw.prompt !== 'string' ||
+    typeof raw.chosen !== 'string' ||
+    typeof raw.rejected !== 'string'
+  ) return null;
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
+  return {
+    ...base,
+    kind: 'preference',
+    prompt: raw.prompt,
+    chosen: raw.chosen,
+    rejected: raw.rejected,
+    preferenceNote:
+      typeof raw.preferenceNote === 'string' ? raw.preferenceNote : undefined,
+  };
+}
+
+function parseConversationTurn(turn: unknown): ConversationTurn | null {
+  if (!isRecord(turn)) return null;
+  if (
+    (turn.role !== 'user' && turn.role !== 'assistant') ||
+    typeof turn.content !== 'string'
+  ) return null;
+  return { role: turn.role, content: turn.content };
+}
+
+export function parseConversationAnnotation(
+  raw: Record<string, unknown>,
+): ConversationAnnotation | null {
+  if (raw.kind !== 'conversation') return null;
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
+  let turns: ConversationTurn[] = [];
+  if (Array.isArray(raw.turns)) {
+    turns = raw.turns
+      .map(parseConversationTurn)
+      .filter(Boolean) as ConversationTurn[];
+  }
+  if (turns.length === 0) return null;
+  return {
+    ...base,
+    kind: 'conversation',
+    turns,
+  };
+}
+
+function parseCotStep(step: unknown): CotStep | null {
+  if (!isRecord(step)) return null;
+  if (
+    typeof step.description !== 'string' ||
+    typeof step.conclusion !== 'string'
+  ) return null;
+  return { description: step.description, conclusion: step.conclusion };
+}
+
+export function parseCotAnnotation(
+  raw: Record<string, unknown>,
+): CotAnnotation | null {
+  if (raw.kind !== 'cot' || typeof raw.answer !== 'string') return null;
+  const base = parseAnnotBase(raw);
+  if (!base) return null;
+  let steps: CotStep[] = [];
+  if (Array.isArray(raw.steps)) {
+    steps = raw.steps.map(parseCotStep).filter(Boolean) as CotStep[];
+  }
+  if (steps.length === 0) return null;
+  return {
+    ...base,
+    kind: 'cot',
+    instruction:
+      typeof raw.instruction === 'string' ? raw.instruction : undefined,
+    input: typeof raw.input === 'string' ? raw.input : undefined,
+    steps,
+    answer: raw.answer,
+  };
+}
+
 /** Keep unknown kinds as skipped; bbox kept for workspace */
 export function parseAnnotationInstance(
   item: unknown,
@@ -286,6 +507,13 @@ export function parseAnnotationInstance(
     if (item.kind === 'polygon') return parsePolygonAnnotation(item);
     if (item.kind === 'pose') return parsePoseAnnotation(item);
     if (item.kind === 'point') return parseImagePointAnnotation(item);
+    if (item.kind === 'caption') return parseCaptionAnnotation(item);
+    if (item.kind === 'classification') return parseClassificationAnnotation(item);
+    if (item.kind === 'text_classification') return parseTextClassificationAnnotation(item);
+    if (item.kind === 'instruction') return parseInstructionAnnotation(item);
+    if (item.kind === 'preference') return parsePreferenceAnnotation(item);
+    if (item.kind === 'conversation') return parseConversationAnnotation(item);
+    if (item.kind === 'cot') return parseCotAnnotation(item);
     if (
       item.kind === 'span_ner' &&
       typeof item.start === 'number' &&
@@ -326,21 +554,18 @@ export function parseFileAnnotationDocument(
   const sourceUnknown = raw.source;
   let source: AnnotationSourceMeta | undefined;
   if (isRecord(sourceUnknown)) {
-    if (
+    const hasImageSource =
       typeof sourceUnknown.width === 'number' &&
-      typeof sourceUnknown.height === 'number'
-    ) {
-      source = {
-        width: sourceUnknown.width,
-        height: sourceUnknown.height,
-        ...(typeof sourceUnknown.mtimeMs === 'number' && {
-          mtimeMs: sourceUnknown.mtimeMs,
-        }),
-        ...(typeof sourceUnknown.size === 'number' && {
-          size: sourceUnknown.size,
-        }),
-      };
-    }
+      typeof sourceUnknown.height === 'number';
+    source = {
+      ...(hasImageSource ? { width: sourceUnknown.width, height: sourceUnknown.height } : { width: 1, height: 1 }),
+      ...(typeof sourceUnknown.mtimeMs === 'number' && {
+        mtimeMs: sourceUnknown.mtimeMs,
+      }),
+      ...(typeof sourceUnknown.size === 'number' && {
+        size: sourceUnknown.size,
+      }),
+    };
   }
 
   return {

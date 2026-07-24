@@ -47,6 +47,16 @@
   opacity: 1;
 }
 
+[data-theme='light'] .agent-mode-picker-trigger--ask {
+  background: #e6f4ea;
+  color: #2f6b4f;
+}
+
+[data-theme='light'] .agent-mode-picker-trigger--ask:hover:not(:disabled) {
+  background: #d8efe0;
+  color: #245a42;
+}
+
 /* Agent — neutral accent when selected */
 .agent-mode-picker-trigger--agent {
   background: rgba(128, 128, 128, 0.28);
@@ -132,6 +142,16 @@
 .agent-mode-picker-option--active.agent-mode-picker-option--ask
   .agent-mode-picker-option-name {
   color: #8fd9a8;
+}
+
+[data-theme='light'] .agent-mode-picker-option--active.agent-mode-picker-option--ask {
+  background: #e6f4ea;
+}
+
+[data-theme='light']
+  .agent-mode-picker-option--active.agent-mode-picker-option--ask
+  .agent-mode-picker-option-name {
+  color: #2f6b4f;
 }
 
 .agent-mode-picker-option-leading {

@@ -16,7 +16,7 @@ export default function EditorPane({
   const monacoEligible = isMonacoEditableFile(filePath);
   const loadPaused = !isActive;
 
-  const hideFileHeader = workMode === 'editor';
+  const hideFileHeader = true;
 
   if (!monacoEligible) {
     return (

@@ -43,22 +43,32 @@ function buildLabelDistribution(snapshot: AnnotationQualitySnapshot): {
     }
   }
 
+  const needRotate = labels.length > 4;
   const barOption: EChartsOption = {
-    title: { text: '标签分布（柱状）', left: 'center' },
-    tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: labels, axisLabel: { rotate: 30 } },
+    title: { text: '标签分布', left: 0 },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisLabel: needRotate ? { rotate: 30, fontSize: 11 } : { fontSize: 12 },
+    },
     yAxis: { type: 'value', name: '框数' },
-    series: [{ type: 'bar', data: values }],
-    grid: { left: 48, right: 16, bottom: 64, top: 48 },
+    series: [{ type: 'bar', data: values, emphasis: { focus: 'series' } }],
+    grid: { left: 40, right: 16, bottom: needRotate ? 48 : 32, top: 32 },
   };
 
   const pieOption: EChartsOption = {
-    title: { text: '标签分布（饼图）', left: 'center' },
-    tooltip: { trigger: 'item' },
+    title: { text: '标签分布', left: 0 },
+    tooltip: { trigger: 'item', formatter: '{b}: {c} 框 ({d}%)' },
     series: [
       {
         type: 'pie',
-        radius: ['35%', '60%'],
+        radius: ['40%', '58%'],
+        center: ['50%', '52%'],
+        label: { show: true, formatter: '{b}\n{d}%', fontSize: 11 },
+        emphasis: {
+          label: { fontSize: 14, fontWeight: 'bold' },
+        },
         data: labels.map((name) => ({ name, value: labelCounts[name] })),
       },
     ],
@@ -112,16 +122,35 @@ function buildCoverage(snapshot: AnnotationQualitySnapshot): {
     });
   }
 
-  const gaugeOption: EChartsOption = {
-    title: { text: '标注覆盖率', left: 'center' },
+  const unannotatedFiles = Math.max(
+    0,
+    snapshot.totalFiles - snapshot.annotatedFiles,
+  );
+  const coveragePieOption: EChartsOption = {
+    title: { show: false },
+    tooltip: { trigger: 'item', formatter: '{b}: {c} 张 ({d}%)' },
+    legend: { bottom: 0, left: 'center', textStyle: { fontSize: 12 } },
     series: [
       {
-        type: 'gauge',
-        min: 0,
-        max: 100,
-        progress: { show: true },
-        detail: { formatter: '{value}%', fontSize: 18 },
-        data: [{ value: Math.round(coverage * 100), name: '覆盖率' }],
+        type: 'pie',
+        radius: ['44%', '64%'],
+        center: ['50%', '44%'],
+        label: { show: true, formatter: '{b}\n{d}%', fontSize: 12 },
+        emphasis: {
+          label: { fontSize: 15, fontWeight: 'bold' },
+        },
+        data: [
+          {
+            name: '已标注',
+            value: snapshot.annotatedFiles,
+            itemStyle: { color: '#6cc76c' },
+          },
+          {
+            name: '未标注',
+            value: unannotatedFiles,
+            itemStyle: { color: '#888888' },
+          },
+        ],
       },
     ],
   };
@@ -140,11 +169,11 @@ function buildCoverage(snapshot: AnnotationQualitySnapshot): {
       },
       chartBindings: [
         {
-          chartId: 'coverage_gauge',
-          chartType: 'gauge',
+          chartId: 'coverage_pie',
+          chartType: 'pie',
           title: '标注覆盖率',
           exportFileName: 'coverage.png',
-          option: gaugeOption,
+          option: coveragePieOption,
         },
       ],
     },
@@ -182,17 +211,18 @@ function buildBoxesPerFile(snapshot: AnnotationQualitySnapshot): {
   }
 
   const histOption: EChartsOption = {
-    title: { text: '每图框数分布', left: 'center' },
-    tooltip: { trigger: 'axis' },
+    title: { text: '每图框数分布', left: 0 },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     xAxis: {
       type: 'category',
       data: Object.keys(buckets).map(
         (b) => `${Number(b) * bucketSize}-${(Number(b) + 1) * bucketSize - 1}`,
       ),
+      axisLabel: { fontSize: 11 },
     },
     yAxis: { type: 'value', name: '图片数' },
-    series: [{ type: 'bar', data: Object.values(buckets) }],
-    grid: { left: 48, right: 16, bottom: 48, top: 48 },
+    series: [{ type: 'bar', data: Object.values(buckets), emphasis: { focus: 'series' } }],
+    grid: { left: 40, right: 16, bottom: 40, top: 32 },
   };
 
   return {
@@ -277,8 +307,11 @@ function buildLabelBalance(snapshot: AnnotationQualitySnapshot): {
   }
 
   const radarOption: EChartsOption = {
-    title: { text: '综合质量雷达', left: 'center' },
+    title: { show: false },
     radar: {
+      center: ['50%', '54%'],
+      radius: '58%',
+      nameGap: 8,
       indicator: dimensions.map((d) => ({ name: d.name, max: 1 })),
     },
     series: [
@@ -288,6 +321,13 @@ function buildLabelBalance(snapshot: AnnotationQualitySnapshot): {
           {
             value: dimensions.map((d) => Number(d.value.toFixed(3))),
             name: '质量维度',
+            label: {
+              show: true,
+              formatter: (params: { value: number }) =>
+                `${(params.value * 100).toFixed(0)}`,
+              fontSize: 10,
+              color: 'inherit',
+            },
           },
         ],
       },

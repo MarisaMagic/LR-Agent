@@ -10,6 +10,11 @@
   flex-direction: column;
 }
 
+.sidebar-right {
+  background: var(--lr-agent-panel-background);
+  border-left: 1px solid var(--vscode-editorGroup-border, #3e3e42);
+}
+
 .layout.is-resizing .sidebar,
 .sidebar.is-resizing {
   transition: none;
@@ -59,6 +64,7 @@
 
 .sidebar-body {
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;

@@ -34,9 +34,7 @@ export default function AgentComposer() {
   const { workMode } = useWorkMode();
   const { providers, defaultProvider } = useLlmProviders();
   const showAnnotateMode =
-    (workMode === 'annotation' &&
-     activeProject?.modality === 'image' &&
-     activeProject.annotationType === 'bbox') ||
+    (workMode === 'annotation' && activeProject != null) ||
     workMode === 'editor';
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 

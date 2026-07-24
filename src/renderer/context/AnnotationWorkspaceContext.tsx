@@ -16,11 +16,19 @@ import {
   FILE_ANNOTATION_SCHEMA_VERSION,
   type AnnotationInstance,
   type BboxAnnotation,
+  type CaptionAnnotation,
+  type ClassificationAnnotation,
   type FileAnnotationDocument,
   type ImagePointAnnotation,
   type PolygonAnnotation,
   type PoseAnnotation,
   type RotatedBboxAnnotation,
+  type SpanAnnotation,
+  type TextClassificationAnnotation,
+  type InstructionAnnotation,
+  type PreferenceAnnotation,
+  type ConversationAnnotation,
+  type CotAnnotation,
 } from '../types/annotationDocument';
 import {
   DEFAULT_KEYPOINT_TEMPLATE_ID,
@@ -64,6 +72,13 @@ const IMAGE_EXT = new Set([
   'ico',
 ]);
 
+const TEXT_EXT = new Set([
+  'txt',
+  'md',
+  'json',
+  'jsonl',
+]);
+
 function getExtensionLower(filePath: string): string {
   const base = filePath.split(/[/\\]/).pop() ?? '';
   const dot = base.lastIndexOf('.');
@@ -101,6 +116,48 @@ function isImagePointInstance(a: AnnotationInstance): a is ImagePointAnnotation 
   return a.kind === 'point';
 }
 
+function isCaptionInstance(a: AnnotationInstance): a is CaptionAnnotation {
+  return a.kind === 'caption';
+}
+
+function isClassificationInstance(
+  a: AnnotationInstance,
+): a is ClassificationAnnotation {
+  return a.kind === 'classification';
+}
+
+function isSpanInstance(a: AnnotationInstance): a is SpanAnnotation {
+  return a.kind === 'span_ner';
+}
+
+function isTextClassificationInstance(
+  a: AnnotationInstance,
+): a is TextClassificationAnnotation {
+  return a.kind === 'text_classification';
+}
+
+function isInstructionInstance(
+  a: AnnotationInstance,
+): a is InstructionAnnotation {
+  return a.kind === 'instruction';
+}
+
+function isPreferenceInstance(
+  a: AnnotationInstance,
+): a is PreferenceAnnotation {
+  return a.kind === 'preference';
+}
+
+function isConversationInstance(
+  a: AnnotationInstance,
+): a is ConversationAnnotation {
+  return a.kind === 'conversation';
+}
+
+function isCotInstance(a: AnnotationInstance): a is CotAnnotation {
+  return a.kind === 'cot';
+}
+
 type DocMeta = Omit<FileAnnotationDocument, 'annotations'>;
 
 export type ImageCanvasTool =
@@ -110,7 +167,9 @@ export type ImageCanvasTool =
   | 'place_pose'
   | 'place_point'
   | 'preannot_sam_box'
-  | 'preannot_roi_box';
+  | 'preannot_roi_box'
+  | 'caption_edit'
+  | 'classify_select';
 
 export interface AnnotationWorkspaceContextValue {
   workspaceEnabled: boolean;
@@ -123,12 +182,37 @@ export interface AnnotationWorkspaceContextValue {
   polygonAnnotations: PolygonAnnotation[];
   poseAnnotations: PoseAnnotation[];
   pointAnnotations: ImagePointAnnotation[];
+  captionAnnotations: CaptionAnnotation[];
+  classificationAnnotations: ClassificationAnnotation[];
+  // 文本标注过滤器
+  spanAnnotations: SpanAnnotation[];
+  textClassificationAnnotations: TextClassificationAnnotation[];
+  instructionAnnotations: InstructionAnnotation[];
+  preferenceAnnotations: PreferenceAnnotation[];
+  conversationAnnotations: ConversationAnnotation[];
+  cotAnnotations: CotAnnotation[];
   imageAnnotationType:
     | 'bbox'
     | 'rotated_bbox'
     | 'polygon'
     | 'keypoint'
+    | 'caption'
+    | 'classification'
     | null;
+  textAnnotationType:
+    | 'span_ner'
+    | 'text_classification'
+    | 'instruction'
+    | 'preference'
+    | 'conversation'
+    | 'cot'
+    | null;
+  /** 当前文本文件的完整内容，供 NER 等编辑器使用 */
+  textContent: string | null;
+  /** 文本内容是否正在加载 */
+  textContentLoading: boolean;
+  /** LLM 类型在无文件选中时是否处于自由标注模式 */
+  freeformMode: boolean;
   activeTemplateId: string;
   setActiveTemplateId: (id: string) => void;
   activeTemplate: KeypointTemplate;
@@ -139,6 +223,69 @@ export interface AnnotationWorkspaceContextValue {
   setActiveLabelId: (id: string | null) => void;
   labelUsage: LabelUsageMap;
   selectAnnotation: (id: string | null) => void;
+  // 文本标注操作方法
+  /** NER: 在文本上新增 span 标注 */
+  addSpanAnnotation: (start: number, end: number, labelId: string) => string | null;
+  /** NER: 更新 span 区间 */
+  updateSpanAnnotation: (id: string, start: number, end: number) => void;
+  /** 文本分类: 新增一个分类标注（支持多标签） */
+  addTextClassificationAnnotation: (labelId: string, note?: string) => string | null;
+  /** 文本分类: 更新分类标签 */
+  updateTextClassificationAnnotation: (id: string, labelId: string, note?: string) => void;
+  /** 指令: 新增指令数据 */
+  addInstructionAnnotation: (params: {
+    instruction: string;
+    input?: string;
+    output: string;
+    labelId?: string | null;
+  }) => string | null;
+  /** 指令: 更新指令数据 */
+  updateInstructionAnnotation: (id: string, params: {
+    instruction?: string;
+    input?: string;
+    output?: string;
+  }) => void;
+  /** 偏好: 新增偏好数据 */
+  addPreferenceAnnotation: (params: {
+    prompt: string;
+    chosen: string;
+    rejected: string;
+    preferenceNote?: string;
+    labelId?: string | null;
+  }) => string | null;
+  /** 偏好: 更新偏好数据 */
+  updatePreferenceAnnotation: (id: string, params: {
+    prompt?: string;
+    chosen?: string;
+    rejected?: string;
+    preferenceNote?: string;
+  }) => void;
+  /** 对话: 新增对话数据 */
+  addConversationAnnotation: (params: {
+    turns: Array<{ role: 'user' | 'assistant'; content: string }>;
+    labelId?: string | null;
+  }) => string | null;
+  /** 对话: 更新对话数据（替换全部 turns） */
+  updateConversationAnnotation: (id: string, turns: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+  }>) => void;
+  /** CoT: 新增思维链数据 */
+  addCotAnnotation: (params: {
+    instruction?: string;
+    input?: string;
+    steps: Array<{ description: string; conclusion: string }>;
+    answer: string;
+    labelId?: string | null;
+  }) => string | null;
+  /** CoT: 更新思维链数据 */
+  updateCotAnnotation: (id: string, params: {
+    instruction?: string;
+    input?: string;
+    steps?: Array<{ description: string; conclusion: string }>;
+    answer?: string;
+  }) => void;
+  // 图片标注操作方法（保留不变）
   addBboxAnnotation: (rect: {
     x: number;
     y: number;
@@ -164,6 +311,18 @@ export interface AnnotationWorkspaceContextValue {
     y: number,
     labelId: string,
   ) => string | null;
+  addCaptionAnnotation: (params: {
+    text: string;
+    granularity: 'brief' | 'detailed' | 'dense';
+    language?: string;
+    labelId?: string | null;
+  }) => string | null;
+  updateCaptionAnnotation: (
+    id: string,
+    params: { text: string; granularity?: 'brief' | 'detailed' | 'dense'; language?: string },
+  ) => void;
+  addClassificationAnnotation: (labelId: string) => string | null;
+  updateClassificationAnnotation: (id: string, labelId: string) => void;
   addPreAnnotBboxes: (
     items: Array<{
       labelId?: string | null;
@@ -306,16 +465,46 @@ export function AnnotationWorkspaceProvider({
     (activeProject.annotationType === 'bbox' ||
       activeProject.annotationType === 'rotated_bbox' ||
       activeProject.annotationType === 'polygon' ||
-      activeProject.annotationType === 'keypoint')
+      activeProject.annotationType === 'keypoint' ||
+      activeProject.annotationType === 'caption' ||
+      activeProject.annotationType === 'classification')
       ? activeProject.annotationType
       : null;
+
+  const textAnnotationType =
+    activeProject?.modality === 'text' &&
+    (activeProject.annotationType === 'span_ner' ||
+      activeProject.annotationType === 'text_classification' ||
+      activeProject.annotationType === 'instruction' ||
+      activeProject.annotationType === 'preference' ||
+      activeProject.annotationType === 'conversation' ||
+      activeProject.annotationType === 'cot')
+      ? activeProject.annotationType
+      : null;
+
+  const isTextLLMType = Boolean(
+    textAnnotationType &&
+      (textAnnotationType === 'instruction' ||
+        textAnnotationType === 'preference' ||
+        textAnnotationType === 'conversation' ||
+        textAnnotationType === 'cot'),
+  );
 
   const workspaceEnabled = Boolean(
     projectRootMatched &&
       activeProject &&
-      imageAnnotationType &&
-      activeFilePath &&
-      IMAGE_EXT.has(getExtensionLower(activeFilePath)),
+      ((imageAnnotationType &&
+        activeFilePath &&
+        IMAGE_EXT.has(getExtensionLower(activeFilePath))) ||
+        (textAnnotationType &&
+          (isTextLLMType ||
+            (activeFilePath &&
+              TEXT_EXT.has(getExtensionLower(activeFilePath)))))),
+  );
+
+  /** LLM 类型在无文件选中时也可以工作 */
+  const freeformMode = Boolean(
+    workspaceEnabled && isTextLLMType && !activeFilePath,
   );
 
   const relativeFilePath = useMemo(() => {
@@ -346,6 +535,8 @@ export function AnnotationWorkspaceProvider({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceStale, setSourceStale] = useState(false);
   const [historyTick, setHistoryTick] = useState(0);
+  const [textContent, setTextContent] = useState<string | null>(null);
+  const [textContentLoading, setTextContentLoading] = useState(false);
 
   const annotationsRef = useRef(annotations);
   const dirtyRef = useRef(dirty);
@@ -441,6 +632,46 @@ export function AnnotationWorkspaceProvider({
     [annotations],
   );
 
+  const captionAnnotations = useMemo(
+    () => annotations.filter(isCaptionInstance),
+    [annotations],
+  );
+
+  const classificationAnnotations = useMemo(
+    () => annotations.filter(isClassificationInstance),
+    [annotations],
+  );
+
+  const spanAnnotations = useMemo(
+    () => annotations.filter(isSpanInstance),
+    [annotations],
+  );
+
+  const textClassificationAnnotations = useMemo(
+    () => annotations.filter(isTextClassificationInstance),
+    [annotations],
+  );
+
+  const instructionAnnotations = useMemo(
+    () => annotations.filter(isInstructionInstance),
+    [annotations],
+  );
+
+  const preferenceAnnotations = useMemo(
+    () => annotations.filter(isPreferenceInstance),
+    [annotations],
+  );
+
+  const conversationAnnotations = useMemo(
+    () => annotations.filter(isConversationInstance),
+    [annotations],
+  );
+
+  const cotAnnotations = useMemo(
+    () => annotations.filter(isCotInstance),
+    [annotations],
+  );
+
   const activeTemplate = useMemo(() => {
     return (
       getKeypointTemplate(activeTemplateId) ??
@@ -511,8 +742,42 @@ export function AnnotationWorkspaceProvider({
       setToolState((prev) =>
         prev === 'draw' || prev === 'polygon' ? 'place_pose' : prev,
       );
+    } else if (activeProject?.annotationType === 'caption') {
+      setToolState('caption_edit');
+    } else if (activeProject?.annotationType === 'classification') {
+      setToolState('classify_select');
     }
   }, [activeProject?.annotationType]);
+
+  // ── 加载当前文本文件内容（供 NER / 分类 / LLM 源文件预览使用） ──
+  useEffect(() => {
+    if (!workspaceEnabled || !textAnnotationType) {
+      setTextContent(null);
+      setTextContentLoading(false);
+      return;
+    }
+    if (!activeFilePath) {
+      setTextContent(null);
+      setTextContentLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setTextContentLoading(true);
+    window.electron.fileSystem
+      ?.readFile(activeFilePath)
+      .then((text) => {
+        if (!cancelled) setTextContent(text ?? '');
+      })
+      .catch(() => {
+        if (!cancelled) setTextContent(null);
+      })
+      .finally(() => {
+        if (!cancelled) setTextContentLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceEnabled, activeFilePath, textAnnotationType]);
 
   const setActiveTemplateId = useCallback((id: string) => {
     setActiveTemplateIdState(id);
@@ -665,12 +930,16 @@ export function AnnotationWorkspaceProvider({
     }
 
     if (
-      activeProject.modality !== 'image' ||
-      (activeProject.annotationType !== 'bbox' &&
+      (activeProject.modality !== 'image' &&
+        activeProject.modality !== 'text') ||
+      (activeProject.modality === 'image' &&
+        activeProject.annotationType !== 'bbox' &&
         activeProject.annotationType !== 'rotated_bbox' &&
         activeProject.annotationType !== 'polygon' &&
-        activeProject.annotationType !== 'keypoint') ||
-      !relativeFilePath
+        activeProject.annotationType !== 'keypoint' &&
+        activeProject.annotationType !== 'caption' &&
+        activeProject.annotationType !== 'classification') ||
+      (!relativeFilePath && !isTextLLMType)
     ) {
       currentPairRef.current = { rel: null, abs: null };
       setAnnotations([]);
@@ -685,6 +954,17 @@ export function AnnotationWorkspaceProvider({
     }
 
     const rel = relativeFilePath;
+    if (!rel) {
+      // Freeform mode: no file selected, start with empty annotations
+      setLoadedDocMeta(null);
+      setAnnotations([]);
+      clearHistory();
+      setDirty(false);
+      setSourceStale(false);
+      setSelectedAnnotationId(null);
+      currentPairRef.current = { rel: null, abs: activeFilePath };
+      return undefined;
+    }
     const projDir = activeProject.directoryPath;
     let cancelled = false;
 
@@ -1082,6 +1362,98 @@ export function AnnotationWorkspaceProvider({
     [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
   );
 
+  const addCaptionAnnotation = useCallback(
+    (params: {
+      text: string;
+      granularity: 'brief' | 'detailed' | 'dense';
+      language?: string;
+      labelId?: string | null;
+    }): string | null => {
+      if (!loadedDocMeta || !params.text.trim()) return null;
+      const now = new Date().toISOString();
+      const id = crypto.randomUUID();
+      const next: CaptionAnnotation = {
+        id,
+        kind: 'caption',
+        labelId: params.labelId ?? null,
+        createdAt: now,
+        updatedAt: now,
+        text: params.text.trim(),
+        granularity: params.granularity,
+        language: params.language,
+      };
+      recordHistory();
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      if (params.labelId) recordLabelUsage(params.labelId);
+      return id;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const updateCaptionAnnotation = useCallback(
+    (
+      id: string,
+      params: { text: string; granularity?: 'brief' | 'detailed' | 'dense'; language?: string },
+    ) => {
+      recordHistory();
+      setAnnotations((prev) =>
+        prev.map((item) => {
+          if (item.id !== id || item.kind !== 'caption') return item;
+          return {
+            ...item,
+            text: params.text.trim(),
+            ...(params.granularity !== undefined && { granularity: params.granularity }),
+            ...(params.language !== undefined && { language: params.language }),
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+      );
+      touchDirty();
+    },
+    [touchDirty, recordHistory],
+  );
+
+  const addClassificationAnnotation = useCallback(
+    (labelId: string): string | null => {
+      if (!loadedDocMeta || !labelId) return null;
+      const now = new Date().toISOString();
+      const id = crypto.randomUUID();
+      const next: ClassificationAnnotation = {
+        id,
+        kind: 'classification',
+        labelId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      recordHistory();
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      recordLabelUsage(labelId);
+      return id;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const updateClassificationAnnotation = useCallback(
+    (id: string, labelId: string) => {
+      recordHistory();
+      setAnnotations((prev) =>
+        prev.map((item) => {
+          if (item.id !== id || item.kind !== 'classification') return item;
+          return {
+            ...item,
+            labelId,
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+      );
+      touchDirty();
+      recordLabelUsage(labelId);
+    },
+    [touchDirty, recordLabelUsage, recordHistory],
+  );
+
   const addPreAnnotBboxes = useCallback(
     (
       items: Array<{
@@ -1239,6 +1611,296 @@ export function AnnotationWorkspaceProvider({
     return removed;
   }, [touchDirty, recordHistory]);
 
+  // ── 文本标注操作方法 ──
+
+  const addSpanAnnotation = useCallback(
+    (start: number, end: number, labelId: string): string | null => {
+      if (!loadedDocMeta || !labelId || start >= end) return null;
+      const now = new Date().toISOString();
+      const id = crypto.randomUUID();
+      const next: SpanAnnotation = {
+        id,
+        kind: 'span_ner',
+        labelId,
+        createdAt: now,
+        updatedAt: now,
+        start,
+        end,
+      };
+      recordHistory();
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      recordLabelUsage(labelId);
+      return id;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const updateSpanAnnotation = useCallback(
+    (id: string, start: number, end: number) => {
+      if (start >= end) return;
+      recordHistory();
+      setAnnotations((prev) =>
+        prev.map((item) =>
+          item.kind === 'span_ner' && item.id === id
+            ? { ...item, start, end, updatedAt: new Date().toISOString() }
+            : item,
+        ),
+      );
+      touchDirty();
+    },
+    [touchDirty, recordHistory],
+  );
+
+  const addTextClassificationAnnotation = useCallback(
+    (labelId: string, note?: string): string | null => {
+      if (!loadedDocMeta || !labelId) return null;
+      const now = new Date().toISOString();
+      const id = crypto.randomUUID();
+      const next: TextClassificationAnnotation = {
+        id,
+        kind: 'text_classification',
+        labelId,
+        createdAt: now,
+        updatedAt: now,
+        note,
+      };
+      recordHistory();
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      recordLabelUsage(labelId);
+      return id;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const updateTextClassificationAnnotation = useCallback(
+    (id: string, labelId: string, note?: string) => {
+      recordHistory();
+      setAnnotations((prev) =>
+        prev.map((item) => {
+          if (item.id !== id || item.kind !== 'text_classification') return item;
+          return {
+            ...item,
+            labelId,
+            ...(note !== undefined && { note }),
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+      );
+      touchDirty();
+      recordLabelUsage(labelId);
+    },
+    [touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const addInstructionAnnotation = useCallback(
+    (params: {
+      instruction: string;
+      input?: string;
+      output: string;
+      labelId?: string | null;
+    }): string | null => {
+      if (!loadedDocMeta || !params.instruction || !params.output) return null;
+      const now = new Date().toISOString();
+      const id = crypto.randomUUID();
+      const next: InstructionAnnotation = {
+        id,
+        kind: 'instruction',
+        labelId: params.labelId ?? null,
+        createdAt: now,
+        updatedAt: now,
+        instruction: params.instruction,
+        input: params.input,
+        output: params.output,
+      };
+      recordHistory();
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      if (params.labelId) recordLabelUsage(params.labelId);
+      return id;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const updateInstructionAnnotation = useCallback(
+    (id: string, params: {
+      instruction?: string;
+      input?: string;
+      output?: string;
+    }) => {
+      recordHistory();
+      setAnnotations((prev) =>
+        prev.map((item) => {
+          if (item.id !== id || item.kind !== 'instruction') return item;
+          return {
+            ...item,
+            ...(params.instruction !== undefined && { instruction: params.instruction }),
+            ...(params.input !== undefined && { input: params.input }),
+            ...(params.output !== undefined && { output: params.output }),
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+      );
+      touchDirty();
+    },
+    [touchDirty, recordHistory],
+  );
+
+  const addPreferenceAnnotation = useCallback(
+    (params: {
+      prompt: string;
+      chosen: string;
+      rejected: string;
+      preferenceNote?: string;
+      labelId?: string | null;
+    }): string | null => {
+      if (!loadedDocMeta || !params.prompt || !params.chosen || !params.rejected) return null;
+      const now = new Date().toISOString();
+      const id = crypto.randomUUID();
+      const next: PreferenceAnnotation = {
+        id,
+        kind: 'preference',
+        labelId: params.labelId ?? null,
+        createdAt: now,
+        updatedAt: now,
+        prompt: params.prompt,
+        chosen: params.chosen,
+        rejected: params.rejected,
+        preferenceNote: params.preferenceNote,
+      };
+      recordHistory();
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      if (params.labelId) recordLabelUsage(params.labelId);
+      return id;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const updatePreferenceAnnotation = useCallback(
+    (id: string, params: {
+      prompt?: string;
+      chosen?: string;
+      rejected?: string;
+      preferenceNote?: string;
+    }) => {
+      recordHistory();
+      setAnnotations((prev) =>
+        prev.map((item) => {
+          if (item.id !== id || item.kind !== 'preference') return item;
+          return {
+            ...item,
+            ...(params.prompt !== undefined && { prompt: params.prompt }),
+            ...(params.chosen !== undefined && { chosen: params.chosen }),
+            ...(params.rejected !== undefined && { rejected: params.rejected }),
+            ...(params.preferenceNote !== undefined && { preferenceNote: params.preferenceNote }),
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+      );
+      touchDirty();
+    },
+    [touchDirty, recordHistory],
+  );
+
+  const addConversationAnnotation = useCallback(
+    (params: {
+      turns: Array<{ role: 'user' | 'assistant'; content: string }>;
+      labelId?: string | null;
+    }): string | null => {
+      if (!loadedDocMeta || params.turns.length === 0) return null;
+      const now = new Date().toISOString();
+      const id = crypto.randomUUID();
+      const next: ConversationAnnotation = {
+        id,
+        kind: 'conversation',
+        labelId: params.labelId ?? null,
+        createdAt: now,
+        updatedAt: now,
+        turns: params.turns,
+      };
+      recordHistory();
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      if (params.labelId) recordLabelUsage(params.labelId);
+      return id;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const updateConversationAnnotation = useCallback(
+    (id: string, turns: Array<{ role: 'user' | 'assistant'; content: string }>) => {
+      if (turns.length === 0) return;
+      recordHistory();
+      setAnnotations((prev) =>
+        prev.map((item) => {
+          if (item.id !== id || item.kind !== 'conversation') return item;
+          return { ...item, turns, updatedAt: new Date().toISOString() };
+        }),
+      );
+      touchDirty();
+    },
+    [touchDirty, recordHistory],
+  );
+
+  const addCotAnnotation = useCallback(
+    (params: {
+      instruction?: string;
+      input?: string;
+      steps: Array<{ description: string; conclusion: string }>;
+      answer: string;
+      labelId?: string | null;
+    }): string | null => {
+      if (!loadedDocMeta || params.steps.length === 0 || !params.answer) return null;
+      const now = new Date().toISOString();
+      const id = crypto.randomUUID();
+      const next: CotAnnotation = {
+        id,
+        kind: 'cot',
+        labelId: params.labelId ?? null,
+        createdAt: now,
+        updatedAt: now,
+        instruction: params.instruction,
+        input: params.input,
+        steps: params.steps,
+        answer: params.answer,
+      };
+      recordHistory();
+      setAnnotations((prev) => [...prev, next]);
+      touchDirty();
+      if (params.labelId) recordLabelUsage(params.labelId);
+      return id;
+    },
+    [loadedDocMeta, touchDirty, recordLabelUsage, recordHistory],
+  );
+
+  const updateCotAnnotation = useCallback(
+    (id: string, params: {
+      instruction?: string;
+      input?: string;
+      steps?: Array<{ description: string; conclusion: string }>;
+      answer?: string;
+    }) => {
+      recordHistory();
+      setAnnotations((prev) =>
+        prev.map((item) => {
+          if (item.id !== id || item.kind !== 'cot') return item;
+          return {
+            ...item,
+            ...(params.instruction !== undefined && { instruction: params.instruction }),
+            ...(params.input !== undefined && { input: params.input }),
+            ...(params.steps !== undefined && { steps: params.steps }),
+            ...(params.answer !== undefined && { answer: params.answer }),
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+      );
+      touchDirty();
+    },
+    [touchDirty, recordHistory],
+  );
+
   const updatePoseGeometry = useCallback(
     (id: string, ann: PoseAnnotation) => {
       recordHistory();
@@ -1349,7 +2011,19 @@ export function AnnotationWorkspaceProvider({
       polygonAnnotations,
       poseAnnotations,
       pointAnnotations,
+      captionAnnotations,
+      classificationAnnotations,
+      spanAnnotations,
+      textClassificationAnnotations,
+      instructionAnnotations,
+      preferenceAnnotations,
+      conversationAnnotations,
+      cotAnnotations,
       imageAnnotationType,
+      textAnnotationType,
+      textContent,
+      textContentLoading,
+      freeformMode,
       activeTemplateId,
       setActiveTemplateId,
       activeTemplate,
@@ -1360,11 +2034,29 @@ export function AnnotationWorkspaceProvider({
       setActiveLabelId,
       labelUsage,
       selectAnnotation,
+      // 文本标注方法
+      addSpanAnnotation,
+      updateSpanAnnotation,
+      addTextClassificationAnnotation,
+      updateTextClassificationAnnotation,
+      addInstructionAnnotation,
+      updateInstructionAnnotation,
+      addPreferenceAnnotation,
+      updatePreferenceAnnotation,
+      addConversationAnnotation,
+      updateConversationAnnotation,
+      addCotAnnotation,
+      updateCotAnnotation,
+      // 图片标注方法
       addBboxAnnotation,
       addRotatedBboxAnnotation,
       addPolygonAnnotation,
       addPoseAnnotation,
       addPointAnnotation,
+      addCaptionAnnotation,
+      updateCaptionAnnotation,
+      addClassificationAnnotation,
+      updateClassificationAnnotation,
       addPreAnnotBboxes,
       addPreAnnotRotatedBboxes,
       addPreAnnotPolygon,
@@ -1403,7 +2095,19 @@ export function AnnotationWorkspaceProvider({
     polygonAnnotations,
     poseAnnotations,
     pointAnnotations,
+    captionAnnotations,
+    classificationAnnotations,
+    spanAnnotations,
+    textClassificationAnnotations,
+    instructionAnnotations,
+    preferenceAnnotations,
+    conversationAnnotations,
+    cotAnnotations,
     imageAnnotationType,
+    textAnnotationType,
+    textContent,
+    textContentLoading,
+    freeformMode,
     activeTemplateId,
     activeTemplate,
     selectedAnnotationId,
@@ -1412,11 +2116,27 @@ export function AnnotationWorkspaceProvider({
     activeLabelId,
     labelUsage,
     selectAnnotation,
+    addSpanAnnotation,
+    updateSpanAnnotation,
+    addTextClassificationAnnotation,
+    updateTextClassificationAnnotation,
+    addInstructionAnnotation,
+    updateInstructionAnnotation,
+    addPreferenceAnnotation,
+    updatePreferenceAnnotation,
+    addConversationAnnotation,
+    updateConversationAnnotation,
+    addCotAnnotation,
+    updateCotAnnotation,
     addBboxAnnotation,
     addRotatedBboxAnnotation,
     addPolygonAnnotation,
     addPoseAnnotation,
     addPointAnnotation,
+    addCaptionAnnotation,
+    updateCaptionAnnotation,
+    addClassificationAnnotation,
+    updateClassificationAnnotation,
     addPreAnnotBboxes,
     addPreAnnotRotatedBboxes,
     addPreAnnotPolygon,

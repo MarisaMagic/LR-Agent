@@ -9,8 +9,8 @@
   height: var(--lr-top-toolbar-height, 36px);
   min-height: var(--lr-top-toolbar-height, 36px);
   padding: 2px 6px;
-  border-bottom: 1px solid var(--vscode-sideBar-border, #3e3e42);
-  background: var(--vscode-sideBar-background);
+  border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder, #3e3e42);
+  background: var(--vscode-editorGroupHeader-tabsBackground, #252526);
 }
 
 .right-panel-icon-tab {

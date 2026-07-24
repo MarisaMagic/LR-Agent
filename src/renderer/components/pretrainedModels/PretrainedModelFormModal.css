@@ -51,9 +51,8 @@
 .pretrained-model-form-field input:focus,
 .pretrained-model-form-field textarea:focus {
   outline: none;
-  border-color: var(--vscode-focusBorder, #dbb018);
+  border-color: var(--vscode-focusBorder, #888888);
 }
-
 .pretrained-model-path-row {
   display: flex;
   gap: 8px;

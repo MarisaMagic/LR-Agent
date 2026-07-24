@@ -14,9 +14,9 @@
 }
 
 :root {
-  --lr-accent: #dbb018;
-  --lr-accent-hover: #ecc948;
-  --lr-accent-muted: #f0d970;
+  --lr-accent: #888888;
+  --lr-accent-hover: #aaaaaa;
+  --lr-accent-muted: #777777;
 
   --vscode-font-family: 'LR-Agent UI', 'Noto Sans SC', 'Source Han Sans SC', '思源黑体',
     sans-serif;
@@ -64,7 +64,7 @@
   --vscode-tab-activeBackground: var(--vscode-editor-background);
   --vscode-tab-inactiveBackground: var(--vscode-editorGroupHeader-tabsBackground);
   --vscode-editorGroupHeader-tabsBorder: #252526;
-  --lr-agent-panel-background: var(--vscode-sideBar-background);
+  --lr-agent-panel-background: var(--vscode-editor-background);
 
   --vscode-panel-background: #252526;
   --vscode-panel-border: #3e3e42;
@@ -89,9 +89,9 @@
   --vscode-dropdown-border: var(--vscode-input-border);
   --vscode-widget-shadow: rgba(0, 0, 0, 0.36);
 
-  --vscode-button-background: #dbb018;
-  --vscode-button-foreground: #1e1e1e;
-  --vscode-button-hoverBackground: #ecc948;
+  --vscode-button-background: #4a4a4a;
+  --vscode-button-foreground: #e0e0e0;
+  --vscode-button-hoverBackground: #5c5c5c;
   --vscode-button-secondaryBackground: #3a3d41;
   --vscode-button-secondaryForeground: #cccccc;
   --vscode-button-secondaryHoverBackground: #45494e;
@@ -99,7 +99,7 @@
   --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
   --vscode-toolbar-activeBackground: rgba(99, 102, 103, 0.31);
 
-  --vscode-list-activeSelectionBackground: rgba(204, 167, 0, 0.22);
+  --vscode-list-activeSelectionBackground: rgba(255, 255, 255, 0.08);
   --vscode-list-activeSelectionForeground: #ffffff;
   --vscode-list-inactiveSelectionBackground: #37373d;
   --vscode-list-inactiveSelectionForeground: #cccccc;
@@ -115,7 +115,7 @@
 
   --vscode-notifications-background: #252526;
 
-  --vscode-textLink-foreground: var(--lr-accent-muted);
+  --vscode-textLink-foreground: #a0a0a0;
 
   --vscode-separator-border: #3e3e42;
   --vscode-sash-hoverBorder: var(--lr-accent);
@@ -190,9 +190,9 @@
   --vscode-dropdown-border: var(--vscode-input-border);
   --vscode-widget-shadow: rgba(0, 0, 0, 0.16);
 
-  --vscode-button-background: #f0c830;
-  --vscode-button-foreground: #1e1e1e;
-  --vscode-button-hoverBackground: #f8dc58;
+  --vscode-button-background: #333333;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hoverBackground: #1a1a1a;
   --vscode-button-secondaryBackground: #e5e5e5;
   --vscode-button-secondaryForeground: #333333;
   --vscode-button-secondaryHoverBackground: #d4d4d4;
@@ -200,7 +200,7 @@
   --vscode-toolbar-hoverBackground: rgba(0, 0, 0, 0.08);
   --vscode-toolbar-activeBackground: rgba(0, 0, 0, 0.12);
 
-  --vscode-list-activeSelectionBackground: rgba(219, 176, 24, 0.28);
+  --vscode-list-activeSelectionBackground: rgba(0, 0, 0, 0.06);
   --vscode-list-activeSelectionForeground: #333333;
   --vscode-list-inactiveSelectionBackground: #e4e6f1;
   --vscode-list-inactiveSelectionForeground: #333333;
@@ -216,7 +216,7 @@
 
   --vscode-notifications-background: #ffffff;
 
-  --vscode-textLink-foreground: #9a7200;
+  --vscode-textLink-foreground: #555555;
 
   --vscode-separator-border: #e5e5e5;
   --vscode-sash-hoverBorder: var(--lr-accent);

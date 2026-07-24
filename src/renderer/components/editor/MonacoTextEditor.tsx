@@ -69,7 +69,7 @@ export default function MonacoTextEditor({
 
     const editorInstance = monaco.editor.create(containerRef.current, {
       readOnly: readOnlyRef.current,
-      minimap: { enabled: true },
+      minimap: { enabled: false },
       fontSize: EDITOR_FONT_SIZE,
       lineHeight: EDITOR_LINE_HEIGHT,
       wordWrap: 'on',

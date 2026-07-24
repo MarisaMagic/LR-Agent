@@ -213,7 +213,7 @@
 }
 
 .markdown-content a {
-  color: var(--vscode-textLink-foreground, #e2c08d);
+  color: var(--vscode-textLink-foreground, #a0a0a0);
   text-decoration: none;
 }
 

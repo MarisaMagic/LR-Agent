@@ -8,6 +8,7 @@ import {
   LabelDefinition,
   Modality,
   TASK_TYPE_CONFIG,
+  annotationTypeRequiresLabels,
   getDefaultAnnotationType,
 } from '../../types/annotation';
 import { findProjectByDirectory } from '../../services/annotationProjectStore';
@@ -53,6 +54,12 @@ export default function CreateAnnotationProjectWizard({
     () => TASK_TYPE_CONFIG[modality].types,
     [modality],
   );
+  const requiresLabels = annotationTypeRequiresLabels(annotationType);
+  const maxStep: WizardStep = requiresLabels ? 3 : 2;
+  const visibleSteps = useMemo(
+    () => (requiresLabels ? [1, 2, 3] : [1, 2]) as WizardStep[],
+    [requiresLabels],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -73,6 +80,12 @@ export default function CreateAnnotationProjectWizard({
       prev.length === 0 ? buildDefaultKeypointLabels() : prev,
     );
   }, [annotationType]);
+
+  useEffect(() => {
+    if (!requiresLabels && step === 3) {
+      setStep(2);
+    }
+  }, [requiresLabels, step]);
 
   const handlePickDirectory = async () => {
     setError(null);
@@ -111,7 +124,7 @@ export default function CreateAnnotationProjectWizard({
   const goNext = () => {
     if (step === 1 && !validateStep1()) return;
     setError(null);
-    setStep((current) => Math.min(3, current + 1) as WizardStep);
+    setStep((current) => Math.min(maxStep, current + 1) as WizardStep);
   };
 
   const goBack = () => {
@@ -134,7 +147,7 @@ export default function CreateAnnotationProjectWizard({
       name: name.trim(),
       modality,
       annotationType,
-      labels: normalizeLabels(labels),
+      labels: requiresLabels ? normalizeLabels(labels) : [],
       description: description.trim() || undefined,
     };
 
@@ -158,7 +171,7 @@ export default function CreateAnnotationProjectWizard({
       dialogClassName="create-annotation-wizard"
       dialogRole="form"
       labelledBy="create-annotation-title"
-      onSubmit={step === 3 ? handleSubmit : undefined}
+      onSubmit={step === maxStep ? handleSubmit : undefined}
     >
       <div className="create-annotation-header">
         <h3 id="create-annotation-title">新建标注任务</h3>
@@ -173,14 +186,14 @@ export default function CreateAnnotationProjectWizard({
       </div>
 
       <div className="create-annotation-steps" aria-label="创建步骤">
-        {[1, 2, 3].map((item) => (
+        {visibleSteps.map((item) => (
           <span
             key={item}
             className={`create-annotation-step${
               step === item ? ' create-annotation-step-active' : ''
             }${step > item ? ' create-annotation-step-done' : ''}`}
           >
-            {item}. {STEP_TITLES[item as WizardStep]}
+            {item}. {STEP_TITLES[item]}
           </span>
         ))}
       </div>
@@ -296,7 +309,7 @@ export default function CreateAnnotationProjectWizard({
         </div>
       )}
 
-      {step === 3 && (
+      {requiresLabels && step === 3 && (
         <div className="create-annotation-body">
           <LabelEditor
             labels={labels}
@@ -313,12 +326,12 @@ export default function CreateAnnotationProjectWizard({
               上一步
             </VscodeButton>
           )}
-          {step < 3 ? (
-            <VscodeButton type="button" onClick={goNext}>
+          {step < maxStep ? (
+            <VscodeButton secondary type="button" onClick={goNext}>
               下一步
             </VscodeButton>
           ) : (
-            <VscodeButton type="submit" disabled={submitting}>
+            <VscodeButton secondary type="submit" disabled={submitting}>
               {submitting ? '创建中…' : '创建并打开'}
             </VscodeButton>
           )}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AnnotationProjectSnapshot } from '../../../shared/annotationAgentTypes';
+import PopoverMotion from '../../motion/PopoverMotion';
 import { useLlmProviders } from '../../context/LlmProvidersContext';
 import { useTheme } from '../../context/ThemeContext';
 import {
@@ -54,6 +55,21 @@ export default function ReportGenerationSection({
   const [reportRootPath, setReportRootPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  /** Custom dropdown state */
+  const [providerMenuOpen, setProviderMenuOpen] = useState(false);
+  const providerPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!providerMenuOpen) return undefined;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!providerPickerRef.current?.contains(event.target as Node)) {
+        setProviderMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [providerMenuOpen]);
 
   useEffect(() => {
     if (!providerId && enabledProviders.length > 0) {
@@ -171,24 +187,56 @@ export default function ReportGenerationSection({
     <section className="quality-report-section">
       <h3 className="quality-section-title">标注质量报告</h3>
       <div className="quality-report-controls">
-        <label className="quality-report-provider">
-          <span>大模型</span>
-          <select
-            value={providerId}
+        <div className="quality-report-provider" ref={providerPickerRef}>
+          <span className="quality-report-provider-label">大模型</span>
+          <button
+            type="button"
+            className="quality-report-provider-trigger"
             disabled={running || enabledProviders.length === 0}
-            onChange={(e) => setProviderId(e.target.value)}
+            aria-haspopup="listbox"
+            aria-expanded={providerMenuOpen}
+            onClick={() => setProviderMenuOpen((v) => !v)}
           >
-            {enabledProviders.length === 0 ? (
-              <option value="">请先配置大模型</option>
-            ) : (
-              enabledProviders.map((p) => (
-                <option key={p.id} value={p.id}>
+            <span className="quality-report-provider-value">
+              {selectedProvider
+                ? (selectedProvider.name || selectedProvider.model)
+                : enabledProviders.length === 0
+                  ? '请先配置大模型'
+                  : '选择大模型'}
+            </span>
+            <span className="codicon codicon-chevron-down quality-report-provider-chevron" />
+          </button>
+
+          <PopoverMotion
+            open={providerMenuOpen && enabledProviders.length > 0}
+            className="quality-report-provider-menu"
+            origin="bottom"
+            role="listbox"
+          >
+            {enabledProviders.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="option"
+                aria-selected={p.id === providerId}
+                className={`quality-report-provider-option${
+                  p.id === providerId ? ' quality-report-provider-option--active' : ''
+                }`}
+                onClick={() => {
+                  setProviderId(p.id);
+                  setProviderMenuOpen(false);
+                }}
+              >
+                <span className="quality-report-provider-option-name">
                   {p.name || p.model}
-                </option>
-              ))
-            )}
-          </select>
-        </label>
+                </span>
+                <span className="quality-report-provider-option-model">
+                  {p.model}
+                </span>
+              </button>
+            ))}
+          </PopoverMotion>
+        </div>
         <div className="quality-report-actions">
           <button
             type="button"

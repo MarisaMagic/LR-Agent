@@ -155,7 +155,7 @@ export default function LlmProviderFormModal({
         <VscodeButton secondary type="button" onClick={onClose}>
           取消
         </VscodeButton>
-        <VscodeButton type="submit" disabled={submitting}>
+        <VscodeButton secondary type="submit" disabled={submitting}>
           保存
         </VscodeButton>
       </div>

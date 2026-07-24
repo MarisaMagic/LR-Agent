@@ -11,6 +11,10 @@
   border-bottom: 1px solid var(--vscode-panel-border, #3c3c3c);
 }
 
+.llm-providers-toolbar vscode-toolbar-button:focus:not(:focus-visible) {
+  --vscode-focusBorder: transparent;
+}
+
 .llm-providers-scroll-host {
   flex: 1;
   min-height: 0;

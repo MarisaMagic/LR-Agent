@@ -13,16 +13,19 @@
   background: var(--lr-agent-panel-background);
 }
 
-[data-theme='light'] .agent-session-tabs {
-  background: var(--vscode-sideBar-background, #f3f3f3);
-}
-
-[data-theme='light'] .agent-session-tab {
-  background: #ececec;
-}
-
-[data-theme='light'] .agent-session-tab--active {
-  background: var(--lr-agent-panel-background);
+.agent-session-tab {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  height: 100%;
+  flex-shrink: 0;
+  min-width: 130px;
+  max-width: 220px;
+  background: color-mix(
+    in srgb,
+    var(--vscode-foreground) 6%,
+    var(--lr-agent-panel-background)
+  );
 }
 
 .agent-session-tab-scroller {
@@ -93,17 +96,6 @@
     --agent-overlay-scrollbar-thumb-hover,
     rgba(255, 255, 255, 0.36)
   );
-}
-
-.agent-session-tab {
-  display: flex;
-  align-items: stretch;
-  align-self: stretch;
-  height: 100%;
-  flex-shrink: 0;
-  min-width: 130px;
-  max-width: 220px;
-  background: var(--vscode-sideBarSectionHeader-background, #252526);
 }
 
 .agent-session-tab--active {
