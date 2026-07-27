@@ -73,15 +73,25 @@ function planFromBatchPrepare(data: BatchPrepareResult): BatchAnnotationPlan {
     ...plan
   } = data;
   const rawJudgeConfig = (plan as BatchAnnotationPlan & {
-    judge_config?: { enabled?: boolean; maxRetries?: number; max_retries?: number };
+    judge_config?: {
+      enabled?: boolean;
+      maxRetries?: number;
+      max_retries?: number;
+      rejectSubmitPartial?: boolean;
+      reject_submit_partial?: boolean;
+    };
   }).judge_config;
   if (rawJudgeConfig) {
     (plan as BatchAnnotationPlan).judge_config = {
       enabled: Boolean(rawJudgeConfig.enabled),
       maxRetries: Math.max(
         0,
-        Number(rawJudgeConfig.maxRetries ?? rawJudgeConfig.max_retries ?? 3),
+        Number(rawJudgeConfig.maxRetries ?? rawJudgeConfig.max_retries ?? 1),
       ),
+      rejectSubmitPartial:
+        rawJudgeConfig.rejectSubmitPartial
+        ?? rawJudgeConfig.reject_submit_partial
+        ?? true,
     };
   }
   return plan;
@@ -90,9 +100,13 @@ function planFromBatchPrepare(data: BatchPrepareResult): BatchAnnotationPlan {
 function formatWorkerDetailParts(result: WorkerResult): string[] {
   const fusion = result as FusionSubImageResult;
   const parts = [
-    `映射 ${result.mappedCount ?? 0} 框`,
+    fusion.mappedCount != null ? `已标 ${fusion.mappedCount} 框` : '',
+    fusion.unlabeledInProposal != null && fusion.unlabeledInProposal > 0
+      ? `留空 ${fusion.unlabeledInProposal}`
+      : fusion.unmappedCount != null && fusion.unmappedCount > 0
+        ? `未映射 ${fusion.unmappedCount}`
+        : '',
     fusion.rawCount != null ? `检测 ${fusion.rawCount}→保留 ${fusion.keptCount ?? 0}` : '',
-    fusion.unmappedCount != null ? `未映射 ${fusion.unmappedCount}` : '',
     fusion.method ? `方式 ${fusion.method}` : '',
     fusion.judge
       ? `评分 ${fusion.judge.verdict === 'weak_accept' ? '弱通过' : fusion.judge.verdict === 'accept' ? '通过' : '拒绝'}`
@@ -116,6 +130,7 @@ async function* drainConcurrentPipelines(
     index: number,
     push: (e: AnnotationProgressEvent) => void,
   ) => Promise<WorkerResult>,
+  isCancelled?: () => boolean,
 ): AsyncGenerator<AnnotationProgressEvent, WorkerResult[]> {
   const queue = new AsyncEventQueue<AnnotationProgressEvent>();
   const results: WorkerResult[] = new Array(images.length);
@@ -123,8 +138,19 @@ async function* drainConcurrentPipelines(
   let active = 0;
   let completed = 0;
 
+  let cancelled = false;
+
+  const maybeClose = (): void => {
+    if (completed >= images.length || (cancelled && active === 0)) {
+      queue.close();
+    }
+  };
+
   const pump = (): void => {
-    while (active < concurrency && nextIndex < images.length) {
+    if (isCancelled?.()) {
+      cancelled = true;
+    }
+    while (!cancelled && active < concurrency && nextIndex < images.length) {
       const idx = nextIndex;
       nextIndex += 1;
       active += 1;
@@ -144,12 +170,16 @@ async function* drainConcurrentPipelines(
         .finally(() => {
           active -= 1;
           completed += 1;
-          if (completed >= images.length) {
-            queue.close();
-          } else {
+          maybeClose();
+          if (!cancelled) {
             pump();
+          } else {
+            maybeClose();
           }
         });
+    }
+    if (cancelled) {
+      maybeClose();
     }
   };
 
@@ -174,12 +204,15 @@ export async function* runAnnotationBatchJob(options: {
   currentFileAbsolutePath: string | null;
   detectionModels: PretrainedModelConfig[];
   isCancelled?: () => boolean;
+  abortSignal?: AbortSignal;
   providerApiKey?: string;
   providerBaseUrl?: string;
   providerModel?: string;
   providerSupportsVision?: boolean;
 }): AsyncGenerator<AnnotationProgressEvent> {
   const { project, userRequest, providerId } = options;
+  const isCancelled = () =>
+    options.isCancelled?.() === true || options.abortSignal?.aborted === true;
 
   if (project.modality !== 'image' || project.annotationType !== 'bbox') {
     yield {
@@ -205,6 +238,11 @@ export async function* runAnnotationBatchJob(options: {
 
   yield progress('prepare', '正在准备批量标注（范围与计划）…');
   batchTimer.mark('prepare');
+
+  if (isCancelled()) {
+    yield progress('prepare', '已取消', 'error');
+    return;
+  }
 
   let scopeReason = '';
   let images: ImageCandidate[] = [];
@@ -237,6 +275,7 @@ export async function* runAnnotationBatchJob(options: {
       providerBaseUrl: options.providerBaseUrl ?? '',
       providerModel: options.providerModel ?? '',
       providerSupportsVision: options.providerSupportsVision ?? false,
+      signal: options.abortSignal,
     });
     effectiveUserRequest =
       prepared.resolved_user_request?.trim() || userRequest;
@@ -359,7 +398,7 @@ export async function* runAnnotationBatchJob(options: {
     images,
     ANNOTATION_BATCH_CONCURRENCY,
     async (image, index, push) => {
-      if (options.isCancelled?.()) {
+      if (isCancelled()) {
         return {
           ok: false,
           relativePath: image.relativePath,
@@ -395,23 +434,29 @@ export async function* runAnnotationBatchJob(options: {
         providerBaseUrl: options.providerBaseUrl ?? '',
         providerModel: options.providerModel ?? '',
         providerSupportsVision: options.providerSupportsVision ?? false,
+        signal: options.abortSignal,
       });
       if (result.elapsedMs == null) {
         result.elapsedMs = Math.round(performance.now() - imageStarted);
       }
       return result;
     },
+    isCancelled,
   );
 
   let workerResults: WorkerResult[] = [];
   while (true) {
     const next = await pipelineGen.next();
     if (next.done) {
-      workerResults = next.value ?? [];
+      workerResults = (next.value ?? []).filter(
+        (r): r is WorkerResult => r != null,
+      );
       break;
     }
     yield next.value;
   }
+
+  const cancelled = isCancelled();
 
   for (const result of workerResults) {
     if (result.ok) {
@@ -490,6 +535,16 @@ export async function* runAnnotationBatchJob(options: {
     (sum, r) => sum + (r.change?.annotations?.length ?? 0),
     0,
   );
+  const unlabeledBoxes = succeeded.reduce((sum, r) => {
+    const fusion = r as FusionSubImageResult;
+    if (fusion.unlabeledInProposal != null) {
+      return sum + fusion.unlabeledInProposal;
+    }
+    const nullCount = (r.change?.annotations ?? []).filter(
+      (a) => a.labelId == null,
+    ).length;
+    return sum + nullCount;
+  }, 0);
   const judged = workerResults.filter((r) => Boolean((r as FusionSubImageResult).judge)).length;
   const accepted = succeeded.filter(
     (r) => (r as FusionSubImageResult).judge?.verdict === 'accept',
@@ -510,23 +565,33 @@ export async function* runAnnotationBatchJob(options: {
       .map((r) => `${r.relativePath}: ${r.reason ?? '未知原因'}`)
       .slice(0, 6)
       .join('；');
-    yield {
-      type: 'error',
-      message: `未能生成可应用的批量标注。${detail ? `详情：${detail}` : ''}`,
-    };
+    if (!cancelled) {
+      yield {
+        type: 'error',
+        message: `未能生成可应用的批量标注。${detail ? `详情：${detail}` : ''}`,
+      };
+    }
     return;
   }
 
+  const labeledBoxCount = succeeded.reduce(
+    (sum, r) => sum + (r.change?.annotations ?? []).filter((a) => a.labelId != null).length,
+    0,
+  );
   const proposal: AnnotationBatchProposal = {
     id: createAgentId('proposal'),
     projectId: project.projectId,
-    summary: `批量矩形框标注：${succeeded.length} 张图片，共 ${totalBoxes} 个框`,
+    summary: cancelled
+      ? `批量矩形框标注（已取消，部分结果）：${succeeded.length} 张图片，已标 ${labeledBoxCount} 框${unlabeledBoxes ? `，留空 ${unlabeledBoxes} 框` : ''}`
+      : `批量矩形框标注：${succeeded.length} 张图片，已标 ${labeledBoxCount} 框${unlabeledBoxes ? `，留空 ${unlabeledBoxes} 框` : ''}`,
     changes: succeeded.map((r) => r.change!),
     stats: {
       processed: workerResults.length,
       succeeded: succeeded.length,
       skipped: skipped.length,
       totalBoxes,
+      unlabeledBoxes,
+      cancelled,
       judged,
       accepted,
       weakAccepted,
@@ -538,8 +603,10 @@ export async function* runAnnotationBatchJob(options: {
   };
 
   const summaryLines = [
-    `已处理 ${images.length} 张图片，成功 ${succeeded.length} 张，跳过 ${skipped.length} 张。`,
-    `共生成 ${totalBoxes} 个带标签的候选框。`,
+    cancelled
+      ? `标注已取消；已完成 ${succeeded.length} 张，跳过 ${skipped.length} 张。`
+      : `已处理 ${images.length} 张图片，成功 ${succeeded.length} 张，跳过 ${skipped.length} 张。`,
+    `共生成 ${totalBoxes} 个框（已标 ${labeledBoxCount}${unlabeledBoxes ? `，留空 ${unlabeledBoxes}` : ''}）。`,
     judged
       ? `评分复核：通过 ${accepted} 张，弱通过 ${weakAccepted} 张，拒绝 ${rejected} 张。`
       : '',

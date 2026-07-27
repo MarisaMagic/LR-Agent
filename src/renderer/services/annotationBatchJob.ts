@@ -53,6 +53,7 @@ export async function startAnnotationBatchJob(options: {
       currentFileAbsolutePath: options.currentFileAbsolutePath,
       detectionModels: options.detectionModels,
       isCancelled,
+      abortSignal: options.signal,
       providerApiKey: options.providerApiKey ?? '',
       providerBaseUrl: options.providerBaseUrl ?? '',
       providerModel: options.providerModel ?? '',
@@ -63,7 +64,9 @@ export async function startAnnotationBatchJob(options: {
       if (event.type === 'proposal') {
         outcome.hasProposal = true;
         outcome.processedImages = event.proposal.stats.processed;
-        outcome.summary = `批量标注完成：处理 ${event.proposal.stats.processed} 张，共 ${event.proposal.stats.totalBoxes} 个框。`;
+        outcome.summary = event.proposal.stats.cancelled
+          ? `标注已取消，已保存 ${event.proposal.stats.succeeded} 张的部分结果。`
+          : `批量标注完成：处理 ${event.proposal.stats.processed} 张，共 ${event.proposal.stats.totalBoxes} 个框。`;
       }
       if (event.type === 'text' && !outcome.hasProposal) {
         outcome.status = 'skipped';

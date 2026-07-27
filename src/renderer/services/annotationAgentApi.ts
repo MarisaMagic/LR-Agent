@@ -17,12 +17,14 @@ interface ApiSuccess<T> {
 async function postAnnotationLlm<T>(
   path: string,
   body: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<T> {
   requireCloudAuth();
 
   const response = await authFetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
     body: JSON.stringify(body),
+    signal,
   });
 
   if (!response.ok) {
@@ -51,6 +53,7 @@ export async function prepareBatchAnnotation(
     providerBaseUrl?: string;
     providerModel?: string;
     providerSupportsVision?: boolean;
+    signal?: AbortSignal;
   },
 ): Promise<BatchPrepareResult> {
   const body: Record<string, unknown> = {
@@ -93,6 +96,7 @@ export async function prepareBatchAnnotation(
   return postAnnotationLlm<BatchPrepareResult>(
     '/agent/annotation/batch-prepare',
     body,
+    options.signal,
   );
 }
 
@@ -215,6 +219,7 @@ export async function mapDetectionBoxesUnified(
     providerBaseUrl?: string;
     providerModel?: string;
     providerSupportsVision?: boolean;
+    signal?: AbortSignal;
   },
 ): Promise<MapDetectionBoxesUnifiedResult> {
   return postAnnotationLlm<MapDetectionBoxesUnifiedResult>(
@@ -240,6 +245,7 @@ export async function mapDetectionBoxesUnified(
       previous_mappings: options.previousMappings ?? [],
       attempt: options.attempt ?? 0,
     },
+    options.signal,
   );
 }
 
@@ -268,6 +274,7 @@ export async function judgeDetectionLabels(
     providerBaseUrl?: string;
     providerModel?: string;
     providerSupportsVision?: boolean;
+    signal?: AbortSignal;
   },
 ): Promise<JudgeDetectionLabelsResult> {
   const result = await postAnnotationLlm<{
@@ -305,8 +312,10 @@ export async function judgeDetectionLabels(
     image_absolute_path: options.imageAbsolutePath ?? '',
     image_base64: options.imageBase64 ?? '',
     attempt: options.attempt ?? 0,
-    max_retries: options.maxRetries ?? 3,
-  });
+    max_retries: options.maxRetries ?? 1,
+  },
+  options.signal,
+  );
   return {
     ok: result.ok,
     error: result.error,

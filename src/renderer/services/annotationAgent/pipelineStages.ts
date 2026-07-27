@@ -17,15 +17,14 @@ export const REPORT_PIPELINE_STAGE_LABELS: Record<string, string> = {
   prepare: '生成报告',
 };
 
+/** 批量标注流水线 UI 阶段（精简后） */
 export const PIPELINE_STAGE_LABELS: Record<string, string> = {
   prepare: '准备',
-  resolve: '定位目标',
-  task: '解析任务',
-  catalog: '扫描图片',
-  scope: '解析范围',
-  plan: '生成计划',
   workers: '批量处理',
   worker: '处理图片',
+  detect: '目标检测',
+  map: '标签映射',
+  finalize: '生成提案',
   judge: '评分复核',
   retry: '重新打标签',
   tool: '工具调用',

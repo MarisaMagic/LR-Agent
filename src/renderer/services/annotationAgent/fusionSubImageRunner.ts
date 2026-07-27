@@ -26,6 +26,7 @@ export async function runFusionSubImageAgent(options: {
   providerBaseUrl?: string;
   providerModel?: string;
   providerSupportsVision?: boolean;
+  signal?: AbortSignal;
 }): Promise<FusionSubImageResult> {
   return runDeterministicSubImageAgent(options);
 }

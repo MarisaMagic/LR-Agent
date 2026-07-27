@@ -34,6 +34,8 @@ export interface SubAgentConstraints {
 export interface JudgeConfig {
   enabled: boolean;
   maxRetries: number;
+  /** reject 重试耗尽后仍提交部分标注（默认 true） */
+  rejectSubmitPartial?: boolean;
 }
 
 export interface BatchAnnotationPlan {
@@ -120,6 +122,8 @@ export interface AnnotationBatchProposal {
     weakAccepted?: number;
     rejected?: number;
     retryRounds?: number;
+    unlabeledBoxes?: number;
+    cancelled?: boolean;
   };
   plan?: BatchAnnotationPlan;
   createdAt: number;

@@ -15,6 +15,7 @@ export interface FusionSubImageResult {
   keptCount?: number;
   mappedCount?: number;
   unmappedCount?: number;
+  unlabeledInProposal?: number;
   autoFinalized?: boolean;
   method?: string;
   mapHint?: string;
