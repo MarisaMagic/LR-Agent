@@ -3,7 +3,7 @@ import type { AnnotationProjectSnapshot } from '../../../shared/annotationAgentT
 import type { StreamEvent } from '../../../shared/agentTypes';
 import { ApiError } from '../../types/auth';
 import { authFetch, parseApiError } from '../authenticatedFetch';
-import tokenHolder from '../tokenHolder';
+import { requireCloudAuth } from '../cloudAuthGuard';
 import { buildAnnotationStatsSnapshot } from './buildAnnotationStatsSnapshot';
 
 const MAX_RUN_ATTEMPTS = 3;
@@ -70,20 +70,26 @@ async function prepareAnalysisScript(
   providerId: string,
   userRequest: string,
   dataSnapshot: Record<string, unknown>,
-  sessionId?: string,
-  repairContext?: AnalysisRepairContext,
+  options: {
+    sessionId?: string;
+    repairContext?: AnalysisRepairContext;
+    providerApiKey?: string;
+    providerBaseUrl?: string;
+    providerModel?: string;
+  } = {},
 ): Promise<{ script: string; explanation: string; attempts?: number }> {
-  if (!tokenHolder.getAccessToken()) {
-    throw new ApiError(401, 'not_authenticated');
-  }
+  requireCloudAuth();
   const response = await authFetch(`${API_BASE_URL}/agent/analysis/prepare`, {
     method: 'POST',
     body: JSON.stringify({
       provider_id: providerId,
+      api_key: options.providerApiKey ?? '',
+      base_url: options.providerBaseUrl ?? '',
+      model: options.providerModel ?? '',
       user_request: userRequest,
       data_snapshot: dataSnapshot,
-      session_id: sessionId ?? null,
-      repair_context: repairContext ?? null,
+      session_id: options.sessionId ?? null,
+      repair_context: options.repairContext ?? null,
     }),
   });
   if (!response.ok) {
@@ -121,16 +127,20 @@ async function* streamAnalysisSummary(options: {
   explanation: string;
   stdout: string;
   signal?: AbortSignal;
+  providerApiKey?: string;
+  providerBaseUrl?: string;
+  providerModel?: string;
 }): AsyncGenerator<string> {
-  if (!tokenHolder.getAccessToken()) {
-    throw new ApiError(401, 'not_authenticated');
-  }
+  requireCloudAuth();
 
   const response = await authFetch(`${API_BASE_URL}/agent/analysis/summarize/stream`, {
     method: 'POST',
     headers: { Accept: 'text/event-stream' },
     body: JSON.stringify({
       provider_id: options.providerId,
+      api_key: options.providerApiKey ?? '',
+      base_url: options.providerBaseUrl ?? '',
+      model: options.providerModel ?? '',
       user_request: options.userRequest,
       session_id: options.sessionId ?? null,
       script: options.script,
@@ -182,6 +192,9 @@ export async function* runDataAnalysisJob(options: {
   sessionId?: string;
   isCancelled?: () => boolean;
   signal?: AbortSignal;
+  providerApiKey?: string;
+  providerBaseUrl?: string;
+  providerModel?: string;
 }): AsyncGenerator<AnalysisProgressEvent> {
   yield progress('collect', '收集标注统计数据', 'running');
   let snapshot;
@@ -226,8 +239,13 @@ export async function* runDataAnalysisJob(options: {
         options.providerId,
         options.userRequest,
         dataPayload,
-        options.sessionId,
-        repairContext,
+        {
+          sessionId: options.sessionId,
+          repairContext,
+          providerApiKey: options.providerApiKey,
+          providerBaseUrl: options.providerBaseUrl,
+          providerModel: options.providerModel,
+        },
       );
     } catch (err) {
       yield progress(
@@ -302,6 +320,9 @@ export async function* runDataAnalysisJob(options: {
       explanation: prepared.explanation,
       stdout,
       signal: options.signal,
+      providerApiKey: options.providerApiKey,
+      providerBaseUrl: options.providerBaseUrl,
+      providerModel: options.providerModel,
     })) {
       if (options.isCancelled?.()) return;
       summaryStarted = true;

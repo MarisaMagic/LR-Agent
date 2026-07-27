@@ -66,7 +66,30 @@ function syncWindowBackground(window: BrowserWindow, isDark: boolean): void {
   window.setBackgroundColor(themeWindowBackground(isDark));
 }
 
-function registerThemeIpcHandlers(): void {
+function getThemeIconPath(isDark: boolean): string {
+  return isDark ? 'icon-dark.png' : 'icon-light.png';
+}
+
+function syncWindowIcon(
+  window: BrowserWindow,
+  isDark: boolean,
+  getAssetPath: (...paths: string[]) => string,
+): void {
+  window.setIcon(getAssetPath(getThemeIconPath(isDark)));
+}
+
+function syncWindowTheme(
+  window: BrowserWindow,
+  isDark: boolean,
+  getAssetPath: (...paths: string[]) => string,
+): void {
+  syncWindowBackground(window, isDark);
+  syncWindowIcon(window, isDark, getAssetPath);
+}
+
+function registerThemeIpcHandlers(
+  getAssetPath: (...paths: string[]) => string,
+): void {
   if (themeIpcRegistered) return;
   themeIpcRegistered = true;
 
@@ -75,7 +98,7 @@ function registerThemeIpcHandlers(): void {
   ipcMain.on('theme:notifyEffectiveTheme', (event, theme: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window) return;
-    syncWindowBackground(window, theme === 'dark');
+    syncWindowTheme(window, theme === 'dark', getAssetPath);
   });
 
   nativeTheme.on('updated', () => {
@@ -458,6 +481,10 @@ function registerWindowIpcHandlers(): void {
   ipcMain.on('window:maximize', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window) return;
+    if (window.isFullScreen()) {
+      window.setFullScreen(false);
+      return;
+    }
     if (window.isMaximized()) {
       window.unmaximize();
     } else {
@@ -488,6 +515,11 @@ function registerWindowIpcHandlers(): void {
     return window?.isMaximized() ?? false;
   });
 
+  ipcMain.handle('window:isFullScreen', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    return window?.isFullScreen() ?? false;
+  });
+
   ipcMain.handle('window:openExternal', async (_event, url: string) => {
     await shell.openExternal(url);
   });
@@ -497,9 +529,14 @@ function attachWindowStateEvents(window: BrowserWindow): void {
   const notifyMaximizeChange = (isMaximized: boolean) => {
     window.webContents.send('window:maximize-change', isMaximized);
   };
+  const notifyFullScreenChange = (isFullScreen: boolean) => {
+    window.webContents.send('window:fullscreen-change', isFullScreen);
+  };
 
   window.on('maximize', () => notifyMaximizeChange(true));
   window.on('unmaximize', () => notifyMaximizeChange(false));
+  window.on('enter-full-screen', () => notifyFullScreenChange(true));
+  window.on('leave-full-screen', () => notifyFullScreenChange(false));
 }
 
 if (process.env.NODE_ENV === 'production') {
@@ -543,7 +580,7 @@ const createWindow = async () => {
   const isMac = process.platform === 'darwin';
 
   registerWindowIpcHandlers();
-  registerThemeIpcHandlers();
+  registerThemeIpcHandlers(getAssetPath);
 
   const initialDark = nativeTheme.shouldUseDarkColors;
 
@@ -554,7 +591,7 @@ const createWindow = async () => {
     minWidth: WINDOW_MIN_WIDTH,
     minHeight: WINDOW_MIN_HEIGHT,
     backgroundColor: themeWindowBackground(initialDark),
-    icon: getAssetPath('icon.png'),
+    icon: getAssetPath(getThemeIconPath(initialDark)),
     ...(isMac
       ? {
           titleBarStyle: 'hiddenInset',

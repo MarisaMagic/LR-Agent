@@ -28,7 +28,7 @@
 }
 
 .text-classification-file-path {
-  font-size: 12px;
+  font-size: var(--text-annotation-font-ui);
   color: var(--vscode-descriptionForeground);
   max-width: 300px;
   overflow: hidden;
@@ -37,7 +37,7 @@
 }
 
 .text-classification-stats {
-  font-size: 12px;
+  font-size: var(--text-annotation-font-ui);
   color: var(--vscode-badge-foreground);
   background: var(--vscode-badge-background);
   padding: 2px 8px;
@@ -64,7 +64,7 @@
 }
 
 .text-classification-text-content {
-  font-size: 13px;
+  font-size: var(--text-annotation-font-body);
   line-height: 1.7;
   color: var(--vscode-editor-foreground);
   white-space: pre-wrap;
@@ -89,13 +89,13 @@
 
 .text-classification-heading {
   margin: 0 0 8px 0;
-  font-size: 13px;
+  font-size: var(--text-annotation-font-body);
   font-weight: 600;
   color: var(--vscode-foreground);
 }
 
 .text-classification-muted {
-  font-size: 12px;
+  font-size: var(--text-annotation-font-ui);
   color: var(--vscode-descriptionForeground);
   font-style: italic;
   margin: 0;
@@ -117,7 +117,7 @@
 }
 
 .text-classification-index {
-  font-size: 11px;
+  font-size: var(--text-annotation-font-label);
   color: var(--vscode-descriptionForeground);
   min-width: 24px;
 }
@@ -126,13 +126,13 @@
   display: inline-block;
   padding: 2px 8px;
   border-radius: 3px;
-  font-size: 12px;
+  font-size: var(--text-annotation-font-ui);
   font-weight: 500;
   color: #fff;
 }
 
 .text-classification-unknown {
-  font-size: 12px;
+  font-size: var(--text-annotation-font-ui);
   color: var(--vscode-descriptionForeground);
   font-style: italic;
 }
@@ -146,7 +146,7 @@
 
 .text-classification-label-select {
   padding: 2px 4px;
-  font-size: 11px;
+  font-size: var(--text-annotation-font-label);
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
   border: 1px solid var(--vscode-input-border);
@@ -169,7 +169,7 @@
   border: 1px solid var(--label-color);
   border-radius: 4px;
   color: var(--vscode-foreground);
-  font-size: 12px;
+  font-size: var(--text-annotation-font-ui);
   font-family: var(--vscode-font-family);
   cursor: pointer;
   transition: background 0.15s ease;

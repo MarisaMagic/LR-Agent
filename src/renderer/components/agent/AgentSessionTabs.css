@@ -99,7 +99,19 @@
 }
 
 .agent-session-tab--active {
+  position: relative;
   background: var(--lr-agent-panel-background);
+}
+
+.agent-session-tab--active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--lr-tab-active-border-top, var(--lr-accent-blue));
+  z-index: 1;
 }
 
 .agent-session-tab-main {

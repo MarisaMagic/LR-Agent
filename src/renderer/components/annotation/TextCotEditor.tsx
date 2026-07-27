@@ -141,7 +141,7 @@ export default function TextCotEditor() {
           <div className="text-lfm-field">
             <label className="text-lfm-label">推理描述</label>
             <textarea
-              className="text-lfm-textarea"
+              className="text-lfm-textarea text-lfm-textarea--compact"
               value={step.description}
               onChange={(e) => onUpdate(idx, 'description', e.target.value)}
               placeholder="这一步的推理过程…"
@@ -151,7 +151,7 @@ export default function TextCotEditor() {
           <div className="text-lfm-field">
             <label className="text-lfm-label">中间结论</label>
             <textarea
-              className="text-lfm-textarea"
+              className="text-lfm-textarea text-lfm-textarea--compact"
               value={step.conclusion}
               onChange={(e) => onUpdate(idx, 'conclusion', e.target.value)}
               placeholder="这一步得出的结论…"
@@ -208,7 +208,7 @@ export default function TextCotEditor() {
             <div className="text-lfm-field">
               <label className="text-lfm-label">Instruction（可选）</label>
               <textarea
-                className="text-lfm-textarea"
+                className="text-lfm-textarea text-lfm-textarea--compact"
                 placeholder="任务指令，如：请逐步推理以下问题"
                 value={instruction}
                 onChange={(e) => setInstruction(e.target.value)}

@@ -21,13 +21,13 @@
 }
 
 .text-source-preview-title {
-  font-size: 12px;
+  font-size: var(--text-annotation-font-ui);
   font-weight: 600;
   color: var(--vscode-foreground);
 }
 
 .text-source-preview-path {
-  font-size: 11px;
+  font-size: var(--text-annotation-font-label);
   color: var(--vscode-descriptionForeground);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -52,7 +52,7 @@
 
 .text-source-preview-content {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-annotation-font-body);
   line-height: 1.7;
   color: var(--vscode-editor-foreground);
   white-space: pre-wrap;
@@ -62,7 +62,7 @@
 
 .text-source-preview-muted {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-annotation-font-ui);
   color: var(--vscode-descriptionForeground);
   font-style: italic;
 }

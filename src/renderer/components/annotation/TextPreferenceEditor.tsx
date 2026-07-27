@@ -146,7 +146,7 @@ export default function TextPreferenceEditor() {
                   Chosen（优选）*
                 </label>
                 <textarea
-                  className="text-lfm-textarea"
+                  className="text-lfm-textarea text-lfm-textarea--large"
                   placeholder="更好的回答"
                   value={chosen}
                   onChange={(e) => setChosen(e.target.value)}
@@ -159,7 +159,7 @@ export default function TextPreferenceEditor() {
                   Rejected（劣选）*
                 </label>
                 <textarea
-                  className="text-lfm-textarea"
+                  className="text-lfm-textarea text-lfm-textarea--large"
                   placeholder="较差的回答"
                   value={rejected}
                   onChange={(e) => setRejected(e.target.value)}
@@ -170,7 +170,7 @@ export default function TextPreferenceEditor() {
             <div className="text-lfm-field">
               <label className="text-lfm-label">偏好理由（可选）</label>
               <textarea
-                className="text-lfm-textarea"
+                className="text-lfm-textarea text-lfm-textarea--compact"
                 placeholder="可选，标注偏好原因"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}

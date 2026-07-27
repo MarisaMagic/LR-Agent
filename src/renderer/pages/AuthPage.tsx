@@ -39,7 +39,7 @@ export default function AuthPage() {
     );
   }
 
-  if (status === 'authenticated') {
+  if (status === 'authenticated' || status === 'authenticated_offline') {
     return <Navigate to="/" replace />;
   }
 

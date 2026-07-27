@@ -1,5 +1,11 @@
 import { ipcMain } from 'electron';
 import {
+  clearSessionCache,
+  getSessionCache,
+  setSessionCache,
+  type LocalSessionCache,
+} from './sessionCacheStore';
+import {
   clearRefreshToken,
   getRefreshToken,
   setRefreshToken,
@@ -12,5 +18,15 @@ export default function registerAuthHandlers(): void {
   });
   ipcMain.handle('auth:clearRefreshToken', async () => {
     await clearRefreshToken();
+  });
+  ipcMain.handle('auth:getSessionCache', async () => getSessionCache());
+  ipcMain.handle(
+    'auth:setSessionCache',
+    async (_event, cache: LocalSessionCache) => {
+      await setSessionCache(cache);
+    },
+  );
+  ipcMain.handle('auth:clearSessionCache', async () => {
+    await clearSessionCache();
   });
 }

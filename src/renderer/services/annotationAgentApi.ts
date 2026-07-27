@@ -6,9 +6,8 @@ import type {
   BatchPrepareResult,
   ImageCandidate,
 } from '../../shared/annotationAgentTypes';
-import { ApiError } from '../types/auth';
 import { authFetch, parseApiError } from './authenticatedFetch';
-import tokenHolder from './tokenHolder';
+import { requireCloudAuth } from './cloudAuthGuard';
 
 interface ApiSuccess<T> {
   code?: number;
@@ -19,9 +18,7 @@ async function postAnnotationLlm<T>(
   path: string,
   body: Record<string, unknown>,
 ): Promise<T> {
-  if (!tokenHolder.getAccessToken()) {
-    throw new ApiError(401, 'not_authenticated');
-  }
+  requireCloudAuth();
 
   const response = await authFetch(`${API_BASE_URL}${path}`, {
     method: 'POST',

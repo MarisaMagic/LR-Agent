@@ -268,6 +268,9 @@ async function runClientTool(
         sessionId,
         signal: controller.signal,
         onEvent,
+        providerApiKey,
+        providerBaseUrl,
+        providerModel,
       });
     } catch {
       // already emitted

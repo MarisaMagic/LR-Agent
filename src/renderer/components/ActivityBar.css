@@ -27,10 +27,16 @@
   position: relative;
   width: 48px;
   height: 48px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  border-radius: 6px;
+  color: var(--vscode-activityBar-inactiveForeground, #858585);
 }
 
 .activity-icon-wrap vscode-icon {
@@ -46,12 +52,11 @@
 
 .activity-icon-wrap.activity-icon-active,
 .activity-avatar-btn.activity-icon-active {
-  border-radius: 6px;
   background: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.31));
 }
 
-.activity-icon-wrap:hover:not(.activity-icon-active) {
-  border-radius: 6px;
+.activity-icon-wrap:hover:not(.activity-icon-active):not(:disabled) {
+  color: var(--vscode-activityBar-foreground, #ffffff);
   background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
@@ -80,6 +85,18 @@
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-activityBar-inactiveForeground, #858585);
   font-size: 18px;
+}
+
+.activity-offline-dot {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--vscode-notificationsWarningIcon-foreground, #cca700);
+  border: 1.5px solid var(--vscode-activityBar-background, #333);
+  pointer-events: none;
 }
 
 .activity-theme-toggle {
@@ -170,7 +187,8 @@
   transform: scale(1.06);
 }
 
-.activity-icon-wrap.activity-icon-disabled {
+.activity-icon-wrap.activity-icon-disabled,
+.activity-icon-wrap:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   pointer-events: none;

@@ -14,6 +14,9 @@ export type Channels =
   | 'auth:getRefreshToken'
   | 'auth:setRefreshToken'
   | 'auth:clearRefreshToken'
+  | 'auth:getSessionCache'
+  | 'auth:setSessionCache'
+  | 'auth:clearSessionCache'
   | 'window:minimize'
   | 'window:maximize'
   | 'window:close'
@@ -21,6 +24,7 @@ export type Channels =
   | 'window:toggleDevTools'
   | 'window:toggleFullScreen'
   | 'window:maximize-change'
+  | 'window:fullscreen-change'
   | 'menu:createAnnotationProject'
   | 'theme:systemChanged'
   | 'theme:notifyEffectiveTheme'
@@ -94,12 +98,20 @@ const electronHandler = {
     },
     isMaximized: (): Promise<boolean> =>
       ipcRenderer.invoke('window:isMaximized'),
+    isFullScreen: (): Promise<boolean> =>
+      ipcRenderer.invoke('window:isFullScreen'),
     openExternal: (url: string): Promise<void> =>
       ipcRenderer.invoke('window:openExternal', url),
     onMaximizeChange: (
       callback: (isMaximized: boolean) => void,
     ): (() => void) =>
       electronHandler.ipcRenderer.on('window:maximize-change', (value) => {
+        callback(Boolean(value));
+      }),
+    onFullScreenChange: (
+      callback: (isFullScreen: boolean) => void,
+    ): (() => void) =>
+      electronHandler.ipcRenderer.on('window:fullscreen-change', (value) => {
         callback(Boolean(value));
       }),
   },
@@ -128,6 +140,13 @@ const electronHandler = {
       ipcRenderer.invoke('auth:setRefreshToken', token),
     clearRefreshToken: (): Promise<void> =>
       ipcRenderer.invoke('auth:clearRefreshToken'),
+    getSessionCache: (): Promise<import('./auth/sessionCacheStore').LocalSessionCache | null> =>
+      ipcRenderer.invoke('auth:getSessionCache'),
+    setSessionCache: (
+      cache: import('./auth/sessionCacheStore').LocalSessionCache,
+    ): Promise<void> => ipcRenderer.invoke('auth:setSessionCache', cache),
+    clearSessionCache: (): Promise<void> =>
+      ipcRenderer.invoke('auth:clearSessionCache'),
   },
   theme: {
     getSystemDark: (): Promise<boolean> =>

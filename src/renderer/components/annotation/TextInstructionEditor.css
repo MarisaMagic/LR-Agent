@@ -29,13 +29,13 @@
 }
 
 .text-lfm-title {
-  font-size: 13px;
+  font-size: var(--text-annotation-font-body);
   font-weight: 600;
   color: var(--vscode-foreground);
 }
 
 .text-lfm-stats {
-  font-size: 12px;
+  font-size: var(--text-annotation-font-ui);
   color: var(--vscode-badge-foreground);
   background: var(--vscode-badge-background);
   padding: 2px 8px;
@@ -44,7 +44,7 @@
 
 .text-lfm-freeform-banner {
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: var(--text-annotation-font-ui);
   color: var(--vscode-descriptionForeground);
   background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 12%, transparent);
   border-bottom: 1px solid var(--vscode-panel-border);
@@ -75,7 +75,7 @@
 
 .text-lfm-heading {
   margin: 0 0 8px 0;
-  font-size: 13px;
+  font-size: var(--text-annotation-font-body);
   font-weight: 600;
   color: var(--vscode-foreground);
 }
@@ -86,7 +86,7 @@
 
 .text-lfm-label {
   display: block;
-  font-size: 11px;
+  font-size: var(--text-annotation-font-label);
   font-weight: 500;
   color: var(--vscode-descriptionForeground);
   margin-bottom: 4px;
@@ -97,22 +97,36 @@
   width: 100%;
   box-sizing: border-box;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: var(--text-annotation-font-body);
   line-height: 1.6;
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
   border: 1px solid var(--vscode-input-border);
   border-radius: 4px;
   resize: vertical;
+  min-height: var(--text-annotation-textarea-min-height);
+  max-height: var(--text-annotation-textarea-max-height);
+  overflow-y: auto;
   font-family: var(--vscode-font-family);
   transition: border-color 0.15s;
+}
+
+.text-lfm-textarea--compact {
+  min-height: var(--text-annotation-textarea-compact-min-height);
+}
+
+.text-lfm-textarea--large {
+  min-height: var(--text-annotation-textarea-large-min-height);
+  max-height: var(--text-annotation-textarea-large-max-height);
 }
 
 /* 源文本 / Input 字段：等宽字体 */
 .text-lfm-textarea--source {
   font-family: var(--vscode-editor-font-family);
-  font-size: 12px;
+  font-size: var(--text-annotation-font-source);
   line-height: 1.55;
+  min-height: var(--text-annotation-textarea-source-min-height);
+  max-height: var(--text-annotation-textarea-source-max-height);
 }
 
 .text-lfm-textarea:focus {
@@ -127,7 +141,7 @@
 }
 
 .text-lfm-muted {
-  font-size: 12px;
+  font-size: var(--text-annotation-font-ui);
   color: var(--vscode-descriptionForeground);
   font-style: italic;
 }

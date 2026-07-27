@@ -43,7 +43,6 @@ function WorkModeToggleButton() {
         <VscodeIcon
           name={isEditor ? 'edit-sparkle' : 'inspect'}
           size={24}
-          actionIcon
           label={label}
         />
       </span>
@@ -80,14 +79,18 @@ function AccountAvatarButton({
   active: boolean;
   onClick: () => void;
 }) {
-  const { user } = useAuth();
+  const { user, isOfflineMode } = useAuth();
+  const onlineLabel = '账户设置';
+  const offlineLabel =
+    '离线模式。文件编辑、标注任务、本地对话可用；云端 Agent、标注分析暂不可用。恢复网络后将自动重连。';
+  const label = isOfflineMode ? offlineLabel : onlineLabel;
 
   return (
     <button
       type="button"
       className={`activity-avatar-btn ${active ? 'activity-icon-active' : ''}`}
-      aria-label="账户设置"
-      title="账户设置"
+      aria-label={label}
+      title={label}
       onClick={onClick}
     >
       {user ? (
@@ -95,6 +98,9 @@ function AccountAvatarButton({
       ) : (
         <span className="activity-avatar-fallback codicon codicon-account" />
       )}
+      {isOfflineMode ? (
+        <span className="activity-offline-dot" aria-hidden />
+      ) : null}
     </button>
   );
 }

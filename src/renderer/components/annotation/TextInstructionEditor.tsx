@@ -138,7 +138,7 @@ export default function TextInstructionEditor() {
             <div className="text-lfm-field">
               <label className="text-lfm-label">Output（标准答案）*</label>
               <textarea
-                className="text-lfm-textarea"
+                className="text-lfm-textarea text-lfm-textarea--large"
                 placeholder="标准答案/期望输出"
                 value={output}
                 onChange={(e) => setOutput(e.target.value)}

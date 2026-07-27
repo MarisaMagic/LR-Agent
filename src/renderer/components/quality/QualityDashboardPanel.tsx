@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { VscodeIcon } from '@vscode-elements/react-elements';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
-import { useTheme } from '../../context/ThemeContext';
 import { buildAnnotationProjectSnapshot } from '../../services/buildProjectSnapshot';
 import { deriveCurrentFolderPath } from '../../services/annotationQuality/buildQualitySnapshot';
 import { loadQualityDashboard } from '../../services/annotationQuality/reportGenerationRunner';
@@ -21,9 +20,6 @@ import './QualityDashboardPanel.css';
 export default function QualityDashboardPanel() {
   const { activeProject } = useAnnotation();
   const { relativeFilePath } = useAnnotationWorkspace();
-  const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'dark';
-
   const [scope, setScope] = useState<QualityScope>('full_project');
   const [viewModel, setViewModel] = useState<QualityDashboardViewModel | null>(
     null,
@@ -149,11 +145,7 @@ export default function QualityDashboardPanel() {
 
             <div className="quality-metrics-grid">
               {chartMetrics.map((metric) => (
-                <QualityMetricCard
-                  key={metric.id}
-                  metric={metric}
-                  isDark={isDark}
-                />
+                <QualityMetricCard key={metric.id} metric={metric} />
               ))}
             </div>
 

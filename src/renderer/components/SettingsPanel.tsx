@@ -22,7 +22,7 @@ const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 export default function SettingsPanel() {
   const navigate = useNavigate();
-  const { user, setUser, logout, refreshUser } = useAuth();
+  const { user, setUser, logout, refreshUser, isOfflineMode } = useAuth();
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -43,11 +43,14 @@ export default function SettingsPanel() {
 
   useEffect(() => {
     const onFocus = () => {
+      if (isOfflineMode) {
+        return;
+      }
       refreshUser().catch(() => undefined);
     };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, [refreshUser]);
+  }, [refreshUser, isOfflineMode]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;

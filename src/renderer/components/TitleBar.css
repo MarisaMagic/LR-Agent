@@ -1,6 +1,6 @@
 .title-bar {
   --lr-titlebar-height: 40px;
-  --lr-titlebar-icon-size: 18px;
+  --lr-titlebar-icon-size: 26px;
   display: flex;
   align-items: stretch;
   flex-shrink: 0;
@@ -53,6 +53,21 @@
 .title-bar-menu-trigger:hover,
 .title-bar-menu-trigger-active {
   background: var(--lr-titlebar-menu-hover, rgba(255, 255, 255, 0.08));
+}
+
+.title-bar-menu-trigger:focus:not(:focus-visible),
+.title-bar-menu-item:focus:not(:focus-visible),
+.title-bar-control:focus:not(:focus-visible),
+.layout-control-btn:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.title-bar-menu-trigger:focus-visible,
+.title-bar-menu-item:focus-visible,
+.title-bar-control:focus-visible,
+.layout-control-btn:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
 }
 
 .title-bar-menu-dropdown {

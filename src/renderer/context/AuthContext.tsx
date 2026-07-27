@@ -7,16 +7,17 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { UserPublic } from '../types/auth';
+import { AuthStatus, UserPublic } from '../types/auth';
 import * as authService from '../services/auth';
 import * as userService from '../services/user';
 import tokenHolder from '../services/tokenHolder';
-
-export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+import { setOfflineMode } from '../services/authMode';
 
 interface AuthContextValue {
   status: AuthStatus;
   user: UserPublic | null;
+  isAuthenticated: boolean;
+  isOfflineMode: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -27,11 +28,16 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function statusToOfflineMode(status: AuthStatus): boolean {
+  return status === 'authenticated_offline';
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<UserPublic | null>(null);
 
   const handleSessionExpired = useCallback(() => {
+    setOfflineMode(false);
     setUser(null);
     setStatus('unauthenticated');
   }, []);
@@ -42,20 +48,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [handleSessionExpired]);
 
   useEffect(() => {
+    setOfflineMode(statusToOfflineMode(status));
+  }, [status]);
+
+  const applyRestoreResult = useCallback(
+    (result: Awaited<ReturnType<typeof authService.restoreSession>>) => {
+      if (result.mode === 'online') {
+        setUser(result.user);
+        setStatus('authenticated');
+        return;
+      }
+      if (result.mode === 'offline') {
+        setUser(result.user);
+        setStatus('authenticated_offline');
+        return;
+      }
+      setUser(null);
+      setStatus('unauthenticated');
+    },
+    [],
+  );
+
+  useEffect(() => {
     let cancelled = false;
 
     async function bootstrap() {
       try {
-        const restoredUser = await authService.restoreSession();
+        const result = await authService.restoreSession();
         if (cancelled) return;
-        if (restoredUser) {
-          setUser(restoredUser);
-          setStatus('authenticated');
-        } else {
-          setStatus('unauthenticated');
-        }
+        applyRestoreResult(result);
       } catch {
         if (!cancelled) {
+          setUser(null);
           setStatus('unauthenticated');
         }
       }
@@ -65,7 +89,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applyRestoreResult]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      return undefined;
+    }
+
+    const onOffline = () => {
+      tokenHolder.setAccessToken(null);
+      setStatus('authenticated_offline');
+    };
+
+    window.addEventListener('offline', onOffline);
+    return () => window.removeEventListener('offline', onOffline);
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== 'authenticated_offline') {
+      return undefined;
+    }
+
+    const attemptReconnect = async () => {
+      const result = await authService.tryRefreshSession();
+      if (result.mode === 'online') {
+        setUser(result.user);
+        setStatus('authenticated');
+      }
+    };
+
+    const onOnline = () => {
+      void attemptReconnect();
+    };
+
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [status]);
 
   const login = useCallback(async (email: string, password: string) => {
     const result = await authService.login(email, password);
@@ -94,10 +153,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(me);
   }, []);
 
+  const isAuthenticated =
+    status === 'authenticated' || status === 'authenticated_offline';
+  const isOfflineMode = status === 'authenticated_offline';
+
   const value = useMemo(
     () => ({
       status,
       user,
+      isAuthenticated,
+      isOfflineMode,
       login,
       register,
       logout,
@@ -105,7 +170,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshUser,
       setUser,
     }),
-    [status, user, login, register, logout, switchAccount, refreshUser],
+    [
+      status,
+      user,
+      isAuthenticated,
+      isOfflineMode,
+      login,
+      register,
+      logout,
+      switchAccount,
+      refreshUser,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -118,3 +193,5 @@ export function useAuth(): AuthContextValue {
   }
   return context;
 }
+
+export type { AuthStatus };

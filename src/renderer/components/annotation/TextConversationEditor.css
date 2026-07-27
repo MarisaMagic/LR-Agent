@@ -28,7 +28,7 @@
 
 .text-conv-role-select {
   padding: 2px 6px;
-  font-size: 11px;
+  font-size: var(--text-annotation-font-label);
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
   border: 1px solid var(--vscode-input-border);
@@ -37,7 +37,7 @@
 }
 
 .text-conv-turn-index {
-  font-size: 10px;
+  font-size: var(--text-annotation-font-meta);
   color: var(--vscode-descriptionForeground);
 }
 

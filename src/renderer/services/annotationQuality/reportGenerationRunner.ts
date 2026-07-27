@@ -1,8 +1,9 @@
 import { API_BASE_URL } from '../../config';
 import type { AnnotationProjectSnapshot } from '../../../shared/annotationAgentTypes';
+import type { EffectiveTheme } from '../../theme/themeConstants';
 import { ApiError } from '../../types/auth';
 import { authFetch, parseApiError } from '../authenticatedFetch';
-import tokenHolder from '../tokenHolder';
+import { requireCloudAuth } from '../cloudAuthGuard';
 import {
   buildQualitySnapshot,
   deriveCurrentFolderPath,
@@ -97,9 +98,7 @@ async function* streamQualityReportCompose(options: {
   payload: ReturnType<typeof buildComposePayload>;
   signal?: AbortSignal;
 }): AsyncGenerator<string> {
-  if (!tokenHolder.getAccessToken()) {
-    throw new ApiError(401, 'not_authenticated');
-  }
+  requireCloudAuth();
 
   const response = await authFetch(
     `${API_BASE_URL}/agent/annotation-quality/report/compose/stream`,
@@ -161,7 +160,7 @@ export async function* runQualityReportGeneration(options: {
   scope: QualityScope;
   scopePath?: string;
   relativeFilePath?: string | null;
-  isDark?: boolean;
+  theme?: EffectiveTheme;
   isCancelled?: () => boolean;
   signal?: AbortSignal;
 }): AsyncGenerator<QualityReportProgressEvent> {
@@ -253,7 +252,7 @@ export async function* runQualityReportGeneration(options: {
     const binding = bindings[i];
     try {
       const dataUrl = await renderChartToDataUrl(binding.option, {
-        isDark: options.isDark,
+        theme: options.theme,
       });
       const relative = await qualityApi.writeChart(
         options.project.directoryPath,

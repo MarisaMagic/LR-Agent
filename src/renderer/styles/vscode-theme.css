@@ -17,6 +17,9 @@
   --lr-accent: #888888;
   --lr-accent-hover: #aaaaaa;
   --lr-accent-muted: #777777;
+  --lr-accent-blue: #007acc;
+  --lr-accent-blue-hover: #1a8ad4;
+  --lr-tab-active-border-top: var(--lr-accent-blue);
 
   --vscode-font-family: 'LR-Agent UI', 'Noto Sans SC', 'Source Han Sans SC', '思源黑体',
     sans-serif;
@@ -118,7 +121,10 @@
   --vscode-textLink-foreground: #a0a0a0;
 
   --vscode-separator-border: #3e3e42;
-  --vscode-sash-hoverBorder: var(--lr-accent);
+  --lr-accent-blue: #007acc;
+  --lr-accent-blue-hover: #1a8ad4;
+  --lr-tab-active-border-top: var(--lr-accent-blue);
+  --vscode-sash-hoverBorder: var(--lr-accent-blue);
 
   --vscode-scrollbar-shadow: #000000;
   --vscode-scrollbarSlider-background: rgba(121, 121, 121, 0.4);
@@ -219,7 +225,10 @@
   --vscode-textLink-foreground: #555555;
 
   --vscode-separator-border: #e5e5e5;
-  --vscode-sash-hoverBorder: var(--lr-accent);
+  --lr-accent-blue: #005fb8;
+  --lr-accent-blue-hover: #006ecd;
+  --lr-tab-active-border-top: var(--lr-accent-blue);
+  --vscode-sash-hoverBorder: var(--lr-accent-blue);
 
   --vscode-scrollbar-shadow: rgba(0, 0, 0, 0.12);
   --vscode-scrollbarSlider-background: rgba(100, 100, 100, 0.35);

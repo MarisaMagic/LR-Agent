@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import './LayoutControls.css';
 
@@ -20,6 +21,35 @@ export function LeftSidebarToggle() {
           leftCollapsed
             ? 'codicon-layout-sidebar-left-off'
             : 'codicon-layout-sidebar-left'
+        }`}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
+export function FullScreenToggle() {
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  useEffect(() => {
+    window.electron.window.isFullScreen().then(setIsFullScreen);
+    return window.electron.window.onFullScreenChange(setIsFullScreen);
+  }, []);
+
+  const label = isFullScreen ? '退出全屏' : '切换全屏';
+
+  return (
+    <button
+      type="button"
+      className="layout-control-btn"
+      aria-label={label}
+      title={`${label} (F11)`}
+      aria-pressed={isFullScreen}
+      onClick={() => window.electron.window.toggleFullScreen()}
+    >
+      <span
+        className={`codicon ${
+          isFullScreen ? 'codicon-screen-normal' : 'codicon-screen-full'
         }`}
         aria-hidden="true"
       />

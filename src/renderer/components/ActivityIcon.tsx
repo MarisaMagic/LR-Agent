@@ -1,5 +1,4 @@
 import { VscodeIcon } from '@vscode-elements/react-elements';
-import { useEffect, useRef, type ComponentRef } from 'react';
 import './ActivityBar.css';
 
 interface ActivityIconProps {
@@ -17,30 +16,16 @@ export default function ActivityIcon({
   disabled = false,
   onClick,
 }: ActivityIconProps) {
-  const ref = useRef<ComponentRef<typeof VscodeIcon>>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || disabled) return undefined;
-
-    const handler = () => onClick();
-    el.addEventListener('vsc-click', handler);
-    return () => el.removeEventListener('vsc-click', handler);
-  }, [onClick, disabled]);
-
   return (
-    <div
+    <button
+      type="button"
       className={`activity-icon-wrap${active ? ' activity-icon-active' : ''}${disabled ? ' activity-icon-disabled' : ''}`}
-      aria-disabled={disabled || undefined}
+      aria-label={label}
       title={label}
+      disabled={disabled}
+      onClick={onClick}
     >
-      <VscodeIcon
-        ref={ref}
-        name={name}
-        size={24}
-        actionIcon
-        label={label}
-      />
-    </div>
+      <VscodeIcon name={name} size={24} label={label} />
+    </button>
   );
 }

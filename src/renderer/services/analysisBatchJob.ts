@@ -13,6 +13,9 @@ export async function startAnalysisBatchJob(options: {
   onEvent: (event: StreamEvent) => void;
   onPersistEvent?: (event: StreamEvent) => void;
   signal: AbortSignal;
+  providerApiKey?: string;
+  providerBaseUrl?: string;
+  providerModel?: string;
 }): Promise<void> {
   const emit = (event: StreamEvent): void => {
     options.onEvent(event);
@@ -28,6 +31,9 @@ export async function startAnalysisBatchJob(options: {
       sessionId: options.sessionId,
       isCancelled,
       signal: options.signal,
+      providerApiKey: options.providerApiKey,
+      providerBaseUrl: options.providerBaseUrl,
+      providerModel: options.providerModel,
     })) {
       if (isCancelled()) break;
       mapAndEmit(event, emit);

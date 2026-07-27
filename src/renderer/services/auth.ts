@@ -1,17 +1,35 @@
-import { MessageResponse, TokenResponse, UserPublic } from '../types/auth';
+import {
+  MessageResponse,
+  RestoreSessionResult,
+  TokenResponse,
+} from '../types/auth';
 import { resolveApiBaseUrl } from '../config';
 import tokenHolder from './tokenHolder';
 import { apiFetch } from './api';
-import { refreshSessionOnce } from './authenticatedFetch';
+import { isNetworkError } from './networkUtils';
+import {
+  clearSession,
+  persistSession,
+  readValidSessionCache,
+} from './sessionPersistence';
+import { decodeJwtPayload, isRefreshTokenExpiredLocally } from './jwtUtils';
 
-async function persistSession(result: TokenResponse): Promise<void> {
-  tokenHolder.setAccessToken(result.access_token);
-  await window.electron.auth.setRefreshToken(result.refresh_token);
-}
-
-async function clearSession(): Promise<void> {
-  tokenHolder.setAccessToken(null);
-  await window.electron.auth.clearRefreshToken();
+async function refreshWithToken(refreshToken: string): Promise<TokenResponse> {
+  try {
+    const result = await apiFetch<TokenResponse>('/auth/refresh', {
+      method: 'POST',
+      auth: false,
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    await persistSession(result);
+    return result;
+  } catch (err) {
+    if (isNetworkError(err)) {
+      throw err;
+    }
+    await clearSession();
+    throw err;
+  }
 }
 
 export async function register(email: string, password: string): Promise<void> {
@@ -63,13 +81,7 @@ export async function login(
 }
 
 export async function refresh(refreshToken: string): Promise<TokenResponse> {
-  const result = await apiFetch<TokenResponse>('/auth/refresh', {
-    method: 'POST',
-    auth: false,
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-  await persistSession(result);
-  return result;
+  return refreshWithToken(refreshToken);
 }
 
 export async function logout(): Promise<void> {
@@ -88,26 +100,54 @@ export async function logout(): Promise<void> {
   await clearSession();
 }
 
-export async function tryRefreshSession(): Promise<boolean> {
-  const refreshed = await refreshSessionOnce();
-  if (!refreshed) {
-    await clearSession();
-  }
-  return refreshed;
-}
-
-export async function restoreSession(): Promise<UserPublic | null> {
+export async function tryRefreshSession(): Promise<RestoreSessionResult> {
   const refreshToken = await window.electron.auth.getRefreshToken();
   if (!refreshToken) {
-    return null;
+    return { mode: 'none' };
   }
 
-  try {
-    const result = await refresh(refreshToken);
-    return result.user;
-  } catch {
+  const payload = decodeJwtPayload(refreshToken);
+  if (payload?.exp && isRefreshTokenExpiredLocally(payload.exp)) {
     await clearSession();
-    return null;
+    return { mode: 'none' };
+  }
+
+  const cache = await readValidSessionCache();
+
+  try {
+    const result = await refreshWithToken(refreshToken);
+    return { mode: 'online', user: result.user };
+  } catch (err) {
+    if (isNetworkError(err) && cache) {
+      return { mode: 'offline', user: cache.user };
+    }
+    return { mode: 'none' };
+  }
+}
+
+export async function restoreSession(): Promise<RestoreSessionResult> {
+  const refreshToken = await window.electron.auth.getRefreshToken();
+  if (!refreshToken) {
+    return { mode: 'none' };
+  }
+
+  const payload = decodeJwtPayload(refreshToken);
+  if (payload?.exp && isRefreshTokenExpiredLocally(payload.exp)) {
+    await clearSession();
+    return { mode: 'none' };
+  }
+
+  const cache = await readValidSessionCache();
+
+  try {
+    const result = await refreshWithToken(refreshToken);
+    return { mode: 'online', user: result.user };
+  } catch (err) {
+    if (isNetworkError(err) && cache) {
+      tokenHolder.setAccessToken(null);
+      return { mode: 'offline', user: cache.user };
+    }
+    return { mode: 'none' };
   }
 }
 

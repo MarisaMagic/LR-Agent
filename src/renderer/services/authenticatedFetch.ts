@@ -1,6 +1,9 @@
 import { API_BASE_URL } from '../config';
 import { ApiError, ApiErrorBody, TokenResponse } from '../types/auth';
 import tokenHolder from './tokenHolder';
+import { persistSession, clearSession } from './sessionPersistence';
+import { isOfflineMode } from './authMode';
+import { isAuthRejection, isNetworkError } from './networkUtils';
 
 let refreshInFlight: Promise<boolean> | null = null;
 
@@ -10,21 +13,29 @@ async function performRefresh(): Promise<boolean> {
     return false;
   }
 
-  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+  } catch (err) {
+    if (isNetworkError(err)) {
+      return false;
+    }
+    throw err;
+  }
 
   if (!response.ok) {
-    tokenHolder.setAccessToken(null);
-    await window.electron.auth.clearRefreshToken();
+    if (isAuthRejection(response.status)) {
+      await clearSession();
+    }
     return false;
   }
 
   const result = (await response.json()) as TokenResponse;
-  tokenHolder.setAccessToken(result.access_token);
-  await window.electron.auth.setRefreshToken(result.refresh_token);
+  await persistSession(result);
   return true;
 }
 
@@ -41,6 +52,9 @@ export async function refreshSessionOnce(): Promise<boolean> {
 export async function handleUnauthorized(): Promise<boolean> {
   const refreshed = await refreshSessionOnce();
   if (!refreshed) {
+    if (isOfflineMode()) {
+      return false;
+    }
     tokenHolder.notifySessionExpired();
   }
   return refreshed;
@@ -75,15 +89,26 @@ export async function authFetch(
     requestHeaders.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(url, {
-    ...rest,
-    headers: requestHeaders,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...rest,
+      headers: requestHeaders,
+    });
+  } catch (err) {
+    if (isNetworkError(err)) {
+      throw new ApiError(0, 'network_unavailable');
+    }
+    throw err;
+  }
 
   if (response.status === 401 && auth && !_retried) {
     const refreshed = await handleUnauthorized();
     if (refreshed) {
       return authFetch(url, { ...options, _retried: true });
+    }
+    if (isOfflineMode()) {
+      throw new ApiError(0, 'network_unavailable');
     }
     throw new ApiError(401, 'session_expired');
   }

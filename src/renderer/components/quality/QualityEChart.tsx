@@ -9,6 +9,7 @@ import {
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
+import { useChartTheme } from '../../hooks/useChartTheme';
 import { useLayoutResizing } from '../../hooks/useLayoutResizing';
 import { applyChartTheme } from '../../services/annotationQuality/chartTheme';
 import { createResizeObserver } from '../../utils/resizeObserver';
@@ -27,7 +28,6 @@ echarts.use([
 
 interface QualityEChartProps {
   option: EChartsOption;
-  isDark: boolean;
   height?: number;
 }
 
@@ -41,11 +41,11 @@ function scheduleChartResize(chart: echarts.ECharts): void {
 
 export default function QualityEChart({
   option,
-  isDark,
   height = 220,
 }: QualityEChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
+  const chartTheme = useChartTheme();
   const isLayoutResizing = useLayoutResizing();
 
   const resizeChart = useCallback(() => {
@@ -76,9 +76,9 @@ export default function QualityEChart({
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    chart.setOption(applyChartTheme(option, isDark), true);
+    chart.setOption(applyChartTheme(option, chartTheme), true);
     resizeChart();
-  }, [option, isDark, resizeChart]);
+  }, [option, chartTheme, resizeChart]);
 
   useEffect(() => {
     if (!isLayoutResizing) {

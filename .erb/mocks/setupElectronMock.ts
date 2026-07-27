@@ -40,8 +40,10 @@ Object.defineProperty(window, 'electron', {
       toggleDevTools: jest.fn(),
       toggleFullScreen: jest.fn(),
       isMaximized: jest.fn().mockResolvedValue(false),
+      isFullScreen: jest.fn().mockResolvedValue(false),
       openExternal: jest.fn().mockResolvedValue(undefined),
       onMaximizeChange: jest.fn(() => jest.fn()),
+      onFullScreenChange: jest.fn(() => jest.fn()),
     },
     fileSystem: {
       openDirectory: jest.fn(),
@@ -55,6 +57,9 @@ Object.defineProperty(window, 'electron', {
       getRefreshToken: jest.fn().mockResolvedValue(null),
       setRefreshToken: jest.fn().mockResolvedValue(undefined),
       clearRefreshToken: jest.fn().mockResolvedValue(undefined),
+      getSessionCache: jest.fn().mockResolvedValue(null),
+      setSessionCache: jest.fn().mockResolvedValue(undefined),
+      clearSessionCache: jest.fn().mockResolvedValue(undefined),
     },
     annotation: {
       getProjects: jest.fn().mockResolvedValue([]),

@@ -1,3 +1,27 @@
+/* 文本标注中间区字号 token（相对原硬编码整体 +1px） */
+:root {
+  --text-annotation-font-body: 14px;
+  --text-annotation-font-source: 13px;
+  --text-annotation-font-ui: 13px;
+  --text-annotation-font-label: 12px;
+  --text-annotation-font-meta: 11px;
+  --text-annotation-textarea-min-height: calc(
+    var(--text-annotation-font-body) * 1.6 * 3 + 16px
+  );
+  --text-annotation-textarea-max-height: min(320px, 40vh);
+  --text-annotation-textarea-source-min-height: calc(
+    var(--text-annotation-font-source) * 1.55 * 4 + 16px
+  );
+  --text-annotation-textarea-source-max-height: min(360px, 45vh);
+  --text-annotation-textarea-compact-min-height: calc(
+    var(--text-annotation-font-body) * 1.6 * 2 + 16px
+  );
+  --text-annotation-textarea-large-min-height: calc(
+    var(--text-annotation-font-body) * 1.6 * 5 + 16px
+  );
+  --text-annotation-textarea-large-max-height: min(400px, 50vh);
+}
+
 /* 文本标注中间区共享滚动条：透明 track + 细窄 thumb，对齐图片编辑器 */
 .text-annotation-scroll,
 .text-source-preview-scroll,

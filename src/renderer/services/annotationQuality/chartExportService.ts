@@ -8,7 +8,9 @@ import {
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
+import type { EffectiveTheme } from '../../theme/themeConstants';
 import { applyChartTheme } from './chartTheme';
+import { getChartThemeTokens } from './chartThemeTokens';
 
 echarts.use([
   BarChart,
@@ -26,7 +28,7 @@ export interface ChartExportOptions {
   width?: number;
   height?: number;
   pixelRatio?: number;
-  isDark?: boolean;
+  theme?: EffectiveTheme;
 }
 
 export async function renderChartToDataUrl(
@@ -37,8 +39,9 @@ export async function renderChartToDataUrl(
     width = 960,
     height = 540,
     pixelRatio = 2,
-    isDark = false,
+    theme = 'light',
   } = exportOptions;
+  const tokens = getChartThemeTokens(theme);
 
   const container = document.createElement('div');
   container.style.width = `${width}px`;
@@ -54,7 +57,7 @@ export async function renderChartToDataUrl(
       width,
       height,
     });
-    const themed = applyChartTheme(option, isDark);
+    const themed = applyChartTheme(option, tokens);
     chart.setOption(themed);
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => resolve());
@@ -62,7 +65,7 @@ export async function renderChartToDataUrl(
     const dataUrl = chart.getDataURL({
       type: 'png',
       pixelRatio,
-      backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
+      backgroundColor: tokens.exportBackground,
     });
     chart.dispose();
     return dataUrl;

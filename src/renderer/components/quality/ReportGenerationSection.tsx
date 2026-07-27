@@ -132,7 +132,7 @@ export default function ReportGenerationSection({
         scope,
         scopePath,
         relativeFilePath,
-        isDark: effectiveTheme === 'dark',
+        theme: effectiveTheme,
         signal: abortRef.current.signal,
       })) {
         if (event.type === 'progress') {

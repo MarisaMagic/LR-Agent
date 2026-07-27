@@ -21,6 +21,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   file_too_large: '图片不能超过 2MB',
   avatar_not_found: '当前没有头像',
   account_deleted: '账号已注销',
+  network_unavailable: '当前离线，此功能需要联网',
 };
 
 export default function translateError(detail: string): string {

@@ -20,7 +20,7 @@
 }
 
 .text-cot-step-index {
-  font-size: 11px;
+  font-size: var(--text-annotation-font-label);
   font-weight: 600;
   color: var(--vscode-descriptionForeground);
 }

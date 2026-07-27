@@ -65,6 +65,18 @@
   z-index: 1;
 }
 
+.editor-tab-strip:has(.editor-tab:first-child.editor-tab--active)
+  .editor-tab-strip-sash::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--lr-tab-active-border-top, var(--lr-accent-blue));
+  z-index: 2;
+}
+
 .editor-tab-strip-tabs {
   flex: 1;
   min-width: 0;
@@ -220,11 +232,11 @@
 .resizer-left:hover::after,
 .layout.is-resizing-left .resizer-left::after {
   width: 2px;
-  background: var(--vscode-titleBar-activeBackground, #333333);
+  background: var(--vscode-sash-hoverBorder, var(--lr-accent-blue));
 }
 
 .resizer-right:hover::after,
 .layout.is-resizing-right .resizer-right::after {
   width: 2px;
-  background: var(--vscode-titleBar-activeBackground, #333333);
+  background: var(--vscode-sash-hoverBorder, var(--lr-accent-blue));
 }

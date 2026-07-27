@@ -1,4 +1,5 @@
 import type { EChartsOption } from 'echarts';
+import type { ChartSemanticRole } from './chartThemeTokens';
 import {
   computeLabelEntropy,
   findDuplicatePairs,
@@ -45,7 +46,7 @@ function buildLabelDistribution(snapshot: AnnotationQualitySnapshot): {
 
   const needRotate = labels.length > 4;
   const barOption: EChartsOption = {
-    title: { text: '标签分布', left: 0 },
+    title: { show: false },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     xAxis: {
       type: 'category',
@@ -58,7 +59,7 @@ function buildLabelDistribution(snapshot: AnnotationQualitySnapshot): {
   };
 
   const pieOption: EChartsOption = {
-    title: { text: '标签分布', left: 0 },
+    title: { show: false },
     tooltip: { trigger: 'item', formatter: '{b}: {c} 框 ({d}%)' },
     series: [
       {
@@ -143,14 +144,14 @@ function buildCoverage(snapshot: AnnotationQualitySnapshot): {
           {
             name: '已标注',
             value: snapshot.annotatedFiles,
-            itemStyle: { color: '#6cc76c' },
+            themeRole: 'success' as ChartSemanticRole,
           },
           {
             name: '未标注',
             value: unannotatedFiles,
-            itemStyle: { color: '#888888' },
+            themeRole: 'muted' as ChartSemanticRole,
           },
-        ],
+        ] as Array<{ name: string; value: number; themeRole?: ChartSemanticRole }>,
       },
     ],
   };
@@ -211,7 +212,7 @@ function buildBoxesPerFile(snapshot: AnnotationQualitySnapshot): {
   }
 
   const histOption: EChartsOption = {
-    title: { text: '每图框数分布', left: 0 },
+    title: { show: false },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     xAxis: {
       type: 'category',
@@ -326,7 +327,6 @@ function buildLabelBalance(snapshot: AnnotationQualitySnapshot): {
               formatter: (params: { value: number }) =>
                 `${(params.value * 100).toFixed(0)}`,
               fontSize: 10,
-              color: 'inherit',
             },
           },
         ],

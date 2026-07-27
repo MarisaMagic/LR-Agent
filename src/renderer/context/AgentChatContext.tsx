@@ -57,7 +57,6 @@ import {
   countPendingProposals,
 } from '../services/agentProposalApply';
 import { reconcileAppliedFileProposals, reconcileAppliedAnnotationProposals } from '../services/agentProposalReconcile';
-import { ChatBlockPersistence } from '../services/annotationRunPersistence';
 import {
   createDraftSession,
   mergeProjectSessionsIntoState,
@@ -189,7 +188,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const authStatusRef = useRef(authStatus);
   authStatusRef.current = authStatus;
   const loadedSessionsRef = useRef<Set<string>>(new Set());
-  const blockPersistenceByJobRef = useRef(new Map<string, ChatBlockPersistence>());
   const sessionsNextCursorRef = useRef<string | null>(null);
   const [sessionsHasMore, setSessionsHasMore] = useState(false);
   const [loadingMoreSessions, setLoadingMoreSessions] = useState(false);
@@ -288,7 +286,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const ensureSessionLoaded = useCallback(
     async (sessionId: string): Promise<boolean> => {
       const userId = currentUserIdRef.current;
-      if (authStatusRef.current === 'authenticated' && !userId) {
+      const isAuthed =
+        authStatusRef.current === 'authenticated' ||
+        authStatusRef.current === 'authenticated_offline';
+      if (isAuthed && !userId) {
         showToast('加载对话失败，请重试', { type: 'error' });
         return false;
       }
@@ -770,18 +771,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     [updateMessage],
   );
 
-  const disposeBlockPersistence = useCallback(async (jobId: string) => {
-    const persistence = blockPersistenceByJobRef.current.get(jobId);
-    if (!persistence) return;
-    blockPersistenceByJobRef.current.delete(jobId);
-    await persistence.dispose();
-  }, []);
-
   const attachJobListener = useCallback(
     (jobId: string, sessionId: string, messageId: string) => {
       return subscribeJobEvents(jobId, (event) => {
         if (event.type === 'done') {
-          void disposeBlockPersistence(jobId);
           const latest = stateRef.current;
           const sessionMessages = {
             ...(latest.messagesBySession[sessionId] ?? {}),
@@ -834,7 +827,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         }
 
         if (event.type === 'error') {
-          void disposeBlockPersistence(jobId);
           const latest = stateRef.current;
           const sessionMessages = {
             ...(latest.messagesBySession[sessionId] ?? {}),
@@ -926,7 +918,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         }));
       });
     },
-    [disposeBlockPersistence, persist, updateMessage],
+    [persist, updateMessage],
   );
 
   const createSession = useCallback(() => {
@@ -1411,7 +1403,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       activeProject,
       agentMode,
       attachJobListener,
-      disposeBlockPersistence,
       pretrainedModels,
       editTargetMessageId,
       ensureSessionLoaded,

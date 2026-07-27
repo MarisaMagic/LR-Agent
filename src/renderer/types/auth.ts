@@ -1,3 +1,20 @@
+export type AuthStatus =
+  | 'loading'
+  | 'unauthenticated'
+  | 'authenticated'
+  | 'authenticated_offline';
+
+export interface LocalSessionCache {
+  user: UserPublic;
+  lastOnlineAt: string;
+  refreshTokenExp: number;
+}
+
+export type RestoreSessionResult =
+  | { mode: 'online'; user: UserPublic }
+  | { mode: 'offline'; user: UserPublic }
+  | { mode: 'none' };
+
 export interface UserPublic {
   id: string;
   email: string;

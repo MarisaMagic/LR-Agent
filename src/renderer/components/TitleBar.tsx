@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAnnotation } from '../context/AnnotationContext';
-import appIcon from '../../../assets/icon.png';
-import { LeftSidebarToggle, RightSidebarToggle } from './LayoutControls';
+import appIconDark from '../../../assets/icon-dark.png';
+import appIconLight from '../../../assets/icon-light.png';
+import {
+  FullScreenToggle,
+  LeftSidebarToggle,
+  RightSidebarToggle,
+} from './LayoutControls';
+import { useTheme } from '../context/ThemeContext';
 import PopoverMotion from '../motion/PopoverMotion';
 import './TitleBar.css';
 
@@ -84,15 +90,26 @@ function MenuDropdown({
 export default function TitleBar() {
   const { openFolder, toggleLeftSidebar, toggleRightSidebar } = useApp();
   const { openCreateWizard, clearActiveProject, activeProject } = useAnnotation();
+  const { effectiveTheme } = useTheme();
+  const appIcon = effectiveTheme === 'dark' ? appIconDark : appIconLight;
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const barRef = useRef<HTMLElement>(null);
   const { platform } = window.electron;
   const showWindowControls = platform !== 'darwin';
+  const showRestore = isFullScreen || isMaximized;
 
   useEffect(() => {
     window.electron.window.isMaximized().then(setIsMaximized);
-    return window.electron.window.onMaximizeChange(setIsMaximized);
+    window.electron.window.isFullScreen().then(setIsFullScreen);
+    const unsubMaximize = window.electron.window.onMaximizeChange(setIsMaximized);
+    const unsubFullScreen =
+      window.electron.window.onFullScreenChange(setIsFullScreen);
+    return () => {
+      unsubMaximize();
+      unsubFullScreen();
+    };
   }, []);
 
   useEffect(() => {
@@ -207,6 +224,12 @@ export default function TitleBar() {
     const mod = window.electron.platform === 'darwin' ? 'metaKey' : 'ctrlKey';
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'F11') {
+        event.preventDefault();
+        window.electron.window.toggleFullScreen();
+        return;
+      }
+
       const modPressed = mod === 'metaKey' ? event.metaKey : event.ctrlKey;
       if (!modPressed) return;
 
@@ -289,6 +312,7 @@ export default function TitleBar() {
 
       <div className="title-bar-right">
         <div className="layout-controls layout-controls-right">
+          <FullScreenToggle />
           <RightSidebarToggle />
         </div>
         {showWindowControls && (
@@ -307,12 +331,12 @@ export default function TitleBar() {
             <button
               type="button"
               className="title-bar-control title-bar-control-maximize"
-              aria-label={isMaximized ? '还原' : '最大化'}
+              aria-label={showRestore ? '还原' : '最大化'}
               onClick={() => window.electron.window.maximize()}
             >
               <span
                 className={`codicon ${
-                  isMaximized
+                  showRestore
                     ? 'codicon-chrome-restore'
                     : 'codicon-chrome-maximize'
                 }`}

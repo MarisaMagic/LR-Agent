@@ -13,6 +13,7 @@ import AnnotationRightPanel from './annotation/AnnotationRightPanel';
 import AgentPanel from './agent/AgentPanel';
 import QualityDashboardPanel from './quality/QualityDashboardPanel';
 import EmailVerifyBanner from './EmailVerifyBanner';
+import OfflineConnectivityNotifier from './OfflineConnectivityNotifier';
 import FileTree from './FileTree';
 import EditorTabBar from './editor/EditorTabBar';
 import EditorFileSiblingNav from './editor/EditorFileSiblingNav';
@@ -349,6 +350,7 @@ export default function Layout() {
     <div
       className={`layout${resizingSide ? ` is-resizing is-resizing-${resizingSide}` : ''}${workMode === 'editor' ? ' layout--editor-work-mode' : ''}${showImageAnnotationToolbarBand ? ' layout--image-annotation-toolbar' : ''} layout--editor-top-band`}
     >
+      <OfflineConnectivityNotifier />
       <ActivityBar
         activePanel={leftPanelActive}
         onExplorerClick={() => openLeftPanel('explorer')}

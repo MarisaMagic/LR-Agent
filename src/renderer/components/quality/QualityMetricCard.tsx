@@ -3,7 +3,6 @@ import type { QualityMetric } from '../../services/annotationQuality/types';
 
 interface QualityMetricCardProps {
   metric: QualityMetric;
-  isDark: boolean;
 }
 
 function severityLabel(severity: QualityMetric['severity']): string {
@@ -19,7 +18,6 @@ function severityLabel(severity: QualityMetric['severity']): string {
 
 export default function QualityMetricCard({
   metric,
-  isDark,
 }: QualityMetricCardProps) {
   return (
     <article
@@ -34,7 +32,7 @@ export default function QualityMetricCard({
       <p className="quality-metric-card__summary">{metric.summary}</p>
       {metric.chartBindings.map((binding) => (
         <div key={binding.chartId} className="quality-metric-card__chart">
-          <QualityEChart option={binding.option} isDark={isDark} />
+          <QualityEChart option={binding.option} />
         </div>
       ))}
     </article>

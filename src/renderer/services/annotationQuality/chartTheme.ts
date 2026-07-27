@@ -1,4 +1,9 @@
 import type { EChartsOption } from 'echarts';
+import {
+  resolveSemanticColor,
+  type ChartSemanticRole,
+  type ChartThemeTokens,
+} from './chartThemeTokens';
 
 type AxisOption = NonNullable<EChartsOption['xAxis']> extends (infer T)[]
   ? T
@@ -8,42 +13,16 @@ type SeriesItem = NonNullable<EChartsOption['series']> extends (infer T)[]
   ? T
   : NonNullable<EChartsOption['series']>;
 
-/* ── VSCode 风格调色板 ──
-   使用 VSCode 语义色，与编辑器主题保持一致 */
-function chartColors(isDark: boolean): string[] {
-  return isDark
-    ? [
-        '#5299e0', // blue
-        '#6cc76c', // green
-        '#e0a050', // orange
-        '#e06c75', // red
-        '#c678dd', // purple
-        '#56b6c2', // cyan
-        '#e5c07b', // yellow
-        '#98c379', // lime
-        '#61afef', // light blue
-        '#be5046', // dark red
-      ]
-    : [
-        '#2977c8', // blue
-        '#3a8c3a', // green
-        '#c27c20', // orange
-        '#c53030', // red
-        '#8b3eb3', // purple
-        '#2a8f9c', // cyan
-        '#b8962a', // yellow
-        '#5a8c3a', // lime
-        '#3778b8', // light blue
-        '#a04040', // dark red
-      ];
-}
+type PieDataItem = {
+  name?: string;
+  value?: number;
+  themeRole?: ChartSemanticRole;
+  itemStyle?: { color?: string };
+};
 
-/* ── 坐标轴主题 ── */
 function themeAxis(
-  axis: AxisOption,
-  textColor: string,
-  axisLine: string,
-  splitLine: string,
+  axis: AxisOption | Record<string, unknown>,
+  tokens: ChartThemeTokens,
 ) {
   const axisLabel =
     axis && typeof axis === 'object' && 'axisLabel' in axis && axis.axisLabel
@@ -56,36 +35,95 @@ function themeAxis(
 
   return {
     ...axis,
-    axisLine: { lineStyle: { color: axisLine, width: 1 } },
-    axisTick: { lineStyle: { color: axisLine } },
+    axisLine: { lineStyle: { color: tokens.axis.line, width: 1 } },
+    axisTick: { lineStyle: { color: tokens.axis.line } },
     axisLabel: {
       ...(typeof axisLabel === 'object' ? axisLabel : {}),
-      color: textColor,
+      color: tokens.text.primary,
     },
     nameTextStyle: {
       ...(typeof nameTextStyle === 'object' ? nameTextStyle : {}),
-      color: textColor,
+      color: tokens.text.primary,
     },
-    splitLine: { lineStyle: { color: splitLine, width: 0.5 } },
+    splitLine: { lineStyle: { color: tokens.axis.splitLine, width: 0.5 } },
   };
 }
 
-/* ── series 增强 ──
-   按图表类型注入圆角、hover 效果等 */
+function resolvePieData(
+  data: unknown,
+  tokens: ChartThemeTokens,
+): unknown {
+  if (!Array.isArray(data)) return data;
+
+  return data.map((item) => {
+    if (!item || typeof item !== 'object') return item;
+
+    const pieItem = item as PieDataItem;
+    if (!pieItem.themeRole) return item;
+
+    const { themeRole, ...rest } = pieItem;
+    void themeRole;
+    return {
+      ...rest,
+      itemStyle: {
+        ...pieItem.itemStyle,
+        color: resolveSemanticColor(tokens, pieItem.themeRole),
+      },
+    };
+  });
+}
+
+function usesInsidePieLabels(data: unknown): boolean {
+  if (!Array.isArray(data) || data.length === 0) return false;
+  return data.every(
+    (item) =>
+      item &&
+      typeof item === 'object' &&
+      'themeRole' in item &&
+      (item as PieDataItem).themeRole != null,
+  );
+}
+
+function themeRadarData(
+  data: unknown,
+  tokens: ChartThemeTokens,
+): unknown {
+  if (!Array.isArray(data)) return data;
+
+  return data.map((entry) => {
+    if (!entry || typeof entry !== 'object') return entry;
+
+    const radarData = entry as Record<string, unknown> & {
+      label?: Record<string, unknown>;
+    };
+    const baseLabel =
+      typeof radarData.label === 'object' ? radarData.label : {};
+
+    return {
+      ...radarData,
+      label: {
+        ...baseLabel,
+        color: tokens.text.primary,
+      },
+    };
+  });
+}
+
 function themeSeries(
   series: EChartsOption['series'],
-  textColor: string,
-  isDark: boolean,
+  tokens: ChartThemeTokens,
 ): EChartsOption['series'] {
   if (!series) return series;
   const list = Array.isArray(series) ? series : [series];
 
-  return list.map((item, idx) => {
+  return list.map((item) => {
     if (!item || typeof item !== 'object') return item;
 
-    /* bar 类型: 顶部圆角 + hover 放大 */
     if (item.type === 'bar') {
-      const barItem = { ...item } as Record<string, unknown> & { itemStyle?: Record<string, unknown>; emphasis?: Record<string, unknown> };
+      const barItem = { ...item } as Record<string, unknown> & {
+        itemStyle?: Record<string, unknown>;
+        emphasis?: Record<string, unknown>;
+      };
       barItem.itemStyle = {
         ...barItem.itemStyle,
         borderRadius: [4, 4, 0, 0],
@@ -93,32 +131,42 @@ function themeSeries(
       barItem.emphasis = {
         ...barItem.emphasis,
         itemStyle: {
-          ...(barItem.emphasis?.itemStyle as Record<string, unknown> || {}),
+          ...((barItem.emphasis?.itemStyle as Record<string, unknown>) || {}),
           shadowBlur: 8,
-          shadowColor: 'rgba(0,0,0,0.25)',
+          shadowColor: tokens.emphasis.shadowColor,
           shadowOffsetY: 2,
         },
       };
       return barItem as SeriesItem;
     }
 
-    /* pie 类型: hover 外扩 + label 色 */
     if (item.type === 'pie') {
       const pieItem = { ...item } as Record<string, unknown> & {
+        data?: unknown;
         label?: Record<string, unknown>;
         labelLine?: Record<string, unknown>;
         emphasis?: Record<string, unknown>;
       };
 
+      pieItem.data = resolvePieData(pieItem.data, tokens);
+      const baseLabel =
+        typeof pieItem.label === 'object' ? pieItem.label : {};
+      const insideLabels = usesInsidePieLabels(pieItem.data);
       pieItem.label = {
-        ...pieItem.label,
-        color: textColor,
+        ...baseLabel,
+        color: tokens.text.primary,
+        ...(insideLabels || baseLabel.position
+          ? {}
+          : { position: 'outside' }),
       };
       pieItem.labelLine = {
         ...pieItem.labelLine,
+        show: insideLabels
+          ? (pieItem.labelLine?.show as boolean | undefined) ?? false
+          : (pieItem.labelLine?.show as boolean | undefined) ?? true,
         lineStyle: {
-          ...(pieItem.labelLine?.lineStyle as Record<string, unknown> || {}),
-          color: isDark ? '#888888' : '#aaaaaa',
+          ...((pieItem.labelLine?.lineStyle as Record<string, unknown>) || {}),
+          color: tokens.pie.labelLine,
           width: 1,
         },
       };
@@ -126,6 +174,8 @@ function themeSeries(
         ...pieItem.emphasis,
         scaleSize: 8,
         label: {
+          ...((pieItem.emphasis?.label as Record<string, unknown>) || {}),
+          color: tokens.text.primary,
           fontWeight: 'bold',
           fontSize: 13,
         },
@@ -133,16 +183,17 @@ function themeSeries(
       return pieItem as SeriesItem;
     }
 
-    /* radar 类型: 面积半透明填充 */
     if (item.type === 'radar') {
       const radarItem = { ...item } as Record<string, unknown> & {
+        data?: unknown;
         areaStyle?: Record<string, unknown>;
         lineStyle?: Record<string, unknown>;
         emphasis?: Record<string, unknown>;
       };
+      radarItem.data = themeRadarData(radarItem.data, tokens);
       radarItem.areaStyle = {
         ...radarItem.areaStyle,
-        opacity: isDark ? 0.12 : 0.08,
+        opacity: tokens.radar.areaOpacity,
       };
       radarItem.lineStyle = {
         ...radarItem.lineStyle,
@@ -151,7 +202,7 @@ function themeSeries(
       radarItem.emphasis = {
         ...radarItem.emphasis,
         lineStyle: {
-          ...(radarItem.emphasis?.lineStyle as Record<string, unknown> || {}),
+          ...((radarItem.emphasis?.lineStyle as Record<string, unknown>) || {}),
           width: 3,
         },
       };
@@ -159,82 +210,111 @@ function themeSeries(
     }
 
     return item;
-  }) as SeriesItem[];
+  }) as EChartsOption['series'];
 }
 
-/* ── 主入口: applyChartTheme ── */
 export function applyChartTheme(
   option: EChartsOption,
-  isDark: boolean,
+  tokens: ChartThemeTokens,
 ): EChartsOption {
-  const textColor = isDark ? '#cccccc' : '#333333';
-  const axisLine = isDark ? '#555555' : '#cccccc';
-  const splitLine = isDark ? '#3e3e42' : '#eeeeee';
-  const tooltipBg = isDark ? 'rgba(30, 30, 30, 0.94)' : 'rgba(255, 255, 255, 0.94)';
-  const tooltipBorder = isDark ? '#454545' : '#dddddd';
-  const colors = chartColors(isDark);
+  const baseTooltip =
+    typeof option.tooltip === 'object' && !Array.isArray(option.tooltip)
+      ? option.tooltip
+      : {};
+  const baseTitle =
+    typeof option.title === 'object' && !Array.isArray(option.title)
+      ? option.title
+      : {};
+  const baseLegend =
+    option.legend &&
+    typeof option.legend === 'object' &&
+    !Array.isArray(option.legend)
+      ? option.legend
+      : {};
 
   return {
-    color: colors,
+    ...option,
+    color: tokens.palette,
     backgroundColor: 'transparent',
-    textStyle: { color: textColor },
-
-    /* 全局动画 */
-    animationDuration: 800,
-    animationEasing: 'cubicOut' as const,
-
-    /* tooltip 样式: 匹配弹出菜单风格 */
+    textStyle: {
+      ...(typeof option.textStyle === 'object' ? option.textStyle : {}),
+      color: tokens.text.primary,
+    },
+    animationDuration: option.animationDuration ?? 800,
+    animationEasing: option.animationEasing ?? ('cubicOut' as const),
     tooltip: {
-      backgroundColor: tooltipBg,
-      borderColor: tooltipBorder,
+      ...baseTooltip,
+      backgroundColor: tokens.tooltip.bg,
+      borderColor: tokens.tooltip.border,
       borderWidth: 1,
       borderRadius: 6,
-      textStyle: { color: textColor, fontSize: 12 },
-      extraCssText: 'box-shadow: 0 8px 24px rgba(0,0,0,0.35);',
-      ...(typeof option.tooltip === 'object' && !Array.isArray(option.tooltip)
-        ? option.tooltip
-        : {}),
+      textStyle: {
+        ...(typeof baseTooltip.textStyle === 'object'
+          ? baseTooltip.textStyle
+          : {}),
+        color: tokens.text.primary,
+        fontSize: 12,
+      },
+      extraCssText: `box-shadow: ${tokens.tooltip.shadow};`,
     },
-
     title: {
-      textStyle: { color: textColor, fontSize: 13, fontWeight: 600 },
-      ...(typeof option.title === 'object' && !Array.isArray(option.title)
-        ? option.title
-        : {}),
+      ...baseTitle,
+      textStyle: {
+        ...(typeof baseTitle.textStyle === 'object' ? baseTitle.textStyle : {}),
+        color: tokens.text.primary,
+        fontSize: 13,
+        fontWeight: 600,
+      },
     },
-
     legend: {
-      textStyle: { color: textColor, fontSize: 11 },
-      ...(option.legend && typeof option.legend === 'object'
-        ? option.legend
-        : {}),
+      ...baseLegend,
+      textStyle: {
+        ...(typeof baseLegend.textStyle === 'object'
+          ? baseLegend.textStyle
+          : {}),
+        color: tokens.text.primary,
+        fontSize:
+          typeof baseLegend.textStyle === 'object' &&
+          baseLegend.textStyle.fontSize != null
+            ? baseLegend.textStyle.fontSize
+            : 11,
+      },
     },
-
     xAxis: Array.isArray(option.xAxis)
-      ? option.xAxis.map((axis) => themeAxis(axis, textColor, axisLine, splitLine))
+      ? option.xAxis.map((axis) =>
+          themeAxis(axis as AxisOption, tokens),
+        )
       : option.xAxis
-        ? themeAxis(option.xAxis, textColor, axisLine, splitLine)
-        : undefined,
-
-    yAxis: Array.isArray(option.yAxis)
-      ? option.yAxis.map((axis) => themeAxis(axis, textColor, axisLine, splitLine))
+        ? themeAxis(option.xAxis as AxisOption, tokens)
+        : option.xAxis,
+    yAxis: (Array.isArray(option.yAxis)
+      ? option.yAxis.map((axis) =>
+          themeAxis(axis as Record<string, unknown>, tokens),
+        )
       : option.yAxis
-        ? themeAxis(option.yAxis, textColor, axisLine, splitLine)
-        : undefined,
-
-    series: themeSeries(option.series, textColor, isDark),
-
+        ? themeAxis(option.yAxis as Record<string, unknown>, tokens)
+        : option.yAxis) as EChartsOption['yAxis'],
+    series: themeSeries(option.series, tokens),
     radar: option.radar
       ? {
           ...option.radar,
-          axisName: { color: textColor, fontSize: 11 },
-          splitLine: { lineStyle: { color: splitLine, width: 0.5 } },
+          axisName: {
+            ...(typeof option.radar === 'object' &&
+            option.radar &&
+            'axisName' in option.radar &&
+            typeof option.radar.axisName === 'object'
+              ? option.radar.axisName
+              : {}),
+            color: tokens.text.primary,
+            fontSize: 11,
+          },
+          splitLine: { lineStyle: { color: tokens.axis.splitLine, width: 0.5 } },
           splitArea: {
             areaStyle: {
-              color: isDark ? ['#2d2d30', '#252526'] : ['#fafafa', '#ffffff'],
+              color: tokens.radar.splitArea,
             },
           },
         }
-      : undefined,
+      : option.radar,
   };
 }
