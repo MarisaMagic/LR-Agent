@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type SetStateAction,
 } from 'react';
 import { useApp } from './AppContext';
 import { useAnnotation } from './AnnotationContext';
@@ -45,6 +46,12 @@ import {
   readFileAnnotationDoc,
   writeFileAnnotationDoc,
 } from '../services/annotationDataService';
+import { mergeProposalChangesIntoDoc } from '../services/annotationMutationApply';
+import type {
+  AnnotationBatchChange,
+  AnnotationBatchProposal,
+} from '../../shared/annotationAgentTypes';
+import { buildFileChangesFromProposal } from '../components/agent/agentAnnotationPreview';
 import { updateAnnotationWorkspaceAgentSnapshot } from '../services/annotationAgentBridge';
 import {
   bumpLabelUsage,
@@ -160,6 +167,57 @@ function isCotInstance(a: AnnotationInstance): a is CotAnnotation {
 
 type DocMeta = Omit<FileAnnotationDocument, 'annotations'>;
 
+export type AgentPreviewSession = {
+  relativePath: string;
+  annotations: AnnotationInstance[];
+  proposalAnchorId?: string;
+};
+
+export type PendingAgentNavigation = {
+  relativePath: string;
+  annotationId: string;
+  proposalAnchorId?: string;
+  pendingChanges?: AnnotationBatchChange[];
+  mode: 'preview' | 'select';
+};
+
+export type ImmediateAnnotationPreviewParams = {
+  relativePath: string;
+  annotationId: string;
+  proposal: AnnotationBatchProposal;
+  proposalAnchorId?: string;
+};
+
+function isSyntheticAnnotationRelativePath(path: string): boolean {
+  return path.replace(/^[/\\]+/, '').startsWith('_synthetic_/');
+}
+
+function isAgentPreviewPathMatch(
+  sessionRelativePath: string,
+  workspaceRelativePath: string | null,
+): boolean {
+  if (sessionRelativePath === workspaceRelativePath) return true;
+  if (
+    !workspaceRelativePath &&
+    isSyntheticAnnotationRelativePath(sessionRelativePath)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function shouldUseSelectToolForProject(
+  project: { modality: string; annotationType: string } | null | undefined,
+): boolean {
+  if (!project || project.modality !== 'image') return false;
+  return (
+    project.annotationType === 'bbox' ||
+    project.annotationType === 'rotated_bbox' ||
+    project.annotationType === 'polygon' ||
+    project.annotationType === 'keypoint'
+  );
+}
+
 export type ImageCanvasTool =
   | 'draw'
   | 'select'
@@ -223,6 +281,18 @@ export interface AnnotationWorkspaceContextValue {
   setActiveLabelId: (id: string | null) => void;
   labelUsage: LabelUsageMap;
   selectAnnotation: (id: string | null) => void;
+  agentPreviewSession: AgentPreviewSession | null;
+  agentPreviewReadOnly: boolean;
+  enterAgentPreview: (session: AgentPreviewSession) => void;
+  clearAgentPreview: () => void;
+  schedulePendingAgentNavigation: (nav: PendingAgentNavigation) => void;
+  applyImmediateAnnotationPreview: (
+    params: ImmediateAnnotationPreviewParams,
+  ) => boolean;
+  loadSyntheticAnnotationForView: (
+    relativePath: string,
+    annotationId: string,
+  ) => Promise<void>;
   // 文本标注操作方法
   /** NER: 在文本上新增 span 标注 */
   addSpanAnnotation: (start: number, end: number, labelId: string) => string | null;
@@ -521,6 +591,8 @@ export function AnnotationWorkspaceProvider({
 
   const [annotations, setAnnotations] = useState<AnnotationInstance[]>([]);
   const [loadedDocMeta, setLoadedDocMeta] = useState<DocMeta | null>(null);
+  const [agentPreviewSession, setAgentPreviewSession] =
+    useState<AgentPreviewSession | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<
     string | null
   >(null);
@@ -542,6 +614,8 @@ export function AnnotationWorkspaceProvider({
   const dirtyRef = useRef(dirty);
   const loadedMetaRef = useRef<DocMeta | null>(null);
   const selectedIdRef = useRef(selectedAnnotationId);
+  const agentPreviewSessionRef = useRef<AgentPreviewSession | null>(null);
+  const pendingAgentNavigationRef = useRef<PendingAgentNavigation | null>(null);
   const historyRef = useRef(new AnnotationHistory());
   const isApplyingHistoryRef = useRef(false);
   const localUndoHandlerRef = useRef<(() => boolean) | null>(null);
@@ -550,6 +624,137 @@ export function AnnotationWorkspaceProvider({
   dirtyRef.current = dirty;
   loadedMetaRef.current = loadedDocMeta;
   selectedIdRef.current = selectedAnnotationId;
+  agentPreviewSessionRef.current = agentPreviewSession;
+
+  const isAgentPreviewForCurrentView = useMemo(() => {
+    if (!agentPreviewSession) return false;
+    return isAgentPreviewPathMatch(
+      agentPreviewSession.relativePath,
+      relativeFilePath,
+    );
+  }, [agentPreviewSession, relativeFilePath]);
+
+  const effectiveAnnotations = useMemo(() => {
+    if (isAgentPreviewForCurrentView && agentPreviewSession) {
+      return agentPreviewSession.annotations;
+    }
+    return annotations;
+  }, [isAgentPreviewForCurrentView, agentPreviewSession, annotations]);
+
+  const agentPreviewReadOnly = isAgentPreviewForCurrentView;
+
+  const setEditableAnnotations = useCallback(
+    (updater: SetStateAction<AnnotationInstance[]>) => {
+      if (agentPreviewSessionRef.current) return;
+      setAnnotations(updater);
+    },
+    [],
+  );
+
+  const clearAgentPreview = useCallback(() => {
+    agentPreviewSessionRef.current = null;
+    setAgentPreviewSession(null);
+  }, []);
+
+  const enterAgentPreview = useCallback((session: AgentPreviewSession) => {
+    agentPreviewSessionRef.current = session;
+    setAgentPreviewSession(session);
+  }, []);
+
+  const schedulePendingAgentNavigation = useCallback(
+    (nav: PendingAgentNavigation) => {
+      pendingAgentNavigationRef.current = nav;
+    },
+    [],
+  );
+
+  const applyPendingAgentNavigation = useCallback(
+    (
+      rel: string,
+      parsed: FileAnnotationDocument | null,
+      stats: { mtimeMs: number; size: number } | null,
+    ) => {
+      const pending = pendingAgentNavigationRef.current;
+      if (!pending || pending.relativePath !== rel) {
+        setSelectedAnnotationId(null);
+        return;
+      }
+
+      pendingAgentNavigationRef.current = null;
+      const proj = activeProjectRef.current;
+
+      if (
+        pending.mode === 'preview' &&
+        pending.pendingChanges?.length &&
+        proj
+      ) {
+        const merged = mergeProposalChangesIntoDoc(
+          parsed,
+          pending.pendingChanges,
+          proj,
+          stats ?? {},
+        );
+        enterAgentPreview({
+          relativePath: rel,
+          annotations: merged.annotations,
+          proposalAnchorId: pending.proposalAnchorId,
+        });
+      } else {
+        clearAgentPreview();
+      }
+
+      setSelectedAnnotationId(pending.annotationId);
+      if (shouldUseSelectToolForProject(proj)) {
+        setToolState('select');
+      }
+    },
+    [clearAgentPreview, enterAgentPreview],
+  );
+
+  const applyImmediateAnnotationPreview = useCallback(
+    (params: ImmediateAnnotationPreviewParams): boolean => {
+      const proj = activeProjectRef.current;
+      const currentRel = currentPairRef.current.rel;
+      if (!proj || !currentRel || params.relativePath !== currentRel) {
+        return false;
+      }
+
+      const fileChanges = buildFileChangesFromProposal(
+        params.proposal,
+        params.relativePath,
+      );
+      if (fileChanges.length === 0) {
+        return false;
+      }
+
+      const meta = loadedMetaRef.current;
+      const parsed = meta
+        ? {
+            ...meta,
+            annotations: structuredClone(annotationsRef.current),
+          }
+        : null;
+
+      const merged = mergeProposalChangesIntoDoc(
+        parsed,
+        fileChanges,
+        proj,
+        meta?.source ?? {},
+      );
+
+      enterAgentPreview({
+        relativePath: params.relativePath,
+        annotations: merged.annotations,
+        proposalAnchorId: params.proposalAnchorId,
+      });
+      setSelectedAnnotationId(params.annotationId);
+      if (shouldUseSelectToolForProject(proj)) {
+        setToolState('select');
+      }
+      return true;
+    },
+    [enterAgentPreview],
+  );
 
   /** Tracks file identity for flush-before-navigation */
   const currentPairRef = useRef<{ rel: string | null; abs: string | null }>({
@@ -608,68 +813,68 @@ export function AnnotationWorkspaceProvider({
   );
 
   const bboxAnnotations = useMemo(
-    () => annotations.filter(isBBoxInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isBBoxInstance),
+    [effectiveAnnotations],
   );
 
   const rotatedBboxAnnotations = useMemo(
-    () => annotations.filter(isRotatedBBoxInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isRotatedBBoxInstance),
+    [effectiveAnnotations],
   );
 
   const polygonAnnotations = useMemo(
-    () => annotations.filter(isPolygonInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isPolygonInstance),
+    [effectiveAnnotations],
   );
 
   const poseAnnotations = useMemo(
-    () => annotations.filter(isPoseInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isPoseInstance),
+    [effectiveAnnotations],
   );
 
   const pointAnnotations = useMemo(
-    () => annotations.filter(isImagePointInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isImagePointInstance),
+    [effectiveAnnotations],
   );
 
   const captionAnnotations = useMemo(
-    () => annotations.filter(isCaptionInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isCaptionInstance),
+    [effectiveAnnotations],
   );
 
   const classificationAnnotations = useMemo(
-    () => annotations.filter(isClassificationInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isClassificationInstance),
+    [effectiveAnnotations],
   );
 
   const spanAnnotations = useMemo(
-    () => annotations.filter(isSpanInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isSpanInstance),
+    [effectiveAnnotations],
   );
 
   const textClassificationAnnotations = useMemo(
-    () => annotations.filter(isTextClassificationInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isTextClassificationInstance),
+    [effectiveAnnotations],
   );
 
   const instructionAnnotations = useMemo(
-    () => annotations.filter(isInstructionInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isInstructionInstance),
+    [effectiveAnnotations],
   );
 
   const preferenceAnnotations = useMemo(
-    () => annotations.filter(isPreferenceInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isPreferenceInstance),
+    [effectiveAnnotations],
   );
 
   const conversationAnnotations = useMemo(
-    () => annotations.filter(isConversationInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isConversationInstance),
+    [effectiveAnnotations],
   );
 
   const cotAnnotations = useMemo(
-    () => annotations.filter(isCotInstance),
-    [annotations],
+    () => effectiveAnnotations.filter(isCotInstance),
+    [effectiveAnnotations],
   );
 
   const activeTemplate = useMemo(() => {
@@ -800,6 +1005,7 @@ export function AnnotationWorkspaceProvider({
   }, [persistFromRefs]);
 
   const touchDirty = useCallback(() => {
+    if (agentPreviewSessionRef.current) return;
     setDirty(true);
     scheduleSave();
   }, [scheduleSave]);
@@ -820,8 +1026,37 @@ export function AnnotationWorkspaceProvider({
     bumpHistory();
   }, [bumpHistory]);
 
+  const loadSyntheticAnnotationForView = useCallback(
+    async (relativePath: string, annotationId: string) => {
+      const proj = activeProjectRef.current;
+      if (!proj) return;
+
+      clearAgentPreview();
+      try {
+        const raw = await readFileAnnotationDoc(proj.directoryPath, relativePath);
+        const parsed = raw ? parseFileAnnotationDocument(raw) : null;
+        if (!parsed) {
+          setSelectedAnnotationId(annotationId);
+          return;
+        }
+        const { annotations: ann, ...meta } = parsed;
+        setLoadedDocMeta(meta);
+        setAnnotations(ann);
+        clearHistory();
+        setDirty(false);
+        setSourceStale(false);
+        currentPairRef.current = { rel: relativePath, abs: null };
+        setSelectedAnnotationId(annotationId);
+      } catch {
+        setSelectedAnnotationId(annotationId);
+      }
+    },
+    [clearAgentPreview, clearHistory],
+  );
+
   const recordHistory = useCallback(() => {
     if (isApplyingHistoryRef.current) return;
+    if (agentPreviewSessionRef.current) return;
     historyRef.current.record(captureHistorySnapshot());
     bumpHistory();
   }, [captureHistorySnapshot, bumpHistory]);
@@ -847,6 +1082,7 @@ export function AnnotationWorkspaceProvider({
   }, [bumpHistory]);
 
   const undo = useCallback((): boolean => {
+    if (agentPreviewSessionRef.current) return false;
     const restored = historyRef.current.undo(captureHistorySnapshot());
     if (!restored) return false;
     applyHistorySnapshot(restored);
@@ -855,6 +1091,7 @@ export function AnnotationWorkspaceProvider({
   }, [captureHistorySnapshot, applyHistorySnapshot, bumpHistory]);
 
   const redo = useCallback((): boolean => {
+    if (agentPreviewSessionRef.current) return false;
     const restored = historyRef.current.redo(captureHistorySnapshot());
     if (!restored) return false;
     applyHistorySnapshot(restored);
@@ -955,6 +1192,24 @@ export function AnnotationWorkspaceProvider({
 
     const rel = relativeFilePath;
     if (!rel) {
+      const previewSession = agentPreviewSessionRef.current;
+      const loadedSyntheticRel = currentPairRef.current.rel;
+      const hasSyntheticPreview =
+        previewSession &&
+        isSyntheticAnnotationRelativePath(previewSession.relativePath);
+      const hasSyntheticLoadedDoc =
+        loadedSyntheticRel &&
+        isSyntheticAnnotationRelativePath(loadedSyntheticRel) &&
+        loadedMetaRef.current;
+
+      if (hasSyntheticPreview || hasSyntheticLoadedDoc) {
+        currentPairRef.current = {
+          rel: loadedSyntheticRel,
+          abs: activeFilePath,
+        };
+        return undefined;
+      }
+
       // Freeform mode: no file selected, start with empty annotations
       setLoadedDocMeta(null);
       setAnnotations([]);
@@ -1018,8 +1273,12 @@ export function AnnotationWorkspaceProvider({
           clearHistory();
           setDirty(false);
           setSourceStale(stale);
-          setSelectedAnnotationId(null);
           currentPairRef.current = { rel, abs: activeFilePath };
+          applyPendingAgentNavigation(
+            rel,
+            parsed,
+            stats,
+          );
         } else {
           const meta = emptyDocMeta(projForMeta, rel, stats);
           setLoadedDocMeta(meta);
@@ -1027,8 +1286,8 @@ export function AnnotationWorkspaceProvider({
           clearHistory();
           setDirty(false);
           setSourceStale(false);
-          setSelectedAnnotationId(null);
           currentPairRef.current = { rel, abs: activeFilePath };
+          applyPendingAgentNavigation(rel, null, stats);
         }
       } catch (e) {
         if (!cancelled) {
@@ -1065,6 +1324,7 @@ export function AnnotationWorkspaceProvider({
     relativeFilePath,
     persistFromRefs,
     clearHistory,
+    applyPendingAgentNavigation,
   ]);
 
   useEffect(() => {
@@ -1096,6 +1356,7 @@ export function AnnotationWorkspaceProvider({
           setAnnotations(ann);
           setDirty(false);
           clearHistory();
+          clearAgentPreview();
         })
         .catch(() => undefined);
     };
@@ -1119,7 +1380,27 @@ export function AnnotationWorkspaceProvider({
     projectRootMatched,
     relativeFilePath,
     clearHistory,
+    clearAgentPreview,
   ]);
+
+  useEffect(() => {
+    if (!annotationPanelVisible) {
+      pendingAgentNavigationRef.current = null;
+      clearAgentPreview();
+      return;
+    }
+
+    setAgentPreviewSession((session) => {
+      if (!session) return null;
+      if (
+        isAgentPreviewPathMatch(session.relativePath, relativeFilePath)
+      ) {
+        return session;
+      }
+      agentPreviewSessionRef.current = null;
+      return null;
+    });
+  }, [annotationPanelVisible, relativeFilePath, clearAgentPreview]);
 
   useEffect(() => {
     updateAnnotationWorkspaceAgentSnapshot({
@@ -1128,12 +1409,14 @@ export function AnnotationWorkspaceProvider({
       workspaceDirty: dirty,
       workspaceRelativePath: relativeFilePath,
       workspaceProjectId: activeProject?.id ?? null,
+      keypointTemplateId: activeTemplateId ?? null,
     });
   }, [
     selectedAnnotationId,
     dirty,
     relativeFilePath,
     activeProject?.id,
+    activeTemplateId,
   ]);
 
   const selectAnnotation = useCallback((id: string | null) => {
@@ -1168,7 +1451,7 @@ export function AnnotationWorkspaceProvider({
       };
 
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(activeLabelId);
       return true;
@@ -1192,7 +1475,7 @@ export function AnnotationWorkspaceProvider({
       };
 
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(activeLabelId);
       return true;
@@ -1226,7 +1509,7 @@ export function AnnotationWorkspaceProvider({
       };
 
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(activeLabelId);
       return true;
@@ -1243,7 +1526,7 @@ export function AnnotationWorkspaceProvider({
       >,
     ) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) =>
           item.kind === 'rotated_bbox' && item.id === id
             ? {
@@ -1265,7 +1548,7 @@ export function AnnotationWorkspaceProvider({
       patch: Pick<BboxAnnotation, 'x' | 'y' | 'width' | 'height'>,
     ) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) =>
           item.kind === 'bbox' && item.id === id
             ? {
@@ -1285,7 +1568,7 @@ export function AnnotationWorkspaceProvider({
     (id: string, points: { x: number; y: number }[]) => {
       if (points.length < 3) return;
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) =>
           item.kind === 'polygon' && item.id === id
             ? {
@@ -1331,7 +1614,7 @@ export function AnnotationWorkspaceProvider({
       });
 
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(labelId);
       return id;
@@ -1354,7 +1637,7 @@ export function AnnotationWorkspaceProvider({
         y,
       };
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(labelId);
       return id;
@@ -1383,7 +1666,7 @@ export function AnnotationWorkspaceProvider({
         language: params.language,
       };
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       if (params.labelId) recordLabelUsage(params.labelId);
       return id;
@@ -1397,7 +1680,7 @@ export function AnnotationWorkspaceProvider({
       params: { text: string; granularity?: 'brief' | 'detailed' | 'dense'; language?: string },
     ) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) => {
           if (item.id !== id || item.kind !== 'caption') return item;
           return {
@@ -1427,7 +1710,7 @@ export function AnnotationWorkspaceProvider({
         updatedAt: now,
       };
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(labelId);
       return id;
@@ -1438,7 +1721,7 @@ export function AnnotationWorkspaceProvider({
   const updateClassificationAnnotation = useCallback(
     (id: string, labelId: string) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) => {
           if (item.id !== id || item.kind !== 'classification') return item;
           return {
@@ -1480,7 +1763,7 @@ export function AnnotationWorkspaceProvider({
       }));
 
       recordHistory();
-      setAnnotations((prev) => [...prev, ...nextItems]);
+      setEditableAnnotations((prev) => [...prev, ...nextItems]);
       touchDirty();
       nextItems.forEach((ann) => {
         if (ann.labelId) recordLabelUsage(ann.labelId);
@@ -1518,7 +1801,7 @@ export function AnnotationWorkspaceProvider({
       }));
 
       recordHistory();
-      setAnnotations((prev) => [...prev, ...nextItems]);
+      setEditableAnnotations((prev) => [...prev, ...nextItems]);
       touchDirty();
       nextItems.forEach((ann) => {
         if (ann.labelId) recordLabelUsage(ann.labelId);
@@ -1546,7 +1829,7 @@ export function AnnotationWorkspaceProvider({
       };
 
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(resolvedLabelId);
       return true;
@@ -1586,7 +1869,7 @@ export function AnnotationWorkspaceProvider({
       }));
 
       recordHistory();
-      setAnnotations((prev) => [...prev, ...nextItems]);
+      setEditableAnnotations((prev) => [...prev, ...nextItems]);
       touchDirty();
       nextItems.forEach((ann) => {
         if (ann.labelId) recordLabelUsage(ann.labelId);
@@ -1598,7 +1881,7 @@ export function AnnotationWorkspaceProvider({
 
   const clearPreAnnots = useCallback((): number => {
     let removed = 0;
-    setAnnotations((prev) => {
+    setEditableAnnotations((prev) => {
       const next = prev.filter((item) => item.source !== 'preannot');
       removed = prev.length - next.length;
       return next;
@@ -1628,7 +1911,7 @@ export function AnnotationWorkspaceProvider({
         end,
       };
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(labelId);
       return id;
@@ -1640,7 +1923,7 @@ export function AnnotationWorkspaceProvider({
     (id: string, start: number, end: number) => {
       if (start >= end) return;
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) =>
           item.kind === 'span_ner' && item.id === id
             ? { ...item, start, end, updatedAt: new Date().toISOString() }
@@ -1666,7 +1949,7 @@ export function AnnotationWorkspaceProvider({
         note,
       };
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       recordLabelUsage(labelId);
       return id;
@@ -1677,7 +1960,7 @@ export function AnnotationWorkspaceProvider({
   const updateTextClassificationAnnotation = useCallback(
     (id: string, labelId: string, note?: string) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) => {
           if (item.id !== id || item.kind !== 'text_classification') return item;
           return {
@@ -1715,7 +1998,7 @@ export function AnnotationWorkspaceProvider({
         output: params.output,
       };
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       if (params.labelId) recordLabelUsage(params.labelId);
       return id;
@@ -1730,7 +2013,7 @@ export function AnnotationWorkspaceProvider({
       output?: string;
     }) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) => {
           if (item.id !== id || item.kind !== 'instruction') return item;
           return {
@@ -1770,7 +2053,7 @@ export function AnnotationWorkspaceProvider({
         preferenceNote: params.preferenceNote,
       };
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       if (params.labelId) recordLabelUsage(params.labelId);
       return id;
@@ -1786,7 +2069,7 @@ export function AnnotationWorkspaceProvider({
       preferenceNote?: string;
     }) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) => {
           if (item.id !== id || item.kind !== 'preference') return item;
           return {
@@ -1821,7 +2104,7 @@ export function AnnotationWorkspaceProvider({
         turns: params.turns,
       };
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       if (params.labelId) recordLabelUsage(params.labelId);
       return id;
@@ -1833,7 +2116,7 @@ export function AnnotationWorkspaceProvider({
     (id: string, turns: Array<{ role: 'user' | 'assistant'; content: string }>) => {
       if (turns.length === 0) return;
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) => {
           if (item.id !== id || item.kind !== 'conversation') return item;
           return { ...item, turns, updatedAt: new Date().toISOString() };
@@ -1867,7 +2150,7 @@ export function AnnotationWorkspaceProvider({
         answer: params.answer,
       };
       recordHistory();
-      setAnnotations((prev) => [...prev, next]);
+      setEditableAnnotations((prev) => [...prev, next]);
       touchDirty();
       if (params.labelId) recordLabelUsage(params.labelId);
       return id;
@@ -1883,7 +2166,7 @@ export function AnnotationWorkspaceProvider({
       answer?: string;
     }) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) => {
           if (item.id !== id || item.kind !== 'cot') return item;
           return {
@@ -1904,7 +2187,7 @@ export function AnnotationWorkspaceProvider({
   const updatePoseGeometry = useCallback(
     (id: string, ann: PoseAnnotation) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) =>
           item.kind === 'pose' && item.id === id ? ann : item,
         ),
@@ -1917,7 +2200,7 @@ export function AnnotationWorkspaceProvider({
   const updatePointGeometry = useCallback(
     (id: string, x: number, y: number) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) =>
           item.kind === 'point' && item.id === id
             ? { ...item, x, y, updatedAt: new Date().toISOString() }
@@ -1932,7 +2215,7 @@ export function AnnotationWorkspaceProvider({
   const updateKeypointVisibility = useCallback(
     (poseId: string, index: number, visibility: 0 | 1 | 2) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) => {
           if (item.kind !== 'pose' || item.id !== poseId) return item;
           const keypoints = item.keypoints.map((kp, i) =>
@@ -1953,7 +2236,7 @@ export function AnnotationWorkspaceProvider({
   const deleteAnnotation = useCallback(
     (id: string) => {
       recordHistory();
-      setAnnotations((prev) => prev.filter((a) => a.id !== id));
+      setEditableAnnotations((prev) => prev.filter((a) => a.id !== id));
       setSelectedAnnotationId((sid) => (sid === id ? null : sid));
       touchDirty();
     },
@@ -1963,7 +2246,7 @@ export function AnnotationWorkspaceProvider({
   const updateAnnotationLabel = useCallback(
     (id: string, labelId: string) => {
       recordHistory();
-      setAnnotations((prev) =>
+      setEditableAnnotations((prev) =>
         prev.map((item) =>
           item.id === id
             ? { ...item, labelId, updatedAt: new Date().toISOString() }
@@ -2005,7 +2288,7 @@ export function AnnotationWorkspaceProvider({
       annotationPanelVisible,
       projectRootMatched,
       relativeFilePath,
-      annotations,
+      annotations: effectiveAnnotations,
       bboxAnnotations,
       rotatedBboxAnnotations,
       polygonAnnotations,
@@ -2034,6 +2317,13 @@ export function AnnotationWorkspaceProvider({
       setActiveLabelId,
       labelUsage,
       selectAnnotation,
+      agentPreviewSession,
+      agentPreviewReadOnly,
+      enterAgentPreview,
+      clearAgentPreview,
+      schedulePendingAgentNavigation,
+      applyImmediateAnnotationPreview,
+      loadSyntheticAnnotationForView,
       // 文本标注方法
       addSpanAnnotation,
       updateSpanAnnotation,
@@ -2089,7 +2379,7 @@ export function AnnotationWorkspaceProvider({
     annotationPanelVisible,
     projectRootMatched,
     relativeFilePath,
-    annotations,
+    effectiveAnnotations,
     bboxAnnotations,
     rotatedBboxAnnotations,
     polygonAnnotations,
@@ -2116,6 +2406,12 @@ export function AnnotationWorkspaceProvider({
     activeLabelId,
     labelUsage,
     selectAnnotation,
+    agentPreviewSession,
+    agentPreviewReadOnly,
+    enterAgentPreview,
+    clearAgentPreview,
+    schedulePendingAgentNavigation,
+    loadSyntheticAnnotationForView,
     addSpanAnnotation,
     updateSpanAnnotation,
     addTextClassificationAnnotation,

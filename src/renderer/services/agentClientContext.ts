@@ -33,5 +33,10 @@ export function buildApiClientContext(
         }
       : null,
     mcp_server_url: clientContext.mcpServerUrl ?? null,
+    project_instructions: clientContext.projectInstructions ?? null,
+    memory_index: clientContext.memoryIndex ?? null,
+    skills_catalog: (clientContext.skillsCatalog ?? []).map(
+      ({ name, description }) => ({ name, description }),
+    ),
   };
 }

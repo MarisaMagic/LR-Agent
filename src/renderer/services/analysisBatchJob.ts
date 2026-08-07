@@ -10,6 +10,7 @@ export async function startAnalysisBatchJob(options: {
   userRequest: string;
   project: AnnotationProjectSnapshot;
   sessionId?: string;
+  conversationTranscript?: string;
   onEvent: (event: StreamEvent) => void;
   onPersistEvent?: (event: StreamEvent) => void;
   signal: AbortSignal;
@@ -29,6 +30,7 @@ export async function startAnalysisBatchJob(options: {
       userRequest: options.userRequest,
       project: options.project,
       sessionId: options.sessionId,
+      conversationTranscript: options.conversationTranscript,
       isCancelled,
       signal: options.signal,
       providerApiKey: options.providerApiKey,

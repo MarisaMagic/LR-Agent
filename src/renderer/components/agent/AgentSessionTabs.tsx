@@ -11,6 +11,10 @@ import { createResizeObserver } from '../../utils/resizeObserver';
 import { motionDuration, motionEase, motionDistance } from '../../motion/tokens';
 import VscodeClickableToolbarButton from '../VscodeClickableButton';
 import { useAgentChat } from '../../context/AgentChatContext';
+import { useAnnotation } from '../../context/AnnotationContext';
+import { useApp } from '../../context/AppContext';
+import { useWorkMode } from '../../context/WorkModeContext';
+import { computeMemoryScopeKey, openMemoryDir } from '../../services/agentMemory';
 import AgentHistoryPopover, {
   computeHistoryPopoverPosition,
 } from './AgentHistoryPopover';
@@ -36,6 +40,9 @@ export default function AgentSessionTabs() {
     setHistoryOpen,
     isSessionStreaming,
   } = useAgentChat();
+  const { rootPath } = useApp();
+  const { activeProject } = useAnnotation();
+  const { workMode } = useWorkMode();
   const reducedMotion = useReducedMotion();
   const isLayoutResizing = useLayoutResizing();
   const enableTabLayout = !reducedMotion && !isLayoutResizing;
@@ -236,6 +243,15 @@ export default function AgentSessionTabs() {
     setHistoryOpen(false);
   };
 
+  const openMemory = () => {
+    const scopeKey = computeMemoryScopeKey({
+      annotationProjectId:
+        workMode === 'annotation' ? activeProject?.id ?? null : null,
+      workspaceRoot: rootPath,
+    });
+    void openMemoryDir(scopeKey);
+  };
+
   const scrollerClassName = [
     'agent-session-tab-scroller',
     scrolling ? 'is-scrolling' : '',
@@ -341,6 +357,11 @@ export default function AgentSessionTabs() {
           icon="add"
           label="新建 Agent 会话"
           onClick={() => createSession()}
+        />
+        <VscodeClickableToolbarButton
+          icon="book"
+          label="查看记忆"
+          onClick={openMemory}
         />
         <div ref={historyAnchorRef} className="agent-history-anchor">
           <VscodeClickableToolbarButton

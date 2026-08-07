@@ -10,7 +10,10 @@ export type ExportFormatId =
   | 'yolo_obb'
   | 'dota'
   | 'yolo_pose'
-  | 'lr_agent';
+  | 'lr_agent'
+  | 'jsonl'
+  | 'caption_jsonl'
+  | 'classification_csv';
 
 export type ExportCoordinateMode = 'pixel' | 'normalized';
 
@@ -18,7 +21,6 @@ export interface ExportFormatOption {
   id: ExportFormatId;
   label: string;
   description: string;
-  /** File extension hint for single-file exports */
   extension?: string;
 }
 
@@ -26,9 +28,21 @@ export interface AnnotationExportOptions {
   format: ExportFormatId;
   outputDir: string;
   coordinateMode: ExportCoordinateMode;
-  /** Include indexed images with zero annotations */
+  /** Include indexed files with zero annotations in index */
   includeEmptyImages: boolean;
+  /** Copy source images/text into export bundle (training formats), default true */
+  includeSourceMedia: boolean;
+  /** lr_agent backup: include .lr-agent/annotations tree, default true */
+  includeLrAgentAnnotations: boolean;
 }
+
+export const DEFAULT_EXPORT_OPTIONS: Pick<
+  AnnotationExportOptions,
+  'includeSourceMedia' | 'includeLrAgentAnnotations'
+> = {
+  includeSourceMedia: true,
+  includeLrAgentAnnotations: true,
+};
 
 export interface KeypointTemplateExportMeta {
   id: string;
@@ -55,127 +69,146 @@ export interface AnnotationExportResult {
   filesWritten: number;
   imageCount: number;
   annotationCount: number;
-  /** Training formats skip annotations with no labelId */
   skippedUnlabeledCount?: number;
+  unknownLabelCount?: number;
+  warnings?: string[];
+  skippedFiles?: string[];
   message: string;
   error?: string;
 }
+
+const LR_AGENT_FORMAT: ExportFormatOption = {
+  id: 'lr_agent',
+  label: 'LR-Agent 原生 JSON',
+  description: '完整保留 annotations 结构并可选拷贝源文件',
+};
+
+const TEXT_FORMATS: ExportFormatOption[] = [
+  {
+    id: 'jsonl',
+    label: 'JSONL 训练集',
+    description: '按任务类型导出 Alpaca/ShareGPT/DPO 等兼容 JSONL',
+  },
+  LR_AGENT_FORMAT,
+];
 
 const IMAGE_BBOX_FORMATS: ExportFormatOption[] = [
   {
     id: 'yolo',
     label: 'YOLO Detection',
-    description: 'labels/*.txt + data.yaml，归一化 cx cy w h',
+    description: 'labels/*.txt + images/ + data.yaml',
   },
   {
     id: 'coco',
     label: 'COCO JSON',
-    description: 'instances.json，bbox 为像素 [x,y,w,h]',
+    description: 'instances.json + images/',
   },
   {
     id: 'voc',
     label: 'Pascal VOC XML',
-    description: 'Annotations/*.xml，xmin/ymin/xmax/ymax',
+    description: 'Annotations/*.xml + images/',
   },
   {
     id: 'labelme',
     label: 'LabelMe JSON',
-    description: '每张图一个 JSON，矩形或多边形点集',
+    description: 'labelme/*.json + images/',
   },
   {
     id: 'csv',
     label: 'CSV 表格',
     description: '扁平 CSV：image, class, x, y, w, h',
   },
-  {
-    id: 'lr_agent',
-    label: 'LR-Agent 原生 JSON',
-    description: '完整保留 annotations/files 结构备份',
-  },
+  LR_AGENT_FORMAT,
 ];
 
 const IMAGE_POLYGON_FORMATS: ExportFormatOption[] = [
   {
     id: 'coco',
     label: 'COCO JSON (分割)',
-    description: 'segmentation 多边形 + bbox 外接矩形',
+    description: 'segmentation 多边形 + images/',
   },
   {
     id: 'yolo_seg',
     label: 'YOLO Segmentation',
-    description: 'labels/*.txt，归一化多边形顶点',
+    description: 'labels/*.txt + images/',
   },
   {
     id: 'labelme',
     label: 'LabelMe JSON',
-    description: '每张图一个 JSON polygon 点集',
+    description: 'polygon labelme + images/',
   },
   {
     id: 'csv',
     label: 'CSV 表格',
-    description: '每行一个顶点：image, class, vertex_index, x, y',
+    description: '每行一个顶点',
   },
-  {
-    id: 'lr_agent',
-    label: 'LR-Agent 原生 JSON',
-    description: '完整保留 annotations/files 结构备份',
-  },
+  LR_AGENT_FORMAT,
 ];
 
 const IMAGE_KEYPOINT_FORMATS: ExportFormatOption[] = [
   {
     id: 'coco',
     label: 'COCO Keypoints JSON',
-    description: '骨架实例 keypoints + bbox（pose 模式）',
+    description: 'keypoints.json + images/',
   },
   {
     id: 'yolo_pose',
     label: 'YOLO Pose',
-    description: 'labels/*.txt，bbox + 关键点坐标',
+    description: 'labels/*.txt + images/',
   },
   {
     id: 'labelme',
     label: 'LabelMe JSON',
-    description: '点/线段 shape（pose 与单点）',
+    description: '点/pose labelme + images/',
   },
   {
     id: 'csv',
     label: 'CSV 表格',
     description: 'image, class, kpt_index, x, y, visibility',
   },
-  {
-    id: 'lr_agent',
-    label: 'LR-Agent 原生 JSON',
-    description: '完整保留 annotations/files 结构备份',
-  },
+  LR_AGENT_FORMAT,
 ];
 
 const IMAGE_ROTATED_BBOX_FORMATS: ExportFormatOption[] = [
   {
     id: 'yolo_obb',
     label: 'YOLO OBB',
-    description: 'labels/*.txt，cx cy w h angle（弧度）',
+    description: 'labels/*.txt + images/',
   },
   {
     id: 'dota',
     label: 'DOTA',
-    description: 'labelTxt/*.txt，四角点 x1 y1 … x4 y4',
+    description: 'labelTxt/*.txt + images/',
   },
   {
     id: 'labelme',
     label: 'LabelMe JSON',
-    description: '旋转矩形转为 4 点多边形',
+    description: '旋转框 labelme + images/',
   },
   {
     id: 'csv',
     label: 'CSV 表格',
     description: 'image, class, cx, cy, w, h, angle_deg',
   },
+  LR_AGENT_FORMAT,
+];
+
+const CAPTION_FORMATS: ExportFormatOption[] = [
   {
-    id: 'lr_agent',
-    label: 'LR-Agent 原生 JSON',
-    description: '完整保留 annotations/files 结构备份',
+    id: 'caption_jsonl',
+    label: 'Caption JSONL',
+    description: '每行 image + text，含 images/',
   },
+  LR_AGENT_FORMAT,
+];
+
+const CLASSIFICATION_FORMATS: ExportFormatOption[] = [
+  {
+    id: 'classification_csv',
+    label: 'Classification CSV',
+    description: 'image, label 多标签 CSV + images/',
+  },
+  LR_AGENT_FORMAT,
 ];
 
 export function getExportFormatsForType(
@@ -191,22 +224,18 @@ export function getExportFormatsForType(
     case 'rotated_bbox':
       return IMAGE_ROTATED_BBOX_FORMATS;
     case 'caption':
+      return CAPTION_FORMATS;
     case 'classification':
-      return [
-        {
-          id: 'lr_agent',
-          label: 'LR-Agent 原生 JSON',
-          description: '完整保留 annotations/files 结构备份',
-        },
-      ];
+      return CLASSIFICATION_FORMATS;
+    case 'span_ner':
+    case 'text_classification':
+    case 'instruction':
+    case 'preference':
+    case 'conversation':
+    case 'cot':
+      return TEXT_FORMATS;
     default:
-      return [
-        {
-          id: 'lr_agent',
-          label: 'LR-Agent 原生 JSON',
-          description: '完整保留 annotations/files 结构备份',
-        },
-      ];
+      return [LR_AGENT_FORMAT];
   }
 }
 
@@ -220,6 +249,17 @@ export function isImageAnnotationType(
     value === 'rotated_bbox' ||
     value === 'caption' ||
     value === 'classification'
+  );
+}
+
+export function isTextAnnotationType(value: AnnotationType): boolean {
+  return (
+    value === 'span_ner' ||
+    value === 'text_classification' ||
+    value === 'instruction' ||
+    value === 'preference' ||
+    value === 'conversation' ||
+    value === 'cot'
   );
 }
 

@@ -72,6 +72,7 @@ async function prepareAnalysisScript(
   dataSnapshot: Record<string, unknown>,
   options: {
     sessionId?: string;
+    conversationTranscript?: string;
     repairContext?: AnalysisRepairContext;
     providerApiKey?: string;
     providerBaseUrl?: string;
@@ -89,6 +90,7 @@ async function prepareAnalysisScript(
       user_request: userRequest,
       data_snapshot: dataSnapshot,
       session_id: options.sessionId ?? null,
+      conversation_transcript: options.conversationTranscript ?? '',
       repair_context: options.repairContext ?? null,
     }),
   });
@@ -123,6 +125,7 @@ async function* streamAnalysisSummary(options: {
   providerId: string;
   userRequest: string;
   sessionId?: string;
+  conversationTranscript?: string;
   script: string;
   explanation: string;
   stdout: string;
@@ -143,6 +146,7 @@ async function* streamAnalysisSummary(options: {
       model: options.providerModel ?? '',
       user_request: options.userRequest,
       session_id: options.sessionId ?? null,
+      conversation_transcript: options.conversationTranscript ?? '',
       script: options.script,
       explanation: options.explanation,
       stdout: options.stdout,
@@ -190,6 +194,7 @@ export async function* runDataAnalysisJob(options: {
   userRequest: string;
   project: AnnotationProjectSnapshot;
   sessionId?: string;
+  conversationTranscript?: string;
   isCancelled?: () => boolean;
   signal?: AbortSignal;
   providerApiKey?: string;
@@ -241,6 +246,7 @@ export async function* runDataAnalysisJob(options: {
         dataPayload,
         {
           sessionId: options.sessionId,
+          conversationTranscript: options.conversationTranscript,
           repairContext,
           providerApiKey: options.providerApiKey,
           providerBaseUrl: options.providerBaseUrl,
@@ -316,6 +322,7 @@ export async function* runDataAnalysisJob(options: {
       providerId: options.providerId,
       userRequest: options.userRequest,
       sessionId: options.sessionId,
+      conversationTranscript: options.conversationTranscript,
       script: prepared.script,
       explanation: prepared.explanation,
       stdout,

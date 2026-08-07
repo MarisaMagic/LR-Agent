@@ -1,17 +1,7 @@
-import { getExtension } from '../types/file';
-import { isAllowedTextFileExtension } from '../../shared/workspaceTextExtensions';
-
-const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown']);
+import { isTextEditableFile } from '../../shared/workspaceTextExtensions';
 
 export function isMonacoEditableFile(filePath: string): boolean {
-  const ext = getExtension(filePath);
-  if (!ext) return false;
-  const dotted = `.${ext.toLowerCase()}`;
-  if (isAllowedTextFileExtension(dotted)) return true;
-  return MARKDOWN_EXTENSIONS.has(ext.toLowerCase());
+  return isTextEditableFile(filePath);
 }
 
-export function isMarkdownFile(filePath: string): boolean {
-  const ext = getExtension(filePath);
-  return MARKDOWN_EXTENSIONS.has(ext.toLowerCase());
-}
+export { isMarkdownFile } from '../../shared/workspaceTextExtensions';

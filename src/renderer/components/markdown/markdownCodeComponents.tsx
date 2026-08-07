@@ -32,6 +32,26 @@ export function createMarkdownCodeComponents(
   } = options;
 
   const components: Components = {
+    a({ href, children, ...props }) {
+      return (
+        <a
+          href={href}
+          {...props}
+          onClick={(e) => {
+            if (!href || href.startsWith('#')) return;
+            e.preventDefault();
+            // 仅 http(s) 绝对链接交给系统浏览器，相对链接不再触发当前窗口导航
+            if (/^https?:\/\//i.test(href)) {
+              window.electron.window
+                .openExternal(href)
+                .catch(() => undefined);
+            }
+          }}
+        >
+          {children}
+        </a>
+      );
+    },
     pre({ children, ...props }) {
       if (overlayHorizontalScroll) {
         return <AgentScrollablePre {...props}>{children}</AgentScrollablePre>;

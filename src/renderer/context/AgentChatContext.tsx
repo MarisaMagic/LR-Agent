@@ -77,6 +77,11 @@ import type { AnnotationProject } from '../types/annotation';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import { usePretrainedModels } from './PretrainedModelsContext';
 import { shouldClearSummaryOnEdit } from '../services/chatContextUtils';
+import { prepareChatContext } from '../services/contextPreparer';
+import { loadProjectInstructions } from '../services/projectInstructions';
+import { computeMemoryScopeKey, loadMemoryIndex } from '../services/agentMemory';
+import { loadSkillsCatalog } from '../services/agentSkills';
+import { buildTurnContextFromState } from '../services/turnContext';
 import { useAnnotation } from './AnnotationContext';
 import { useWorkMode } from './WorkModeContext';
 import { useApp } from './AppContext';
@@ -1316,6 +1321,24 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           electron?: { mcp?: { getServerUrl?: () => Promise<string | null> } };
         }).electron?.mcp?.getServerUrl?.()) ?? null;
 
+      // 项目级指令：标注模式读项目目录，编辑器模式读工作区根目录
+      const instructionsDir =
+        workMode === 'annotation' && activeProject
+          ? activeProject.directoryPath
+          : rootPath;
+      const projectInstructions = await loadProjectInstructions(instructionsDir);
+
+      // Auto Memory：读取当前作用域索引（同时设置活动记忆作用域，供 MCP memory 工具使用）
+      const memoryScopeKey = computeMemoryScopeKey({
+        annotationProjectId:
+          workMode === 'annotation' ? activeProject?.id ?? null : null,
+        workspaceRoot: rootPath,
+      });
+      const memoryIndex = await loadMemoryIndex(memoryScopeKey);
+
+      // 全局 Skills catalog：扫描 ~/.agents/skills，注入 system prompt（失败返回空数组不阻塞）
+      const skillsCatalog = await loadSkillsCatalog();
+
       let clientContext = buildClientContextPayload({
         rootPath,
         activeFilePath,
@@ -1324,11 +1347,84 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         workMode,
         detectionModels: pretrainedModels,
         mcpServerUrl,
+        projectInstructions,
+        memoryIndex,
+        skillsCatalog,
       });
 
       // Turn understanding removed — now handled locally or skipped
 
+      // ── 上下文准备：窗口裁剪 + 自动摘要（失败降级为纯裁剪，不阻塞发送） ──
+      let sessionForJob: AgentSession = nextSession;
+      let messageIdsForJob = messageIds;
+      try {
+        const prepared = await prepareChatContext({
+          session: nextSession,
+          messageIds,
+          sessionMessages,
+          currentUserContent: trimmed,
+          provider: {
+            baseUrl: selectedProvider.baseUrl,
+            apiKey: selectedProvider.apiKey,
+            model: selectedProvider.model,
+          },
+          excludeMessageIds: new Set([assistantMessageId]),
+        });
+        messageIdsForJob = prepared.windowedMessageIds;
+        if (prepared.summarized && prepared.contextSummary) {
+          sessionForJob = {
+            ...nextSession,
+            contextSummary: prepared.contextSummary,
+            summaryUpToMessageId: prepared.summaryUpToMessageId,
+            lastContextTokenEstimate: prepared.tokenEstimate,
+          };
+          const latest = stateRef.current;
+          const latestSession = latest.sessions[sessionId];
+          if (latestSession) {
+            persist({
+              ...latest,
+              sessions: {
+                ...latest.sessions,
+                [sessionId]: {
+                  ...latestSession,
+                  contextSummary: prepared.contextSummary,
+                  summaryUpToMessageId: prepared.summaryUpToMessageId,
+                  lastContextTokenEstimate: prepared.tokenEstimate,
+                  updatedAt: Date.now(),
+                },
+              },
+            });
+          }
+          patchAgentSessionRemote(currentUserIdRef.current, sessionId, {
+            contextSummary: prepared.contextSummary,
+            summaryUpToMessageId: prepared.summaryUpToMessageId,
+            lastContextTokenEstimate: prepared.tokenEstimate,
+          }).catch((err) =>
+            console.error('[DB] Failed to persist context summary:', err),
+          );
+        } else if (prepared.tokenEstimate) {
+          sessionForJob = {
+            ...nextSession,
+            lastContextTokenEstimate: prepared.tokenEstimate,
+          };
+        }
+      } catch (err) {
+        console.warn('[AgentChat] 上下文准备失败，使用全量消息:', err);
+      }
+
       // 构建客户端工具上下文（有标注项目时传入，供 Agent 调用客户端工具使用）
+      let conversationTranscript = '';
+      if (workMode === 'annotation' && activeProject) {
+        const toolTurnCtx = buildTurnContextFromState(
+          sessionForJob,
+          messageIdsForJob,
+          { [sessionId]: Object.values(sessionMessages) },
+          { excludeMessageIds: new Set([assistantMessageId]) },
+        );
+        conversationTranscript = toolTurnCtx.summary
+          ? `【此前对话摘要】${toolTurnCtx.summary}\n${toolTurnCtx.transcript}`
+          : toolTurnCtx.transcript;
+      }
       const clientToolContext: ClientToolContext | null =
         workMode === 'annotation' && activeProject
           ? {
@@ -1338,6 +1434,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               ),
               detectionModels: pretrainedModels,
               currentFileAbsolutePath: activeFilePath,
+              conversationTranscript,
             }
           : null;
 
@@ -1358,8 +1455,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       try {
         await startChatJob({
           jobId,
-          session: nextSession,
-          messageIds,
+          session: sessionForJob,
+          messageIds: messageIdsForJob,
           sessionMessages,
           providerId: selectedProvider.id,
           providerBaseUrl: selectedProvider.baseUrl,
@@ -1372,6 +1469,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           truncateFromMessageId,
           clientContext,
           clientToolContext,
+          getSessionMessages: () =>
+            stateRef.current.messagesBySession[sessionId] ?? {},
         });
       } catch (err) {
         updateMessage(sessionId, assistantMessageId, (message) => ({

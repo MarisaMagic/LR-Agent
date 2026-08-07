@@ -12,6 +12,7 @@ import ActivityBar, { type LeftPanel, type RightPanel } from './ActivityBar';
 import AnnotationRightPanel from './annotation/AnnotationRightPanel';
 import AgentPanel from './agent/AgentPanel';
 import QualityDashboardPanel from './quality/QualityDashboardPanel';
+import QuickInferencePanel from './quickInference/QuickInferencePanel';
 import EmailVerifyBanner from './EmailVerifyBanner';
 import OfflineConnectivityNotifier from './OfflineConnectivityNotifier';
 import FileTree from './FileTree';
@@ -108,12 +109,14 @@ export default function Layout() {
   const showRightPanelToolbar = workMode === 'editor' || annotationModeActive;
   const annotationTabDisabled = workMode === 'editor';
   const qualityTabDisabled = !annotationModeActive;
+  const quickInferenceTabDisabled = workMode === 'editor';
   const rightPanel = rightPanelByMode[workMode];
 
   const setRightPanelForMode = useCallback(
     (panel: RightPanel) => {
       if (workMode === 'editor' && panel === 'annotation') return;
       if (workMode === 'editor' && panel === 'quality') return;
+      if (workMode === 'editor' && panel === 'quickInference') return;
       setRightPanelByMode((prev) => ({ ...prev, [workMode]: panel }));
     },
     [workMode],
@@ -463,12 +466,18 @@ export default function Layout() {
               activePanel={rightPanel}
               annotationTabDisabled={annotationTabDisabled}
               qualityTabDisabled={qualityTabDisabled}
+              quickInferenceTabDisabled={quickInferenceTabDisabled}
               onAnnotationClick={() => {
                 if (!annotationTabDisabled) {
                   setRightPanelForMode('annotation');
                 }
               }}
               onAgentClick={() => setRightPanelForMode('agent')}
+              onQuickInferenceClick={() => {
+                if (!quickInferenceTabDisabled) {
+                  setRightPanelForMode('quickInference');
+                }
+              }}
               onQualityClick={() => {
                 if (!qualityTabDisabled) {
                   setRightPanelForMode('quality');
@@ -482,6 +491,8 @@ export default function Layout() {
             >
               {rightPanel === 'annotation' && !annotationTabDisabled ? (
                 <AnnotationRightPanel />
+              ) : rightPanel === 'quickInference' && !quickInferenceTabDisabled ? (
+                <QuickInferencePanel />
               ) : rightPanel === 'quality' && !qualityTabDisabled ? (
                 <QualityDashboardPanel />
               ) : (

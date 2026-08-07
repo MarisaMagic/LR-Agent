@@ -8,11 +8,14 @@ import {
 } from '../../types/annotation';
 import {
   defaultExportFormat,
+  DEFAULT_EXPORT_OPTIONS,
   getExportFormatsForType,
   type ExportCoordinateMode,
   type ExportFormatId,
   isImageAnnotationType,
 } from '../../../shared/annotationExportTypes';
+import { useAnnotation } from '../../context/AnnotationContext';
+import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import { exportAnnotationProject } from '../../services/annotationExportService';
 import './ExportAnnotationWizard.css';
 
@@ -34,6 +37,8 @@ export default function ExportAnnotationWizard({
   onExported,
 }: ExportAnnotationWizardProps) {
   const open = Boolean(project);
+  const { activeProject } = useAnnotation();
+  const { dirty, saveNow } = useAnnotationWorkspace();
 
   const formatOptions = useMemo(
     () => (project ? getExportFormatsForType(project.annotationType) : []),
@@ -45,9 +50,14 @@ export default function ExportAnnotationWizard({
   const [coordinateMode, setCoordinateMode] =
     useState<ExportCoordinateMode>('pixel');
   const [includeEmptyImages, setIncludeEmptyImages] = useState(false);
+  const [includeSourceMedia, setIncludeSourceMedia] = useState(
+    DEFAULT_EXPORT_OPTIONS.includeSourceMedia,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [exportWarnings, setExportWarnings] = useState<string[]>([]);
+  const [skippedFiles, setSkippedFiles] = useState<string[]>([]);
 
   useEffect(() => {
     if (!project) return;
@@ -55,16 +65,21 @@ export default function ExportAnnotationWizard({
     setOutputDir(defaultOutputDir(project));
     setCoordinateMode('pixel');
     setIncludeEmptyImages(false);
+    setIncludeSourceMedia(DEFAULT_EXPORT_OPTIONS.includeSourceMedia);
     setSubmitting(false);
     setError(null);
     setSuccessMessage(null);
+    setExportWarnings([]);
+    setSkippedFiles([]);
   }, [project]);
 
-  const showCoordinateMode = format === 'csv';
+  const showCoordinateMode =
+    format === 'csv' && project && isImageAnnotationType(project.annotationType);
+  const showIncludeEmptyImages =
+    project?.modality === 'image' && format !== 'lr_agent';
+  const showIncludeSourceMedia = format !== 'lr_agent';
   const canExport =
-    project &&
-    isImageAnnotationType(project.annotationType) &&
-    outputDir.trim().length > 0;
+    project && outputDir.trim().length > 0 && formatOptions.length > 0;
 
   const handlePickDirectory = async () => {
     const picked = await window.electron.fileSystem.openDirectory();
@@ -75,29 +90,37 @@ export default function ExportAnnotationWizard({
     event.preventDefault();
     if (!project || !canExport) return;
 
-    if (!isImageAnnotationType(project.annotationType)) {
-      setError('当前任务类型暂不支持格式化导出');
-      return;
-    }
-
     setSubmitting(true);
     setError(null);
     setSuccessMessage(null);
+    setExportWarnings([]);
+    setSkippedFiles([]);
 
     try {
+      if (activeProject?.id === project.id && dirty) {
+        await saveNow();
+      }
+
       const result = await exportAnnotationProject(project, {
         format,
         outputDir: outputDir.trim(),
         coordinateMode,
         includeEmptyImages,
+        includeSourceMedia,
+        includeLrAgentAnnotations:
+          DEFAULT_EXPORT_OPTIONS.includeLrAgentAnnotations,
       });
 
       if (!result.success) {
         setError(result.error ?? result.message);
+        if (result.warnings?.length) setExportWarnings(result.warnings);
+        if (result.skippedFiles?.length) setSkippedFiles(result.skippedFiles);
         return;
       }
 
       setSuccessMessage(result.message);
+      if (result.warnings?.length) setExportWarnings(result.warnings);
+      if (result.skippedFiles?.length) setSkippedFiles(result.skippedFiles);
       onExported?.(result.outputDir);
     } catch (err) {
       setError(err instanceof Error ? err.message : '导出失败');
@@ -118,6 +141,8 @@ export default function ExportAnnotationWizard({
     project.modality,
     project.annotationType,
   );
+  const sourceMediaLabel =
+    project.modality === 'text' ? '包含源文本文件' : '包含源图片文件';
 
   return (
     <ModalMotion
@@ -152,6 +177,30 @@ export default function ExportAnnotationWizard({
       {error && <div className="export-annotation-error">{error}</div>}
       {successMessage && (
         <div className="export-annotation-success">{successMessage}</div>
+      )}
+      {(exportWarnings.length > 0 || skippedFiles.length > 0) && (
+        <div className="export-annotation-warnings">
+          {exportWarnings.length > 0 && (
+            <>
+              <strong>告警</strong>
+              <ul>
+                {exportWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {skippedFiles.length > 0 && (
+            <>
+              <strong>跳过的文件</strong>
+              <ul>
+                {skippedFiles.map((file) => (
+                  <li key={file}>{file}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       )}
 
       <div className="export-annotation-body">
@@ -218,14 +267,27 @@ export default function ExportAnnotationWizard({
           </div>
         )}
 
-        <label className="export-annotation-checkbox-row">
-          <input
-            type="checkbox"
-            checked={includeEmptyImages}
-            onChange={(event) => setIncludeEmptyImages(event.target.checked)}
-          />
-          包含已索引但无标注的图片
-        </label>
+        {showIncludeEmptyImages && (
+          <label className="export-annotation-checkbox-row">
+            <input
+              type="checkbox"
+              checked={includeEmptyImages}
+              onChange={(event) => setIncludeEmptyImages(event.target.checked)}
+            />
+            包含 index 中无标注的已索引文件
+          </label>
+        )}
+
+        {showIncludeSourceMedia && (
+          <label className="export-annotation-checkbox-row">
+            <input
+              type="checkbox"
+              checked={includeSourceMedia}
+              onChange={(event) => setIncludeSourceMedia(event.target.checked)}
+            />
+            {sourceMediaLabel}
+          </label>
+        )}
       </div>
 
       <div className="export-annotation-actions">

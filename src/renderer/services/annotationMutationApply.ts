@@ -179,11 +179,11 @@ function applyPatchToAnnotation(
   };
 }
 
-function applyChangeToDoc(
+export function applyChangeToDoc(
   parsed: FileAnnotationDocument | null,
   change: AnnotationBatchChange,
   project: AnnotationProject,
-  hint: SourceFreshnessHint,
+  hint: SourceFreshnessHint = {},
 ): FileAnnotationDocument {
   const now = new Date().toISOString();
   const op = change.operation;
@@ -196,8 +196,8 @@ function applyChangeToDoc(
       schemaVersion: FILE_ANNOTATION_SCHEMA_VERSION,
       projectId: project.id,
       filePath: change.relativePath,
-      modality: 'image',
-      annotationType: 'bbox',
+      modality: project.modality,
+      annotationType: project.annotationType,
       source: hint.mtimeMs
         ? { width: 0, height: 0, mtimeMs: hint.mtimeMs, size: hint.size }
         : undefined,
@@ -214,9 +214,13 @@ function applyChangeToDoc(
       (ann) => !existingIds.has(ann.id),
     );
     annotations = [...annotations, ...deduped];
-  } else if (op === 'replace' || op === 'replace_bboxes') {
+  } else if (op === 'replace_bboxes') {
+    // Only replace bbox-type annotations, keep others
     const nonBbox = annotations.filter((a) => a.kind !== 'bbox');
     annotations = [...nonBbox, ...(change.annotations ?? [])];
+  } else if (op === 'replace') {
+    // Full replace: drop all existing annotations
+    annotations = change.annotations ?? [];
   } else if (op === 'patch') {
     const patchMap = new Map(
       (change.patches ?? []).map((p) => [p.id, p] as const),
@@ -235,6 +239,23 @@ function applyChangeToDoc(
     annotations,
     updatedAt: now,
   };
+}
+
+/** Merge multiple proposal changes for one file (in order) without persisting. */
+export function mergeProposalChangesIntoDoc(
+  parsed: FileAnnotationDocument | null,
+  changes: AnnotationBatchChange[],
+  project: AnnotationProject,
+  hint: SourceFreshnessHint = {},
+): FileAnnotationDocument {
+  let doc = parsed;
+  for (const change of changes) {
+    doc = applyChangeToDoc(doc, change, project, hint);
+  }
+  if (!doc) {
+    throw new Error('mergeProposalChangesIntoDoc: no changes produced a document');
+  }
+  return doc;
 }
 
 export async function applyMutations(

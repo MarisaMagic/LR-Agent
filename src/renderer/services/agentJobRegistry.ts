@@ -1,4 +1,4 @@
-import { JobState } from '../../shared/agentTypes';
+import { DEFAULT_CHAT_CONTEXT_CONFIG, JobState } from '../../shared/agentTypes';
 import type {
   AgentSession,
   ChatMessage,
@@ -85,6 +85,8 @@ export interface ClientToolContext {
   project: AnnotationProjectSnapshot;
   detectionModels: PretrainedModelConfig[];
   currentFileAbsolutePath: string | null;
+  /** 对话上下文 transcript，透传给 batch/mutation/analysis prepare API */
+  conversationTranscript?: string;
 }
 
 /**
@@ -105,6 +107,17 @@ function formatClientToolResult(payload: ClientToolResultPayload): string {
   return JSON.stringify(payload);
 }
 
+/** 直连 LLM 时后端无法注入摘要，把摘要拼入 systemPrompt */
+function composeDirectSystemPrompt(
+  systemPrompt: string | undefined,
+  contextSummary: string | undefined,
+): string | undefined {
+  const summary = contextSummary?.trim();
+  if (!summary) return systemPrompt;
+  const summaryBlock = `【此前对话摘要】\n${summary}`;
+  return systemPrompt ? `${systemPrompt}\n\n${summaryBlock}` : summaryBlock;
+}
+
 function pendingToolCallsFromEvent(event: StreamEvent): ClientToolCall[] | null {
   if (event.type === 'tool_pending') {
     const e = event as Record<string, unknown>;
@@ -114,7 +127,7 @@ function pendingToolCallsFromEvent(event: StreamEvent): ClientToolCall[] | null 
 }
 
 const ANNOTATION_CLIENT_TOOLS = new Set([
-  'execute_batch_annotation',
+  'auto_annotate',
   'mutate_annotation',
   'analyze_data',
 ]);
@@ -155,16 +168,18 @@ async function runClientTool(
     });
   }
 
-  if (toolCall.name === 'execute_batch_annotation') {
+  if (toolCall.name === 'auto_annotate') {
     if (!ctx) {
       return formatClientToolResult({
         status: 'error',
-        tool: 'execute_batch_annotation',
+        tool: 'auto_annotate',
         user_request: userRequest,
-        summary: '未绑定标注项目，无法执行批量标注',
-        message: '未绑定标注项目，无法执行批量标注',
+        summary: '未绑定标注项目，无法执行自动标注',
+        message: '未绑定标注项目，无法执行自动标注',
       });
     }
+    const scopeHint =
+      (toolCall.arguments as { scope_hint?: string }).scope_hint?.trim() || undefined;
     const controller = new AbortController();
     signal.addEventListener('abort', () => controller.abort());
     const onEvent = (event: StreamEvent): void => {
@@ -186,10 +201,11 @@ async function runClientTool(
         providerBaseUrl,
         providerModel,
         providerSupportsVision,
+        scopeHint,
       });
       return formatClientToolResult({
         status: batchResult.status === 'completed' ? 'completed' : batchResult.status,
-        tool: 'execute_batch_annotation',
+        tool: 'auto_annotate',
         user_request: userRequest,
         summary: batchResult.summary,
         message: batchResult.summary,
@@ -198,10 +214,10 @@ async function runClientTool(
     } catch {
       return formatClientToolResult({
         status: 'error',
-        tool: 'execute_batch_annotation',
+        tool: 'auto_annotate',
         user_request: userRequest,
-        summary: '批量标注流水线执行失败',
-        message: '批量标注流水线执行失败',
+        summary: '自动标注流水线执行失败',
+        message: '自动标注流水线执行失败',
         file_written: false,
       });
     }
@@ -225,6 +241,7 @@ async function runClientTool(
         providerId,
         userRequest,
         sessionId,
+        conversationTranscript: ctx.conversationTranscript,
         project: ctx.project,
         currentFileAbsolutePath: ctx.currentFileAbsolutePath,
         signal: controller.signal,
@@ -266,6 +283,7 @@ async function runClientTool(
         userRequest,
         project: ctx.project,
         sessionId,
+        conversationTranscript: ctx.conversationTranscript,
         signal: controller.signal,
         onEvent,
         providerApiKey,
@@ -377,7 +395,10 @@ export async function startChatJob(options: {
               options.sessionMessages,
             ),
             userContent: options.userContent,
-            systemPrompt: options.systemPrompt,
+            systemPrompt: composeDirectSystemPrompt(
+              options.systemPrompt,
+              options.session.contextSummary,
+            ),
           },
           controller.signal,
         )
@@ -395,13 +416,7 @@ export async function startChatJob(options: {
               context: {
                 summary: options.session.contextSummary,
                 summaryUpToMessageId: options.session.summaryUpToMessageId,
-                config: {
-                  maxContextTokens: 12000,
-                  reserveCompletionTokens: 2048,
-                  maxTurnsInWindow: 20,
-                  summarizeTriggerRatio: 0.85,
-                  minTurnsBeforeSummarize: 6,
-                },
+                config: DEFAULT_CHAT_CONTEXT_CONFIG,
               },
               clientJobId: options.jobId,
               truncateFromMessageId: options.truncateFromMessageId,

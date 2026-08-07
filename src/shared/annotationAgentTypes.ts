@@ -1,5 +1,5 @@
 import type { AnnotationType, LabelDefinition, Modality } from '../renderer/types/annotation';
-import type { BboxAnnotation } from '../renderer/types/annotationDocument';
+import type { AnnotationInstance, BboxAnnotation } from '../renderer/types/annotationDocument';
 
 export interface ImageCandidate {
   relativePath: string;
@@ -76,7 +76,7 @@ export interface AnnotationBatchChange {
   absolutePath: string;
   operation: AnnotationChangeOperation;
   /** append / replace / replace_bboxes */
-  annotations?: BboxAnnotation[];
+  annotations?: AnnotationInstance[];
   /** patch */
   patches?: AnnotationPatch[];
   /** delete */
@@ -107,24 +107,58 @@ export interface AnnotationJudgeSummary {
   retryRounds?: number;
 }
 
+/** Bbox-specific stats (backward compat) */
+export interface BboxProposalStats {
+  kind: 'bbox';
+  processed: number;
+  succeeded: number;
+  skipped: number;
+  totalBoxes: number;
+  judged?: number;
+  accepted?: number;
+  weakAccepted?: number;
+  rejected?: number;
+  retryRounds?: number;
+  unlabeledBoxes?: number;
+  cancelled?: boolean;
+}
+
+/** Generic stats for non-bbox annotation types */
+export interface GenericProposalStats {
+  kind: 'generic';
+  processed: number;
+  succeeded: number;
+  skipped: number;
+  cancelled?: boolean;
+}
+
+/** Geometry pipeline stats (rotated_bbox, polygon, keypoint) */
+export interface GeometryProposalStats {
+  kind: 'geometry';
+  processed: number;
+  succeeded: number;
+  skipped: number;
+  totalInstances: number;
+  unlabeledInstances?: number;
+  judged?: number;
+  accepted?: number;
+  weakAccepted?: number;
+  rejected?: number;
+  retryRounds?: number;
+  cancelled?: boolean;
+}
+
+export type AnnotationProposalStats =
+  | BboxProposalStats
+  | GenericProposalStats
+  | GeometryProposalStats;
+
 export interface AnnotationBatchProposal {
   id: string;
   projectId: string;
   summary: string;
   changes: AnnotationBatchChange[];
-  stats: {
-    processed: number;
-    succeeded: number;
-    skipped: number;
-    totalBoxes: number;
-    judged?: number;
-    accepted?: number;
-    weakAccepted?: number;
-    rejected?: number;
-    retryRounds?: number;
-    unlabeledBoxes?: number;
-    cancelled?: boolean;
-  };
+  stats: AnnotationProposalStats;
   plan?: BatchAnnotationPlan;
   createdAt: number;
 }
@@ -139,6 +173,8 @@ export interface AnnotationProjectSnapshot {
   annotationTypeLabel?: string;
   labels: LabelDefinition[];
   detectionModels?: DetectionModelSummary[];
+  /** Active keypoint template when annotationType is keypoint */
+  keypointTemplateId?: string;
 }
 
 export type AgentInteractionMode = 'chat' | 'annotation';

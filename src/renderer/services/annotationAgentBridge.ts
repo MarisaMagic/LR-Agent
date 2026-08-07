@@ -6,6 +6,7 @@ export interface AnnotationWorkspaceAgentSnapshot {
   workspaceDirty: boolean;
   workspaceRelativePath: string | null;
   workspaceProjectId: string | null;
+  keypointTemplateId: string | null;
 }
 
 let snapshot: AnnotationWorkspaceAgentSnapshot = {
@@ -14,6 +15,7 @@ let snapshot: AnnotationWorkspaceAgentSnapshot = {
   workspaceDirty: false,
   workspaceRelativePath: null,
   workspaceProjectId: null,
+  keypointTemplateId: null,
 };
 
 export function updateAnnotationWorkspaceAgentSnapshot(

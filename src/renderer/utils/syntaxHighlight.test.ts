@@ -1,7 +1,28 @@
 import {
+  getLanguageForFile,
+  getMonacoLanguageForFile,
   highlightMarkdownCode,
   normalizeMarkdownLanguage,
 } from './syntaxHighlight';
+
+describe('getLanguageForFile', () => {
+  it('maps jsonl and dotfiles', () => {
+    expect(getLanguageForFile('/ws/data/train.jsonl')).toBe('json');
+    expect(getLanguageForFile('/ws/.env')).toBe('ini');
+    expect(getLanguageForFile('/ws/.gitignore')).toBe('ini');
+  });
+
+  it('maps special filenames', () => {
+    expect(getLanguageForFile('/ws/Dockerfile')).toBe('dockerfile');
+    expect(getLanguageForFile('/ws/Makefile')).toBe('makefile');
+  });
+
+  it('maps monaco language ids', () => {
+    expect(getMonacoLanguageForFile('/ws/app.ts')).toBe('typescript');
+    expect(getMonacoLanguageForFile('/ws/script.ps1')).toBe('powershell');
+    expect(getMonacoLanguageForFile('/ws/unknown.xyz')).toBe('plaintext');
+  });
+});
 
 describe('normalizeMarkdownLanguage', () => {
   it('maps shell aliases to bash', () => {

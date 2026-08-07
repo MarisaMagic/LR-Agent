@@ -313,6 +313,23 @@ const electronHandler = {
         relativeDir,
         maxEntries,
       ),
+    listTextFiles: (
+      projectDir: string,
+      maxFiles?: number,
+    ): Promise<
+      Array<{
+        relativePath: string;
+        name: string;
+        parent: string;
+        absolutePath: string;
+        index: number;
+      }>
+    > => ipcRenderer.invoke('annotationAgent:listTextFiles', projectDir, maxFiles),
+    resolveRelativeFile: (
+      projectDir: string,
+      relativePath: string,
+    ): Promise<{ relativePath: string; absolutePath: string } | null> =>
+      ipcRenderer.invoke('annotationAgent:resolveRelativeFile', projectDir, relativePath),
   },
   analysis: {
     runScript: (payload: {
@@ -435,6 +452,33 @@ const electronHandler = {
     /** 获取本地 MCP Server URL（如 "http://127.0.0.1:PORT"），未启动时返回 null */
     getServerUrl: (): Promise<string | null> =>
       ipcRenderer.invoke('mcp:getServerUrl'),
+  },
+  memory: {
+    /** 读取目录下 .lragent/INSTRUCTIONS.md（项目级指令），不存在时返回 null */
+    readInstructions: (directoryPath: string): Promise<string | null> =>
+      ipcRenderer.invoke('agent:memory:readInstructions', directoryPath),
+    /** 读取 MEMORY.md 索引（截断后），同时设置活动记忆作用域 */
+    readIndex: (scopeKey: string): Promise<string | null> =>
+      ipcRenderer.invoke('agent:memory:readIndex', scopeKey),
+    readTopic: (scopeKey: string, topicFile: string): Promise<string | null> =>
+      ipcRenderer.invoke('agent:memory:readTopic', scopeKey, topicFile),
+    listTopics: (scopeKey: string): Promise<string[]> =>
+      ipcRenderer.invoke('agent:memory:listTopics', scopeKey),
+    writeTopic: (options: {
+      scopeKey: string;
+      topicFile: string;
+      content: string;
+      indexLine?: string;
+    }): Promise<{ topicPath: string }> =>
+      ipcRenderer.invoke('agent:memory:writeTopic', options),
+    /** 打开记忆目录（文件管理器） */
+    openDir: (scopeKey: string): Promise<string> =>
+      ipcRenderer.invoke('agent:memory:openDir', scopeKey),
+  },
+  skills: {
+    /** 扫描全局 skills 目录（~/.agents/skills），返回 catalog（name + description） */
+    listCatalog: (): Promise<unknown> =>
+      ipcRenderer.invoke('agent:skills:listCatalog'),
   },
   db: {
     // ── Session operations ──

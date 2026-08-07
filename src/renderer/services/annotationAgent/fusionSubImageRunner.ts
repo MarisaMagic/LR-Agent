@@ -1,10 +1,11 @@
 /**
- * 单图子 Agent 入口：确定性快路径 detect → map → finalize。
+ * 单图子 Agent 入口：几何流水线（含 bbox）。
  */
-import { runDeterministicSubImageAgent } from './deterministicSubImageRunner';
 import type { BatchAnnotationPlan, ImageCandidate } from '../../../shared/annotationAgentTypes';
 import type { FusionSubImageResult } from './fusionSubImageTypes';
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
+import { runGeometrySubImageAgent } from './geometrySubImageRunner';
+import { getGeometryAdapter } from './geometryPipelineAdapter';
 
 export type { FusionSubImageResult } from './fusionSubImageTypes';
 
@@ -28,5 +29,31 @@ export async function runFusionSubImageAgent(options: {
   providerSupportsVision?: boolean;
   signal?: AbortSignal;
 }): Promise<FusionSubImageResult> {
-  return runDeterministicSubImageAgent(options);
+  const adapter = getGeometryAdapter('bbox');
+  const secondaryModel = adapter?.pickSecondaryModel?.([], {
+    keypointTemplateId: undefined,
+    labelCount: options.labelCandidates.length,
+    labels: options.labelCandidates,
+  });
+
+  return runGeometrySubImageAgent({
+    annotationType: 'bbox',
+    providerId: options.providerId,
+    userRequest: options.userRequest,
+    plan: options.plan,
+    image: options.image,
+    primaryModel: options.detectionModel,
+    secondaryModel,
+    labelCandidates: options.labelCandidates,
+    adapterContext: {
+      labelCount: options.labelCandidates.length,
+      labels: options.labelCandidates,
+    },
+    onProgress: options.onProgress,
+    providerApiKey: options.providerApiKey,
+    providerBaseUrl: options.providerBaseUrl,
+    providerModel: options.providerModel,
+    providerSupportsVision: options.providerSupportsVision,
+    signal: options.signal,
+  });
 }

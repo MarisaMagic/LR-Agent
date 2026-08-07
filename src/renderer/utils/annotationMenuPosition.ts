@@ -12,6 +12,8 @@ export interface FloatingMenuPositionOptions {
   padding?: number;
   /** Align menu trailing edge to anchor trailing edge. */
   alignEnd?: boolean;
+  /** Prefer opening upward/downward when viewport allows; otherwise auto-flip. */
+  preferOpenUp?: boolean;
 }
 
 export function computeFloatingMenuPosition(
@@ -27,7 +29,25 @@ export function computeFloatingMenuPosition(
   const rect = anchorEl.getBoundingClientRect();
   const spaceBelow = window.innerHeight - rect.bottom - padding;
   const spaceAbove = rect.top - padding;
-  const openUp = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+
+  let openUp: boolean;
+  if (options.preferOpenUp != null) {
+    const preferredFits = options.preferOpenUp
+      ? spaceAbove >= menuHeight
+      : spaceBelow >= menuHeight;
+    const alternateFits = options.preferOpenUp
+      ? spaceBelow >= menuHeight
+      : spaceAbove >= menuHeight;
+    if (preferredFits) {
+      openUp = options.preferOpenUp;
+    } else if (alternateFits) {
+      openUp = !options.preferOpenUp;
+    } else {
+      openUp = spaceAbove > spaceBelow;
+    }
+  } else {
+    openUp = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+  }
 
   const top = openUp
     ? Math.max(padding, rect.top - menuHeight - gap)

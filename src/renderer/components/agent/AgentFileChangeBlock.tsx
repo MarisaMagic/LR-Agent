@@ -156,7 +156,8 @@ export default function AgentFileChangeBlock({
     return collapsed.hasMore || diffResult.lines.length > collapsed.lines.length;
   }, [collapsed, diffResult]);
 
-  const fileName = basename(relativePath);
+  const safeRelativePath = relativePath ?? '';
+  const fileName = basename(safeRelativePath) || '未命名文件';
   const diffScrollable = showFullDiff || !canExpandDiff;
 
   return (
@@ -170,8 +171,8 @@ export default function AgentFileChangeBlock({
         aria-label={`在编辑器中打开 ${fileName}`}
         onClick={handleOpenInEditor}
       >
-        <FileTypeIcon path={relativePath} size={14} />
-        <span className="agent-file-change-block__name" title={relativePath}>
+        <FileTypeIcon path={safeRelativePath} size={14} />
+        <span className="agent-file-change-block__name" title={safeRelativePath}>
           {fileName}
         </span>
         {statsLabel}
@@ -204,7 +205,7 @@ export default function AgentFileChangeBlock({
               contentClassName="agent-file-change-block__diff"
               observeKey={diffResult.lines.length}
             >
-              <DiffLines lines={diffResult.lines} relativePath={relativePath} />
+              <DiffLines lines={diffResult.lines} relativePath={safeRelativePath} />
             </OverlayVerticalScrollArea>
             {canExpandDiff ? (
               <button

@@ -42,6 +42,8 @@ export async function prepareBatchAnnotation(
     /** 仅 UI 显式指定；勿用回合理解的 referenced_relative_paths */
     preselectedPaths?: string[];
     sessionId?: string;
+    /** 对话上下文 transcript，供 LLM 理解历史意图 */
+    conversationTranscript?: string;
     currentRelativePath: string;
     candidates: ImageCandidate[];
     labelCandidates: Array<{ id: string; name: string }>;
@@ -64,6 +66,7 @@ export async function prepareBatchAnnotation(
     supports_vision: options.providerSupportsVision ?? false,
     user_request: options.userRequest,
     session_id: options.sessionId ?? null,
+    conversation_transcript: options.conversationTranscript ?? '',
     current_relative_path: options.currentRelativePath,
     candidates: options.candidates.map((c) => ({
       relative_path: c.relativePath,
@@ -112,6 +115,8 @@ export async function prepareMutationAnnotation(
   options: {
     userRequest: string;
     sessionId?: string;
+    /** 对话上下文 transcript，供 LLM 理解历史意图 */
+    conversationTranscript?: string;
     currentRelativePath: string;
     candidates: ImageCandidate[];
     labelCandidates: Array<{ id: string; name: string }>;
@@ -131,6 +136,7 @@ export async function prepareMutationAnnotation(
       model: options.providerModel ?? '',
       user_request: options.userRequest,
       session_id: options.sessionId ?? null,
+      conversation_transcript: options.conversationTranscript ?? '',
       current_relative_path: options.currentRelativePath,
       candidates: options.candidates.map((c) => ({
         relative_path: c.relativePath,

@@ -9,7 +9,7 @@ export const PROPOSAL_TOOL_NAMES = new Set(['write_workspace_file']);
 /** 会生成 pipeline / proposal 的客户端工具 */
 export const CLIENT_PIPELINE_TOOL_NAMES = new Set([
   'analyze_data',
-  'execute_batch_annotation',
+  'auto_annotate',
   'mutate_annotation',
 ]);
 
@@ -67,7 +67,7 @@ export function shouldHideToolCallInChat(
     return pipeline != null || findAnalysisScriptProposal(blocks) != null;
   }
 
-  if (block.name === 'execute_batch_annotation' || block.name === 'mutate_annotation') {
+  if (block.name === 'auto_annotate' || block.name === 'mutate_annotation') {
     return (
       blocks.some((b) => b.type === 'annotation_proposal') ||
       blocks.some(

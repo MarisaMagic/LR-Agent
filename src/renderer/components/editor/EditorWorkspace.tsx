@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { VscodeIcon, VscodeLabel } from '@vscode-elements/react-elements';
 import { useApp } from '../../context/AppContext';
 import { useWorkMode } from '../../context/WorkModeContext';
+import { checkBinaryFile } from '../../utils/binaryFileDetect';
 import { isMonacoEditableFile } from '../../utils/editorFileTypes';
 import EditorPane from './EditorPane';
 import MonacoTextEditor from './MonacoTextEditor';
@@ -23,12 +24,38 @@ export default function EditorWorkspace() {
   );
 
   const hasTabs = openTabs.length > 0;
+  const [activeTabBinary, setActiveTabBinary] = useState(false);
 
-  /** 仅编辑器模式下、当前激活 tab 是代码/MD 时才显示 Monaco 浮层 */
+  useEffect(() => {
+    if (
+      workMode !== 'editor' ||
+      !activeTab ||
+      !isMonacoEditableFile(activeTab.filePath)
+    ) {
+      setActiveTabBinary(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    checkBinaryFile(activeTab.filePath)
+      .then((binary) => {
+        if (!cancelled) setActiveTabBinary(binary);
+      })
+      .catch(() => {
+        if (!cancelled) setActiveTabBinary(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, workMode]);
+
+  /** 仅编辑器模式下、当前激活 tab 是文本且非二进制时才显示 Monaco 浮层 */
   const showSharedMonaco = Boolean(
     workMode === 'editor' &&
       activeTab &&
-      isMonacoEditableFile(activeTab.filePath),
+      isMonacoEditableFile(activeTab.filePath) &&
+      !activeTabBinary,
   );
 
   const handleDirtyChange = useCallback(

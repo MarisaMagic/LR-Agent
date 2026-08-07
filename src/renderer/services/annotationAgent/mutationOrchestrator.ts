@@ -40,6 +40,7 @@ export async function* runAnnotationMutationJob(options: {
   providerId: string;
   userRequest: string;
   sessionId?: string;
+  conversationTranscript?: string;
   project: AnnotationProjectSnapshot;
   currentFileAbsolutePath: string | null;
   candidates: ImageCandidate[];
@@ -69,6 +70,7 @@ export async function* runAnnotationMutationJob(options: {
     prepareResult = await prepareMutationAnnotation(providerId, {
       userRequest,
       sessionId,
+      conversationTranscript: options.conversationTranscript,
       currentRelativePath,
       candidates,
       labelCandidates: project.labels.map((l) => ({ id: l.id, name: l.name })),
@@ -199,6 +201,7 @@ export async function* runAnnotationMutationJob(options: {
     summary: prepareResult.intent_summary || userRequest,
     changes,
     stats: {
+      kind: 'bbox' as const,
       processed: changes.length,
       succeeded: changes.length,
       skipped: 0,

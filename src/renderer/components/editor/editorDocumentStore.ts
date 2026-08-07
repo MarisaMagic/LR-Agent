@@ -1,5 +1,5 @@
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { getHighlightLanguage } from '../../utils/syntaxHighlight';
+import { getMonacoLanguageForFile } from '../../utils/syntaxHighlight';
 
 interface EditorDocumentRecord {
   model: monaco.editor.ITextModel;
@@ -11,7 +11,7 @@ const documents = new Map<string, EditorDocumentRecord>();
 const refCounts = new Map<string, number>();
 
 function getLanguage(path: string): string {
-  return getHighlightLanguage(path) ?? 'plaintext';
+  return getMonacoLanguageForFile(path);
 }
 
 export function hasDocument(filePath: string): boolean {

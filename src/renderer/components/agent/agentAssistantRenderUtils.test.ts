@@ -82,6 +82,7 @@ describe('shouldRenderProposalSummaryOnly', () => {
         projectId: 'p1',
         changes: [],
         stats: {
+          kind: 'bbox',
           processed: 0,
           succeeded: 0,
           skipped: 0,

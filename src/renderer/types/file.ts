@@ -44,6 +44,9 @@ export function relativePath(from: string, to: string): string {
 export function getExtension(filePath: string): string {
   const name = basename(filePath);
   const dot = name.lastIndexOf('.');
-  if (dot <= 0) return '';
+  if (dot < 0) return '';
+  if (dot === 0) {
+    return name.slice(1).toLowerCase();
+  }
   return name.slice(dot + 1).toLowerCase();
 }

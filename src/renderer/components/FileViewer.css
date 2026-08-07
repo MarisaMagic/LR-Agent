@@ -5,6 +5,22 @@
   overflow: hidden;
 }
 
+.agent-preview-banner {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--vscode-foreground, #cccccc);
+  background: rgba(88, 166, 255, 0.12);
+  border-bottom: 1px solid rgba(88, 166, 255, 0.24);
+}
+
+[data-theme='light'] .agent-preview-banner {
+  color: rgba(0, 0, 0, 0.75);
+  background: rgba(9, 105, 218, 0.08);
+  border-bottom-color: rgba(9, 105, 218, 0.18);
+}
+
 .file-header {
   box-sizing: border-box;
   height: var(--file-header-height, var(--lr-agent-tab-bar-height, 40px));
@@ -116,17 +132,35 @@
   background: var(--vscode-editor-background, #1e1e1e);
 }
 
-.pdf-container {
+.pdf-preview-scroll-host {
   flex: 1;
-  overflow: auto;
-  padding: 16px;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
 }
 
-.pdf-container canvas {
-  box-shadow: 0 0 10px var(--lr-menu-shadow, rgba(0, 0, 0, 0.3));
-  margin-bottom: 16px;
+.pdf-native-frame {
+  display: block;
+  width: 100%;
+  border: none;
+  background: #525659;
+}
+
+.pdf-preview-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--vscode-descriptionForeground, #858585);
+  background: var(--vscode-editor-background, #1e1e1e);
 }
 
 /* Markdown 查看器 */

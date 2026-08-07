@@ -1,7 +1,8 @@
 import type { AnnotationBatchProposal } from '../../shared/annotationAgentTypes';
-import type { AnnotationProject } from '../types/annotation';
+import type { AnnotationProject, LabelDefinition } from '../types/annotation';
 import type { ChatMessage, FileProposalLikeBlock, MessageBlock } from '../../shared/agentTypes';
 import { isFileProposalBlock } from '../../shared/agentTypes';
+import type { AnnotationInstance } from '../types/annotationDocument';
 import { applyAnnotationBatchProposal } from './annotationProposalApply';
 import { getAnnotationWorkspaceAgentSnapshot } from './annotationAgentBridge';
 import { dispatchMutationsAppliedEvent } from './annotationProposalApply';
@@ -31,18 +32,113 @@ export type PendingChangeItem = {
 export function summarizeAnnotationChange(
   change: AnnotationBatchProposal['changes'][number],
 ): string {
+  const kindLabel = inferAnnotationKindLabel(change);
   switch (change.operation) {
     case 'patch':
-      return `修改 ${change.patches?.length ?? 0} 个框`;
+      return `修改 ${change.patches?.length ?? 0} ${kindLabel}`;
     case 'delete':
-      return `删除 ${change.deleteIds?.length ?? 0} 个框`;
+      return `删除 ${change.deleteIds?.length ?? 0} ${kindLabel}`;
     case 'replace':
     case 'replace_bboxes':
-      return `替换 ${change.annotations?.length ?? 0} 个框`;
+      return `替换 ${change.annotations?.length ?? 0} ${kindLabel}`;
     case 'append':
     default:
-      return `新增 ${change.annotations?.length ?? 0} 个框`;
+      return `新增 ${change.annotations?.length ?? 0} ${kindLabel}`;
   }
+}
+
+function inferAnnotationKindLabel(
+  change: AnnotationBatchProposal['changes'][number],
+): string {
+  const annotations = change.annotations ?? [];
+  if (annotations.length === 0) return '项';
+  const kind = annotations[0].kind;
+  switch (kind) {
+    case 'bbox':
+    case 'rotated_bbox':
+    case 'polygon':
+      return '个框';
+    case 'caption':
+      return '条描述';
+    case 'classification':
+      return '条分类';
+    case 'instruction':
+      return '条指令';
+    case 'cot':
+      return '条思维链';
+    case 'conversation':
+      return '条对话';
+    case 'preference':
+      return '条偏好';
+    case 'span_ner':
+      return '条实体';
+    case 'text_classification':
+      return '条分类';
+    case 'pose':
+    case 'point':
+      return '个标注';
+    default:
+      return '项';
+  }
+}
+
+const MAX_PREVIEW_LEN = 80;
+
+function truncate(text: string, max: number = MAX_PREVIEW_LEN): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max) + '...';
+}
+
+function labelName(
+  labelId: string | null,
+  labelMap: Map<string, string>,
+): string {
+  if (!labelId) return '(无标签)';
+  return labelMap.get(labelId) ?? labelId;
+}
+
+export function formatAnnotationPreviewText(
+  ann: AnnotationInstance,
+  labelMap: Map<string, string>,
+): string {
+  switch (ann.kind) {
+    case 'bbox':
+      return `${labelName(ann.labelId, labelMap)} (${ann.x.toFixed(2)}, ${ann.y.toFixed(2)}, ${ann.width.toFixed(2)}, ${ann.height.toFixed(2)})`;
+    case 'rotated_bbox':
+      return `${labelName(ann.labelId, labelMap)} (cx:${ann.cx.toFixed(2)}, cy:${ann.cy.toFixed(2)}, ${ann.width.toFixed(2)}x${ann.height.toFixed(2)}, ${ann.angle}deg)`;
+    case 'polygon':
+      return `${labelName(ann.labelId, labelMap)} (${ann.points.length} 顶点)`;
+    case 'pose':
+      return `${labelName(ann.labelId, labelMap)} (${ann.keypoints.length} 关键点)`;
+    case 'point':
+      return `${labelName(ann.labelId, labelMap)} (${ann.x.toFixed(2)}, ${ann.y.toFixed(2)})`;
+    case 'caption':
+      return truncate(ann.text);
+    case 'classification':
+      return labelName(ann.labelId, labelMap);
+    case 'span_ner':
+      return `${labelName(ann.labelId, labelMap)} [${ann.start}:${ann.end}]`;
+    case 'text_classification':
+      return `${labelName(ann.labelId, labelMap)}${ann.note ? ` (${truncate(ann.note, 40)})` : ''}`;
+    case 'instruction':
+      return `指令: ${truncate(ann.instruction, 30)} / 输出: ${truncate(ann.output, 30)}`;
+    case 'cot':
+      return `步骤: ${ann.steps.length} / 答案: ${truncate(ann.answer, 40)}`;
+    case 'conversation':
+      return `轮次: ${ann.turns.length} / 首: ${truncate(ann.turns[0]?.content ?? '', 30)}`;
+    case 'preference':
+      return `chosen: ${truncate(ann.chosen, 25)} / rejected: ${truncate(ann.rejected, 25)}`;
+    default:
+      return '';
+  }
+}
+
+export function buildLabelMap(labels: LabelDefinition[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const l of labels) {
+    map.set(l.id, l.name);
+  }
+  return map;
 }
 
 export function collectPendingChangeItems(
@@ -132,7 +228,7 @@ function annotationHasUnresolved(proposal: AnnotationBatchProposal): boolean {
   });
 }
 
-async function applyAnnotationBlock(
+export async function applyAnnotationProposalWithGuards(
   project: AnnotationProject,
   proposal: AnnotationBatchProposal,
 ): Promise<void> {
@@ -249,7 +345,7 @@ export async function applyAllPendingProposals(options: {
         if (!options.project || options.project.id !== block.proposal.projectId) {
           throw new Error('请先打开对应的标注项目');
         }
-        await applyAnnotationBlock(options.project, block.proposal);
+        await applyAnnotationProposalWithGuards(options.project, block.proposal);
         options.updateBlock(ref.messageId, ref.blockIndex, {
           ...block,
           status: 'applied',

@@ -12,6 +12,7 @@ import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext
 import type { SpanAnnotation } from '../../types/annotationDocument';
 import type { LabelDefinition } from '../../types/annotation';
 import { getLabelChipStyle } from '../../utils/labelColor';
+import { realTextOffsetInContainer } from '../../utils/textSpanOffsets';
 import AnnotationDrawLabelPicker from './AnnotationDrawLabelPicker';
 import './TextSpanNerEditor.css';
 
@@ -81,22 +82,27 @@ export default function TextSpanNerEditor() {
     }
 
     const range = sel.getRangeAt(0);
-    // 创建范围从容器起始到选区起始
-    const preRange = document.createRange();
-    preRange.selectNodeContents(container);
-    preRange.setEnd(range.startContainer, range.startOffset);
-    const start = preRange.toString().length;
-
-    preRange.setEnd(range.endContainer, range.endOffset);
-    const end = preRange.toString().length;
-    const text = range.toString();
+    // 通过遍历纯文本节点计算真实 offset，排除渲染时嵌入的标签名文本
+    const start = realTextOffsetInContainer(
+      container,
+      range.startContainer,
+      range.startOffset,
+    );
+    const end = realTextOffsetInContainer(
+      container,
+      range.endContainer,
+      range.endOffset,
+    );
+    const text = textContent
+      ? textContent.slice(Math.min(start, end), Math.max(start, end))
+      : range.toString();
 
     if (text.trim()) {
-      setSelection({ start, end, text });
+      setSelection({ start: Math.min(start, end), end: Math.max(start, end), text });
     } else {
       setSelection(null);
     }
-  }, []);
+  }, [textContent]);
 
   // 监听选区变化
   useEffect(() => {

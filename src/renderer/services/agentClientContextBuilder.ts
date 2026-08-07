@@ -1,4 +1,4 @@
-import type { AgentInteractionMode, ClientContextPayload } from '../../shared/agentTypes';
+import type { AgentInteractionMode, AgentSkillEntry, ClientContextPayload } from '../../shared/agentTypes';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import type { AnnotationProject } from '../types/annotation';
 import { getRelativeProjectPath } from '../utils/projectPaths';
@@ -15,6 +15,12 @@ export function buildClientContextPayload(options: {
   selectedAnnotationId?: string | null;
   selectedAnnotationIds?: string[];
   mcpServerUrl?: string | null;
+  /** 项目级指令（.lragent/INSTRUCTIONS.md 内容） */
+  projectInstructions?: string | null;
+  /** Auto Memory 索引（MEMORY.md 截断内容） */
+  memoryIndex?: string | null;
+  /** 全局 Agent Skills catalog（~/.agents/skills 扫描结果） */
+  skillsCatalog?: AgentSkillEntry[] | null;
 }): ClientContextPayload {
   const activeRelativePath =
     options.activeProject && options.activeFilePath
@@ -54,6 +60,9 @@ export function buildClientContextPayload(options: {
       ? []
       : (options.selectedAnnotationIds ?? []),
     mcpServerUrl: options.mcpServerUrl ?? null,
+    projectInstructions: options.projectInstructions ?? null,
+    memoryIndex: options.memoryIndex ?? null,
+    skillsCatalog: options.skillsCatalog ?? null,
   };
 
   const wsSnap = getAnnotationWorkspaceAgentSnapshot();
@@ -86,6 +95,7 @@ export function buildClientContextPayload(options: {
       annotationTypeLabel: snap.annotationTypeLabel,
       labels: snap.labels,
       detectionModels: snap.detectionModels ?? [],
+      keypointTemplateId: snap.keypointTemplateId,
     },
   };
 }

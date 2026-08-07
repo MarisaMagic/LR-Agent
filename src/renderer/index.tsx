@@ -1,7 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { isResizeObserverLoopError } from './utils/resizeObserver';
 import './monacoSetup';
-import './pdfWorkerSetup';
 import App from './App';
 
 if (process.env.NODE_ENV === 'development') {

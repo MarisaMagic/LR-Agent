@@ -1,7 +1,8 @@
-import type {
-  AnnotationExportOptions,
-  AnnotationExportRequest,
-  AnnotationExportResult,
+import {
+  DEFAULT_EXPORT_OPTIONS,
+  type AnnotationExportOptions,
+  type AnnotationExportRequest,
+  type AnnotationExportResult,
 } from '../../shared/annotationExportTypes';
 import type { AnnotationProject } from '../types/annotation';
 import { KEYPOINT_TEMPLATES } from '../types/keypointTemplate';
@@ -19,7 +20,10 @@ export async function exportAnnotationProject(
       annotationType: project.annotationType,
       labels: project.labels,
     },
-    options,
+    options: {
+      ...DEFAULT_EXPORT_OPTIONS,
+      ...options,
+    },
     ...(project.annotationType === 'keypoint' && {
       keypointTemplates: KEYPOINT_TEMPLATES.map((t) => ({
         id: t.id,

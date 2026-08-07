@@ -30,6 +30,8 @@ import {
 } from './mcp/server';
 import { initializeDatabase, closeDatabase } from './db/database';
 import { registerDbHandlers } from './db/handlers';
+import { registerMemoryHandlers } from './memory/handlers';
+import { registerSkillHandlers } from './skills/handlers';
 import {
   getAnnotationProjects,
   removeProjectDirConfig,
@@ -638,6 +640,16 @@ const createWindow = async () => {
     return { action: 'deny' };
   });
 
+  // 拦截当前窗口内的外部导航（如 Word 预览中的超链接、markdown 链接等），
+  // 防止应用窗口被外部网页整体替换而无法关闭
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const appUrl = resolveHtmlPath('index.html');
+    if (!url.startsWith(appUrl)) {
+      event.preventDefault();
+      shell.openExternal(url).catch(() => undefined);
+    }
+  });
+
   new AppUpdater();
 };
 
@@ -664,6 +676,8 @@ app
     registerAnnotationAgentHandlers();
     registerQualityReportHandlers();
     registerDbHandlers();
+    registerMemoryHandlers();
+    registerSkillHandlers();
     // 启动本地 MCP Server（异步，失败不阻断窗口创建）
     startMcpServer().catch((err) =>
       console.error('[MCP] Failed to start MCP server:', err),

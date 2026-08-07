@@ -15,17 +15,21 @@ import {
 } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Document, Page } from 'react-pdf';
 import { useApp } from '../context/AppContext';
 import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
 import { basename, dirname, getExtension } from '../types/file';
-import { getHighlightLanguage } from '../utils/syntaxHighlight';
+import {
+  resolveViewerType,
+  type ViewerType,
+} from '../utils/fileViewerType';
+import { getLanguageForFile } from '../utils/syntaxHighlight';
 import { createMarkdownCodeComponents } from './markdown/markdownCodeComponents';
 import {
   getAdjacentSiblingFile,
   listSiblingFiles,
 } from '../utils/siblingFiles';
 import HighlightedCodeBlock from './preview/HighlightedCodeBlock';
+import PdfPreview from './preview/PdfPreview';
 import ImageFabricAnnotationEditor from './annotation/ImageFabricAnnotationEditor';
 import ImageFabricRotatedBboxAnnotationEditor from './annotation/ImageFabricRotatedBboxAnnotationEditor';
 import ImageFabricPolygonAnnotationEditor from './annotation/ImageFabricPolygonAnnotationEditor';
@@ -39,10 +43,19 @@ import TextPreferenceEditor from './annotation/TextPreferenceEditor';
 import TextConversationEditor from './annotation/TextConversationEditor';
 import TextCotEditor from './annotation/TextCotEditor';
 import FileTypeIcon from './FileTypeIcon';
-import 'react-pdf/dist/Page/TextLayer.css';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
 import ContextMenu, { type ContextMenuItem } from './ContextMenu';
 import './FileViewer.css';
+
+function AgentPreviewBanner() {
+  const { agentPreviewReadOnly } = useAnnotationWorkspace();
+  if (!agentPreviewReadOnly) return null;
+  return (
+    <div className="agent-preview-banner" role="status">
+      提案预览（未应用）— 当前为 Agent 提案合并结果，应用前不可编辑
+    </div>
+  );
+}
 
 const IMAGE_EXTENSIONS = new Set([
   'png',
@@ -55,30 +68,7 @@ const IMAGE_EXTENSIONS = new Set([
   'ico',
 ]);
 
-const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown']);
-const DOCX_EXTENSIONS = new Set(['docx']);
-
 const PREVIEW_BINARY_EXTENSIONS = new Set(['pdf', ...IMAGE_EXTENSIONS]);
-
-type ViewerType =
-  | 'empty'
-  | 'markdown'
-  | 'pdf'
-  | 'image'
-  | 'docx'
-  | 'text'
-  | 'unsupported';
-
-function getViewerType(filePath: string | null): ViewerType {
-  if (!filePath) return 'empty';
-  const ext = getExtension(filePath);
-  if (MARKDOWN_EXTENSIONS.has(ext)) return 'markdown';
-  if (ext === 'pdf') return 'pdf';
-  if (IMAGE_EXTENSIONS.has(ext)) return 'image';
-  if (DOCX_EXTENSIONS.has(ext)) return 'docx';
-  if (ext) return 'text';
-  return 'unsupported';
-}
 
 /** 检查选区是否在 viewer-body 容器内 */
 function isSelectionInsideViewer(containerEl: HTMLElement): boolean {
@@ -177,6 +167,8 @@ interface FileViewerProps {
   hideFileHeader?: boolean;
   /** When true, defer/cancel heavy file loads (inactive tabs). */
   loadPaused?: boolean;
+  /** Override detected viewer type (e.g. binary guard in editor mode). */
+  forceViewerType?: ViewerType;
 }
 
 export default function FileViewer({
@@ -184,6 +176,7 @@ export default function FileViewer({
   embedded = false,
   hideFileHeader = false,
   loadPaused = false,
+  forceViewerType,
 }: FileViewerProps) {
   const { selectFile } = useApp();
   const annotationWorkspace = useAnnotationWorkspace();
@@ -201,7 +194,14 @@ export default function FileViewer({
   const showTextAnnotator =
     annotationWorkspace.workspaceEnabled &&
     annotationWorkspace.textAnnotationType !== null;
-  const viewerType = useMemo(() => getViewerType(filePath), [filePath]);
+  const viewerType = useMemo(
+    () =>
+      resolveViewerType(filePath, {
+        forceViewerType,
+        preferTextForMarkdown: showTextAnnotator,
+      }),
+    [filePath, forceViewerType, showTextAnnotator],
+  );
   const markdownComponents = useMemo(
     () =>
       createMarkdownCodeComponents({
@@ -213,7 +213,6 @@ export default function FileViewer({
   const [docxHtml, setDocxHtml] = useState<string | null>(null);
   const [binaryUrl, setBinaryUrl] = useState<string | null>(null);
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
-  const [numPages, setNumPages] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -377,7 +376,7 @@ export default function FileViewer({
   }, [filePath]);
 
   const highlightLanguage = useMemo(
-    () => (filePath ? getHighlightLanguage(filePath) : null),
+    () => (filePath ? getLanguageForFile(filePath) : null),
     [filePath],
   );
 
@@ -399,10 +398,14 @@ export default function FileViewer({
     setDocxHtml(null);
     setBinaryUrl(null);
     setPdfData(null);
-    setNumPages(null);
     setError(null);
 
     if (!filePath) return undefined;
+
+    if (viewerType === 'binary') {
+      setLoading(false);
+      return undefined;
+    }
 
     let revoked = false;
     let objectUrl: string | null = null;
@@ -481,6 +484,18 @@ export default function FileViewer({
     if (err) setError(`无法用系统打开: ${err}`);
   };
 
+  // Word 预览中的超链接：阻止默认的当前窗口导航，改用系统浏览器打开
+  const handleDocxLinkClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('a')) {
+      const href = target.closest('a')?.getAttribute('href');
+      if (href && /^https?:\/\//i.test(href)) {
+        e.preventDefault();
+        window.electron.window.openExternal(href).catch(() => undefined);
+      }
+    }
+  }, []);
+
   // ── 渲染内容区（body） ──
 
   const renderBody = () => {
@@ -504,18 +519,10 @@ export default function FileViewer({
       );
     } else if (viewerType === 'pdf' && pdfData) {
       body = (
-        <VscodeScrollable className="viewer-body pdf-container">
-          <Document
-            file={{ data: pdfData }}
-            onLoadSuccess={({ numPages: pages }) => setNumPages(pages)}
-            onLoadError={() => setError('无法加载 PDF')}
-            error="无法加载 PDF 文件"
-          >
-            {Array.from(new Array(numPages || 0), (_, index) => (
-              <Page key={`page_${index + 1}`} pageNumber={index + 1} />
-            ))}
-          </Document>
-        </VscodeScrollable>
+        <PdfPreview
+          pdfData={pdfData}
+          onError={(message) => setError(message)}
+        />
       );
     } else if (viewerType === 'image' && binaryUrl) {
       body = (
@@ -583,9 +590,20 @@ export default function FileViewer({
         <VscodeScrollable className="viewer-body docx-content">
           <div
             className="docx-html"
+            onClick={handleDocxLinkClick}
             dangerouslySetInnerHTML={{ __html: docxHtml }}
           />
         </VscodeScrollable>
+      );
+    } else if (viewerType === 'binary') {
+      body = (
+        <div className="viewer-body error-state">
+          <VscodeIcon name="file-binary" size={32} />
+          <VscodeLabel>二进制文件，无法在编辑器中编辑</VscodeLabel>
+          <VscodeButton icon="link-external" onClick={handleOpenExternal}>
+            用系统应用打开
+          </VscodeButton>
+        </div>
       );
     } else if (viewerType === 'text' && textContent !== null) {
       // 文本标注路由
@@ -667,24 +685,28 @@ export default function FileViewer({
         case 'instruction':
           return (
             <div className="file-viewer" tabIndex={0}>
+              <AgentPreviewBanner />
               <TextInstructionEditor />
             </div>
           );
         case 'preference':
           return (
             <div className="file-viewer" tabIndex={0}>
+              <AgentPreviewBanner />
               <TextPreferenceEditor />
             </div>
           );
         case 'conversation':
           return (
             <div className="file-viewer" tabIndex={0}>
+              <AgentPreviewBanner />
               <TextConversationEditor />
             </div>
           );
         case 'cot':
           return (
             <div className="file-viewer" tabIndex={0}>
+              <AgentPreviewBanner />
               <TextCotEditor />
             </div>
           );
@@ -717,6 +739,7 @@ export default function FileViewer({
       onContextMenu={handleContextMenu}
     >
       {!hideFileHeader ? <FileHeader {...fileHeaderProps} /> : null}
+      <AgentPreviewBanner />
       {renderBody()}
       {contextMenu && (
         <ContextMenu

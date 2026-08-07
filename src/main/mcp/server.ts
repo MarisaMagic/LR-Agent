@@ -18,6 +18,16 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 import { runPreAnnotInference } from '../preAnnot/inferenceProcess';
+import {
+  getActiveMemoryScope,
+  listMemoryTopics,
+  readMemoryTopic,
+  writeMemoryTopic,
+} from '../memory/memoryStore';
+import {
+  readSkillMarkdown,
+  scanSkillsCatalog,
+} from '../skills/skillScanner';
 
 // ── 全局状态 ────────────────────────────────────────────────────────────────
 let mcpServer: McpServer | null = null;
@@ -27,7 +37,7 @@ let listenPort: number | null = null;
 // ── 图片后缀集合 ─────────────────────────────────────────────────────────────
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.bmp', '.webp', '.gif']);
 
-import { ALLOWED_TEXT_FILE_EXTENSIONS } from '../../shared/workspaceTextExtensions';
+import { isBlockedTextExtension } from '../../shared/workspaceTextExtensions';
 
 /** 获取本机随机空闲端口 */
 async function getFreePort(): Promise<number> {
@@ -44,18 +54,17 @@ async function getFreePort(): Promise<number> {
   });
 }
 
-/** 路径安全校验：确保目标在 rootDir 下，无 .. 穿越 */
+/** 路径安全校验：确保目标在 rootDir 下，无 .. 穿越；黑名单扩展名禁止写盘。 */
 function resolveScoped(
   rootDir: string,
   relativePath: string,
-  allowedExts: Set<string>,
 ): { absolutePath: string; relativePath: string } | { error: string } {
   const root = path.resolve(rootDir);
   const rel = relativePath.replace(/\\/g, '/').replace(/^\/+/, '');
   if (rel.includes('..')) return { error: 'path_traversal_forbidden' };
   const ext = path.extname(rel).toLowerCase();
-  if (!allowedExts.has(ext)) {
-    return { error: `extension_not_allowed: ${ext}` };
+  if (ext && isBlockedTextExtension(ext)) {
+    return { error: `extension_blocked: ${ext}` };
   }
   const absolutePath = path.resolve(root, rel);
   const relToRoot = path.relative(root, absolutePath);
@@ -129,7 +138,7 @@ export async function startMcpServer(): Promise<string> {
   // ── 工具：写工作区文件 ─────────────────────────────────────────────────────
   mcpServer.tool(
     'write_workspace_file',
-    'Write a text file (md, txt, json, yaml, csv, etc.) to a path within the workspace root. Creates parent directories as needed.',
+    'Write a UTF-8 text file to a path within the workspace root. Blocked extensions: images, PDF, archives, binaries, etc. Creates parent directories as needed.',
     {
       workspace_root: z.string().describe('Absolute path to the workspace root directory'),
       relative_path: z
@@ -138,7 +147,7 @@ export async function startMcpServer(): Promise<string> {
       content: z.string().describe('Full file content to write'),
     },
     async ({ workspace_root, relative_path, content }) => {
-      const resolved = resolveScoped(workspace_root, relative_path, ALLOWED_TEXT_FILE_EXTENSIONS);
+      const resolved = resolveScoped(workspace_root, relative_path);
       if ('error' in resolved) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: resolved.error }) }],
@@ -219,6 +228,122 @@ export async function startMcpServer(): Promise<string> {
           },
         ],
       };
+    },
+  );
+
+  // ── 工具：读取记忆 topic 文件 ──────────────────────────────────────────────
+  mcpServer.tool(
+    'memory_read',
+    'Read a saved memory topic file (full content). Memory topic files are listed in the saved-memory index in the system prompt. Pass the topic filename such as "annotation-preferences.md".',
+    {
+      topic_file: z
+        .string()
+        .describe('Memory topic filename, e.g. "annotation-preferences.md"'),
+    },
+    async ({ topic_file }) => {
+      try {
+        const scopeKey = getActiveMemoryScope();
+        const content = await readMemoryTopic(scopeKey, topic_file);
+        if (content === null) {
+          const topics = await listMemoryTopics(scopeKey);
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  ok: false,
+                  error: 'topic_not_found',
+                  available_topics: topics,
+                }),
+              },
+            ],
+          };
+        }
+        return {
+          content: [
+            { type: 'text' as const, text: JSON.stringify({ ok: true, content }) },
+          ],
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: msg }) }] };
+      }
+    },
+  );
+
+  // ── 工具：读取 Agent Skill 正文 ────────────────────────────────────────────
+  mcpServer.tool(
+    'read_agent_skill',
+    'Read the full SKILL.md content of a user-level agent skill. Skills are listed with name and description in the available-skills block in the system prompt. Use this tool when a user request matches a skill description, then follow the steps in the SKILL.md. Pass the skill name exactly as listed (e.g. "caveman").',
+    {
+      skill_name: z
+        .string()
+        .describe('Skill name as listed in the available-skills block, e.g. "caveman"'),
+    },
+    async ({ skill_name }) => {
+      try {
+        const content = await readSkillMarkdown(skill_name);
+        if (content === null) {
+          const catalog = await scanSkillsCatalog();
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  ok: false,
+                  error: 'skill_not_found',
+                  available_skills: catalog.map((s) => s.name),
+                }),
+              },
+            ],
+          };
+        }
+        return {
+          content: [
+            { type: 'text' as const, text: JSON.stringify({ ok: true, content }) },
+          ],
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: msg }) }] };
+      }
+    },
+  );
+
+  // ── 工具：写入记忆 topic 文件（同步更新索引） ──────────────────────────────
+  mcpServer.tool(
+    'memory_write',
+    'Save a memory topic file for future sessions and update the memory index. Use when the user explicitly asks to remember something, or corrects your approach with a lasting preference/constraint. Keep content concise markdown.',
+    {
+      topic_file: z
+        .string()
+        .describe('Memory topic filename, e.g. "annotation-preferences.md" (letters/digits/dash/underscore, must end with .md)'),
+      content: z.string().describe('Full markdown content of the topic file (overwrites existing)'),
+      index_line: z
+        .string()
+        .describe('One-line index entry describing this topic, e.g. "- [标注偏好](topics/annotation-preferences.md)：用户偏好紧贴目标的小框"'),
+    },
+    async ({ topic_file, content, index_line }) => {
+      try {
+        const scopeKey = getActiveMemoryScope();
+        await writeMemoryTopic({
+          scopeKey,
+          topicFile: topic_file,
+          content,
+          indexLine: index_line,
+        });
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ ok: true, topic_file, scope: scopeKey }),
+            },
+          ],
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: msg }) }] };
+      }
     },
   );
 

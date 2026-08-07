@@ -242,13 +242,26 @@ export async function createSessionLocally(
 export async function updateSessionLocally(
   userId: string,
   sessionId: string,
-  patch: Partial<Pick<AgentSession, 'title' | 'providerId' | 'model'>>,
+  patch: Partial<
+    Pick<
+      AgentSession,
+      | 'title'
+      | 'providerId'
+      | 'model'
+      | 'contextSummary'
+      | 'summaryUpToMessageId'
+      | 'lastContextTokenEstimate'
+    >
+  >,
 ): Promise<AgentSession | undefined> {
   const db = getDb();
   const row = await db.sessions.update(sessionId, userId, {
     title: patch.title,
     providerId: patch.providerId,
     model: patch.model,
+    contextSummary: patch.contextSummary,
+    summaryUpToMessageId: patch.summaryUpToMessageId,
+    lastContextTokenEstimate: patch.lastContextTokenEstimate,
   });
   return row ? mapDbSession(row) : undefined;
 }

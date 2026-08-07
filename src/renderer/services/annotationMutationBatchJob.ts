@@ -12,6 +12,7 @@ export async function startAnnotationMutationJob(options: {
   providerId: string;
   userRequest: string;
   sessionId?: string;
+  conversationTranscript?: string;
   project: AnnotationProjectSnapshot;
   currentFileAbsolutePath: string | null;
   onEvent: (event: StreamEvent) => void;
@@ -48,6 +49,7 @@ export async function startAnnotationMutationJob(options: {
       providerId: options.providerId,
       userRequest: options.userRequest,
       sessionId: options.sessionId,
+      conversationTranscript: options.conversationTranscript,
       project: options.project,
       currentFileAbsolutePath: options.currentFileAbsolutePath,
       candidates,

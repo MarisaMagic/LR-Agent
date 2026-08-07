@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { isAllowedTextFileExtension } from '../../shared/workspaceTextExtensions';
+import { isBlockedTextExtension } from '../../shared/workspaceTextExtensions';
 
 function resolveScopedTextPath(
   rootDir: string,
@@ -12,8 +12,8 @@ function resolveScopedTextPath(
     return { error: 'path_traversal_forbidden' };
   }
   const ext = path.extname(rel).toLowerCase();
-  if (!isAllowedTextFileExtension(ext)) {
-    return { error: 'extension_not_allowed' };
+  if (ext && isBlockedTextExtension(ext)) {
+    return { error: 'extension_blocked' };
   }
   const absolutePath = path.resolve(root, rel);
   const relToRoot = path.relative(root, absolutePath);

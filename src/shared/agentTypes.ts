@@ -261,7 +261,7 @@ export interface ClientToolCall {
 
 /** 客户端工具名称枚举，与后端 CLIENT_TOOL_NAMES 保持一致。 */
 export type ClientToolName =
-  | 'execute_batch_annotation'
+  | 'auto_annotate'
   | 'mutate_annotation'
   | 'analyze_data';
 
@@ -270,6 +270,14 @@ export interface ClientToolResult {
   toolCallId: string;
   name: string;
   result: string;
+}
+
+/** 全局 Agent Skill 目录条目（catalog，仅 name + description 注入 prompt）。 */
+export interface AgentSkillEntry {
+  name: string;
+  description: string;
+  /** 预留来源字段：目前仅 'user'（~/.agents/skills），未来支持项目级 */
+  scope: 'user';
 }
 
 export interface ClientContextPayload {
@@ -286,6 +294,12 @@ export interface ClientContextPayload {
   selectedAnnotationIds?: string[];
   /** 本地 MCP Server 地址（Electron 启动时分配，如 "http://127.0.0.1:PORT"） */
   mcpServerUrl?: string | null;
+  /** 项目级指令（.lragent/INSTRUCTIONS.md 内容，注入 system prompt） */
+  projectInstructions?: string | null;
+  /** Auto Memory 索引（MEMORY.md 截断内容，注入 system prompt） */
+  memoryIndex?: string | null;
+  /** 全局 Agent Skills catalog（~/.agents/skills 扫描结果，注入 system prompt） */
+  skillsCatalog?: AgentSkillEntry[] | null;
   annotationProjectSnapshot?: {
     projectId: string;
     name: string;
@@ -295,6 +309,7 @@ export interface ClientContextPayload {
     annotationTypeLabel?: string;
     labels: Array<{ id: string; name: string; color?: string }>;
     detectionModels: Array<{ id: string; name: string; isDefault?: boolean }>;
+    keypointTemplateId?: string;
   } | null;
 }
 

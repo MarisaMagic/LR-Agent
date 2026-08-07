@@ -1,7 +1,6 @@
 .agent-model-picker {
   position: relative;
   min-width: 0;
-  overflow: visible;
 }
 
 .agent-model-picker-trigger {
@@ -61,17 +60,23 @@
 }
 
 .agent-model-picker-menu {
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 6px);
-  z-index: 30;
   min-width: 220px;
-  max-width: 280px;
+  max-width: min(320px, calc(100vw - 16px));
+  max-height: min(320px, calc(100vh - 16px));
   padding: 4px;
   border-radius: 8px;
   border: 1px solid var(--vscode-widget-border, #454545);
   background: var(--vscode-dropdown-background, #3c3c3c);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  overflow-y: auto;
+}
+
+.agent-model-picker-menu--portal {
+  position: fixed;
+  z-index: 1200;
+}
+
+.agent-model-picker-menu--open-up {
   transform-origin: bottom left;
 }
 
@@ -98,9 +103,11 @@
 .agent-model-picker-option-name {
   font-size: var(--agent-font-small);
   font-weight: 500;
+  word-break: break-word;
 }
 
 .agent-model-picker-option-model {
   font-size: var(--agent-font-meta);
   color: var(--vscode-descriptionForeground, #9d9d9d);
+  word-break: break-all;
 }
