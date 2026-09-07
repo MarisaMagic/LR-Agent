@@ -1,5 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
-import { VscodeIcon, VscodeLabel } from '@vscode-elements/react-elements';
+import {
+  VscodeIcon,
+  VscodeLabel,
+  VscodeProgressRing,
+} from '@vscode-elements/react-elements';
 import {
   AnnotationProject,
   getAnnotationTypeLabel,
@@ -87,6 +91,7 @@ export default function AnnotationProjectList({
   if (loading) {
     return (
       <div className="annotation-project-list-empty">
+        <VscodeProgressRing />
         <VscodeLabel>加载标注任务…</VscodeLabel>
       </div>
     );

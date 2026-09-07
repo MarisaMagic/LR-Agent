@@ -8,7 +8,7 @@
   background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
   border-bottom: 1px solid var(--vscode-panel-border, #3e3e42);
   color: var(--vscode-foreground, #cccccc);
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
 }
 
 .email-verify-banner-btn {
@@ -18,7 +18,7 @@
   border-radius: 4px;
   background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
   color: var(--vscode-foreground, #cccccc);
-  font-size: 13px;
+  font-size: var(--lr-ui-font-caption);
   cursor: pointer;
 }
 

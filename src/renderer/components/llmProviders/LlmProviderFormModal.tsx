@@ -2,10 +2,6 @@ import { FormEvent, useEffect, useState } from 'react';
 import { VscodeButton } from '@vscode-elements/react-elements';
 import ModalMotion from '../../motion/ModalMotion';
 import {
-  buildEmptyProvider,
-  useLlmProviders,
-} from '../../context/LlmProvidersContext';
-import {
   maskApiKey,
   normalizeBaseUrl,
   type LlmProviderConfig,
@@ -89,7 +85,7 @@ export default function LlmProviderFormModal({
       onSubmit={handleSubmit}
     >
       <h3 id="llm-provider-form-title">
-        {isNew ? '添加 Agent 配置' : '编辑大模型配置'}
+        {isNew ? '添加大模型配置' : '编辑大模型配置'}
       </h3>
 
       <label className="llm-provider-field">
@@ -152,11 +148,11 @@ export default function LlmProviderFormModal({
       {error && <div className="llm-provider-error">{error}</div>}
 
       <div className="llm-provider-form-actions">
-        <VscodeButton secondary type="button" onClick={onClose}>
+        <VscodeButton secondary icon="close" type="button" onClick={onClose}>
           取消
         </VscodeButton>
-        <VscodeButton secondary type="submit" disabled={submitting}>
-          保存
+        <VscodeButton icon="save" type="submit" disabled={submitting}>
+          {submitting ? '保存中…' : '保存'}
         </VscodeButton>
       </div>
     </ModalMotion>

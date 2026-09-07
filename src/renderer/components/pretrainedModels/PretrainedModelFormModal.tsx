@@ -112,14 +112,18 @@ export default function PretrainedModelFormModal({
 
   const checkpointExtensions = (): string[] => {
     if (form.modelType === 'keypoint_estimation' && form.keypointBackend) {
-      return KEYPOINT_BACKEND_PRESETS[form.keypointBackend].checkpointExtensions;
+      return KEYPOINT_BACKEND_PRESETS[form.keypointBackend]
+        .checkpointExtensions;
     }
     return ['pt'];
   };
 
   const handlePickCheckpoint = async () => {
     const exts = checkpointExtensions();
-    const path = await pickModelFile(exts, `选择模型权重 (.${exts.join(', .')})`);
+    const path = await pickModelFile(
+      exts,
+      `选择模型权重 (.${exts.join(', .')})`,
+    );
     if (!path) return;
     updateForm({ checkpointPath: path });
   };
@@ -164,9 +168,7 @@ export default function PretrainedModelFormModal({
       name: form.name.trim() || scanned.name,
       params: defaultParamsForType('keypoint_estimation', scanned.backend),
     });
-    setValidationMessages([
-      infoMessage ?? `已导入 ${preset.label}`,
-    ]);
+    setValidationMessages([infoMessage ?? `已导入 ${preset.label}`]);
   };
 
   const handleImportSam2Directory = async () => {
@@ -462,10 +464,17 @@ export default function PretrainedModelFormModal({
             id="pm-checkpoint"
             value={form.checkpointPath}
             readOnly
-            placeholder={`点击浏览选择 ${checkpointExtensions().map((e) => `.${e}`).join(' / ')}`}
+            placeholder={`点击浏览选择 ${checkpointExtensions()
+              .map((e) => `.${e}`)
+              .join(' / ')}`}
             title={form.checkpointPath}
           />
-          <VscodeButton secondary type="button" onClick={handlePickCheckpoint}>
+          <VscodeButton
+            secondary
+            icon="folder-opened"
+            type="button"
+            onClick={handlePickCheckpoint}
+          >
             浏览
           </VscodeButton>
         </div>
@@ -485,6 +494,7 @@ export default function PretrainedModelFormModal({
               />
               <VscodeButton
                 secondary
+                icon="folder-opened"
                 type="button"
                 onClick={handlePickDetector}
               >
@@ -506,7 +516,12 @@ export default function PretrainedModelFormModal({
                 placeholder="与权重变体匹配的 sam2.1_hiera_*.yaml"
                 title={form.configPath ?? ''}
               />
-              <VscodeButton secondary type="button" onClick={handlePickConfig}>
+              <VscodeButton
+                secondary
+                icon="folder-opened"
+                type="button"
+                onClick={handlePickConfig}
+              >
                 浏览
               </VscodeButton>
             </div>
@@ -519,6 +534,7 @@ export default function PretrainedModelFormModal({
           <div className="pretrained-model-form-field">
             <VscodeButton
               secondary
+              icon="folder"
               type="button"
               disabled={scanning}
               onClick={handleImportSam2Directory}
@@ -538,6 +554,7 @@ export default function PretrainedModelFormModal({
           {form.keypointBackend === 'face_alignment' ? (
             <VscodeButton
               secondary
+              icon="folder"
               type="button"
               disabled={scanning}
               onClick={handleImportFaceAlignmentDirectory}
@@ -547,6 +564,7 @@ export default function PretrainedModelFormModal({
           ) : (
             <VscodeButton
               secondary
+              icon="folder"
               type="button"
               disabled={scanning}
               onClick={handleImportKeypointBundleDirectory}
@@ -739,10 +757,10 @@ export default function PretrainedModelFormModal({
       {error && <p className="pretrained-model-form-error">{error}</p>}
 
       <div className="pretrained-model-form-actions">
-        <VscodeButton secondary type="button" onClick={onClose}>
+        <VscodeButton secondary icon="close" type="button" onClick={onClose}>
           取消
         </VscodeButton>
-        <VscodeButton secondary type="submit" disabled={submitting}>
+        <VscodeButton icon="save" type="submit" disabled={submitting}>
           {submitting ? '保存中…' : '保存'}
         </VscodeButton>
       </div>

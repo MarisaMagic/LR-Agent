@@ -34,7 +34,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--agent-surface-secondary-text);
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -59,7 +59,7 @@
   border-radius: 4px;
   background: transparent;
   color: var(--vscode-foreground, #cccccc);
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -83,7 +83,7 @@
   border-radius: 6px;
   background: var(--agent-surface-bg-hover);
   color: var(--vscode-foreground, #cccccc);
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 500;
   cursor: pointer;
   transition:
@@ -118,7 +118,7 @@
   border-radius: 4px;
   background: transparent;
   color: inherit;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   line-height: 1.4;
   cursor: pointer;
   text-align: left;
@@ -137,13 +137,13 @@
 
 .agent-keep-all-bar__stat-add {
   color: #3fb950;
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 500;
 }
 
 .agent-keep-all-bar__stat-del {
   color: #f85149;
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 500;
 }
 
@@ -160,5 +160,5 @@
 .agent-keep-all-bar__summary {
   flex-shrink: 0;
   color: var(--agent-surface-muted-text);
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
 }

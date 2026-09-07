@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { VscodeIcon } from '@vscode-elements/react-elements';
+import { VscodeButton, VscodeIcon } from '@vscode-elements/react-elements';
 import { useAgentChat } from '../../context/AgentChatContext';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useApp } from '../../context/AppContext';
@@ -115,71 +115,75 @@ export default function AgentKeepAllBar() {
           <span className="agent-keep-all-bar__title">{headerLabel}</span>
         </button>
         <div className="agent-keep-all-bar__actions">
-          <button
+          <VscodeButton
+            secondary
+            icon="go-to-file"
             type="button"
-            className="agent-keep-all-bar__review"
             disabled={busy}
             onClick={handleReview}
           >
-            Review
-          </button>
-          <button
+            查看
+          </VscodeButton>
+          <VscodeButton
+            icon="check"
             type="button"
-            className="agent-keep-all-bar__button"
             disabled={busy}
             onClick={() => {
               applyAllPendingChanges().catch(() => undefined);
             }}
           >
-            {applyingAllPending ? '应用中…' : 'Keep All'}
-          </button>
+            {applyingAllPending ? '应用中…' : '全部保留'}
+          </VscodeButton>
         </div>
       </div>
       {expanded && changeItems.length > 0 ? (
         <OverlayVerticalScrollArea maxHeight="200px">
           <ul className="agent-keep-all-bar__list">
-          {changeItems.map((item) => {
-            const stats = itemStats[item.id];
-            return (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  className="agent-keep-all-bar__item"
-                  onClick={() => {
-                    handleItemClick(item.ref.messageId, item.ref.blockIndex);
-                  }}
-                >
-                  {item.kind === 'file' || item.kind === 'annotation' ? (
-                    <FileTypeIcon path={item.path} size={14} />
-                  ) : (
-                    <VscodeIcon name="code" size={14} />
-                  )}
-                  <span className="agent-keep-all-bar__path" title={item.path}>
-                    {item.kind === 'file' || item.kind === 'annotation'
-                      ? basename(item.path)
-                      : item.path}
-                  </span>
-                  <span className="agent-keep-all-bar__meta">
-                    {stats?.additions != null && stats.additions > 0 ? (
-                      <span className="agent-keep-all-bar__stat-add">
-                        +{stats.additions}
-                      </span>
-                    ) : null}
-                    {stats?.deletions != null && stats.deletions > 0 ? (
-                      <span className="agent-keep-all-bar__stat-del">
-                        -{stats.deletions}
-                      </span>
-                    ) : null}
-                    {item.kind !== 'file' || stats == null ? (
-                      <span className="agent-keep-all-bar__summary">
-                        {item.summary}
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
+            {changeItems.map((item) => {
+              const stats = itemStats[item.id];
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    className="agent-keep-all-bar__item"
+                    onClick={() => {
+                      handleItemClick(item.ref.messageId, item.ref.blockIndex);
+                    }}
+                  >
+                    {item.kind === 'file' || item.kind === 'annotation' ? (
+                      <FileTypeIcon path={item.path} size={14} />
+                    ) : (
+                      <VscodeIcon name="code" size={14} />
+                    )}
+                    <span
+                      className="agent-keep-all-bar__path"
+                      title={item.path}
+                    >
+                      {item.kind === 'file' || item.kind === 'annotation'
+                        ? basename(item.path)
+                        : item.path}
+                    </span>
+                    <span className="agent-keep-all-bar__meta">
+                      {stats?.additions != null && stats.additions > 0 ? (
+                        <span className="agent-keep-all-bar__stat-add">
+                          +{stats.additions}
+                        </span>
+                      ) : null}
+                      {stats?.deletions != null && stats.deletions > 0 ? (
+                        <span className="agent-keep-all-bar__stat-del">
+                          -{stats.deletions}
+                        </span>
+                      ) : null}
+                      {item.kind !== 'file' || stats == null ? (
+                        <span className="agent-keep-all-bar__summary">
+                          {item.summary}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </OverlayVerticalScrollArea>
       ) : null}

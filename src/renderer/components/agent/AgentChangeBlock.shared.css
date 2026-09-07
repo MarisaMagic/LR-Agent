@@ -5,7 +5,7 @@
   --agent-change-block-header-bg: rgba(255, 255, 255, 0.04);
   --agent-change-block-header-hover: rgba(255, 255, 255, 0.07);
   --agent-change-block-body-border: 1px solid rgba(255, 255, 255, 0.06);
-  --agent-change-block-font-size: 13px;
+  --agent-change-block-font-size: var(--lr-ui-font-meta);
   --agent-change-block-fade-to: rgba(0, 0, 0, 0.15);
   --agent-change-block-expand-color: rgba(255, 255, 255, 0.55);
   --agent-change-block-expand-color-hover: rgba(255, 255, 255, 0.95);
@@ -41,7 +41,9 @@
 }
 
 /* 折叠预览：底部渐变 + 透明 expand 浮层 */
-.agent-change-block__body-wrap--expandable:not(.agent-change-block__body-wrap--full)::after {
+.agent-change-block__body-wrap--expandable:not(
+    .agent-change-block__body-wrap--full
+  )::after {
   content: '';
   position: absolute;
   left: 0;

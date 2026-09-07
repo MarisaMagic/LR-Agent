@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import Cropper, { Area } from 'react-easy-crop';
 import { getCroppedImageBlob, type PixelCrop } from '../utils/cropImage';
+import { VscodeButton } from '@vscode-elements/react-elements';
 import ModalMotion from '../motion/ModalMotion';
 import './AvatarCropModal.css';
 
@@ -85,22 +86,23 @@ export default function AvatarCropModal({
       {error && <p className="avatar-crop-error">{error}</p>}
 
       <div className="avatar-crop-actions">
-        <button
+        <VscodeButton
+          secondary
+          icon="close"
           type="button"
-          className="app-btn app-btn-secondary"
-          onClick={onCancel}
           disabled={submitting}
+          onClick={onCancel}
         >
           取消
-        </button>
-        <button
+        </VscodeButton>
+        <VscodeButton
+          icon="check"
           type="button"
-          className="app-btn app-btn-primary"
-          onClick={handleConfirm}
           disabled={submitting || !croppedAreaPixels}
+          onClick={handleConfirm}
         >
           {submitting ? '处理中…' : '确认'}
-        </button>
+        </VscodeButton>
       </div>
     </ModalMotion>
   );

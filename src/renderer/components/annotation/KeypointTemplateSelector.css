@@ -8,7 +8,7 @@
 }
 
 .keypoint-template-label {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #858585);
   white-space: nowrap;
 }
@@ -23,7 +23,7 @@
   border-radius: 999px;
   background: transparent;
   color: var(--vscode-foreground, #cccccc);
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 500;
   line-height: 1.2;
   cursor: pointer;
@@ -87,17 +87,17 @@
 }
 
 .keypoint-template-option-name {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 500;
 }
 
 .keypoint-template-option-desc {
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   line-height: 1.35;
 }
 
 .keypoint-template-hint {
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #858585);
 }

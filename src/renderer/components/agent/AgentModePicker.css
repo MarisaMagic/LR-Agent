@@ -12,7 +12,7 @@
   border-radius: 999px;
   background: rgba(128, 128, 128, 0.22);
   color: var(--vscode-foreground, #e8e8e8);
-  font-size: var(--agent-font-small, 12px);
+  font-size: var(--agent-font-small);
   font-weight: 500;
   line-height: 1.2;
   cursor: pointer;
@@ -161,13 +161,13 @@
 }
 
 .agent-mode-picker-option-name {
-  font-size: var(--agent-font-small, 12px);
+  font-size: var(--agent-font-small);
   font-weight: 600;
 }
 
 .agent-mode-picker-option-desc {
   padding-left: 22px;
-  font-size: var(--agent-font-meta, 11px);
+  font-size: var(--agent-font-meta);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   line-height: 1.35;
 }

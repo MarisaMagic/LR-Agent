@@ -44,7 +44,7 @@
   border: none;
   background: transparent;
   color: inherit;
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
   line-height: var(--lr-titlebar-height);
   padding: 0 10px;
   cursor: default;
@@ -94,7 +94,7 @@
   border: none;
   background: transparent;
   color: var(--vscode-menu-foreground, #cccccc);
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
   text-align: left;
   cursor: default;
 }
@@ -112,7 +112,7 @@
 
 .title-bar-menu-accelerator {
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: 13px;
+  font-size: var(--lr-ui-font-caption);
 }
 
 .title-bar-menu-separator {
@@ -131,7 +131,7 @@
 }
 
 .title-bar-title {
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
   line-height: var(--lr-titlebar-height);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   overflow: hidden;

@@ -10,13 +10,16 @@ import {
   dialog,
   Menu,
   nativeTheme,
+  nativeImage,
+  NativeImage,
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
-import { resolveHtmlPath } from './util';
+import { isAppOwnedNavigation, resolveHtmlPath } from './util';
 import { DirectoryItem, FileStats } from './preload';
 import registerAuthHandlers from './auth/authHandlers';
+import { parseResetDeepLink, setPendingResetToken } from './auth/resetDeepLink';
 import registerPretrainedModelHandlers from './pretrainedModels/pretrainedModelHandlers';
 import registerPreAnnotHandlers from './preAnnot/preAnnotHandlers';
 import { registerWorkspaceHandlers } from './workspace/workspaceHandlers';
@@ -61,6 +64,53 @@ class AppUpdater {
 let mainWindow: BrowserWindow | null = null;
 let themeIpcRegistered = false;
 
+// ── 深链（lr-agent://reset-password）处理 ──
+
+// 只在打包/生产环境启用单实例锁：开发环境 electronmon 会反复重启 Electron，
+// 与 requestSingleInstanceLock“抢锁失败即退出”的语义冲突，会导致 dev 窗口反复退出。
+const gotSingleInstanceLock = app.isPackaged
+  ? app.requestSingleInstanceLock()
+  : true;
+
+function focusMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function handleResetDeepLink(url: string): void {
+  const token = parseResetDeepLink(url);
+  if (!token) return;
+  setPendingResetToken(token);
+  if (
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    !mainWindow.webContents.isLoading()
+  ) {
+    mainWindow.webContents.send('auth:resetPasswordDeepLink', token);
+  }
+  focusMainWindow();
+}
+
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv: string[]) => {
+    const deepLink = argv.find((arg) => arg.startsWith('lr-agent://'));
+    if (deepLink) {
+      handleResetDeepLink(deepLink);
+    } else {
+      focusMainWindow();
+    }
+  });
+
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    handleResetDeepLink(url);
+  });
+}
+
 /** Fits both sidebars expanded + main content minimum (48+240+4+480+4+240+48). */
 const WINDOW_MIN_WIDTH = 1064;
 const WINDOW_MIN_HEIGHT = 640;
@@ -77,12 +127,57 @@ function getThemeIconPath(isDark: boolean): string {
   return isDark ? 'icon-dark.png' : 'icon-light.png';
 }
 
+/**
+ * Windows 任务栏图标位是正方形。直接塞非正方形 PNG 时，Electron/Win32
+ * 转 HICON 会按左上对齐裁进方槽，看起来就像图标偏左。
+ * 源文件不改，只在设窗口图标时居中铺到方画布。
+ */
+function loadWindowIcon(filePath: string): NativeImage {
+  const src = nativeImage.createFromPath(filePath);
+  if (src.isEmpty()) {
+    return src;
+  }
+
+  const { width, height } = src.getSize();
+  const longSide = Math.max(width, height);
+  const target = 256;
+  const scale = target / longSide;
+  const fitted =
+    longSide === target
+      ? src
+      : src.resize({
+          width: Math.max(1, Math.round(width * scale)),
+          height: Math.max(1, Math.round(height * scale)),
+          quality: 'best',
+        });
+
+  const { width: fw, height: fh } = fitted.getSize();
+  if (fw === fh) {
+    return fitted;
+  }
+
+  const srcBuf = fitted.toBitmap();
+  const out = Buffer.alloc(target * target * 4, 0);
+  const ox = Math.floor((target - fw) / 2);
+  const oy = Math.floor((target - fh) / 2);
+  const rowBytes = fw * 4;
+  for (let y = 0; y < fh; y += 1) {
+    srcBuf.copy(
+      out,
+      ((y + oy) * target + ox) * 4,
+      y * rowBytes,
+      y * rowBytes + rowBytes,
+    );
+  }
+  return nativeImage.createFromBitmap(out, { width: target, height: target });
+}
+
 function syncWindowIcon(
   window: BrowserWindow,
   isDark: boolean,
   getAssetPath: (...paths: string[]) => string,
 ): void {
-  window.setIcon(getAssetPath(getThemeIconPath(isDark)));
+  window.setIcon(loadWindowIcon(getAssetPath(getThemeIconPath(isDark))));
 }
 
 function syncWindowTheme(
@@ -598,7 +693,7 @@ const createWindow = async () => {
     minWidth: WINDOW_MIN_WIDTH,
     minHeight: WINDOW_MIN_HEIGHT,
     backgroundColor: themeWindowBackground(initialDark),
-    icon: getAssetPath(getThemeIconPath(initialDark)),
+    icon: loadWindowIcon(getAssetPath(getThemeIconPath(initialDark))),
     ...(isMac
       ? {
           titleBarStyle: 'hiddenInset',
@@ -646,11 +741,13 @@ const createWindow = async () => {
   });
 
   // 拦截当前窗口内的外部导航（如 Word 预览中的超链接、markdown 链接等），
-  // 防止应用窗口被外部网页整体替换而无法关闭
+  // 防止应用窗口被外部网页整体替换而无法关闭。
+  // 必须按 origin / file: 判断，不能用 startsWith(index.html)：
+  // /、/auth、HMR 刷新都不以 .../index.html 开头，会被误拦并弹出系统浏览器。
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    const appUrl = resolveHtmlPath('index.html');
-    if (!url.startsWith(appUrl)) {
-      event.preventDefault();
+    if (isAppOwnedNavigation(url)) return;
+    event.preventDefault();
+    if (/^https?:\/\//i.test(url)) {
       shell.openExternal(url).catch(() => undefined);
     }
   });
@@ -673,6 +770,17 @@ ipcMain.handle('localAgent:getBaseUrl', () => getLocalAgentBaseUrl());
 app
   .whenReady()
   .then(async () => {
+    if (!gotSingleInstanceLock) return;
+    app.setAsDefaultProtocolClient('lr-agent');
+
+    // 处理首次通过 lr-agent:// 链接启动（Windows/Linux 走 argv，macOS 走 open-url）
+    const launchDeepLink = process.argv.find((arg) =>
+      arg.startsWith('lr-agent://'),
+    );
+    if (launchDeepLink) {
+      handleResetDeepLink(launchDeepLink);
+    }
+
     // Initialize local SQLite database
     await initializeDatabase();
 

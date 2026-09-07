@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { VscodeButton, VscodeIcon } from '@vscode-elements/react-elements';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useEnvironment } from '../context/EnvironmentContext';
@@ -68,8 +69,18 @@ export default function SettingsPanel() {
       setMenuOpen(false);
     };
 
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+      }
+    };
+
     document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, [menuOpen]);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -182,7 +193,7 @@ export default function SettingsPanel() {
               disabled={avatarLoading}
               onClick={() => setMenuOpen((open) => !open)}
             >
-              <span className="codicon codicon-edit" aria-hidden="true" />
+              <VscodeIcon name="edit" size={14} />
             </button>
             {menuOpen && (
               <div ref={menuRef} className="settings-avatar-menu" role="menu">
@@ -195,6 +206,7 @@ export default function SettingsPanel() {
                     fileInputRef.current?.click();
                   }}
                 >
+                  <VscodeIcon name="edit" size={14} />
                   更换头像
                 </button>
                 {user.avatar_url && (
@@ -204,6 +216,7 @@ export default function SettingsPanel() {
                     className="settings-avatar-menu-item settings-avatar-menu-item-danger"
                     onClick={handleDeleteAvatar}
                   >
+                    <VscodeIcon name="trash" size={14} />
                     删除头像
                   </button>
                 )}
@@ -242,7 +255,9 @@ export default function SettingsPanel() {
         <h3 className="settings-section-title">个人资料</h3>
 
         <div className="settings-field">
-          <span className="settings-field-label">用户名</span>
+          <label className="settings-field-label" htmlFor="settings-username">
+            用户名
+          </label>
           <input
             id="settings-username"
             name="username"
@@ -256,13 +271,11 @@ export default function SettingsPanel() {
           </span>
         </div>
 
-        <button
-          type="submit"
-          className="app-btn app-btn-secondary"
-          disabled={saving}
-        >
-          {saving ? '保存中…' : '保存资料'}
-        </button>
+        <div className="settings-actions">
+          <VscodeButton icon="save" type="submit" disabled={saving}>
+            {saving ? '保存中…' : '保存资料'}
+          </VscodeButton>
+        </div>
       </form>
 
       <section className="settings-section">
@@ -272,33 +285,37 @@ export default function SettingsPanel() {
           缺失时支持一键安装到内置运行时。
         </span>
         <div className="settings-actions">
-          <button
+          <VscodeButton
+            secondary
+            icon="tools"
             type="button"
-            className="app-btn app-btn-secondary"
             onClick={openWizard}
           >
             环境检测与安装
-          </button>
+          </VscodeButton>
         </div>
       </section>
 
       <section className="settings-section">
         <h3 className="settings-section-title">账户操作</h3>
         <div className="settings-actions">
-          <button
+          <VscodeButton
+            secondary
+            icon="sign-out"
             type="button"
-            className="app-btn app-btn-secondary"
             onClick={handleLogout}
           >
             退出登录
-          </button>
-          <button
+          </VscodeButton>
+          <VscodeButton
+            secondary
+            icon="trash"
             type="button"
-            className="app-btn settings-delete-account-btn"
+            className="vscode-btn-danger"
             onClick={() => setDeleteModalOpen(true)}
           >
             注销账号
-          </button>
+          </VscodeButton>
         </div>
       </section>
 

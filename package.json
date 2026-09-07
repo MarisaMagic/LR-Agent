@@ -221,6 +221,12 @@
     "asar": true,
     "afterSign": ".erb/scripts/notarize.js",
     "asarUnpack": "**\\*.{node,dll}",
+    "protocols": [
+      {
+        "name": "LR-Agent",
+        "schemes": ["lr-agent"]
+      }
+    ],
     "files": [
       "dist",
       "node_modules",

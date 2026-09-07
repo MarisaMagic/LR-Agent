@@ -8,7 +8,7 @@ import { isAuthRejection, isNetworkError } from './networkUtils';
 let refreshInFlight: Promise<boolean> | null = null;
 
 async function performRefresh(): Promise<boolean> {
-  const refreshToken = await window.electron.auth.getRefreshToken();
+  const refreshToken = await window.electron?.auth?.getRefreshToken();
   if (!refreshToken) {
     return false;
   }

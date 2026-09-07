@@ -7,20 +7,29 @@
   background: var(--vscode-editorWidget-background, #252526);
   border: 1px solid var(--vscode-widget-border, #454545);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  font-size: var(--vscode-font-size);
 }
 
 .env-wizard-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
 .env-wizard-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--lr-ui-font-large);
   font-weight: 600;
   color: var(--vscode-foreground, #cccccc);
+}
+
+.env-wizard-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .env-wizard-close {
@@ -53,7 +62,7 @@
 }
 
 .env-wizard-step {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   padding: 4px 8px;
   border-radius: 999px;
@@ -76,7 +85,7 @@
   border-radius: 4px;
   background: rgba(244, 67, 54, 0.12);
   color: #ff8a80;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
 }
 
 .env-wizard-body {
@@ -102,7 +111,7 @@
 }
 
 .env-wizard-label {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 600;
   color: var(--vscode-foreground, #cccccc);
 }
@@ -115,7 +124,7 @@
   border-radius: 2px;
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-input-foreground, #cccccc);
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   font-family: inherit;
 }
 
@@ -125,7 +134,7 @@
 }
 
 .env-wizard-hint {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   line-height: 1.5;
 }
@@ -149,7 +158,7 @@
   align-items: center;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
   line-height: 1.6;
 }
 
@@ -171,13 +180,13 @@
 }
 
 .env-wizard-status-label {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-foreground, #cccccc);
 }
 
 .env-wizard-mono {
   font-family: var(--vscode-editor-font-family, Consolas, monospace);
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   background: var(--vscode-input-background, #3c3c3c);
   border-radius: 4px;
@@ -191,13 +200,14 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
 .env-wizard-actions-inline {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -214,23 +224,24 @@
   flex: 1;
 }
 
-.env-wizard-override > vscode-button {
-  align-self: flex-start;
-}
-
 .env-wizard-python-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.env-wizard-python-row input {
-  flex: 1;
+.env-wizard-python-row input[type='text'] {
+  width: auto;
+  flex: 1 1 180px;
   min-width: 0;
 }
 
 .env-wizard-python-row > vscode-button {
   flex-shrink: 0;
+}
+
+.env-wizard-icon-btn {
+  min-width: 28px;
 }
 
 .env-wizard-install {
@@ -248,7 +259,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-foreground, #cccccc);
 }
 
@@ -268,14 +279,14 @@
   background: var(--vscode-editor-background, #1e1e1e);
   color: var(--vscode-foreground, #cccccc);
   font-family: var(--vscode-editor-font-family, Consolas, monospace);
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;
 }
 
 .env-wizard-install-result {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -315,13 +326,13 @@
 }
 
 .env-wizard-model-name {
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   font-weight: 600;
   color: var(--vscode-foreground, #cccccc);
 }
 
 .env-wizard-model-hint {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -335,7 +346,7 @@
   flex: 1;
   min-width: 0;
   font-family: var(--vscode-editor-font-family, Consolas, monospace);
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -343,7 +354,7 @@
 }
 
 .env-wizard-models-note {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   line-height: 1.5;
 }
@@ -352,6 +363,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .env-wizard-footer-left,

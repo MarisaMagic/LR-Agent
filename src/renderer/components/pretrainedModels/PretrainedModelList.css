@@ -6,7 +6,7 @@
 
 .pretrained-model-list-empty {
   padding: 16px 12px;
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   line-height: 1.5;
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
@@ -29,7 +29,7 @@
 }
 
 .pretrained-model-item-name {
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
   font-weight: 600;
   color: var(--vscode-foreground, #cccccc);
   overflow: hidden;
@@ -46,7 +46,7 @@
 .pretrained-model-badge {
   padding: 1px 6px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
   line-height: 1.4;
 }
 
@@ -74,13 +74,13 @@
 
 .pretrained-model-item-type {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
 .pretrained-model-item-path {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   font-family: var(--vscode-editor-font-family, Consolas, monospace);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   overflow: hidden;
@@ -127,13 +127,15 @@
 }
 
 .pretrained-model-menu button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   padding: 6px 12px;
   border: none;
   background: transparent;
   text-align: left;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-menu-foreground, #cccccc);
   cursor: pointer;
 }
@@ -143,5 +145,9 @@
 }
 
 .pretrained-model-menu button.danger {
-  color: #ff8a80;
+  color: var(--vscode-errorForeground);
+}
+
+.pretrained-model-menu vscode-icon {
+  display: flex;
 }

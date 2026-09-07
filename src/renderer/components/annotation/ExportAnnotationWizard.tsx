@@ -74,7 +74,9 @@ export default function ExportAnnotationWizard({
   }, [project]);
 
   const showCoordinateMode =
-    format === 'csv' && project && isImageAnnotationType(project.annotationType);
+    format === 'csv' &&
+    project &&
+    isImageAnnotationType(project.annotationType);
   const showIncludeEmptyImages =
     project?.modality === 'image' && format !== 'lr_agent';
   const showIncludeSourceMedia = format !== 'lr_agent';
@@ -230,7 +232,10 @@ export default function ExportAnnotationWizard({
         </div>
 
         <div className="export-annotation-field">
-          <label className="export-annotation-label" htmlFor="export-output-dir">
+          <label
+            className="export-annotation-label"
+            htmlFor="export-output-dir"
+          >
             输出目录
           </label>
           <div className="export-annotation-directory-row">
@@ -242,7 +247,12 @@ export default function ExportAnnotationWizard({
               placeholder="选择导出目标文件夹"
               required
             />
-            <VscodeButton secondary type="button" onClick={handlePickDirectory}>
+            <VscodeButton
+              secondary
+              icon="folder-opened"
+              type="button"
+              onClick={handlePickDirectory}
+            >
               浏览…
             </VscodeButton>
           </div>
@@ -250,7 +260,10 @@ export default function ExportAnnotationWizard({
 
         {showCoordinateMode && (
           <div className="export-annotation-field">
-            <label className="export-annotation-label" htmlFor="export-coord-mode">
+            <label
+              className="export-annotation-label"
+              htmlFor="export-coord-mode"
+            >
               CSV 坐标单位
             </label>
             <select
@@ -292,16 +305,21 @@ export default function ExportAnnotationWizard({
 
       <div className="export-annotation-actions">
         {successMessage && (
-          <VscodeButton secondary type="button" onClick={handleOpenOutputFolder}>
+          <VscodeButton
+            secondary
+            icon="folder"
+            type="button"
+            onClick={handleOpenOutputFolder}
+          >
             打开输出文件夹
           </VscodeButton>
         )}
-        <VscodeButton secondary type="button" onClick={onClose}>
+        <VscodeButton secondary icon="close" type="button" onClick={onClose}>
           {successMessage ? '关闭' : '取消'}
         </VscodeButton>
         {!successMessage && (
           <VscodeButton
-            secondary
+            icon="export"
             type="submit"
             disabled={!canExport || submitting}
           >

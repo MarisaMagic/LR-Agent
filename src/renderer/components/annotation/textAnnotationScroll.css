@@ -1,10 +1,10 @@
-/* 文本标注中间区字号 token（相对原硬编码整体 +1px） */
+/* 文本标注中间区：body=14，其余贴地板 caption=13（不再低于 13） */
 :root {
-  --text-annotation-font-body: 14px;
-  --text-annotation-font-source: 13px;
-  --text-annotation-font-ui: 13px;
-  --text-annotation-font-label: 12px;
-  --text-annotation-font-meta: 11px;
+  --text-annotation-font-body: var(--lr-ui-font-small);
+  --text-annotation-font-source: var(--lr-ui-font-caption);
+  --text-annotation-font-ui: var(--lr-ui-font-caption);
+  --text-annotation-font-label: var(--lr-ui-font-caption);
+  --text-annotation-font-meta: var(--lr-ui-font-caption);
   --text-annotation-textarea-min-height: calc(
     var(--text-annotation-font-body) * 1.6 * 3 + 16px
   );

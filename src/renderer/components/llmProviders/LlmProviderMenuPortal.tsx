@@ -1,3 +1,4 @@
+import { VscodeIcon } from '@vscode-elements/react-elements';
 import FloatingActionMenuPortal from '../../motion/FloatingActionMenuPortal';
 import './LlmProviderMenuPortal.css';
 
@@ -36,13 +37,16 @@ export default function LlmProviderMenuPortal({
     >
       {canSetDefault && (
         <button type="button" role="menuitem" onClick={onSetDefault}>
+          <VscodeIcon name="star" size={14} />
           设为默认
         </button>
       )}
       <button type="button" role="menuitem" onClick={onEdit}>
+        <VscodeIcon name="edit" size={14} />
         编辑
       </button>
       <button type="button" role="menuitem" onClick={onProbeVision}>
+        <VscodeIcon name="eye" size={14} />
         重新检测视觉
       </button>
       <button
@@ -51,6 +55,7 @@ export default function LlmProviderMenuPortal({
         className="danger"
         onClick={onDelete}
       >
+        <VscodeIcon name="trash" size={14} />
         删除
       </button>
     </FloatingActionMenuPortal>

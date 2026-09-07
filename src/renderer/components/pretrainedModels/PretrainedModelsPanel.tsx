@@ -142,10 +142,23 @@ export default function PretrainedModelsPanel() {
             」，不会删除磁盘上的权重文件。
           </p>
           <div className="pretrained-model-delete-actions">
-            <VscodeButton secondary onClick={() => setDeleteTarget(null)}>
+            <VscodeButton
+              secondary
+              icon="close"
+              type="button"
+              onClick={() => setDeleteTarget(null)}
+            >
               取消
             </VscodeButton>
-            <VscodeButton onClick={handleDelete}>删除</VscodeButton>
+            <VscodeButton
+              secondary
+              icon="trash"
+              type="button"
+              className="vscode-btn-danger"
+              onClick={handleDelete}
+            >
+              删除
+            </VscodeButton>
           </div>
         </ModalMotion>
       )}

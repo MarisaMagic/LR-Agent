@@ -17,7 +17,7 @@
 .quality-report-preview__img-loading,
 .quality-report-preview__img-failed {
   display: block;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #858585);
   margin: 8px 0;
 }

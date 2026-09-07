@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { VscodeButton } from '@vscode-elements/react-elements';
 import AnnotationLabelOverflowMenuPortal from './AnnotationLabelOverflowMenuPortal';
 import './AnnotationDrawLabelPicker.css';
 
@@ -22,7 +23,7 @@ export default function AnnotationItemLabelMenu({
   ariaLabel = '切换标签',
 }: AnnotationItemLabelMenuProps) {
   const [open, setOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const buttonRef = useRef<HTMLDivElement>(null);
 
   const selectLabel = useCallback(
     (id: string) => {
@@ -35,9 +36,11 @@ export default function AnnotationItemLabelMenu({
   if (labels.length === 0) return null;
 
   return (
-    <div className="annotation-right-label-more-wrap">
-      <button
-        ref={buttonRef}
+    <div className="annotation-right-label-more-wrap" ref={buttonRef}>
+      <VscodeButton
+        secondary
+        icon="tag"
+        iconOnly
         type="button"
         className={`annotation-right-label-more-btn annotation-right-item-label-more-btn${
           open ? ' annotation-right-label-more-btn--open' : ''
@@ -50,9 +53,7 @@ export default function AnnotationItemLabelMenu({
           event.stopPropagation();
           setOpen((current) => !current);
         }}
-      >
-        <span className="codicon codicon-tag" aria-hidden />
-      </button>
+      />
       {open && buttonRef.current ? (
         <AnnotationLabelOverflowMenuPortal
           anchorEl={buttonRef.current}

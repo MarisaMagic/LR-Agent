@@ -643,7 +643,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   }, [currentUserId, defaultProvider, ensureSessionLoaded, persist]);
 
   useEffect(() => {
-    if (authStatus === 'loading') return;
+    if (authStatus === 'loading' || authStatus === 'unauthenticated') return;
+    if (!window.electron) {
+      remoteHydratedRef.current = true;
+      return undefined;
+    }
 
     let cancelled = false;
     const generation = ++bootstrapGenerationRef.current;
@@ -674,7 +678,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   }, [activeProject?.id, authStatus, currentUserId, bootstrapProjectAgent, showToast]);
 
   useEffect(() => {
-    if (authStatus === 'loading') return;
+    if (authStatus === 'loading' || authStatus === 'unauthenticated') return;
     if (!remoteHydratedRef.current) return;
     const projectId = activeProject?.id ?? null;
     const ui = getProjectUi(agentUiRef.current, projectId);
@@ -711,7 +715,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (authStatus === 'loading') return;
+    if (authStatus === 'loading' || authStatus === 'unauthenticated') return;
     if (initializedRef.current) return;
     initializedRef.current = true;
     const current = stateRef.current;

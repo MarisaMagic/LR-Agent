@@ -65,7 +65,7 @@ export default function LlmProvidersPanel() {
       <VscodeToolbarContainer className="llm-providers-toolbar">
         <VscodeClickableToolbarButton
           icon="add"
-          label="添加 Agent 配置"
+          label="添加大模型配置"
           onClick={openCreate}
         />
         <VscodeClickableToolbarButton
@@ -109,10 +109,23 @@ export default function LlmProvidersPanel() {
           <h3 id="llm-provider-delete-title">删除大模型配置？</h3>
           <p>将删除配置「{deleteTarget.name || deleteTarget.model}」。</p>
           <div className="llm-provider-delete-actions">
-            <VscodeButton secondary onClick={() => setDeleteTarget(null)}>
+            <VscodeButton
+              secondary
+              icon="close"
+              type="button"
+              onClick={() => setDeleteTarget(null)}
+            >
               取消
             </VscodeButton>
-            <VscodeButton onClick={handleDelete}>删除</VscodeButton>
+            <VscodeButton
+              secondary
+              icon="trash"
+              type="button"
+              className="vscode-btn-danger"
+              onClick={handleDelete}
+            >
+              删除
+            </VscodeButton>
           </div>
         </ModalMotion>
       )}

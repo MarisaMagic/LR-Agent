@@ -217,9 +217,7 @@ export default function AgentAssistantMessage({
           return renderBlock(segment.block, segment.index);
         })}
 
-        {isStreaming && (
-          <span className="agent-stream-cursor">▍</span>
-        )}
+        {isStreaming && <span className="agent-stream-cursor">▍</span>}
 
         {message.status === 'stopped' && (
           <div className="agent-message-meta">已停止生成</div>
@@ -258,6 +256,7 @@ export default function AgentAssistantMessage({
                         handleCopy().catch(() => undefined);
                       }}
                     >
+                      <VscodeIcon name="copy" size={14} />
                       复制
                     </button>
                     <button
@@ -266,6 +265,7 @@ export default function AgentAssistantMessage({
                       disabled={!canRegenerate}
                       onClick={handleRegenerate}
                     >
+                      <VscodeIcon name="refresh" size={14} />
                       重新生成
                     </button>
                   </m.div>

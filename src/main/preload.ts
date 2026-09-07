@@ -17,6 +17,7 @@ export type Channels =
   | 'auth:getSessionCache'
   | 'auth:setSessionCache'
   | 'auth:clearSessionCache'
+  | 'auth:resetPasswordDeepLink'
   | 'window:minimize'
   | 'window:maximize'
   | 'window:close'
@@ -149,6 +150,14 @@ const electronHandler = {
     ): Promise<void> => ipcRenderer.invoke('auth:setSessionCache', cache),
     clearSessionCache: (): Promise<void> =>
       ipcRenderer.invoke('auth:clearSessionCache'),
+    getPendingResetToken: (): Promise<string | null> =>
+      ipcRenderer.invoke('auth:getPendingResetToken'),
+    onResetPasswordDeepLink: (
+      callback: (token: string) => void,
+    ): (() => void) =>
+      electronHandler.ipcRenderer.on('auth:resetPasswordDeepLink', (value) => {
+        callback(String(value));
+      }),
   },
   theme: {
     getSystemDark: (): Promise<boolean> =>

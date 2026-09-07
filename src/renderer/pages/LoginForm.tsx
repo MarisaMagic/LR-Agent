@@ -8,9 +8,13 @@ import './AuthPage.css';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
+  onForgotPassword: () => void;
 }
 
-export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
+export default function LoginForm({
+  onSwitchToRegister,
+  onForgotPassword,
+}: LoginFormProps) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -72,15 +76,24 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
         required
       />
 
-      <label className="auth-checkbox" htmlFor="remember-email">
-        <input
-          id="remember-email"
-          type="checkbox"
-          checked={rememberEmail}
-          onChange={(e) => setRememberEmail(e.target.checked)}
-        />
-        记住邮箱
-      </label>
+      <div className="auth-checkbox-row">
+        <label className="auth-checkbox" htmlFor="remember-email">
+          <input
+            id="remember-email"
+            type="checkbox"
+            checked={rememberEmail}
+            onChange={(e) => setRememberEmail(e.target.checked)}
+          />
+          记住邮箱
+        </label>
+        <button
+          type="button"
+          className="auth-link-button"
+          onClick={onForgotPassword}
+        >
+          忘记密码？
+        </button>
+      </div>
 
       <button
         type="submit"

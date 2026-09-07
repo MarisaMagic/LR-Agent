@@ -9,8 +9,8 @@
   src: local('Segoe UI');
   unicode-range:
     U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
-    U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F, U+2190-21FF,
-    U+2200-22FF, U+FEFF, U+FFFD;
+    U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F,
+    U+2190-21FF, U+2200-22FF, U+FEFF, U+FFFD;
 }
 
 :root {
@@ -21,9 +21,14 @@
   --lr-accent-blue-hover: #1a8ad4;
   --lr-tab-active-border-top: var(--lr-accent-blue);
 
-  --vscode-font-family: 'LR-Agent UI', 'Noto Sans SC', 'Source Han Sans SC', '思源黑体',
-    sans-serif;
-  --vscode-font-size: 15px;
+  --vscode-font-family:
+    'LR-Agent UI', 'Noto Sans SC', 'Source Han Sans SC', '思源黑体', sans-serif;
+  --lr-ui-font-size: 15px;
+  --vscode-font-size: var(--lr-ui-font-size);
+  --lr-ui-font-large: calc(var(--lr-ui-font-size) * 1.067);
+  --lr-ui-font-small: calc(var(--lr-ui-font-size) * 0.933);
+  --lr-ui-font-meta: var(--lr-ui-font-small);
+  --lr-ui-font-caption: calc(var(--lr-ui-font-size) * 0.867);
   --theme-transition-duration: 0.36s;
   --theme-transition-ease: cubic-bezier(0.4, 0, 0.2, 1);
   /* 中间 editor tab 栏与右侧 right-panel-icon-toolbar 对齐：2+32+2 padding */
@@ -40,6 +45,10 @@
   --vscode-focusBorder: var(--lr-accent);
   --vscode-errorForeground: #f48771;
   --vscode-editorWarning-foreground: #cca700;
+  --lr-danger-fg: var(--vscode-errorForeground);
+  --lr-danger-bg: color-mix(in srgb, var(--lr-danger-fg) 10%, transparent);
+  --lr-danger-border: color-mix(in srgb, var(--lr-danger-fg) 42%, transparent);
+  --lr-danger-hover-bg: color-mix(in srgb, var(--lr-danger-fg) 16%, transparent);
 
   --vscode-sideBar-background: #252526;
   --vscode-sideBar-foreground: #cccccc;
@@ -65,7 +74,9 @@
   --vscode-tab-activeForeground: #ffffff;
   --vscode-tab-inactiveForeground: #969696;
   --vscode-tab-activeBackground: var(--vscode-editor-background);
-  --vscode-tab-inactiveBackground: var(--vscode-editorGroupHeader-tabsBackground);
+  --vscode-tab-inactiveBackground: var(
+    --vscode-editorGroupHeader-tabsBackground
+  );
   --vscode-editorGroupHeader-tabsBorder: #252526;
   --lr-agent-panel-background: var(--vscode-editor-background);
 
@@ -144,6 +155,10 @@
   --vscode-focusBorder: var(--lr-accent);
   --vscode-errorForeground: #a1260d;
   --vscode-editorWarning-foreground: #bf8803;
+  --lr-danger-fg: #a1260d;
+  --lr-danger-bg: color-mix(in srgb, #a1260d 8%, #ffffff);
+  --lr-danger-border: color-mix(in srgb, #a1260d 32%, #c8c8c8);
+  --lr-danger-hover-bg: color-mix(in srgb, #a1260d 14%, #ffffff);
 
   --vscode-sideBar-background: #f3f3f3;
   --vscode-sideBar-foreground: #333333;
@@ -246,18 +261,23 @@ html.theme-transition *,
 html.theme-transition *::before,
 html.theme-transition *::after {
   transition:
-    background-color var(--theme-transition-duration) var(--theme-transition-ease),
-    color calc(var(--theme-transition-duration) * 0.72) var(--theme-transition-ease),
+    background-color var(--theme-transition-duration)
+      var(--theme-transition-ease),
+    color calc(var(--theme-transition-duration) * 0.72)
+      var(--theme-transition-ease),
     border-color var(--theme-transition-duration) var(--theme-transition-ease),
     box-shadow var(--theme-transition-duration) var(--theme-transition-ease),
-    fill calc(var(--theme-transition-duration) * 0.72) var(--theme-transition-ease),
-    stroke calc(var(--theme-transition-duration) * 0.72) var(--theme-transition-ease) !important;
+    fill calc(var(--theme-transition-duration) * 0.72)
+      var(--theme-transition-ease),
+    stroke calc(var(--theme-transition-duration) * 0.72)
+      var(--theme-transition-ease) !important;
 }
 
 html.theme-transition .activity-theme-toggle-icon {
   transition:
     transform var(--theme-transition-duration) var(--theme-transition-ease),
-    opacity calc(var(--theme-transition-duration) * 0.72) var(--theme-transition-ease) !important;
+    opacity calc(var(--theme-transition-duration) * 0.72)
+      var(--theme-transition-ease) !important;
 }
 
 body {

@@ -364,10 +364,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     prevEditorTabsRef.current = editorTabs;
   }, [editorTabs]);
 
-  const syncActiveFilePath = useCallback((tabs: EditorTab[], tabId: string | null) => {
-    const tab = tabs.find((item) => item.id === tabId);
-    setWorkspace({ activeFilePath: tab?.filePath ?? null });
-  }, []);
+  const syncActiveFilePath = useCallback(
+    (tabs: EditorTab[], tabId: string | null) => {
+      const tab = tabs.find((item) => item.id === tabId);
+      setWorkspace({ activeFilePath: tab?.filePath ?? null });
+    },
+    [],
+  );
 
   const setWorkspace = (partial: Partial<WorkspaceState>) => {
     dispatchWorkspace({ type: 'SET', payload: partial });
@@ -560,9 +563,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const pinTab = useCallback((tabId: string) => {
     setEditorTabs((prev) =>
-      prev.map((tab) =>
-        tab.id === tabId ? { ...tab, preview: false } : tab,
-      ),
+      prev.map((tab) => (tab.id === tabId ? { ...tab, preview: false } : tab)),
     );
   }, []);
 
@@ -572,11 +573,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!tab) return true;
       if (
         tab.dirty &&
-        !window.confirm(`「${tab.filePath.split(/[/\\]/).pop()}」有未保存的更改，确定关闭？`)
+        !window.confirm(
+          `「${tab.filePath.split(/[/\\]/).pop()}」有未保存的更改，确定关闭？`,
+        )
       ) {
         return false;
       }
-      const nextTabs = editorTabsRef.current.filter((item) => item.id !== tabId);
+      const nextTabs = editorTabsRef.current.filter(
+        (item) => item.id !== tabId,
+      );
       let nextActiveId = activeTabIdRef.current;
       if (activeTabIdRef.current === tabId) {
         const closedIndex = editorTabsRef.current.findIndex(
@@ -707,6 +712,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!window.electron) return undefined;
     const unsub = window.electron.fileSystem?.onChanged(() => {
       debouncedRefresh();
     });
@@ -764,6 +770,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [layout.leftWidth, layout.rightWidth, persistSidebarWidths]);
 
   useEffect(() => {
+    if (!window.electron) return;
     const last = localStorage.getItem(STORAGE_KEYS.lastWorkspace);
     if (last) {
       window.electron.fileSystem
@@ -779,6 +786,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [loadWorkspace]);
 
   useEffect(() => {
+    if (!window.electron) return undefined;
     const unsubOpen = window.electron.ipcRenderer.on('menu:openFolder', () => {
       openFolder();
     });

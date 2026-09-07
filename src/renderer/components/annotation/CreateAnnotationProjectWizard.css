@@ -18,7 +18,7 @@
 
 .create-annotation-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--lr-ui-font-large);
   font-weight: 600;
   color: var(--vscode-foreground, #cccccc);
 }
@@ -49,7 +49,7 @@
 }
 
 .create-annotation-step {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   padding: 4px 8px;
   border-radius: 999px;
@@ -72,7 +72,7 @@
   border-radius: 4px;
   background: rgba(244, 67, 54, 0.12);
   color: #ff8a80;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
 }
 
 .create-annotation-body {
@@ -93,7 +93,7 @@
 }
 
 .create-annotation-label {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 600;
   color: var(--vscode-foreground, #cccccc);
 }
@@ -112,7 +112,7 @@
   border-radius: 2px;
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-input-foreground, #cccccc);
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   font-family: inherit;
 }
 

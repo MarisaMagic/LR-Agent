@@ -26,7 +26,7 @@
 }
 
 .user-avatar-sm.user-avatar-placeholder {
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
 }
 
 .user-avatar-md.user-avatar-placeholder {

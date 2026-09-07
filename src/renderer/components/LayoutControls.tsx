@@ -32,6 +32,7 @@ export function FullScreenToggle() {
   const [isFullScreen, setIsFullScreen] = useState(false);
 
   useEffect(() => {
+    if (!window.electron) return undefined;
     window.electron.window.isFullScreen().then(setIsFullScreen);
     return window.electron.window.onFullScreenChange(setIsFullScreen);
   }, []);

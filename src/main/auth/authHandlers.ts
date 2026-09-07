@@ -5,6 +5,7 @@ import {
   setSessionCache,
   type LocalSessionCache,
 } from './sessionCacheStore';
+import { takePendingResetToken } from './resetDeepLink';
 import {
   clearRefreshToken,
   getRefreshToken,
@@ -29,4 +30,5 @@ export default function registerAuthHandlers(): void {
   ipcMain.handle('auth:clearSessionCache', async () => {
     await clearSessionCache();
   });
+  ipcMain.handle('auth:getPendingResetToken', () => takePendingResetToken());
 }

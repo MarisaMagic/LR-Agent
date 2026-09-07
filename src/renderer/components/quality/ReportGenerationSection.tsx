@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { VscodeButton } from '@vscode-elements/react-elements';
 import type { AnnotationProjectSnapshot } from '../../../shared/annotationAgentTypes';
 import PopoverMotion from '../../motion/PopoverMotion';
 import { useLlmProviders } from '../../context/LlmProvidersContext';
 import { useTheme } from '../../context/ThemeContext';
-import {
-  runQualityReportGeneration,
-} from '../../services/annotationQuality/reportGenerationRunner';
-import type { QualityReportStage, QualityScope } from '../../services/annotationQuality/types';
+import { runQualityReportGeneration } from '../../services/annotationQuality/reportGenerationRunner';
+import type {
+  QualityReportStage,
+  QualityScope,
+} from '../../services/annotationQuality/types';
 import ReportPreviewPanel from './ReportPreviewPanel';
 
 const STAGE_LABELS: Record<QualityReportStage, string> = {
@@ -82,9 +84,7 @@ export default function ReportGenerationSection({
       setSteps((prev) => {
         const existing = prev.find((s) => s.stage === stage);
         if (existing) {
-          return prev.map((s) =>
-            s.stage === stage ? { ...s, ...patch } : s,
-          );
+          return prev.map((s) => (s.stage === stage ? { ...s, ...patch } : s));
         }
         return [
           ...prev,
@@ -112,7 +112,9 @@ export default function ReportGenerationSection({
       !selectedProvider.baseUrl.trim() ||
       !selectedProvider.model.trim()
     ) {
-      setError('所选大模型缺少 API Key、Base URL 或 Model，请在「大模型配置」中补全');
+      setError(
+        '所选大模型缺少 API Key、Base URL 或 Model，请在「大模型配置」中补全',
+      );
       return;
     }
     setRunning(true);
@@ -199,7 +201,7 @@ export default function ReportGenerationSection({
           >
             <span className="quality-report-provider-value">
               {selectedProvider
-                ? (selectedProvider.name || selectedProvider.model)
+                ? selectedProvider.name || selectedProvider.model
                 : enabledProviders.length === 0
                   ? '请先配置大模型'
                   : '选择大模型'}
@@ -220,7 +222,9 @@ export default function ReportGenerationSection({
                 role="option"
                 aria-selected={p.id === providerId}
                 className={`quality-report-provider-option${
-                  p.id === providerId ? ' quality-report-provider-option--active' : ''
+                  p.id === providerId
+                    ? ' quality-report-provider-option--active'
+                    : ''
                 }`}
                 onClick={() => {
                   setProviderId(p.id);
@@ -238,29 +242,39 @@ export default function ReportGenerationSection({
           </PopoverMotion>
         </div>
         <div className="quality-report-actions">
-          <button
+          <VscodeButton
+            icon="notebook"
             type="button"
-            className="quality-btn quality-btn--primary"
             disabled={running || !providerId}
             onClick={handleGenerate}
           >
             {running ? '生成中…' : '生成报告'}
-          </button>
+          </VscodeButton>
           {running ? (
-            <button
+            <VscodeButton
+              secondary
+              icon="close"
               type="button"
-              className="quality-btn"
               onClick={handleCancel}
             >
               取消
-            </button>
+            </VscodeButton>
           ) : null}
         </div>
       </div>
 
       {steps.length > 0 ? (
         <ol className="quality-report-steps">
-          {(['collect', 'analyze', 'export_charts', 'compose_llm', 'write_report', 'done'] as QualityReportStage[])
+          {(
+            [
+              'collect',
+              'analyze',
+              'export_charts',
+              'compose_llm',
+              'write_report',
+              'done',
+            ] as QualityReportStage[]
+          )
             .filter((stage) => steps.some((s) => s.stage === stage))
             .map((stage) => {
               const step = steps.find((s) => s.stage === stage)!;

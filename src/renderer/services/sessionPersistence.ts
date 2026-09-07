@@ -2,10 +2,18 @@ import { LocalSessionCache, TokenResponse, UserPublic } from '../types/auth';
 import tokenHolder from './tokenHolder';
 import { decodeJwtPayload, isRefreshTokenExpiredLocally } from './jwtUtils';
 
+function getAuthBridge() {
+  return window.electron?.auth ?? null;
+}
+
 export async function writeSessionCache(
   user: UserPublic,
   refreshToken: string,
 ): Promise<void> {
+  const auth = getAuthBridge();
+  if (!auth) {
+    return;
+  }
   const payload = decodeJwtPayload(refreshToken);
   const refreshTokenExp = payload?.exp;
   if (!refreshTokenExp) {
@@ -17,11 +25,11 @@ export async function writeSessionCache(
     lastOnlineAt: new Date().toISOString(),
     refreshTokenExp,
   };
-  await window.electron.auth.setSessionCache(cache);
+  await auth.setSessionCache(cache);
 }
 
 export async function readValidSessionCache(): Promise<LocalSessionCache | null> {
-  const cache = await window.electron.auth.getSessionCache();
+  const cache = (await getAuthBridge()?.getSessionCache()) ?? null;
   if (!cache) {
     return null;
   }
@@ -33,12 +41,20 @@ export async function readValidSessionCache(): Promise<LocalSessionCache | null>
 
 export async function persistSession(result: TokenResponse): Promise<void> {
   tokenHolder.setAccessToken(result.access_token);
-  await window.electron.auth.setRefreshToken(result.refresh_token);
+  const auth = getAuthBridge();
+  if (!auth) {
+    return;
+  }
+  await auth.setRefreshToken(result.refresh_token);
   await writeSessionCache(result.user, result.refresh_token);
 }
 
 export async function clearSession(): Promise<void> {
   tokenHolder.setAccessToken(null);
-  await window.electron.auth.clearRefreshToken();
-  await window.electron.auth.clearSessionCache();
+  const auth = getAuthBridge();
+  if (!auth) {
+    return;
+  }
+  await auth.clearRefreshToken();
+  await auth.clearSessionCache();
 }

@@ -18,7 +18,7 @@
 
 .edit-annotation-project-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--lr-ui-font-large);
   font-weight: 600;
   color: var(--vscode-foreground, #cccccc);
 }
@@ -47,7 +47,7 @@
   border-radius: 4px;
   background: rgba(244, 67, 54, 0.12);
   color: #ff8a80;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
 }
 
 .edit-annotation-project-readonly {
@@ -67,12 +67,12 @@
 }
 
 .edit-annotation-project-readonly-label {
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
 .edit-annotation-project-readonly-value {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-foreground, #cccccc);
   word-break: break-all;
 }
@@ -94,7 +94,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 600;
   color: var(--vscode-foreground, #cccccc);
 }
@@ -112,7 +112,7 @@
   border-radius: 2px;
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-input-foreground, #cccccc);
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   font-family: inherit;
   font-weight: normal;
 }

@@ -14,6 +14,10 @@ import {
 } from './sessionPersistence';
 import { decodeJwtPayload, isRefreshTokenExpiredLocally } from './jwtUtils';
 
+async function getStoredRefreshToken(): Promise<string | null> {
+  return (await window.electron?.auth?.getRefreshToken()) ?? null;
+}
+
 async function refreshWithToken(refreshToken: string): Promise<TokenResponse> {
   try {
     const result = await apiFetch<TokenResponse>('/auth/refresh', {
@@ -67,6 +71,25 @@ export async function verifyEmail(token: string): Promise<void> {
   }
 }
 
+export async function forgotPassword(email: string): Promise<void> {
+  await apiFetch<MessageResponse>('/auth/forgot-password', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(
+  token: string,
+  password: string,
+): Promise<void> {
+  await apiFetch<MessageResponse>('/auth/reset-password', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify({ token, password }),
+  });
+}
+
 export async function login(
   email: string,
   password: string,
@@ -85,7 +108,7 @@ export async function refresh(refreshToken: string): Promise<TokenResponse> {
 }
 
 export async function logout(): Promise<void> {
-  const refreshToken = await window.electron.auth.getRefreshToken();
+  const refreshToken = await getStoredRefreshToken();
   if (refreshToken) {
     try {
       await apiFetch<MessageResponse>('/auth/logout', {
@@ -101,7 +124,7 @@ export async function logout(): Promise<void> {
 }
 
 export async function tryRefreshSession(): Promise<RestoreSessionResult> {
-  const refreshToken = await window.electron.auth.getRefreshToken();
+  const refreshToken = await getStoredRefreshToken();
   if (!refreshToken) {
     return { mode: 'none' };
   }
@@ -126,7 +149,7 @@ export async function tryRefreshSession(): Promise<RestoreSessionResult> {
 }
 
 export async function restoreSession(): Promise<RestoreSessionResult> {
-  const refreshToken = await window.electron.auth.getRefreshToken();
+  const refreshToken = await getStoredRefreshToken();
   if (!refreshToken) {
     return { mode: 'none' };
   }

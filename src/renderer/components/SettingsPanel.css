@@ -4,17 +4,22 @@
   gap: 18px;
   padding: 12px;
   color: var(--vscode-foreground, #cccccc);
+  font-size: var(--vscode-font-size);
 }
 
 .settings-section {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--vscode-panel-border, #3e3e42);
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, #252526);
 }
 
 .settings-section-title {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -52,14 +57,18 @@
   background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
 
+.settings-avatar-edit-btn:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #888888);
+  outline-offset: 2px;
+}
+
 .settings-avatar-edit-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.settings-avatar-edit-btn .codicon {
-  font-size: 16px;
-  line-height: 1;
+.settings-avatar-edit-btn vscode-icon {
+  display: flex;
 }
 
 .settings-avatar-menu {
@@ -76,13 +85,15 @@
 }
 
 .settings-avatar-menu-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   padding: 6px 12px;
   border: none;
   background: transparent;
   color: var(--vscode-menu-foreground, #cccccc);
-  font-size: 14px;
+  font-size: var(--lr-ui-font-meta);
   text-align: left;
   cursor: pointer;
 }
@@ -99,14 +110,14 @@
 .settings-field-label {
   display: block;
   margin-bottom: 4px;
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
 .settings-field-hint {
   display: block;
   margin-top: 4px;
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -118,7 +129,7 @@
   border-radius: 4px;
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-input-foreground, #cccccc);
-  font-size: 15px;
+  font-size: var(--vscode-font-size);
 }
 
 .settings-field input:focus,
@@ -132,14 +143,14 @@
 }
 
 .settings-readonly {
-  font-size: 15px;
+  font-size: var(--vscode-font-size);
 }
 
 .settings-badge {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
 }
 
 .settings-badge-verified {
@@ -155,26 +166,8 @@
 .settings-actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
-}
-
-.settings-delete-account-btn {
-  background: #ef6b6b;
-  color: #ffffff;
-  border-color: transparent;
-}
-
-.settings-delete-account-btn:hover:not(:disabled) {
-  background: #f58989;
-}
-
-[data-theme='light'] .settings-delete-account-btn {
-  background: #ef5350;
-  color: #000000;
-}
-
-[data-theme='light'] .settings-delete-account-btn:hover:not(:disabled) {
-  background: #ff7043;
 }
 
 .settings-hidden-input {

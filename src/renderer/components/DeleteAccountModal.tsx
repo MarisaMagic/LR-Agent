@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { FormEvent, useState } from 'react';
+import { VscodeButton } from '@vscode-elements/react-elements';
 import PasswordField from '../pages/PasswordField';
 import ModalMotion from '../motion/ModalMotion';
 import { motionDistance, motionDuration, motionEase } from '../motion/tokens';
@@ -78,20 +79,23 @@ export default function DeleteAccountModal({
               注销后你的账号将被停用，所有设备上的登录都会失效，原邮箱可以重新注册。此操作不可撤销。
             </p>
             <div className="delete-account-actions">
-              <button
+              <VscodeButton
+                secondary
+                icon="close"
                 type="button"
-                className="app-btn app-btn-secondary"
                 onClick={onCancel}
               >
                 取消
-              </button>
-              <button
+              </VscodeButton>
+              <VscodeButton
+                secondary
+                icon="trash"
                 type="button"
-                className="app-btn app-btn-danger"
+                className="vscode-btn-danger"
                 onClick={() => setStep('password')}
               >
                 继续注销
-              </button>
+              </VscodeButton>
             </div>
           </motion.div>
         ) : (
@@ -127,25 +131,28 @@ export default function DeleteAccountModal({
             {error && <p className="delete-account-error">{error}</p>}
 
             <div className="delete-account-actions">
-              <button
+              <VscodeButton
+                secondary
+                icon="chevron-left"
                 type="button"
-                className="app-btn app-btn-secondary"
+                disabled={loading}
                 onClick={() => {
                   setError(null);
                   setPassword('');
                   setStep('confirm');
                 }}
-                disabled={loading}
               >
                 返回
-              </button>
-              <button
+              </VscodeButton>
+              <VscodeButton
+                secondary
+                icon="trash"
                 type="submit"
-                className="app-btn app-btn-danger"
+                className="vscode-btn-danger"
                 disabled={loading}
               >
                 {loading ? '注销中…' : '确认注销'}
-              </button>
+              </VscodeButton>
             </div>
           </motion.div>
         )}

@@ -26,7 +26,7 @@ interface MenuItemConfig {
 }
 
 function acceleratorLabel(acc: string): string {
-  const isMac = window.electron.platform === 'darwin';
+  const isMac = window.electron?.platform === 'darwin';
   return acc
     .replace(/CommandOrControl/g, isMac ? '⌘' : 'Ctrl')
     .replace(/Command/g, '⌘')
@@ -89,21 +89,25 @@ function MenuDropdown({
 
 export default function TitleBar() {
   const { openFolder, toggleLeftSidebar, toggleRightSidebar } = useApp();
-  const { openCreateWizard, clearActiveProject, activeProject } = useAnnotation();
+  const { openCreateWizard, clearActiveProject, activeProject } =
+    useAnnotation();
   const { effectiveTheme } = useTheme();
   const appIcon = effectiveTheme === 'dark' ? appIconDark : appIconLight;
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const barRef = useRef<HTMLElement>(null);
-  const { platform } = window.electron;
-  const showWindowControls = platform !== 'darwin';
+  const platform = window.electron?.platform ?? 'win32';
+  const windowApi = window.electron?.window;
+  const showWindowControls = Boolean(windowApi) && platform !== 'darwin';
   const showRestore = isFullScreen || isMaximized;
 
   useEffect(() => {
+    if (!window.electron) return undefined;
     window.electron.window.isMaximized().then(setIsMaximized);
     window.electron.window.isFullScreen().then(setIsFullScreen);
-    const unsubMaximize = window.electron.window.onMaximizeChange(setIsMaximized);
+    const unsubMaximize =
+      window.electron.window.onMaximizeChange(setIsMaximized);
     const unsubFullScreen =
       window.electron.window.onFullScreenChange(setIsFullScreen);
     return () => {
@@ -221,6 +225,7 @@ export default function TitleBar() {
   ];
 
   useEffect(() => {
+    if (!window.electron) return undefined;
     const mod = window.electron.platform === 'darwin' ? 'metaKey' : 'ctrlKey';
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -261,7 +266,7 @@ export default function TitleBar() {
   };
 
   const handleDragRegionDoubleClick = () => {
-    window.electron.window.maximize();
+    windowApi?.maximize();
   };
 
   return (
@@ -321,7 +326,7 @@ export default function TitleBar() {
               type="button"
               className="title-bar-control title-bar-control-minimize"
               aria-label="最小化"
-              onClick={() => window.electron.window.minimize()}
+              onClick={() => windowApi?.minimize()}
             >
               <span
                 className="codicon codicon-chrome-minimize"
@@ -332,7 +337,7 @@ export default function TitleBar() {
               type="button"
               className="title-bar-control title-bar-control-maximize"
               aria-label={showRestore ? '还原' : '最大化'}
-              onClick={() => window.electron.window.maximize()}
+              onClick={() => windowApi?.maximize()}
             >
               <span
                 className={`codicon ${
@@ -347,7 +352,7 @@ export default function TitleBar() {
               type="button"
               className="title-bar-control title-bar-control-close"
               aria-label="关闭"
-              onClick={() => window.electron.window.close()}
+              onClick={() => windowApi?.close()}
             >
               <span
                 className="codicon codicon-chrome-close"

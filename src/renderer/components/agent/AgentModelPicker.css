@@ -29,7 +29,7 @@
 .agent-model-picker--inline .agent-model-picker-trigger {
   padding: 5px 8px;
   color: var(--vscode-foreground, #e8e8e8);
-  font-size: var(--agent-font-small, 12px);
+  font-size: var(--agent-font-small);
   font-weight: 500;
 }
 

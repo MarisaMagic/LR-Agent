@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { VscodeButton } from '@vscode-elements/react-elements';
 import type { QualityReportIndexEntry } from '../../../shared/qualityReportTypes';
 import ReportPreviewPanel from './ReportPreviewPanel';
 
@@ -65,7 +66,12 @@ export default function ReportHistoryList({
   );
 
   if (entries.length === 0) {
-    return <p className="quality-history-empty">暂无历史报告</p>;
+    return (
+      <div className="quality-history">
+        <h3 className="quality-section-title">历史报告</h3>
+        <p className="quality-history-empty">暂无历史报告</p>
+      </div>
+    );
   }
 
   return (
@@ -83,14 +89,16 @@ export default function ReportHistoryList({
                 {entry.createdAt.slice(0, 19).replace('T', ' ')}
                 {entry.summary ? ` · ${entry.summary}` : ''}
               </button>
-              <button
+              <VscodeButton
+                secondary
+                icon="folder"
+                iconOnly
                 type="button"
                 className="quality-history-item__folder"
+                title="打开目录"
+                aria-label="打开目录"
                 onClick={() => handleShowInFolder(entry.runId)}
-                title="在文件夹中显示"
-              >
-                打开目录
-              </button>
+              />
             </div>
             {expandedRunId === entry.runId ? (
               <ReportPreviewPanel

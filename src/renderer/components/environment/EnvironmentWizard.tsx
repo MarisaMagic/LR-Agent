@@ -140,10 +140,30 @@ function PythonOverrideField({
               setValidation(null);
             }}
             onBlur={() => void runValidation(value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                void handleSave();
+              }
+            }}
             spellCheck={false}
           />
-          <VscodeButton secondary type="button" onClick={handleBrowse}>
+          <VscodeButton
+            secondary
+            icon="folder-opened"
+            type="button"
+            onClick={handleBrowse}
+          >
             浏览
+          </VscodeButton>
+          <VscodeButton
+            secondary
+            icon="save"
+            type="button"
+            disabled={saving}
+            onClick={handleSave}
+          >
+            {saving ? '保存中…' : '保存'}
           </VscodeButton>
         </div>
         {value.trim() !== '' &&
@@ -162,14 +182,6 @@ function PythonOverrideField({
           自动检测失败时在此指定解释器路径；留空并保存则恢复自动检测。
         </span>
       </div>
-      <VscodeButton
-        secondary
-        type="button"
-        disabled={saving}
-        onClick={handleSave}
-      >
-        {saving ? '保存中…' : '保存并重新检测'}
-      </VscodeButton>
     </div>
   );
 }
@@ -220,7 +232,7 @@ function InstallPanel({
       )}
       {active && (
         <div className="env-wizard-install-actions">
-          <VscodeButton secondary type="button" onClick={onCancel}>
+          <VscodeButton secondary icon="close" type="button" onClick={onCancel}>
             取消安装
           </VscodeButton>
         </div>
@@ -231,10 +243,8 @@ function InstallPanel({
 
 function ModelGroupList({
   groups,
-  onRefresh,
 }: {
   groups: ModelGroupStatus[];
-  onRefresh: () => void;
 }): ReactElement {
   return (
     <div className="env-wizard-models">
@@ -259,29 +269,52 @@ function ModelGroupList({
                 </span>
                 <VscodeButton
                   secondary
+                  icon="folder"
+                  iconOnly
                   type="button"
+                  title="打开目录"
+                  aria-label={`打开目录：${p}`}
+                  className="env-wizard-icon-btn"
                   onClick={() => showItemInFolder(p)}
-                >
-                  打开目录
-                </VscodeButton>
+                />
               </div>
             ))}
           </div>
         );
       })}
       <div className="env-wizard-models-note">
-        添加权重后，可在左侧「预训练模型」面板扫描注册，再点下方「重新检测」刷新状态。
+        添加权重后，可在左侧「预训练模型」面板扫描注册，再点标题栏刷新图标刷新状态。
       </div>
-      <VscodeButton secondary type="button" onClick={onRefresh}>
-        重新检测
-      </VscodeButton>
     </div>
+  );
+}
+
+function InstallActionButton({
+  installed,
+  disabled,
+  onClick,
+}: {
+  installed: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}): ReactElement {
+  return (
+    <VscodeButton
+      secondary={installed}
+      icon="desktop-download"
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {installed ? '重新安装' : '一键安装'}
+    </VscodeButton>
   );
 }
 
 export default function EnvironmentWizard(): ReactElement | null {
   const {
     status,
+    loading,
     refresh,
     wizardOpen,
     closeWizard,
@@ -429,17 +462,37 @@ export default function EnvironmentWizard(): ReactElement | null {
       dialogClassName="env-wizard"
       dialogRole="form"
       labelledBy="env-wizard-title"
+      onSubmit={(event) => {
+        event.preventDefault();
+      }}
     >
       <div className="env-wizard-header">
         <h3 id="env-wizard-title">环境检测与安装</h3>
-        <button
-          type="button"
-          className="env-wizard-close"
-          aria-label="关闭"
-          onClick={handleClose}
-        >
-          <VscodeIcon name="close" size={16} />
-        </button>
+        <div className="env-wizard-header-actions">
+          <VscodeButton
+            secondary
+            icon="refresh"
+            iconOnly
+            iconSpin={loading}
+            type="button"
+            title={loading ? '正在重新检测…' : '重新检测'}
+            aria-label={loading ? '正在重新检测' : '重新检测'}
+            aria-busy={loading}
+            className="env-wizard-icon-btn"
+            disabled={loading}
+            onClick={() => {
+              void refresh();
+            }}
+          />
+          <button
+            type="button"
+            className="env-wizard-close"
+            aria-label="关闭"
+            onClick={handleClose}
+          >
+            <VscodeIcon name="close" size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="env-wizard-steps" aria-label="引导步骤">
@@ -468,6 +521,12 @@ export default function EnvironmentWizard(): ReactElement | null {
               type="text"
               value={backendUrl}
               onChange={(event) => setBackendUrl(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void handleTestBackend();
+                }
+              }}
               placeholder={DEFAULT_BACKEND_BASE_URL}
             />
             <span className="env-wizard-hint">
@@ -478,6 +537,7 @@ export default function EnvironmentWizard(): ReactElement | null {
           <div className="env-wizard-connect-row">
             <VscodeButton
               secondary
+              icon="plug"
               type="button"
               disabled={connecting || savingUrl}
               onClick={handleTestBackend}
@@ -567,24 +627,19 @@ export default function EnvironmentWizard(): ReactElement | null {
             （约几分钟，不影响现有开发环境）。
           </div>
 
-          {installFor('local-agent') ? (
+          {installFor('local-agent') && (
             <InstallPanel
               progress={installFor('local-agent')!}
               onCancel={handleCancelInstall}
             />
-          ) : (
+          )}
+          {!isInstallActive(installFor('local-agent')) && (
             <div className="env-wizard-actions-inline">
-              <VscodeButton
-                secondary
-                type="button"
-                disabled={installActive || localInfo.depsInstalled}
+              <InstallActionButton
+                installed={localInfo.depsInstalled}
+                disabled={installActive}
                 onClick={() => handleInstall('local-agent')}
-              >
-                {localInfo.depsInstalled ? '已安装' : '一键安装'}
-              </VscodeButton>
-              <VscodeButton secondary type="button" onClick={refresh}>
-                重新检测
-              </VscodeButton>
+              />
             </div>
           )}
         </div>
@@ -650,24 +705,19 @@ export default function EnvironmentWizard(): ReactElement | null {
             MB）。全程可取消。
           </div>
 
-          {installFor('inference') ? (
+          {installFor('inference') && (
             <InstallPanel
               progress={installFor('inference')!}
               onCancel={handleCancelInstall}
             />
-          ) : (
+          )}
+          {!isInstallActive(installFor('inference')) && (
             <div className="env-wizard-actions-inline">
-              <VscodeButton
-                secondary
-                type="button"
+              <InstallActionButton
+                installed={inference.depsInstalled}
                 disabled={installActive}
                 onClick={() => handleInstall('inference')}
-              >
-                一键安装
-              </VscodeButton>
-              <VscodeButton secondary type="button" onClick={refresh}>
-                重新检测
-              </VscodeButton>
+              />
             </div>
           )}
         </div>
@@ -675,27 +725,37 @@ export default function EnvironmentWizard(): ReactElement | null {
 
       {step === 4 && status && (
         <div className="env-wizard-body">
-          <ModelGroupList groups={status.models} onRefresh={refresh} />
+          <ModelGroupList groups={status.models} />
         </div>
       )}
 
       <div className="env-wizard-footer">
         <div className="env-wizard-footer-left">
           {!status?.settings.firstRunCompleted && (
-            <VscodeButton secondary type="button" onClick={handleSkip}>
+            <VscodeButton
+              secondary
+              icon="debug-step-over"
+              type="button"
+              onClick={handleSkip}
+            >
               跳过引导
             </VscodeButton>
           )}
         </div>
         <div className="env-wizard-footer-right">
           {step > 1 && (
-            <VscodeButton secondary type="button" onClick={handleBack}>
+            <VscodeButton
+              secondary
+              icon="chevron-left"
+              type="button"
+              onClick={handleBack}
+            >
               上一步
             </VscodeButton>
           )}
           {step < 4 ? (
             <VscodeButton
-              secondary
+              iconAfter="chevron-right"
               type="button"
               disabled={savingUrl}
               onClick={handleNext}
@@ -703,7 +763,7 @@ export default function EnvironmentWizard(): ReactElement | null {
               下一步
             </VscodeButton>
           ) : (
-            <VscodeButton secondary type="button" onClick={handleFinish}>
+            <VscodeButton icon="check" type="button" onClick={handleFinish}>
               完成
             </VscodeButton>
           )}

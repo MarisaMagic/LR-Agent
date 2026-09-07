@@ -3,11 +3,12 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  font-size: var(--vscode-font-size);
 }
 
 .pretrained-models-toolbar {
   flex-shrink: 0;
-  padding: 4px 6px 4px 10px;
+  padding: 4px 6px;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -19,8 +20,8 @@
 
 .pretrained-models-filter {
   display: flex;
-  gap: 4px;
-  padding: 8px 10px 4px;
+  gap: 6px;
+  padding: 4px 10px 8px;
   flex-shrink: 0;
 }
 
@@ -30,7 +31,7 @@
   border-radius: 4px;
   background: transparent;
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   cursor: pointer;
 }
 
@@ -65,12 +66,12 @@
 
 .pretrained-model-delete-dialog h3 {
   margin: 0 0 10px;
-  font-size: 16px;
+  font-size: var(--lr-ui-font-large);
 }
 
 .pretrained-model-delete-dialog p {
   margin: 0 0 14px;
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
   line-height: 1.5;
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }

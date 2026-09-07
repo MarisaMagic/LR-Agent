@@ -159,6 +159,7 @@ export default function EditAnnotationProjectModal({
         {isKeypointProject && labels.length === 0 ? (
           <VscodeButton
             secondary
+            icon="symbol-ruler"
             type="button"
             className="edit-annotation-project-generate-labels"
             onClick={handleGenerateTemplateLabels}
@@ -169,10 +170,10 @@ export default function EditAnnotationProjectModal({
       </div>
 
       <div className="edit-annotation-project-actions">
-        <VscodeButton secondary type="button" onClick={onClose}>
+        <VscodeButton secondary icon="close" type="button" onClick={onClose}>
           取消
         </VscodeButton>
-        <VscodeButton type="submit" disabled={submitting}>
+        <VscodeButton icon="save" type="submit" disabled={submitting}>
           {submitting ? '保存中…' : '保存设置'}
         </VscodeButton>
       </div>

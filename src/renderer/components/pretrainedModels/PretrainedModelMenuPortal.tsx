@@ -1,3 +1,4 @@
+import { VscodeIcon } from '@vscode-elements/react-elements';
 import FloatingActionMenuPortal from '../../motion/FloatingActionMenuPortal';
 import './PretrainedModelMenuPortal.css';
 
@@ -34,10 +35,12 @@ export default function PretrainedModelMenuPortal({
     >
       {canSetDefault && (
         <button type="button" role="menuitem" onClick={onSetDefault}>
+          <VscodeIcon name="star" size={14} />
           设为默认
         </button>
       )}
       <button type="button" role="menuitem" onClick={onEdit}>
+        <VscodeIcon name="edit" size={14} />
         编辑
       </button>
       <button
@@ -46,6 +49,7 @@ export default function PretrainedModelMenuPortal({
         className="danger"
         onClick={onDelete}
       >
+        <VscodeIcon name="trash" size={14} />
         删除
       </button>
     </FloatingActionMenuPortal>

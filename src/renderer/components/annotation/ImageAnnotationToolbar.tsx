@@ -12,7 +12,13 @@ import PreAnnotToolbarSection from './PreAnnotToolbarSection';
 import './ImageAnnotationToolbar.css';
 
 export interface ImageAnnotationToolbarProps {
-  mode?: 'bbox' | 'rotated_bbox' | 'polygon' | 'keypoint' | 'caption' | 'classification';
+  mode?:
+    | 'bbox'
+    | 'rotated_bbox'
+    | 'polygon'
+    | 'keypoint'
+    | 'caption'
+    | 'classification';
   imagePath?: string;
   canvasReady?: boolean;
   imageNatural?: { w: number; h: number };
@@ -77,6 +83,7 @@ export default function ImageAnnotationToolbar({
       >
         <VscodeButton
           secondary
+          iconOnly
           icon="zoom-out"
           disabled={zoomDisabled}
           title="缩小"
@@ -85,6 +92,7 @@ export default function ImageAnnotationToolbar({
         />
         <VscodeButton
           secondary
+          iconOnly
           icon="zoom-in"
           disabled={zoomDisabled}
           title="放大"
@@ -93,6 +101,7 @@ export default function ImageAnnotationToolbar({
         />
         <VscodeButton
           secondary
+          iconOnly
           icon="screen-full"
           disabled={zoomDisabled}
           title="适应窗口"
@@ -112,6 +121,7 @@ export default function ImageAnnotationToolbar({
           <>
             <VscodeButton
               secondary
+              icon="symbol-ruler"
               className={`image-annotation-tool-btn${tool === 'place_pose' ? ' image-annotation-tool-btn--active' : ''}`}
               aria-pressed={tool === 'place_pose'}
               onClick={() => setToolAndFocus('place_pose')}
@@ -120,6 +130,7 @@ export default function ImageAnnotationToolbar({
             </VscodeButton>
             <VscodeButton
               secondary
+              icon="circle-filled"
               className={`image-annotation-tool-btn${tool === 'place_point' ? ' image-annotation-tool-btn--active' : ''}`}
               aria-pressed={tool === 'place_point'}
               onClick={() => setToolAndFocus('place_point')}
@@ -130,6 +141,7 @@ export default function ImageAnnotationToolbar({
         ) : mode === 'bbox' || mode === 'rotated_bbox' ? (
           <VscodeButton
             secondary
+            icon="selection"
             className={`image-annotation-tool-btn${tool === 'draw' ? ' image-annotation-tool-btn--active' : ''}`}
             aria-pressed={tool === 'draw'}
             onClick={() => setToolAndFocus('draw')}
@@ -143,6 +155,7 @@ export default function ImageAnnotationToolbar({
         ) : (
           <VscodeButton
             secondary
+            icon="type-hierarchy"
             className={`image-annotation-tool-btn${tool === 'polygon' ? ' image-annotation-tool-btn--active' : ''}`}
             aria-pressed={tool === 'polygon'}
             onClick={() => setToolAndFocus('polygon')}
@@ -153,6 +166,7 @@ export default function ImageAnnotationToolbar({
         {mode !== 'caption' && mode !== 'classification' && (
           <VscodeButton
             secondary
+            icon="cursor"
             className={`image-annotation-tool-btn${tool === 'select' ? ' image-annotation-tool-btn--active' : ''}`}
             aria-pressed={tool === 'select'}
             onClick={() => setToolAndFocus('select')}

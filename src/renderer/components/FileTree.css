@@ -235,7 +235,7 @@
 }
 
 .lr-prompt-title {
-  font-size: 13px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-foreground, #cccccc);
   font-weight: 500;
 }
@@ -243,7 +243,7 @@
 .lr-prompt-input {
   width: 100%;
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: var(--lr-ui-font-caption);
   font-family: var(--vscode-font-family);
   color: var(--vscode-input-foreground, #cccccc);
   background-color: var(--vscode-input-background, #3c3c3c);
@@ -265,7 +265,7 @@
 
 .lr-prompt-btn {
   padding: 5px 14px;
-  font-size: 13px;
+  font-size: var(--lr-ui-font-caption);
   font-family: var(--vscode-font-family);
   border-radius: 4px;
   border: 1px solid var(--vscode-button-border, #3e3e42);

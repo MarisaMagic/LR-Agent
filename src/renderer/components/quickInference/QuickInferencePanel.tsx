@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   VscodeButton,
   VscodeProgressRing,
@@ -16,9 +10,7 @@ import { useLlmProviders } from '../../context/LlmProvidersContext';
 import { usePretrainedModels } from '../../context/PretrainedModelsContext';
 import { useToast } from '../../context/ToastContext';
 import { useWorkMode } from '../../context/WorkModeContext';
-import {
-  getAnnotationTypeLabel,
-} from '../../types/annotation';
+import { getAnnotationTypeLabel } from '../../types/annotation';
 import type { AnnotationBatchProposal } from '../../../shared/annotationAgentTypes';
 import type { AnnotationPipelineStep } from '../../types/agent';
 import { basename } from '../../types/file';
@@ -37,12 +29,7 @@ import './QuickInferencePanel.css';
 const PROVIDER_STORAGE_KEY = 'quickInference.providerId';
 
 type QuickInferencePhase =
-  | 'idle'
-  | 'running'
-  | 'proposal'
-  | 'applied'
-  | 'dismissed'
-  | 'error';
+  'idle' | 'running' | 'proposal' | 'applied' | 'dismissed' | 'error';
 
 function loadSavedProviderId(): string | null {
   try {
@@ -67,11 +54,8 @@ export default function QuickInferencePanel() {
   const { providers, defaultProvider } = useLlmProviders();
   const { models: detectionModels } = usePretrainedModels();
   const { showToast } = useToast();
-  const {
-    projectRootMatched,
-    relativeFilePath,
-    activeTemplateId,
-  } = useAnnotationWorkspace();
+  const { projectRootMatched, relativeFilePath, activeTemplateId } =
+    useAnnotationWorkspace();
 
   const enabledProviders = useMemo(
     () => providers.filter((item) => item.enabled),
@@ -87,9 +71,13 @@ export default function QuickInferencePanel() {
   });
 
   const [phase, setPhase] = useState<QuickInferencePhase>('idle');
-  const [proposal, setProposal] = useState<AnnotationBatchProposal | null>(null);
+  const [proposal, setProposal] = useState<AnnotationBatchProposal | null>(
+    null,
+  );
   const [progressMessage, setProgressMessage] = useState('');
-  const [pipelineSteps, setPipelineSteps] = useState<AnnotationPipelineStep[]>([]);
+  const [pipelineSteps, setPipelineSteps] = useState<AnnotationPipelineStep[]>(
+    [],
+  );
   const [summaryText, setSummaryText] = useState('');
   const [pipelineCollapsed, setPipelineCollapsed] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -107,7 +95,9 @@ export default function QuickInferencePanel() {
       selectedProviderId &&
       !enabledProviders.some((item) => item.id === selectedProviderId)
     ) {
-      setSelectedProviderId(defaultProvider?.id ?? enabledProviders[0]?.id ?? '');
+      setSelectedProviderId(
+        defaultProvider?.id ?? enabledProviders[0]?.id ?? '',
+      );
     }
   }, [defaultProvider?.id, enabledProviders, selectedProviderId]);
 
@@ -305,13 +295,18 @@ export default function QuickInferencePanel() {
           <div className="quick-inference-meta">
             <div className="quick-inference-meta-row">
               <span className="quick-inference-meta-label">当前文件</span>
-              <span className="quick-inference-meta-value" title={relativeFilePath ?? undefined}>
+              <span
+                className="quick-inference-meta-value"
+                title={relativeFilePath ?? undefined}
+              >
                 {currentFileLabel}
               </span>
             </div>
             <div className="quick-inference-meta-row">
               <span className="quick-inference-meta-label">任务类型</span>
-              <span className="quick-inference-meta-value">{taskTypeLabel}</span>
+              <span className="quick-inference-meta-value">
+                {taskTypeLabel}
+              </span>
             </div>
           </div>
         </section>
@@ -330,6 +325,7 @@ export default function QuickInferencePanel() {
 
         <section className="quick-inference-section quick-inference-actions">
           <VscodeButton
+            icon="sparkle"
             className="quick-inference-generate-btn"
             disabled={!canRun}
             title={disabledReason ?? undefined}
@@ -348,6 +344,7 @@ export default function QuickInferencePanel() {
               </span>
               <VscodeButton
                 secondary
+                icon="close"
                 className="quick-inference-cancel-btn"
                 onClick={() => {
                   abortRunning();
@@ -371,7 +368,8 @@ export default function QuickInferencePanel() {
 
           {isBbox && isSupportedType ? (
             <p className="quick-inference-muted">
-              bbox 快捷推理需配置检测预训练模型并完成云端登录；大模型用于标签映射与复核。
+              bbox
+              快捷推理需配置检测预训练模型并完成云端登录；大模型用于标签映射与复核。
             </p>
           ) : null}
         </section>
@@ -411,6 +409,7 @@ export default function QuickInferencePanel() {
       {showApplyBar ? (
         <footer className="quick-inference-apply-bar">
           <VscodeButton
+            icon="check"
             className="quick-inference-apply-btn"
             disabled={applying}
             onClick={() => {
@@ -421,6 +420,7 @@ export default function QuickInferencePanel() {
           </VscodeButton>
           <VscodeButton
             secondary
+            icon="discard"
             disabled={applying}
             onClick={handleDismiss}
           >

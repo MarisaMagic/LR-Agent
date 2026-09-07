@@ -12,7 +12,7 @@
 
 .llm-provider-form-dialog h3 {
   margin: 0 0 16px;
-  font-size: 16px;
+  font-size: var(--lr-ui-font-large);
 }
 
 .llm-provider-field {
@@ -20,7 +20,7 @@
   flex-direction: column;
   gap: 6px;
   margin-bottom: 12px;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -30,7 +30,7 @@
   border: 1px solid var(--vscode-input-border, #3c3c3c);
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-input-foreground, #cccccc);
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
 }
 
 .llm-provider-checkbox {
@@ -38,13 +38,13 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   color: var(--vscode-foreground, #cccccc);
 }
 
 .llm-provider-error {
   margin-bottom: 12px;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-errorForeground, #f48771);
 }
 

@@ -11,7 +11,7 @@
 
 .pretrained-model-form-title {
   margin: 0 0 14px;
-  font-size: 16px;
+  font-size: var(--lr-ui-font-large);
   font-weight: 600;
 }
 
@@ -24,7 +24,7 @@
 
 .pretrained-model-form-field label,
 .pretrained-model-form-label {
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -39,7 +39,7 @@
   border-radius: 4px;
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-input-foreground, #cccccc);
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
 }
 
 .pretrained-model-form-field textarea {
@@ -65,7 +65,7 @@
 }
 
 .pretrained-model-form-hint {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   line-height: 1.45;
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
@@ -80,7 +80,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
   cursor: pointer;
 }
 
@@ -94,7 +94,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
   cursor: pointer;
 }
 
@@ -122,7 +122,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
 }
 
 .pretrained-model-form-switches {
@@ -135,7 +135,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
   cursor: pointer;
 }
 
@@ -143,19 +143,19 @@
   padding: 4px 6px;
   border-radius: 4px;
   background: var(--vscode-textCodeBlock-background, rgba(10, 10, 10, 0.4));
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
 }
 
 .pretrained-model-validation-list {
   margin: 0 0 10px;
   padding-left: 18px;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
 .pretrained-model-form-error {
   margin: 0 0 10px;
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   color: var(--vscode-errorForeground, #f48771);
 }
 

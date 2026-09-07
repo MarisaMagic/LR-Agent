@@ -119,17 +119,19 @@ function AnnotationListRow({
         />
       </div>
 
-      <button
+      <VscodeButton
+        secondary
+        icon="trash"
+        iconOnly
         type="button"
-        className="annotation-right-label-more-btn annotation-right-item-label-more-btn annotation-right-delete"
+        className="annotation-right-label-more-btn annotation-right-item-label-more-btn annotation-right-delete vscode-btn-danger"
         aria-label={`删除标注 #${index + 1}`}
+        title={`删除标注 #${index + 1}`}
         onClick={(event) => {
           event.stopPropagation();
           onDelete();
         }}
-      >
-        <span className="codicon codicon-trash" aria-hidden />
-      </button>
+      />
     </div>
   );
 }
@@ -512,17 +514,19 @@ function renderCaptionWorkspaceBody(
                       : ann.text}
                   </p>
                 </div>
-                <button
+                <VscodeButton
+                  secondary
+                  icon="trash"
+                  iconOnly
                   type="button"
-                  className="annotation-right-label-more-btn annotation-right-item-label-more-btn annotation-right-delete"
+                  className="annotation-right-label-more-btn annotation-right-item-label-more-btn annotation-right-delete vscode-btn-danger"
                   aria-label="删除描述"
+                  title="删除描述"
                   onClick={(event) => {
                     event.stopPropagation();
                     deleteAnnotation(ann.id);
                   }}
-                >
-                  <span className="codicon codicon-trash" aria-hidden />
-                </button>
+                />
               </div>
             </AnnotationMotionListItem>
           );
@@ -565,9 +569,7 @@ function renderClassificationWorkspaceBody(
       <AnnotationMotionList className="annotation-right-items">
         {classificationAnnotations.map((ann, idx) => {
           const selected = ann.id === selectedAnnotationId;
-          const activeLabel = project.labels.find(
-            (l) => l.id === ann.labelId,
-          );
+          const activeLabel = project.labels.find((l) => l.id === ann.labelId);
           const selectItem = () => selectAnnotation(ann.id);
           return (
             <AnnotationMotionListItem
@@ -741,17 +743,19 @@ function renderTextEntryDeleteButton(
   ariaLabel: string,
 ): ReactElement {
   return (
-    <button
+    <VscodeButton
+      secondary
+      icon="trash"
+      iconOnly
       type="button"
-      className="annotation-right-label-more-btn annotation-right-item-label-more-btn annotation-right-delete"
+      className="annotation-right-label-more-btn annotation-right-item-label-more-btn annotation-right-delete vscode-btn-danger"
       aria-label={ariaLabel}
+      title={ariaLabel}
       onClick={(event) => {
         event.stopPropagation();
         deleteAnnotation(annId);
       }}
-    >
-      <span className="codicon codicon-trash" aria-hidden />
-    </button>
+    />
   );
 }
 
@@ -1134,10 +1138,8 @@ export default function AnnotationRightPanel() {
     activeProject.modality === 'text' &&
     activeProject.annotationType === 'conversation';
   const isCot =
-    activeProject.modality === 'text' &&
-    activeProject.annotationType === 'cot';
-  const isTextLlm =
-    isInstruction || isPreference || isConversation || isCot;
+    activeProject.modality === 'text' && activeProject.annotationType === 'cot';
+  const isTextLlm = isInstruction || isPreference || isConversation || isCot;
   const isImageAnnotatable =
     isImageBbox ||
     isImagePolygon ||
@@ -1200,6 +1202,8 @@ export default function AnnotationRightPanel() {
         <div className="annotation-right-header-actions">
           <VscodeButton
             secondary
+            icon="export"
+            type="button"
             className="annotation-right-export-btn"
             onClick={() => {
               if (activeProject) openExportProject(activeProject);
@@ -1211,55 +1215,55 @@ export default function AnnotationRightPanel() {
       </header>
 
       {!isTextLlm && (
-      <section className="annotation-right-section">
-        {isImageKeypoint ? (
-          <>
-            <h4 className="annotation-right-heading">骨架模板</h4>
-            <KeypointTemplateSelector />
-            <p className="annotation-right-muted annotation-right-template-note">
-              放置骨架时自动使用模板对应标签（如 person / hand / face）。
-            </p>
-          </>
-        ) : isImageCaption ? (
-          <h4 className="annotation-right-heading">图片内容描述</h4>
-        ) : isTextSpanNer || isTextClassification ? (
-          <>
-            <h4 className="annotation-right-heading">标注用标签</h4>
-            {activeProject.labels.length === 0 ? (
-              <p className="annotation-right-muted">
-                未定义标签。请在「标注任务」中编辑项目并添加类别。
+        <section className="annotation-right-section">
+          {isImageKeypoint ? (
+            <>
+              <h4 className="annotation-right-heading">骨架模板</h4>
+              <KeypointTemplateSelector />
+              <p className="annotation-right-muted annotation-right-template-note">
+                放置骨架时自动使用模板对应标签（如 person / hand / face）。
               </p>
-            ) : (
-              <AnnotationDrawLabelPicker
-                className="annotation-right-chip-row"
-                variant="panel"
-                labels={activeProject.labels}
-                labelUsage={labelUsage}
-                activeLabelId={activeLabelId}
-                onSelect={setActiveLabelId}
-              />
-            )}
-          </>
-        ) : (
-          <>
-            <h4 className="annotation-right-heading">绘制用标签</h4>
-            {activeProject.labels.length === 0 ? (
-              <p className="annotation-right-muted">
-                未定义标签。请在「标注任务」中编辑项目并添加类别。
-              </p>
-            ) : (
-              <AnnotationDrawLabelPicker
-                className="annotation-right-chip-row"
-                variant="panel"
-                labels={activeProject.labels}
-                labelUsage={labelUsage}
-                activeLabelId={activeLabelId}
-                onSelect={setActiveLabelId}
-              />
-            )}
-          </>
-        )}
-      </section>
+            </>
+          ) : isImageCaption ? (
+            <h4 className="annotation-right-heading">图片内容描述</h4>
+          ) : isTextSpanNer || isTextClassification ? (
+            <>
+              <h4 className="annotation-right-heading">标注用标签</h4>
+              {activeProject.labels.length === 0 ? (
+                <p className="annotation-right-muted">
+                  未定义标签。请在「标注任务」中编辑项目并添加类别。
+                </p>
+              ) : (
+                <AnnotationDrawLabelPicker
+                  className="annotation-right-chip-row"
+                  variant="panel"
+                  labels={activeProject.labels}
+                  labelUsage={labelUsage}
+                  activeLabelId={activeLabelId}
+                  onSelect={setActiveLabelId}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <h4 className="annotation-right-heading">绘制用标签</h4>
+              {activeProject.labels.length === 0 ? (
+                <p className="annotation-right-muted">
+                  未定义标签。请在「标注任务」中编辑项目并添加类别。
+                </p>
+              ) : (
+                <AnnotationDrawLabelPicker
+                  className="annotation-right-chip-row"
+                  variant="panel"
+                  labels={activeProject.labels}
+                  labelUsage={labelUsage}
+                  activeLabelId={activeLabelId}
+                  onSelect={setActiveLabelId}
+                />
+              )}
+            </>
+          )}
+        </section>
       )}
 
       <section className="annotation-right-section annotation-right-section--grow">
@@ -1294,118 +1298,118 @@ export default function AnnotationRightPanel() {
               deleteAnnotation,
             )
           : isImagePolygon
-          ? renderPolygonWorkspaceBody(
-              activeProject,
-              workspaceEnabled,
-              loadError,
-              polygonAnnotations,
-              selectedAnnotationId,
-              selectAnnotation,
-              setTool,
-              updateAnnotationLabel,
-              deleteAnnotation,
-            )
-          : isImageRotatedBbox
-            ? renderRotatedBboxWorkspaceBody(
+            ? renderPolygonWorkspaceBody(
                 activeProject,
                 workspaceEnabled,
                 loadError,
-                rotatedBboxAnnotations,
+                polygonAnnotations,
                 selectedAnnotationId,
                 selectAnnotation,
                 setTool,
                 updateAnnotationLabel,
                 deleteAnnotation,
               )
-            : isImageCaption
-              ? renderCaptionWorkspaceBody(
+            : isImageRotatedBbox
+              ? renderRotatedBboxWorkspaceBody(
                   activeProject,
                   workspaceEnabled,
                   loadError,
-                  captionAnnotations,
+                  rotatedBboxAnnotations,
                   selectedAnnotationId,
                   selectAnnotation,
+                  setTool,
+                  updateAnnotationLabel,
                   deleteAnnotation,
                 )
-              : isImageClassification
-                ? renderClassificationWorkspaceBody(
+              : isImageCaption
+                ? renderCaptionWorkspaceBody(
                     activeProject,
                     workspaceEnabled,
                     loadError,
-                    classificationAnnotations,
+                    captionAnnotations,
                     selectedAnnotationId,
                     selectAnnotation,
-                    updateAnnotationLabel,
                     deleteAnnotation,
                   )
-                : isTextSpanNer
-                  ? renderSpanNerWorkspaceBody(
+                : isImageClassification
+                  ? renderClassificationWorkspaceBody(
                       activeProject,
                       workspaceEnabled,
                       loadError,
-                      spanAnnotations,
+                      classificationAnnotations,
                       selectedAnnotationId,
                       selectAnnotation,
                       updateAnnotationLabel,
                       deleteAnnotation,
                     )
-                  : isTextClassification
-                    ? renderTextClassificationWorkspaceBody(
+                  : isTextSpanNer
+                    ? renderSpanNerWorkspaceBody(
                         activeProject,
                         workspaceEnabled,
                         loadError,
-                        textClassificationAnnotations,
+                        spanAnnotations,
                         selectedAnnotationId,
                         selectAnnotation,
                         updateAnnotationLabel,
                         deleteAnnotation,
                       )
-                    : isInstruction
-                      ? renderInstructionWorkspaceBody(
-                          workspaceEnabled,
-                          loadError,
-                          instructionAnnotations,
-                          selectedAnnotationId,
-                          selectAnnotation,
-                          deleteAnnotation,
-                        )
-                      : isPreference
-                        ? renderPreferenceWorkspaceBody(
-                            workspaceEnabled,
-                            loadError,
-                            preferenceAnnotations,
-                            selectedAnnotationId,
-                            selectAnnotation,
-                            deleteAnnotation,
-                          )
-                        : isConversation
-                          ? renderConversationWorkspaceBody(
-                              workspaceEnabled,
-                              loadError,
-                              conversationAnnotations,
-                              selectedAnnotationId,
-                              selectAnnotation,
-                              deleteAnnotation,
-                            )
-                          : isCot
-                            ? renderCotWorkspaceBody(
-                                workspaceEnabled,
-                                loadError,
-                                cotAnnotations,
-                                selectedAnnotationId,
-                                selectAnnotation,
-                                deleteAnnotation,
-                              )
-                            : renderBboxWorkspaceBody(
+                    : isTextClassification
+                      ? renderTextClassificationWorkspaceBody(
                           activeProject,
                           workspaceEnabled,
                           loadError,
-                          bboxAnnotations,
+                          textClassificationAnnotations,
                           selectedAnnotationId,
                           selectAnnotation,
                           updateAnnotationLabel,
                           deleteAnnotation,
-                        )}
+                        )
+                      : isInstruction
+                        ? renderInstructionWorkspaceBody(
+                            workspaceEnabled,
+                            loadError,
+                            instructionAnnotations,
+                            selectedAnnotationId,
+                            selectAnnotation,
+                            deleteAnnotation,
+                          )
+                        : isPreference
+                          ? renderPreferenceWorkspaceBody(
+                              workspaceEnabled,
+                              loadError,
+                              preferenceAnnotations,
+                              selectedAnnotationId,
+                              selectAnnotation,
+                              deleteAnnotation,
+                            )
+                          : isConversation
+                            ? renderConversationWorkspaceBody(
+                                workspaceEnabled,
+                                loadError,
+                                conversationAnnotations,
+                                selectedAnnotationId,
+                                selectAnnotation,
+                                deleteAnnotation,
+                              )
+                            : isCot
+                              ? renderCotWorkspaceBody(
+                                  workspaceEnabled,
+                                  loadError,
+                                  cotAnnotations,
+                                  selectedAnnotationId,
+                                  selectAnnotation,
+                                  deleteAnnotation,
+                                )
+                              : renderBboxWorkspaceBody(
+                                  activeProject,
+                                  workspaceEnabled,
+                                  loadError,
+                                  bboxAnnotations,
+                                  selectedAnnotationId,
+                                  selectAnnotation,
+                                  updateAnnotationLabel,
+                                  deleteAnnotation,
+                                )}
       </section>
     </div>
   );

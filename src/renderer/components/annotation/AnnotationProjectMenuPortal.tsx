@@ -1,3 +1,4 @@
+import { VscodeIcon } from '@vscode-elements/react-elements';
 import FloatingActionMenuPortal from '../../motion/FloatingActionMenuPortal';
 import './AnnotationProjectMenuPortal.css';
 
@@ -34,15 +35,19 @@ export default function AnnotationProjectMenuPortal({
       openUpClassName="annotation-project-menu-open-up"
     >
       <button type="button" role="menuitem" onClick={onOpen}>
+        <VscodeIcon name="folder-opened" size={14} />
         打开
       </button>
       <button type="button" role="menuitem" onClick={onEdit}>
+        <VscodeIcon name="edit" size={14} />
         编辑设置
       </button>
       <button type="button" role="menuitem" onClick={onExport}>
+        <VscodeIcon name="export" size={14} />
         导出标注…
       </button>
       <button type="button" role="menuitem" onClick={onShowInFolder}>
+        <VscodeIcon name="folder" size={14} />
         在文件夹中显示
       </button>
       <button
@@ -51,6 +56,7 @@ export default function AnnotationProjectMenuPortal({
         className="danger"
         onClick={onDelete}
       >
+        <VscodeIcon name="trash" size={14} />
         删除任务记录
       </button>
     </FloatingActionMenuPortal>

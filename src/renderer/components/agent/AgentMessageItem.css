@@ -159,7 +159,9 @@
 }
 
 .agent-assistant-menu button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   padding: 8px 12px;
   border: none;
@@ -178,6 +180,10 @@
 .agent-assistant-menu button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.agent-assistant-menu vscode-icon {
+  display: flex;
 }
 
 .agent-message-meta {

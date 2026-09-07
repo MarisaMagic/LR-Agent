@@ -37,7 +37,9 @@ export interface PreAnnotToolbarSectionProps {
 }
 
 function getModelOptionLabel(model: PretrainedModelConfig): string {
-  return model.name.trim() || model.checkpointPath.split(/[/\\]/).pop() || model.id;
+  return (
+    model.name.trim() || model.checkpointPath.split(/[/\\]/).pop() || model.id
+  );
 }
 
 function isBboxGeometry(
@@ -51,9 +53,7 @@ function isBboxGeometry(
   );
 }
 
-function isObbGeometry(
-  geometry: unknown,
-): geometry is {
+function isObbGeometry(geometry: unknown): geometry is {
   cx: number;
   cy: number;
   width: number;
@@ -144,10 +144,9 @@ export default function PreAnnotToolbarSection({
 
   const handleClear = useCallback(() => {
     const count = clearPreAnnots();
-    showToast(
-      count > 0 ? `已清除 ${count} 条预标注` : '当前没有预标注可清除',
-      { type: 'info' },
-    );
+    showToast(count > 0 ? `已清除 ${count} 条预标注` : '当前没有预标注可清除', {
+      type: 'info',
+    });
   }, [clearPreAnnots, showToast]);
 
   const runDetect = useCallback(async () => {
@@ -174,10 +173,9 @@ export default function PreAnnotToolbarSection({
         });
 
         const count = addPreAnnotBboxes(mapped);
-        showToast(
-          count > 0 ? `已生成 ${count} 条预标注` : '未检测到目标',
-          { type: 'info' },
-        );
+        showToast(count > 0 ? `已生成 ${count} 条预标注` : '未检测到目标', {
+          type: 'info',
+        });
         return;
       }
 
@@ -196,15 +194,13 @@ export default function PreAnnotToolbarSection({
       });
 
       const count = addPreAnnotRotatedBboxes(mapped);
-      showToast(
-        count > 0 ? `已生成 ${count} 条预标注` : '未检测到目标',
-        { type: 'info' },
-      );
+      showToast(count > 0 ? `已生成 ${count} 条预标注` : '未检测到目标', {
+        type: 'info',
+      });
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : '预标注失败',
-        { type: 'error' },
-      );
+      showToast(error instanceof Error ? error.message : '预标注失败', {
+        type: 'error',
+      });
     } finally {
       setRunning(false);
     }
@@ -248,9 +244,14 @@ export default function PreAnnotToolbarSection({
 
       setRunning(true);
       try {
-        const response = await runPreAnnot('keypoint_full', imagePath, selectedModel, {
-          templateId: activeTemplateId,
-        });
+        const response = await runPreAnnot(
+          'keypoint_full',
+          imagePath,
+          selectedModel,
+          {
+            templateId: activeTemplateId,
+          },
+        );
         const result = assertPreAnnotResult(response, isPoseResult, '关键点');
 
         const items = result.poses.map((pose) => ({
@@ -269,15 +270,13 @@ export default function PreAnnotToolbarSection({
         }));
 
         const count = addPreAnnotPoses(items);
-        showToast(
-          count > 0 ? `已生成 ${count} 条骨架预标注` : '未检测到实例',
-          { type: 'info' },
-        );
+        showToast(count > 0 ? `已生成 ${count} 条骨架预标注` : '未检测到实例', {
+          type: 'info',
+        });
       } catch (error) {
-        showToast(
-          error instanceof Error ? error.message : '关键点预标注失败',
-          { type: 'error' },
-        );
+        showToast(error instanceof Error ? error.message : '关键点预标注失败', {
+          type: 'error',
+        });
       } finally {
         setRunning(false);
       }
@@ -308,18 +307,13 @@ export default function PreAnnotToolbarSection({
 
   if (!activeProject) return null;
 
-  const controlsDisabled =
-    disabled || running || modelsLoading || !imagePath;
+  const controlsDisabled = disabled || running || modelsLoading || !imagePath;
 
   return (
     <div className="preannot-toolbar-section">
       <div className="image-annotation-toolbar-divider" aria-hidden />
 
-      <div
-        className="preannot-toolbar-group"
-        role="group"
-        aria-label="预标注"
-      >
+      <div className="preannot-toolbar-group" role="group" aria-label="预标注">
         <VscodeSingleSelect
           className="preannot-model-select"
           value={selectedModelId}
@@ -345,13 +339,12 @@ export default function PreAnnotToolbarSection({
           )}
         </VscodeSingleSelect>
 
-        {running ? (
-          <VscodeProgressRing />
-        ) : null}
+        {running ? <VscodeProgressRing /> : null}
 
         {(mode === 'bbox' || mode === 'rotated_bbox') && (
           <VscodeButton
             secondary
+            icon="sparkle"
             disabled={controlsDisabled || !selectedModel}
             onClick={() => runDetect()}
           >
@@ -362,6 +355,7 @@ export default function PreAnnotToolbarSection({
         {mode === 'polygon' && (
           <VscodeButton
             secondary
+            icon="selection"
             disabled={controlsDisabled || !selectedModel}
             onClick={handleSamBoxTool}
           >
@@ -373,6 +367,7 @@ export default function PreAnnotToolbarSection({
           <>
             <VscodeButton
               secondary
+              icon="sparkle"
               disabled={controlsDisabled || !selectedModel}
               onClick={() => runKeypoint('keypoint_full')}
             >
@@ -380,6 +375,7 @@ export default function PreAnnotToolbarSection({
             </VscodeButton>
             <VscodeButton
               secondary
+              icon="selection"
               disabled={controlsDisabled || !selectedModel}
               onClick={() => runKeypoint('keypoint_roi')}
             >
@@ -388,7 +384,12 @@ export default function PreAnnotToolbarSection({
           </>
         )}
 
-        <VscodeButton secondary disabled={controlsDisabled} onClick={handleClear}>
+        <VscodeButton
+          secondary
+          icon="discard"
+          disabled={controlsDisabled}
+          onClick={handleClear}
+        >
           清除预标注
         </VscodeButton>
       </div>
@@ -402,9 +403,14 @@ export async function runSam2PreAnnot(params: {
   model: PretrainedModelConfig;
   box: { x1: number; y1: number; x2: number; y2: number };
 }): Promise<{ x: number; y: number }[]> {
-  const response = await runPreAnnot('sam2_box', params.imagePath, params.model, {
-    box: params.box,
-  });
+  const response = await runPreAnnot(
+    'sam2_box',
+    params.imagePath,
+    params.model,
+    {
+      box: params.box,
+    },
+  );
   const result = assertPreAnnotResult(response, isPolygonResult, 'SAM2');
   return result.points;
 }

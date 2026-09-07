@@ -20,7 +20,12 @@
 
 .annotation-project-list-empty p {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
+}
+
+.annotation-project-list-empty vscode-progress-ring {
+  width: 14px;
+  height: 14px;
 }
 
 .annotation-project-card {
@@ -32,7 +37,8 @@
   transition:
     border-color var(--annotation-motion-duration) var(--annotation-motion-ease),
     box-shadow var(--annotation-motion-duration) var(--annotation-motion-ease),
-    background-color var(--annotation-motion-duration) var(--annotation-motion-ease);
+    background-color var(--annotation-motion-duration)
+      var(--annotation-motion-ease);
 }
 
 .annotation-project-card-body {
@@ -45,12 +51,16 @@
 }
 
 .annotation-project-card-active {
-  border-color: var(--vscode-panel-border, #3c3c3c);
-  box-shadow: none;
+  border-color: var(--vscode-focusBorder, #888888);
+  box-shadow: inset 0 0 0 1px
+    var(--vscode-list-activeSelectionBackground, #094771);
 }
 
 .annotation-project-card-active .annotation-project-card-body {
-  background: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31));
+  background: var(
+    --vscode-list-activeSelectionBackground,
+    rgba(9, 71, 113, 0.45)
+  );
 }
 
 .annotation-project-card-menu-open {
@@ -65,7 +75,7 @@
   text-align: left;
   cursor: pointer;
   color: inherit;
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
 }
 
 .annotation-project-card-main:hover {
@@ -80,19 +90,19 @@
 }
 
 .annotation-project-card-title {
-  font-size: 15px;
+  font-size: var(--vscode-font-size);
   font-weight: 600;
   color: var(--vscode-foreground, #cccccc);
 }
 
 .annotation-project-card-meta {
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   margin-bottom: 4px;
 }
 
 .annotation-project-card-path {
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   white-space: nowrap;
   overflow: hidden;
@@ -101,7 +111,7 @@
 }
 
 .annotation-project-card-desc {
-  font-size: 14px;
+  font-size: var(--lr-ui-font-small);
   color: var(--vscode-foreground, #cccccc);
   margin-bottom: 6px;
   line-height: 1.4;
@@ -115,7 +125,7 @@
 }
 
 .annotation-project-card-labels-empty {
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -125,13 +135,13 @@
   padding: 2px 8px;
   border: none;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   font-weight: 500;
   line-height: 1.4;
 }
 
 .annotation-project-card-time {
-  font-size: 13px;
+  font-size: var(--lr-ui-font-meta);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -170,13 +180,15 @@
 }
 
 .annotation-project-menu button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   padding: 6px 12px;
   border: none;
   background: transparent;
   text-align: left;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-menu-foreground, #cccccc);
   cursor: pointer;
 }
@@ -186,5 +198,9 @@
 }
 
 .annotation-project-menu button.danger {
-  color: #ff8a80;
+  color: var(--vscode-errorForeground);
+}
+
+.annotation-project-menu vscode-icon {
+  display: flex;
 }

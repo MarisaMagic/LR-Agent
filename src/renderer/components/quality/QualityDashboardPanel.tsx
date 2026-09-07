@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { VscodeIcon } from '@vscode-elements/react-elements';
+import {
+  VscodeButton,
+  VscodeProgressRing,
+} from '@vscode-elements/react-elements';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import { buildAnnotationProjectSnapshot } from '../../services/buildProjectSnapshot';
@@ -40,9 +43,7 @@ export default function QualityDashboardPanel() {
 
   const projectSnapshot = useMemo(
     () =>
-      activeProject
-        ? buildAnnotationProjectSnapshot(activeProject, [])
-        : null,
+      activeProject ? buildAnnotationProjectSnapshot(activeProject, []) : null,
     [activeProject],
   );
 
@@ -89,7 +90,9 @@ export default function QualityDashboardPanel() {
     return (
       <div className="quality-dashboard quality-dashboard--empty">
         <p>当前标注类型暂不支持质量看板</p>
-        <p className="quality-dashboard-hint">P0 仅支持图片矩形框（bbox）项目</p>
+        <p className="quality-dashboard-hint">
+          P0 仅支持图片矩形框（bbox）项目
+        </p>
       </div>
     );
   }
@@ -108,20 +111,21 @@ export default function QualityDashboardPanel() {
             onChange={setScope}
           />
         </div>
-        <button
+        <VscodeButton
+          secondary
+          icon="refresh"
           type="button"
-          className="quality-btn"
           disabled={loading}
-          onClick={() => refresh()}
           title="刷新"
+          onClick={() => refresh()}
         >
-          <VscodeIcon name="refresh" size={14} />
           刷新
-        </button>
+        </VscodeButton>
       </header>
 
       {loading ? (
         <p className="quality-dashboard-status">
+          <VscodeProgressRing />
           正在加载…{collectProgress ? ` (${collectProgress})` : ''}
         </p>
       ) : null}

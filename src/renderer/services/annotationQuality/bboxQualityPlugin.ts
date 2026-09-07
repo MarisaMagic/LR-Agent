@@ -64,9 +64,11 @@ function buildLabelDistribution(snapshot: AnnotationQualitySnapshot): {
     series: [
       {
         type: 'pie',
-        radius: ['40%', '58%'],
-        center: ['50%', '52%'],
-        label: { show: true, formatter: '{b}\n{d}%', fontSize: 11 },
+        radius: ['28%', '46%'],
+        center: ['50%', '50%'],
+        avoidLabelOverlap: true,
+        minShowLabelAngle: 3,
+        label: { show: true, formatter: '{b} {d}%', fontSize: 11 },
         emphasis: {
           label: { fontSize: 14, fontWeight: 'bold' },
         },

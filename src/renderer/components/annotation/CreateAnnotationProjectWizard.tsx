@@ -219,6 +219,7 @@ export default function CreateAnnotationProjectWizard({
               />
               <VscodeButton
                 secondary
+                icon="folder-opened"
                 type="button"
                 onClick={handlePickDirectory}
               >
@@ -322,16 +323,25 @@ export default function CreateAnnotationProjectWizard({
       <div className="create-annotation-actions">
         <div className="create-annotation-actions-right">
           {step > 1 && (
-            <VscodeButton secondary type="button" onClick={goBack}>
+            <VscodeButton
+              secondary
+              icon="chevron-left"
+              type="button"
+              onClick={goBack}
+            >
               上一步
             </VscodeButton>
           )}
           {step < maxStep ? (
-            <VscodeButton secondary type="button" onClick={goNext}>
+            <VscodeButton
+              iconAfter="chevron-right"
+              type="button"
+              onClick={goNext}
+            >
               下一步
             </VscodeButton>
           ) : (
-            <VscodeButton secondary type="submit" disabled={submitting}>
+            <VscodeButton icon="check" type="submit" disabled={submitting}>
               {submitting ? '创建中…' : '创建并打开'}
             </VscodeButton>
           )}

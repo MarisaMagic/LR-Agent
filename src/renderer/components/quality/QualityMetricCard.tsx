@@ -32,7 +32,12 @@ export default function QualityMetricCard({
       <p className="quality-metric-card__summary">{metric.summary}</p>
       {metric.chartBindings.map((binding) => (
         <div key={binding.chartId} className="quality-metric-card__chart">
-          <QualityEChart option={binding.option} />
+          <QualityEChart
+            option={binding.option}
+            height={
+              binding.chartId === 'label_distribution_pie' ? 280 : undefined
+            }
+          />
         </div>
       ))}
     </article>

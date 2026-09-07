@@ -11,6 +11,17 @@ jest.mock('./api');
 
 const mockApiFetch = apiFetch as jest.MockedFunction<typeof apiFetch>;
 
+function authMock() {
+  return window.electron.auth as unknown as {
+    getRefreshToken: jest.Mock;
+    setRefreshToken: jest.Mock;
+    setSessionCache: jest.Mock;
+    clearRefreshToken: jest.Mock;
+    clearSessionCache: jest.Mock;
+    getSessionCache: jest.Mock;
+  };
+}
+
 const mockUser: UserPublic = {
   id: 'user-1',
   email: 'test@example.com',
@@ -78,12 +89,12 @@ describe('restoreSession', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    window.electron.auth.getRefreshToken.mockResolvedValue(refreshToken);
-    window.electron.auth.setRefreshToken.mockResolvedValue(undefined);
-    window.electron.auth.setSessionCache.mockResolvedValue(undefined);
-    window.electron.auth.clearRefreshToken.mockResolvedValue(undefined);
-    window.electron.auth.clearSessionCache.mockResolvedValue(undefined);
-    window.electron.auth.getSessionCache.mockResolvedValue({
+    authMock().getRefreshToken.mockResolvedValue(refreshToken);
+    authMock().setRefreshToken.mockResolvedValue(undefined);
+    authMock().setSessionCache.mockResolvedValue(undefined);
+    authMock().clearRefreshToken.mockResolvedValue(undefined);
+    authMock().clearSessionCache.mockResolvedValue(undefined);
+    authMock().getSessionCache.mockResolvedValue({
       user: mockUser,
       lastOnlineAt: new Date().toISOString(),
       refreshTokenExp: futureExp,
@@ -91,9 +102,20 @@ describe('restoreSession', () => {
   });
 
   it('returns none when refresh token is missing', async () => {
-    window.electron.auth.getRefreshToken.mockResolvedValue(null);
+    authMock().getRefreshToken.mockResolvedValue(null);
 
     await expect(restoreSession()).resolves.toEqual({ mode: 'none' });
+  });
+
+  it('returns none when electron auth bridge is unavailable', async () => {
+    const original = window.electron;
+    (window as unknown as { electron?: typeof original }).electron = undefined;
+    try {
+      await expect(restoreSession()).resolves.toEqual({ mode: 'none' });
+      expect(mockApiFetch).not.toHaveBeenCalled();
+    } finally {
+      window.electron = original;
+    }
   });
 
   it('returns online and persists cache when refresh succeeds', async () => {
@@ -103,7 +125,7 @@ describe('restoreSession', () => {
       mode: 'online',
       user: mockUser,
     });
-    expect(window.electron.auth.setSessionCache).toHaveBeenCalled();
+    expect(authMock().setSessionCache).toHaveBeenCalled();
   });
 
   it('returns offline when refresh fails due to network error', async () => {
@@ -113,33 +135,33 @@ describe('restoreSession', () => {
       mode: 'offline',
       user: mockUser,
     });
-    expect(window.electron.auth.clearRefreshToken).not.toHaveBeenCalled();
+    expect(authMock().clearRefreshToken).not.toHaveBeenCalled();
   });
 
   it('returns none and clears session when refresh is rejected', async () => {
     mockApiFetch.mockRejectedValue(new ApiError(401, 'invalid_token'));
 
     await expect(restoreSession()).resolves.toEqual({ mode: 'none' });
-    expect(window.electron.auth.clearRefreshToken).toHaveBeenCalled();
-    expect(window.electron.auth.clearSessionCache).toHaveBeenCalled();
+    expect(authMock().clearRefreshToken).toHaveBeenCalled();
+    expect(authMock().clearSessionCache).toHaveBeenCalled();
   });
 
   it('returns none when refresh token is locally expired', async () => {
     const pastExp = Math.floor(Date.now() / 1000) - 60;
     const expiredToken = makeRefreshToken(pastExp);
-    window.electron.auth.getRefreshToken.mockResolvedValue(expiredToken);
+    authMock().getRefreshToken.mockResolvedValue(expiredToken);
 
     await expect(restoreSession()).resolves.toEqual({ mode: 'none' });
     expect(mockApiFetch).not.toHaveBeenCalled();
-    expect(window.electron.auth.clearRefreshToken).toHaveBeenCalled();
+    expect(authMock().clearRefreshToken).toHaveBeenCalled();
   });
 
   it('returns none on network error when session cache is missing', async () => {
-    window.electron.auth.getSessionCache.mockResolvedValue(null);
+    authMock().getSessionCache.mockResolvedValue(null);
     mockApiFetch.mockRejectedValue(new TypeError('Failed to fetch'));
 
     await expect(restoreSession()).resolves.toEqual({ mode: 'none' });
-    expect(window.electron.auth.clearRefreshToken).not.toHaveBeenCalled();
+    expect(authMock().clearRefreshToken).not.toHaveBeenCalled();
   });
 });
 
@@ -149,12 +171,12 @@ describe('tryRefreshSession', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    window.electron.auth.getRefreshToken.mockResolvedValue(refreshToken);
-    window.electron.auth.setRefreshToken.mockResolvedValue(undefined);
-    window.electron.auth.setSessionCache.mockResolvedValue(undefined);
-    window.electron.auth.clearRefreshToken.mockResolvedValue(undefined);
-    window.electron.auth.clearSessionCache.mockResolvedValue(undefined);
-    window.electron.auth.getSessionCache.mockResolvedValue({
+    authMock().getRefreshToken.mockResolvedValue(refreshToken);
+    authMock().setRefreshToken.mockResolvedValue(undefined);
+    authMock().setSessionCache.mockResolvedValue(undefined);
+    authMock().clearRefreshToken.mockResolvedValue(undefined);
+    authMock().clearSessionCache.mockResolvedValue(undefined);
+    authMock().getSessionCache.mockResolvedValue({
       user: mockUser,
       lastOnlineAt: new Date().toISOString(),
       refreshTokenExp: futureExp,

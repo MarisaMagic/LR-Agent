@@ -63,12 +63,12 @@
 }
 
 .image-annotation-toolbar-empty {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #858585);
 }
 
 .image-annotation-toolbar-hint {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 500;
   color: var(--vscode-descriptionForeground, #cccccc);
   padding: 2px 8px;
@@ -93,7 +93,7 @@
   border: 1px solid transparent;
   border-radius: 4px;
   padding: 3px 8px;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   cursor: pointer;
   white-space: nowrap;
   opacity: 0.75;

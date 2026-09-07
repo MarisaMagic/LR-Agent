@@ -3,11 +3,12 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  font-size: var(--vscode-font-size);
 }
 
 .annotation-project-toolbar {
   flex-shrink: 0;
-  padding: 4px 6px 4px 10px;
+  padding: 4px 6px;
   display: flex;
   align-items: center;
   gap: 2px;

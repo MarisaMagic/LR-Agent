@@ -35,10 +35,18 @@ export default function DeleteProjectDialog({
         {project.directoryPath}
       </p>
       <div className="delete-project-actions">
-        <VscodeButton secondary onClick={onCancel}>
+        <VscodeButton secondary icon="close" type="button" onClick={onCancel}>
           取消
         </VscodeButton>
-        <VscodeButton onClick={handleConfirm}>删除任务记录</VscodeButton>
+        <VscodeButton
+          secondary
+          icon="trash"
+          type="button"
+          className="vscode-btn-danger"
+          onClick={handleConfirm}
+        >
+          删除任务记录
+        </VscodeButton>
       </div>
     </ModalMotion>
   );

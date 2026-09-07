@@ -48,7 +48,6 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [localAgentService, setLocalAgentService] =
     useState<LocalAgentServiceStatus | null>(null);
-  const [listening, setListening] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -70,17 +69,12 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
 
   // 订阅本地 Agent 服务状态（启动/退出推送）
   useEffect(() => {
-    if (listening) return undefined;
     if (!window.electron?.localAgent?.onStatus) return undefined;
-    setListening(true);
     const unsubscribe = window.electron.localAgent.onStatus((next) => {
       setLocalAgentService(next);
     });
-    return () => {
-      setListening(false);
-      unsubscribe();
-    };
-  }, [listening]);
+    return unsubscribe;
+  }, []);
 
   const openWizard = useCallback(() => setWizardOpen(true), []);
   const closeWizard = useCallback(() => setWizardOpen(false), []);

@@ -1,7 +1,8 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { motionDistance, motionDuration, motionEase } from '../motion/tokens';
+import AuthPage from '../pages/AuthPage';
 import './RequireAuth.css';
 
 export default function RequireAuth() {
@@ -25,7 +26,7 @@ export default function RequireAuth() {
   }
 
   if (status === 'unauthenticated') {
-    return <Navigate to="/auth" replace />;
+    return <AuthPage />;
   }
 
   return <Outlet />;

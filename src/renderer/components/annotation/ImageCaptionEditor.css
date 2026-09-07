@@ -118,7 +118,7 @@ body.is-resizing-row .image-caption-drawer {
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--vscode-tab-inactiveForeground, #969696);
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   font-weight: 500;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
@@ -179,7 +179,7 @@ body.is-resizing-row .image-caption-drawer {
 }
 
 .image-caption-label {
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   color: var(--vscode-descriptionForeground, #cccccc);
   white-space: nowrap;
 }
@@ -197,7 +197,7 @@ body.is-resizing-row .image-caption-drawer {
   border: none;
   background: transparent;
   color: var(--vscode-descriptionForeground, #cccccc);
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
   border-radius: 3px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -223,7 +223,7 @@ body.is-resizing-row .image-caption-drawer {
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-input-foreground, #cccccc);
   font-family: var(--vscode-font-family, monospace);
-  font-size: 13px;
+  font-size: var(--lr-ui-font-caption);
   line-height: 1.5;
   transition: border-color 0.15s;
 }
@@ -235,7 +235,7 @@ body.is-resizing-row .image-caption-drawer {
 
 .image-caption-textarea--edit {
   min-height: 60px;
-  font-size: 12px;
+  font-size: var(--lr-ui-font-caption);
 }
 
 .image-caption-input-actions {
@@ -258,7 +258,7 @@ body.is-resizing-row .image-caption-drawer {
   padding: 24px 0;
   text-align: center;
   color: var(--vscode-descriptionForeground, #858585);
-  font-size: 13px;
+  font-size: var(--lr-ui-font-caption);
 }
 
 .image-caption-list {
@@ -283,7 +283,7 @@ body.is-resizing-row .image-caption-drawer {
 
 .image-caption-item-granularity-tag {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--lr-ui-font-caption);
   padding: 1px 7px;
   border-radius: 3px;
   background: var(--vscode-badge-background, #4d4d4d);
@@ -294,7 +294,7 @@ body.is-resizing-row .image-caption-drawer {
 .image-caption-item-text {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--lr-ui-font-caption);
   line-height: 1.4;
   color: var(--vscode-foreground, #cccccc);
   overflow: hidden;

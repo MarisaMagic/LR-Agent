@@ -247,6 +247,7 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!window.electron) return undefined;
     const unsub = window.electron.ipcRenderer.on(
       'menu:createAnnotationProject',
       () => {
