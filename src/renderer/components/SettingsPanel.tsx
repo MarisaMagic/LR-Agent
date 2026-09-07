@@ -9,6 +9,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useEnvironment } from '../context/EnvironmentContext';
 import * as userService from '../services/user';
 import { ApiError } from '../types/auth';
 import translateError from '../utils/errors';
@@ -24,6 +25,7 @@ export default function SettingsPanel() {
   const navigate = useNavigate();
   const { user, setUser, logout, refreshUser, isOfflineMode } = useAuth();
   const { showToast } = useToast();
+  const { openWizard } = useEnvironment();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const editButtonRef = useRef<HTMLButtonElement>(null);
@@ -262,6 +264,23 @@ export default function SettingsPanel() {
           {saving ? '保存中…' : '保存资料'}
         </button>
       </form>
+
+      <section className="settings-section">
+        <h3 className="settings-section-title">环境</h3>
+        <span className="settings-field-hint">
+          检测本机 Agent 编排 / 推理服务的 Python 环境与后端连通性，
+          缺失时支持一键安装到内置运行时。
+        </span>
+        <div className="settings-actions">
+          <button
+            type="button"
+            className="app-btn app-btn-secondary"
+            onClick={openWizard}
+          >
+            环境检测与安装
+          </button>
+        </div>
+      </section>
 
       <section className="settings-section">
         <h3 className="settings-section-title">账户操作</h3>

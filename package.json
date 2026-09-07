@@ -40,9 +40,10 @@
     "build:main": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.main.prod.ts",
     "build:renderer": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.renderer.prod.ts",
     "postinstall": "ts-node .erb/scripts/check-native-dep.js && electron-builder install-app-deps && npm run build:dll",
+    "fetch-python-runtimes": "node scripts/fetchPythonRuntimes.mjs",
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "package": "ts-node ./.erb/scripts/clean.js dist && npm run build && electron-builder build --publish never && npm run build:dll",
+    "package": "ts-node ./.erb/scripts/clean.js dist && npm run fetch-python-runtimes && npm run build && electron-builder build --publish never && npm run build:dll",
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
     "dev": "cross-env NODE_ENV=development SKIP_DEVTOOLS=1 npm run start:renderer",
     "dev:open": "node .erb/scripts/dev-fast.js",
@@ -282,6 +283,21 @@
           "!**/tests/**",
           "!**/.env"
         ]
+      },
+      {
+        "from": "../LR-Agent-inference",
+        "to": "inference",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!scripts/**",
+          "!**/.env"
+        ]
+      },
+      {
+        "from": "assets/python-runtime",
+        "to": "python-runtime",
+        "filter": ["**/*", "!**/*.pdb"]
       }
     ],
     "publish": {

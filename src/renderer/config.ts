@@ -16,8 +16,25 @@ export const LOCAL_AGENT_DEFAULT_BASE_URL = 'http://127.0.0.1:8765/api/v1';
 
 export const REMEMBERED_EMAIL_KEY = 'lr-agent:remembered-email';
 
+// 运行时覆盖：由 environment.json（环境向导持久化的 backendBaseUrl）引导期注入，
+// 优先于编译期 API_BASE_URL；更换后端地址后需重新登录才会作用于账户会话。
+let apiBaseUrlOverride: string | null = null;
+
+/** 设置后端地址运行时覆盖（空值清除覆盖，恢复默认） */
+export function setApiBaseUrlOverride(url: string | null): void {
+  apiBaseUrlOverride = url?.trim() || null;
+}
+
+/** 清除后端地址运行时覆盖（测试用） */
+export function resetApiBaseUrlOverride(): void {
+  apiBaseUrlOverride = null;
+}
+
 /** Resolve API base URL; uses page hostname for LAN/mobile verify flows. */
 export function resolveApiBaseUrl(): string {
+  if (apiBaseUrlOverride) {
+    return apiBaseUrlOverride;
+  }
   if (process.env.API_BASE_URL) {
     return process.env.API_BASE_URL;
   }

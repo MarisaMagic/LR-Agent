@@ -6,9 +6,11 @@
  * 用户认证仍走云端 LR-Agent-backend；本服务无认证、无数据库。
  *
  * 生命周期对齐 mcp/server.ts：start → getBaseUrl → stop。
- * Python 环境解析对齐 preAnnot/inferenceProcess.ts：
- *   - LR_AGENT_LOCAL_PYTHON     Python 可执行文件完整路径
- *   - LR_AGENT_LOCAL_CONDA_ENV  conda 环境名（默认 lr-agent-local）
+ * Python 解释器解析顺序统一为：
+ *   LR_AGENT_LOCAL_PYTHON / LR_AGENT_LOCAL_CONDA_ENV（环境变量）
+ *   → environment.json 用户覆盖 → CONDA_PREFIX/conda 候选
+ *   → 嵌入式运行时 venv → 系统 python 兜底
+ * 服务状态通过 localAgent:status 事件推送给渲染层（向导 / 横幅消费）。
  */
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
@@ -16,12 +18,30 @@ import http from 'http';
 import net from 'net';
 import fs from 'fs-extra';
 import path from 'path';
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
+import type { LocalAgentServiceStatus } from '../../shared/envTypes';
+import {
+  condaEnvCandidates,
+  condaRegistryCandidates,
+  normalizePythonPath,
+  pickExistingPython,
+  systemPythonFallback,
+  trimEnvironmentValue,
+} from '../env/pythonDiscovery';
+import { getEnvironmentConfig } from '../env/envStore';
+import { getVenvPythonPath } from '../env/runtimeManager';
 import { buildInferenceSpawnEnv } from '../preAnnot/inferenceProcess';
 
 let processRef: ChildProcessWithoutNullStreams | null = null;
 let startingProcess: Promise<string> | null = null;
 let listenPort: number | null = null;
+let stopping = false;
+
+function pushLocalAgentStatus(status: LocalAgentServiceStatus): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('localAgent:status', status);
+  }
+}
 
 const HEALTH_TIMEOUT_MS = 20_000;
 const HEALTH_INTERVAL_MS = 300;
@@ -33,48 +53,23 @@ function getLocalAgentRoot(): string {
   return path.resolve(app.getAppPath(), 'vendor', 'local-agent');
 }
 
-function trimEnv(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function normalizePythonPath(rawPath: string): string {
-  const trimmed = rawPath.trim().replace(/^["']|["']$/g, '');
-  if (!trimmed) return trimmed;
-  if (fs.existsSync(trimmed) && fs.statSync(trimmed).isDirectory()) {
-    return process.platform === 'win32'
-      ? path.join(trimmed, 'python.exe')
-      : path.join(trimmed, 'bin', 'python');
-  }
-  return trimmed;
-}
-
-function condaEnvCandidates(condaEnv: string): string[] {
-  const userHome = app.getPath('home');
-  if (process.platform === 'win32') {
-    return [
-      path.join(userHome, 'anaconda3', 'envs', condaEnv, 'python.exe'),
-      path.join(userHome, 'miniconda3', 'envs', condaEnv, 'python.exe'),
-      path.join(userHome, 'AppData', 'Local', 'miniconda3', 'envs', condaEnv, 'python.exe'),
-      path.join(userHome, 'AppData', 'Local', 'anaconda3', 'envs', condaEnv, 'python.exe'),
-    ];
-  }
-  return [
-    path.join(userHome, 'miniconda3', 'envs', condaEnv, 'bin', 'python'),
-    path.join(userHome, 'anaconda3', 'envs', condaEnv, 'bin', 'python'),
-  ];
-}
-
 export function resolveLocalAgentPython(): string {
   const condaEnv = process.env.LR_AGENT_LOCAL_CONDA_ENV ?? 'lr-agent-local';
   const candidates: string[] = [];
 
-  const fromEnv = trimEnv(process.env.LR_AGENT_LOCAL_PYTHON);
-  if (fromEnv) {
-    candidates.push(normalizePythonPath(fromEnv));
+  const fromEnvVar = trimEnvironmentValue(process.env.LR_AGENT_LOCAL_PYTHON);
+  if (fromEnvVar) {
+    candidates.push(normalizePythonPath(fromEnvVar));
   }
 
-  const home = trimEnv(process.env.CONDA_PREFIX);
+  const userOverride = trimEnvironmentValue(
+    getEnvironmentConfig().localAgentPythonOverride,
+  );
+  if (userOverride) {
+    candidates.push(normalizePythonPath(userOverride));
+  }
+
+  const home = trimEnvironmentValue(process.env.CONDA_PREFIX);
   if (home && path.basename(home) === condaEnv) {
     candidates.push(
       process.platform === 'win32'
@@ -83,19 +78,16 @@ export function resolveLocalAgentPython(): string {
     );
   }
 
-  candidates.push(...condaEnvCandidates(condaEnv));
-
-  for (const candidate of candidates) {
-    if (candidate && fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  console.warn(
-    '[localAgent] lr-agent-local python not found; falling back to system python. ' +
-      'Set LR_AGENT_LOCAL_PYTHON to your env python.exe.',
+  candidates.push(
+    ...condaEnvCandidates(app.getPath('home'), condaEnv),
+    ...condaRegistryCandidates(app.getPath('home'), condaEnv),
+    getVenvPythonPath('local-agent'),
   );
-  return process.platform === 'win32' ? 'python' : 'python3';
+
+  const found = pickExistingPython(candidates);
+  if (found) return found;
+
+  return systemPythonFallback('[localAgent]', condaEnv);
 }
 
 /** 获取本机随机空闲端口 */
@@ -165,11 +157,21 @@ export async function startLocalAgentServer(): Promise<string> {
     const spawnEnv = buildInferenceSpawnEnv(pythonPath);
     spawnEnv.LR_AGENT_LOCAL_PORT = String(port);
 
+    pushLocalAgentStatus({ state: 'starting', baseUrl: null });
+
     const proc = spawn(pythonPath, [entry], {
       cwd: root,
       stdio: 'pipe',
       env: spawnEnv,
     }) as ChildProcessWithoutNullStreams;
+    // ENOENT/权限等 spawn 失败走正常启动错误流，而不是 unhandled 'error'
+    await new Promise<void>((resolve, reject) => {
+      proc.once('spawn', () => resolve());
+      proc.once('error', reject);
+    });
+    proc.on('error', (err) => {
+      console.error('[localAgent] process error:', err);
+    });
     proc.stdout.setEncoding('utf8');
     proc.stderr.setEncoding('utf8');
     proc.stdout.on('data', (chunk: string) => {
@@ -184,6 +186,15 @@ export async function startLocalAgentServer(): Promise<string> {
         processRef = null;
         listenPort = null;
       }
+      const wasStopping = stopping;
+      stopping = false;
+      pushLocalAgentStatus({
+        state: 'stopped',
+        baseUrl: null,
+        message: wasStopping
+          ? undefined
+          : `本地 Agent 服务已退出 (code ${code ?? 'unknown'})`,
+      });
     });
 
     processRef = proc;
@@ -192,12 +203,18 @@ export async function startLocalAgentServer(): Promise<string> {
     } catch (err) {
       proc.kill();
       processRef = null;
+      pushLocalAgentStatus({
+        state: 'error',
+        baseUrl: null,
+        message: err instanceof Error ? err.message : String(err),
+      });
       throw err;
     }
 
     listenPort = port;
     const baseUrl = `http://127.0.0.1:${port}/api/v1`;
     console.log(`[localAgent] Local agent server started at ${baseUrl}`);
+    pushLocalAgentStatus({ state: 'running', baseUrl });
     return baseUrl;
   })();
 
@@ -211,6 +228,7 @@ export async function startLocalAgentServer(): Promise<string> {
 /** 停止本地 Agent 服务 */
 export function stopLocalAgentServer(): void {
   if (processRef) {
+    stopping = true;
     processRef.kill();
     processRef = null;
     listenPort = null;

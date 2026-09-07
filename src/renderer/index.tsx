@@ -1,7 +1,17 @@
 import { createRoot } from 'react-dom/client';
 import { isResizeObserverLoopError } from './utils/resizeObserver';
+import { setApiBaseUrlOverride } from './config';
 import './monacoSetup';
 import App from './App';
+
+// 尽早读取 environment.json 持久化的后端地址，注入 config.ts 覆盖，
+// 保证 AuthProvider 引导期的首次请求即用对地址（无配置时保持默认）
+window.electron?.env
+  ?.getSettings()
+  .then((settings) => {
+    setApiBaseUrlOverride(settings.backendBaseUrl);
+  })
+  .catch(() => undefined);
 
 if (process.env.NODE_ENV === 'development') {
   const SUPPRESSED_MESSAGES = new Set([

@@ -76,3 +76,6 @@ ehthumbs.db
 # Python (vendor/local-agent)
 __pycache__/
 .pytest_cache/
+
+# 嵌入式 Python 运行时（scripts/fetchPythonRuntimes.mjs 产物，打包前自动下载）
+assets/python-runtime/

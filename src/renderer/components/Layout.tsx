@@ -15,6 +15,8 @@ import QualityDashboardPanel from './quality/QualityDashboardPanel';
 import QuickInferencePanel from './quickInference/QuickInferencePanel';
 import EmailVerifyBanner from './EmailVerifyBanner';
 import OfflineConnectivityNotifier from './OfflineConnectivityNotifier';
+import EnvironmentBanner from './environment/EnvironmentBanner';
+import EnvironmentWizard from './environment/EnvironmentWizard';
 import FileTree from './FileTree';
 import EditorTabBar from './editor/EditorTabBar';
 import EditorFileSiblingNav from './editor/EditorFileSiblingNav';
@@ -33,6 +35,7 @@ import ExportAnnotationWizard from './annotation/ExportAnnotationWizard';
 import RightPanelToolbar from './RightPanelToolbar';
 import { useAnnotation } from '../context/AnnotationContext';
 import { useWorkMode, type WorkMode } from '../context/WorkModeContext';
+import { useEnvironment } from '../context/EnvironmentContext';
 import './Layout.css';
 
 const ACTIVITY_BAR_WIDTH = 48;
@@ -85,6 +88,7 @@ export default function Layout() {
     activeProject,
   } = useAnnotation();
   const { workMode } = useWorkMode();
+  const { status: envStatus, openWizard } = useEnvironment();
   const reducedMotion = useReducedMotion();
 
   const resizeSideRef = useRef<'left' | 'right' | null>(null);
@@ -125,6 +129,20 @@ export default function Layout() {
   useEffect(() => {
     refreshUser().catch(() => undefined);
   }, [refreshUser]);
+
+  // 首次登录后一次性自动拉起环境向导（跳过/完成后由横幅接管提示）
+  const firstRunWizardTriggered = useRef(false);
+  useEffect(() => {
+    if (!envStatus || firstRunWizardTriggered.current) return;
+    if (
+      !envStatus.settings.firstRunCompleted &&
+      !envStatus.settings.firstRunSeenAt
+    ) {
+      firstRunWizardTriggered.current = true;
+      window.electron?.env?.markFirstRunSeen().catch(() => undefined);
+      openWizard();
+    }
+  }, [envStatus, openWizard]);
 
   const { leftWidth, rightWidth, leftCollapsed, rightCollapsed } = layout;
 
@@ -436,6 +454,7 @@ export default function Layout() {
           ) : null}
           <main className="main-content">
             <EmailVerifyBanner />
+            <EnvironmentBanner />
             <div className="main-content-body">
               <WorkModeContentTransition workMode={workMode}>
                 <EditorWorkspace />
@@ -512,6 +531,8 @@ export default function Layout() {
         onClose={closeCreateWizard}
         onCreated={handleProjectOpened}
       />
+
+      <EnvironmentWizard />
 
       {editingProject && (
         <EditAnnotationProjectModal

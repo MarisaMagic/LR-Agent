@@ -1,5 +1,6 @@
 /**
- * 应用内原生按钮（设置、弹窗、登录等），跟随 vscode-theme 的 dark/light token。
+ * 应用内按钮（原生 .app-btn 与 @vscode-elements 的 vscode-button），跟随 vscode-theme 的 dark/light token。
+ * 统一细腻微动效：颜色平滑过渡 + 悬停轻微上浮 + 按压缩放；位移/缩放在「减少动态效果」时禁用。
  */
 .app-btn {
   appearance: none;
@@ -10,6 +11,12 @@
   font-family: inherit;
   line-height: 1.4;
   cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.12s ease,
+    opacity 0.2s ease;
 }
 
 .app-btn:disabled {
@@ -44,4 +51,39 @@
 
 .app-btn-danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--vscode-errorForeground) 12%, transparent);
+}
+
+/**
+ * vscode-button 是 shadow DOM web 组件：宿主元素做位移/缩放，
+ * 内部 .base（暴露为 part="base"）负责平滑 shadow 里的换色过渡。
+ */
+vscode-button {
+  transition:
+    transform 0.12s ease,
+    opacity 0.2s ease;
+}
+
+vscode-button::part(base) {
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .app-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .app-btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  vscode-button:not([disabled]):hover {
+    transform: translateY(-1px);
+  }
+
+  vscode-button:not([disabled]):active {
+    transform: scale(0.97);
+  }
 }

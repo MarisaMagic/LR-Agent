@@ -2,6 +2,17 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import fs from 'fs-extra';
 import path from 'path';
 import { app } from 'electron';
+import {
+  condaEnvCandidates,
+  condaRegistryCandidates,
+  inferCondaEnvRoot,
+  normalizePythonPath,
+  pickExistingPython,
+  systemPythonFallback,
+  trimEnvironmentValue,
+} from '../env/pythonDiscovery';
+import { getEnvironmentConfig } from '../env/envStore';
+import { getVenvPythonPath } from '../env/runtimeManager';
 import type {
   PreAnnotRequest,
   PreAnnotResult,
@@ -38,55 +49,11 @@ function getInferenceRoot(): string {
   return path.resolve(app.getAppPath(), '..', 'LR-Agent-inference');
 }
 
-function trimEnv(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function condaEnvCandidates(condaEnv: string): string[] {
-  const userHome = app.getPath('home');
-  if (process.platform === 'win32') {
-    return [
-      path.join(userHome, 'anaconda3', 'envs', condaEnv, 'python.exe'),
-      path.join(userHome, 'miniconda3', 'envs', condaEnv, 'python.exe'),
-      path.join(userHome, 'AppData', 'Local', 'miniconda3', 'envs', condaEnv, 'python.exe'),
-      path.join(userHome, 'AppData', 'Local', 'anaconda3', 'envs', condaEnv, 'python.exe'),
-    ];
-  }
-  return [
-    path.join(userHome, 'miniconda3', 'envs', condaEnv, 'bin', 'python'),
-    path.join(userHome, 'anaconda3', 'envs', condaEnv, 'bin', 'python'),
-  ];
-}
-
-function normalizePythonPath(rawPath: string): string {
-  const trimmed = rawPath.trim().replace(/^["']|["']$/g, '');
-  if (!trimmed) return trimmed;
-  if (fs.existsSync(trimmed) && fs.statSync(trimmed).isDirectory()) {
-    return process.platform === 'win32'
-      ? path.join(trimmed, 'python.exe')
-      : path.join(trimmed, 'bin', 'python');
-  }
-  return trimmed;
-}
-
-/** Resolve conda env root from .../envs/<name>/python.exe or .../envs/<name>/bin/python */
-function inferCondaEnvRoot(pythonPath: string): string | null {
-  const normalized = pythonPath.replace(/\\/g, '/');
-  if (!normalized.toLowerCase().includes('/envs/')) return null;
-  if (normalized.endsWith('/bin/python')) {
-    return path.dirname(path.dirname(pythonPath));
-  }
-  return path.dirname(pythonPath);
-}
-
 /**
  * Prevent inherited Anaconda base vars (PYTHONHOME / PYTHONPATH / CONDA_PREFIX=base)
  * from hijacking imports to D:\\...\\anaconda3\\Lib\\site-packages.
  */
-export function buildInferenceSpawnEnv(
-  pythonPath: string,
-): NodeJS.ProcessEnv {
+export function buildInferenceSpawnEnv(pythonPath: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
 
   delete env.PYTHONHOME;
@@ -114,15 +81,25 @@ export function buildInferenceSpawnEnv(
 }
 
 export function resolvePythonExecutable(): string {
-  const condaEnv = process.env.LR_AGENT_INFERENCE_CONDA_ENV ?? 'lr-agent-inference';
+  const condaEnv =
+    process.env.LR_AGENT_INFERENCE_CONDA_ENV ?? 'lr-agent-inference';
   const candidates: string[] = [];
 
-  const fromEnv = trimEnv(process.env.LR_AGENT_INFERENCE_PYTHON);
-  if (fromEnv) {
-    candidates.push(normalizePythonPath(fromEnv));
+  const fromEnvVar = trimEnvironmentValue(
+    process.env.LR_AGENT_INFERENCE_PYTHON,
+  );
+  if (fromEnvVar) {
+    candidates.push(normalizePythonPath(fromEnvVar));
   }
 
-  const home = trimEnv(process.env.CONDA_PREFIX);
+  const userOverride = trimEnvironmentValue(
+    getEnvironmentConfig().inferencePythonOverride,
+  );
+  if (userOverride) {
+    candidates.push(normalizePythonPath(userOverride));
+  }
+
+  const home = trimEnvironmentValue(process.env.CONDA_PREFIX);
   if (home && path.basename(home) === condaEnv) {
     candidates.push(
       process.platform === 'win32'
@@ -131,31 +108,16 @@ export function resolvePythonExecutable(): string {
     );
   }
 
-  candidates.push(...condaEnvCandidates(condaEnv));
-
-  for (const candidate of candidates) {
-    if (candidate && fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  console.warn(
-    '[preAnnot] lr-agent-inference python not found; falling back to system python. ' +
-      'Set LR_AGENT_INFERENCE_PYTHON to your env python.exe.',
+  candidates.push(
+    ...condaEnvCandidates(app.getPath('home'), condaEnv),
+    ...condaRegistryCandidates(app.getPath('home'), condaEnv),
+    getVenvPythonPath('inference'),
   );
-  return process.platform === 'win32' ? 'python' : 'python3';
-}
 
-function flushBuffer(): void {
-  let newline = buffer.indexOf('\n');
-  while (newline >= 0) {
-    const line = buffer.slice(0, newline).trim();
-    buffer = buffer.slice(newline + 1);
-    if (line) {
-      handleLine(line);
-    }
-    newline = buffer.indexOf('\n');
-  }
+  const found = pickExistingPython(candidates);
+  if (found) return found;
+
+  return systemPythonFallback('[preAnnot]', condaEnv);
 }
 
 function handleLine(line: string): void {
@@ -189,6 +151,18 @@ function handleLine(line: string): void {
   }
 }
 
+function flushBuffer(): void {
+  let newline = buffer.indexOf('\n');
+  while (newline >= 0) {
+    const line = buffer.slice(0, newline).trim();
+    buffer = buffer.slice(newline + 1);
+    if (line) {
+      handleLine(line);
+    }
+    newline = buffer.indexOf('\n');
+  }
+}
+
 function attachProcess(proc: ChildProcessWithoutNullStreams): void {
   proc.stdout.setEncoding('utf8');
   proc.stdout.on('data', (chunk: string) => {
@@ -206,55 +180,12 @@ function attachProcess(proc: ChildProcessWithoutNullStreams): void {
     buffer = '';
     for (const [id, entry] of pending.entries()) {
       clearTimeout(entry.timer);
-      entry.reject(new Error(`inference process exited (${code ?? 'unknown'})`));
+      entry.reject(
+        new Error(`inference process exited (${code ?? 'unknown'})`),
+      );
       pending.delete(id);
     }
   });
-}
-
-async function spawnProcess(): Promise<ChildProcessWithoutNullStreams> {
-  if (processRef && !processRef.killed) {
-    return processRef;
-  }
-  if (startingProcess) {
-    return startingProcess;
-  }
-
-  startingProcess = (async () => {
-    const inferenceRoot = getInferenceRoot();
-    const serverPath = path.join(inferenceRoot, 'server.py');
-    if (!(await fs.pathExists(serverPath))) {
-      throw new Error(`推理服务未找到: ${serverPath}`);
-    }
-
-    const pythonPath = resolvePythonExecutable();
-    const spawnEnv = buildInferenceSpawnEnv(pythonPath);
-    console.info('[preAnnot] spawning inference server:', pythonPath);
-
-    const proc = spawn(pythonPath, [serverPath], {
-      cwd: inferenceRoot,
-      stdio: 'pipe',
-      env: spawnEnv,
-    });
-
-    processRef = proc;
-    attachProcess(proc);
-
-    const ping = await sendToProcess({ cmd: 'ping' });
-    if (!ping.ok) {
-      proc.kill();
-      processRef = null;
-      throw new Error(ping.error ?? '推理服务启动失败');
-    }
-
-    return proc;
-  })();
-
-  try {
-    return await startingProcess;
-  } finally {
-    startingProcess = null;
-  }
 }
 
 function sendToProcess(payload: Record<string, unknown>): Promise<IpcMessage> {
@@ -285,6 +216,60 @@ function sendToProcess(payload: Record<string, unknown>): Promise<IpcMessage> {
       }
     });
   });
+}
+
+async function spawnProcess(): Promise<ChildProcessWithoutNullStreams> {
+  if (processRef && !processRef.killed) {
+    return processRef;
+  }
+  if (startingProcess) {
+    return startingProcess;
+  }
+
+  startingProcess = (async () => {
+    const inferenceRoot = getInferenceRoot();
+    const serverPath = path.join(inferenceRoot, 'server.py');
+    if (!(await fs.pathExists(serverPath))) {
+      throw new Error(`推理服务未找到: ${serverPath}`);
+    }
+
+    const pythonPath = resolvePythonExecutable();
+    const spawnEnv = buildInferenceSpawnEnv(pythonPath);
+    console.info('[preAnnot] spawning inference server:', pythonPath);
+
+    const proc = spawn(pythonPath, [serverPath], {
+      cwd: inferenceRoot,
+      stdio: 'pipe',
+      env: spawnEnv,
+    });
+
+    // ENOENT/权限等 spawn 失败走正常启动错误流，而不是 unhandled 'error'
+    await new Promise<void>((resolve, reject) => {
+      proc.once('spawn', () => resolve());
+      proc.once('error', reject);
+    });
+    proc.on('error', (err) => {
+      console.error('[preAnnot] inference process error:', err);
+    });
+
+    processRef = proc;
+    attachProcess(proc);
+
+    const ping = await sendToProcess({ cmd: 'ping' });
+    if (!ping.ok) {
+      proc.kill();
+      processRef = null;
+      throw new Error(ping.error ?? '推理服务启动失败');
+    }
+
+    return proc;
+  })();
+
+  try {
+    return await startingProcess;
+  } finally {
+    startingProcess = null;
+  }
 }
 
 function invokeRaw(payload: Record<string, unknown>): Promise<IpcMessage> {

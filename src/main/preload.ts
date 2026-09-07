@@ -41,7 +41,9 @@ export type Channels =
   | 'edit:paste'
   | 'edit:selectAll'
   | 'edit:save'
-  | 'dialog:confirm';
+  | 'dialog:confirm'
+  | 'env:install:progress'
+  | 'localAgent:status';
 
 export interface DirectoryItem {
   name: string;
@@ -449,6 +451,55 @@ const electronHandler = {
     /** 获取本地 Agent 编排服务 base URL（如 "http://127.0.0.1:PORT/api/v1"），未启动时返回 null */
     getBaseUrl: (): Promise<string | null> =>
       ipcRenderer.invoke('localAgent:getBaseUrl'),
+    /** 订阅本地 Agent 服务状态变化（starting/running/stopped/error） */
+    onStatus: (
+      callback: (
+        status: import('../shared/envTypes').LocalAgentServiceStatus,
+      ) => void,
+    ): (() => void) =>
+      electronHandler.ipcRenderer.on('localAgent:status', (value) => {
+        callback(
+          value as import('../shared/envTypes').LocalAgentServiceStatus,
+        );
+      }),
+  },
+  env: {
+    getStatus: (): Promise<import('../shared/envTypes').EnvironmentStatus> =>
+      ipcRenderer.invoke('env:getStatus'),
+    getSettings: (): Promise<import('../shared/envTypes').EnvSettings> =>
+      ipcRenderer.invoke('env:getSettings'),
+    setSettings: (
+      patch: Partial<import('../shared/envTypes').EnvSettings>,
+    ): Promise<import('../shared/envTypes').EnvSettings> =>
+      ipcRenderer.invoke('env:setSettings', patch),
+    installStart: (
+      target: import('../shared/envTypes').InstallTarget,
+    ): Promise<import('../shared/envTypes').InstallStartResult> =>
+      ipcRenderer.invoke('env:install:start', target),
+    installCancel: (): Promise<boolean> =>
+      ipcRenderer.invoke('env:install:cancel'),
+    installGetProgress: (): Promise<
+      import('../shared/envTypes').InstallProgress | null
+    > => ipcRenderer.invoke('env:install:getProgress'),
+    completeFirstRun: (): Promise<import('../shared/envTypes').EnvSettings> =>
+      ipcRenderer.invoke('env:completeFirstRun'),
+    dismissFirstRun: (): Promise<import('../shared/envTypes').EnvSettings> =>
+      ipcRenderer.invoke('env:dismissFirstRun'),
+    markFirstRunSeen: (): Promise<import('../shared/envTypes').EnvSettings> =>
+      ipcRenderer.invoke('env:markFirstRunSeen'),
+    showItemInFolder: (itemPath: string): Promise<boolean> =>
+      ipcRenderer.invoke('env:showItemInFolder', itemPath),
+    validatePython: (
+      pythonPath: string,
+    ): Promise<import('../shared/envTypes').PythonValidationResult> =>
+      ipcRenderer.invoke('env:validatePython', pythonPath),
+    /** 订阅一键安装进度流 */
+    onInstallProgress: (
+      callback: (progress: import('../shared/envTypes').InstallProgress) => void,
+    ): (() => void) =>
+      electronHandler.ipcRenderer.on('env:install:progress', (value) => {
+        callback(value as import('../shared/envTypes').InstallProgress);
+      }),
   },
   memory: {
     /** 读取目录下 .lragent/INSTRUCTIONS.md（项目级指令），不存在时返回 null */

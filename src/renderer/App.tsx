@@ -23,6 +23,7 @@ import { PretrainedModelsProvider } from './context/PretrainedModelsContext';
 import { LlmProvidersProvider } from './context/LlmProvidersContext';
 import { AgentChatProvider } from './context/AgentChatContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { EnvironmentProvider } from './context/EnvironmentContext';
 import './vscode-setup';
 import './App.css';
 
@@ -33,31 +34,33 @@ function MainAppRoutes() {
     <AuthProvider>
       <ToastProvider>
         <AppProvider>
-          <PretrainedModelsProvider>
-            <LlmProvidersProvider>
-              <AnnotationProvider>
-                <WorkModeProvider>
-                <AgentChatProvider>
-                  <AnnotationWorkspaceProvider>
-                    <AppShell>
-                      <PageTransition
-                        routeKey={location.pathname}
-                        className="app-shell-transition"
-                      >
-                        <Routes location={location}>
-                          <Route path="/auth" element={<AuthPage />} />
-                          <Route element={<RequireAuth />}>
-                            <Route path="/" element={<Layout />} />
-                          </Route>
-                        </Routes>
-                      </PageTransition>
-                    </AppShell>
-                  </AnnotationWorkspaceProvider>
-                </AgentChatProvider>
-                </WorkModeProvider>
-              </AnnotationProvider>
-            </LlmProvidersProvider>
-          </PretrainedModelsProvider>
+          <EnvironmentProvider>
+            <PretrainedModelsProvider>
+              <LlmProvidersProvider>
+                <AnnotationProvider>
+                  <WorkModeProvider>
+                    <AgentChatProvider>
+                      <AnnotationWorkspaceProvider>
+                        <AppShell>
+                          <PageTransition
+                            routeKey={location.pathname}
+                            className="app-shell-transition"
+                          >
+                            <Routes location={location}>
+                              <Route path="/auth" element={<AuthPage />} />
+                              <Route element={<RequireAuth />}>
+                                <Route path="/" element={<Layout />} />
+                              </Route>
+                            </Routes>
+                          </PageTransition>
+                        </AppShell>
+                      </AnnotationWorkspaceProvider>
+                    </AgentChatProvider>
+                  </WorkModeProvider>
+                </AnnotationProvider>
+              </LlmProvidersProvider>
+            </PretrainedModelsProvider>
+          </EnvironmentProvider>
         </AppProvider>
       </ToastProvider>
     </AuthProvider>

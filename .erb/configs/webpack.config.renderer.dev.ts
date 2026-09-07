@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import webpack from 'webpack';
 import MonacoWebpackPlugin from 'monaco-editor-webpack-plugin';
+import type { EditorLanguage } from 'monaco-editor/esm/metadata';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import chalk from 'chalk';
 import { merge } from 'webpack-merge';
@@ -211,7 +212,8 @@ const configuration: webpack.Configuration = {
         'r',
         'perl',
         'restructuredtext',
-        'plaintext',
+        // plaintext 不在 monaco metadata 的 EditorLanguage 联合内，运行时仍支持
+        'plaintext' as EditorLanguage,
       ],
     }),
 

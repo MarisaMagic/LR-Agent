@@ -36,6 +36,7 @@ import { initializeDatabase, closeDatabase } from './db/database';
 import { registerDbHandlers } from './db/handlers';
 import { registerMemoryHandlers } from './memory/handlers';
 import { registerSkillHandlers } from './skills/handlers';
+import registerEnvHandlers from './env/envHandlers';
 import {
   getAnnotationProjects,
   removeProjectDirConfig,
@@ -684,6 +685,7 @@ app
     registerDbHandlers();
     registerMemoryHandlers();
     registerSkillHandlers();
+    registerEnvHandlers();
     // 启动本地 MCP Server（异步，失败不阻断窗口创建）
     startMcpServer().catch((err) =>
       console.error('[MCP] Failed to start MCP server:', err),
