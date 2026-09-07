@@ -72,3 +72,7 @@ ehthumbs.db
 .cache
 *.local
 *.pem
+
+# Python (vendor/local-agent)
+__pycache__/
+.pytest_cache/

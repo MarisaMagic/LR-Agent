@@ -19,7 +19,6 @@ import { DirectoryItem, FileStats } from './preload';
 import registerAuthHandlers from './auth/authHandlers';
 import registerPretrainedModelHandlers from './pretrainedModels/pretrainedModelHandlers';
 import registerPreAnnotHandlers from './preAnnot/preAnnotHandlers';
-import { registerAnalysisHandlers } from './analysis/analysisHandlers';
 import { registerWorkspaceHandlers } from './workspace/workspaceHandlers';
 import registerAnnotationAgentHandlers from './annotation/agent/handlers';
 import registerQualityReportHandlers from './annotation/quality/handlers';
@@ -28,6 +27,11 @@ import {
   stopMcpServer,
   getMcpServerUrl,
 } from './mcp/server';
+import {
+  startLocalAgentServer,
+  stopLocalAgentServer,
+  getLocalAgentBaseUrl,
+} from './localAgent/serverProcess';
 import { initializeDatabase, closeDatabase } from './db/database';
 import { registerDbHandlers } from './db/handlers';
 import { registerMemoryHandlers } from './memory/handlers';
@@ -662,6 +666,9 @@ app.on('window-all-closed', () => {
 // IPC: renderer 查询 MCP Server URL
 ipcMain.handle('mcp:getServerUrl', () => getMcpServerUrl());
 
+// IPC: renderer 查询本地 Agent 服务 base URL
+ipcMain.handle('localAgent:getBaseUrl', () => getLocalAgentBaseUrl());
+
 app
   .whenReady()
   .then(async () => {
@@ -671,7 +678,6 @@ app
     registerAuthHandlers();
     registerPretrainedModelHandlers();
     registerPreAnnotHandlers();
-    registerAnalysisHandlers();
     registerWorkspaceHandlers();
     registerAnnotationAgentHandlers();
     registerQualityReportHandlers();
@@ -681,6 +687,10 @@ app
     // 启动本地 MCP Server（异步，失败不阻断窗口创建）
     startMcpServer().catch((err) =>
       console.error('[MCP] Failed to start MCP server:', err),
+    );
+    // 启动本地 Agent 编排服务（异步，失败不阻断窗口创建）
+    startLocalAgentServer().catch((err) =>
+      console.error('[localAgent] Failed to start local agent server:', err),
     );
     createWindow();
     app.on('activate', () => {
@@ -692,5 +702,6 @@ app
 app.on('before-quit', () => {
   stopWatchingWorkspace();
   stopMcpServer();
+  stopLocalAgentServer();
   closeDatabase();
 });

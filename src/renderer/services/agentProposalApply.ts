@@ -7,14 +7,12 @@ import { applyAnnotationBatchProposal } from './annotationProposalApply';
 import { getAnnotationWorkspaceAgentSnapshot } from './annotationAgentBridge';
 import { dispatchMutationsAppliedEvent } from './annotationProposalApply';
 import { isAgentDocumentWriteEnabled } from './agentFeatureFlags';
-import { buildAnnotationStatsSnapshot } from './agentDataAnalysis/buildAnnotationStatsSnapshot';
-import { executeAnalysisScript } from './agentDataAnalysis/dataAnalysisRunner';
 import { patchAgentMessageBlockRemote } from './agentChatApi';
 
 export type PendingProposalRef = {
   messageId: string;
   blockIndex: number;
-  kind: 'annotation' | 'file' | 'analysis';
+  kind: 'annotation' | 'file';
 };
 
 export type PendingChangeItem = {
@@ -172,17 +170,6 @@ export function collectPendingChangeItems(
         kind: 'file',
         newContent: block.content,
       });
-    } else if (
-      ref.kind === 'analysis' &&
-      block.type === 'analysis_script_proposal'
-    ) {
-      items.push({
-        id: `${ref.messageId}-${ref.blockIndex}`,
-        ref,
-        path: '分析脚本',
-        summary: '运行分析',
-        kind: 'analysis',
-      });
     }
   }
 
@@ -198,11 +185,6 @@ export function collectPendingProposals(messages: ChatMessage[]): PendingProposa
         refs.push({ messageId: msg.id, blockIndex, kind: 'annotation' });
       } else if (isFileProposalBlock(block) && block.status === 'pending') {
         refs.push({ messageId: msg.id, blockIndex, kind: 'file' });
-      } else if (
-        block.type === 'analysis_script_proposal' &&
-        block.status === 'pending'
-      ) {
-        refs.push({ messageId: msg.id, blockIndex, kind: 'analysis' });
       }
     });
   }
@@ -275,24 +257,6 @@ async function applyFileBlock(
   if (!result?.success) {
     throw new Error(result?.error ?? '保存失败');
   }
-}
-
-async function applyAnalysisBlock(
-  project: AnnotationProject,
-  block: Extract<MessageBlock, { type: 'analysis_script_proposal' }>,
-): Promise<string> {
-  const snapshot = await buildAnnotationStatsSnapshot({
-    projectId: project.id,
-    name: project.name,
-    directoryPath: project.directoryPath,
-    modality: project.modality,
-    annotationType: project.annotationType,
-    labels: project.labels,
-  });
-  return executeAnalysisScript(block.script, {
-    ...snapshot,
-    annotations: snapshot,
-  });
 }
 
 async function syncBlockStatusRemote(options: {
@@ -374,43 +338,9 @@ export async function applyAllPendingProposals(options: {
           onSyncWarning: options.onSyncWarning,
         });
         applied += 1;
-      } else if (
-        ref.kind === 'analysis' &&
-        block.type === 'analysis_script_proposal'
-      ) {
-        if (!options.project) throw new Error('请先打开标注项目');
-        options.updateBlock(ref.messageId, ref.blockIndex, {
-          ...block,
-          status: 'running',
-        });
-        const stdout = await applyAnalysisBlock(options.project, block);
-        options.updateBlock(ref.messageId, ref.blockIndex, {
-          ...block,
-          status: 'done',
-          result: stdout,
-        });
-        await syncBlockStatusRemote({
-          sessionId: options.sessionId,
-          messageId: ref.messageId,
-          blockIndex: ref.blockIndex,
-          blockType: 'analysis_script_proposal',
-          patch: { status: 'done', result: stdout },
-          onSyncWarning: options.onSyncWarning,
-        });
-        applied += 1;
       }
     } catch (err) {
       errors.push(err instanceof Error ? err.message : '应用失败');
-      if (
-        ref.kind === 'analysis' &&
-        block.type === 'analysis_script_proposal'
-      ) {
-        options.updateBlock(ref.messageId, ref.blockIndex, {
-          ...block,
-          status: 'error',
-          error: err instanceof Error ? err.message : '应用失败',
-        });
-      }
     }
   }
 

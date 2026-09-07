@@ -14,11 +14,7 @@ import AgentAnnotationPipelineBlock from './AgentAnnotationPipelineBlock';
 import AgentFileChangeBlock from './AgentFileChangeBlock';
 import AgentAnnotationChangeBlock from './AgentAnnotationChangeBlock';
 import {
-  findAnalysisScriptProposal,
-  messageHasEmbeddedAnalysisPipeline,
-  proposalBlockSummaryLine,
   shouldHideToolCallInChat,
-  shouldRenderProposalSummaryOnly,
   shouldSkipRedundantProposalText,
 } from './agentAssistantRenderUtils';
 interface AgentAssistantMessageProps {
@@ -52,9 +48,6 @@ export default function AgentAssistantMessage({
   const hasAnnotationProposal = message.blocks.some(
     (block) => block.type === 'annotation_proposal',
   );
-  const analysisProposalBlock = message.blocks.find(
-    (block) => block.type === 'analysis_script_proposal',
-  );
   const documentProposalBlock = message.blocks.find(isFileProposalBlock);
   const messageTerminal =
     message.status === 'done' ||
@@ -62,11 +55,6 @@ export default function AgentAssistantMessage({
     message.status === 'error';
   const pipelineCompleted =
     (hasAnnotationProposal && messageTerminal) ||
-    (analysisProposalBlock != null &&
-      (analysisProposalBlock.status === 'done' ||
-        analysisProposalBlock.status === 'error' ||
-        analysisProposalBlock.status === 'dismissed') &&
-      messageTerminal) ||
     (documentProposalBlock != null &&
       documentProposalBlock.status !== 'pending' &&
       messageTerminal);
@@ -130,10 +118,6 @@ export default function AgentAssistantMessage({
     regenerateAssistant(message.id).catch(() => undefined);
   }, [message.id, regenerateAssistant]);
 
-  const embeddedAnalysis = messageHasEmbeddedAnalysisPipeline(message);
-  const analysisProposalForPipeline = embeddedAnalysis
-    ? findAnalysisScriptProposal(message.blocks)
-    : undefined;
   const renderSegments = buildAssistantRenderSegments(message.blocks);
 
   const renderBlock = (block: ChatMessage['blocks'][number], index: number) => {
@@ -163,21 +147,6 @@ export default function AgentAssistantMessage({
       );
     }
     if (block.type === 'annotation_pipeline') {
-      const isAnalysisPipeline =
-        block.pipelineKind === 'analysis' ||
-        block.steps.some((s) =>
-          ['collect', 'execute', 'summarize'].includes(s.stage),
-        );
-      const analysisDetail =
-        isAnalysisPipeline && analysisProposalForPipeline
-          ? {
-              script: analysisProposalForPipeline.script,
-              explanation: analysisProposalForPipeline.explanation,
-              status: analysisProposalForPipeline.status,
-              result: analysisProposalForPipeline.result,
-              error: analysisProposalForPipeline.error,
-            }
-          : undefined;
       return (
         <AgentAnnotationPipelineBlock
           key={`pipeline-${block.pipelineKind ?? 'batch'}`}
@@ -186,7 +155,6 @@ export default function AgentAssistantMessage({
           streaming={isStreaming}
           pipelineCompleted={pipelineCompleted}
           pipelineKind={block.pipelineKind ?? 'batch'}
-          analysisDetail={analysisDetail}
           onToggle={() => handleToggle(index)}
         />
       );
@@ -224,30 +192,6 @@ export default function AgentAssistantMessage({
           proposal={block.proposal}
           status={block.status}
         />
-      );
-    }
-    if (block.type === 'analysis_script_proposal') {
-      if (embeddedAnalysis) {
-        return null;
-      }
-      if (!shouldRenderProposalSummaryOnly(block)) {
-        return null;
-      }
-      const summary = proposalBlockSummaryLine(block, index);
-      if (!summary) {
-        return null;
-      }
-      return (
-        <div
-          key={summary.key}
-          className={
-            summary.tone === 'error'
-              ? 'agent-proposal-summary agent-proposal-summary--error'
-              : 'agent-proposal-summary'
-          }
-        >
-          {summary.text}
-        </div>
       );
     }
     return null;

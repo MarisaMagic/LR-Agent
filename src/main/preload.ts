@@ -331,14 +331,6 @@ const electronHandler = {
     ): Promise<{ relativePath: string; absolutePath: string } | null> =>
       ipcRenderer.invoke('annotationAgent:resolveRelativeFile', projectDir, relativePath),
   },
-  analysis: {
-    runScript: (payload: {
-      script: string;
-      dataFiles?: Record<string, unknown>;
-      timeoutMs?: number;
-    }): Promise<{ stdout: string; truncated: boolean }> =>
-      ipcRenderer.invoke('analysis:runScript', payload),
-  },
   quality: {
     createRun: (
       projectDir: string,
@@ -452,6 +444,11 @@ const electronHandler = {
     /** 获取本地 MCP Server URL（如 "http://127.0.0.1:PORT"），未启动时返回 null */
     getServerUrl: (): Promise<string | null> =>
       ipcRenderer.invoke('mcp:getServerUrl'),
+  },
+  localAgent: {
+    /** 获取本地 Agent 编排服务 base URL（如 "http://127.0.0.1:PORT/api/v1"），未启动时返回 null */
+    getBaseUrl: (): Promise<string | null> =>
+      ipcRenderer.invoke('localAgent:getBaseUrl'),
   },
   memory: {
     /** 读取目录下 .lragent/INSTRUCTIONS.md（项目级指令），不存在时返回 null */

@@ -577,41 +577,6 @@ export function applyStreamEventToBlocks(
     return withoutProposal;
   }
 
-  if (event.type === 'analysis_script_proposal') {
-    const status = (event.status ?? 'pending') as
-      | 'pending'
-      | 'running'
-      | 'done'
-      | 'error'
-      | 'dismissed';
-    if (status === 'done' || status === 'error') {
-      for (let i = 0; i < next.length; i += 1) {
-        const b = next[i];
-        if (
-          b.type === 'annotation_pipeline' &&
-          (b.pipelineKind ?? 'batch') === 'analysis'
-        ) {
-          next[i] = {
-            ...b,
-            collapsed: true,
-            steps: b.steps.map((s) =>
-              s.status === 'running' ? { ...s, status: 'done' } : s,
-            ),
-          };
-        }
-      }
-    }
-    const block = {
-      type: 'analysis_script_proposal' as const,
-      script: event.script,
-      explanation: event.explanation,
-      status,
-      result: event.result,
-      error: event.error,
-    };
-    return [...next.filter((b) => b.type !== 'analysis_script_proposal'), block];
-  }
-
   if (event.type === 'file_proposal_start') {
     const raw = event as Record<string, unknown>;
     const block = {

@@ -250,12 +250,6 @@ export class AgentDebugLogger {
           CSS.header, CSS.dim,
         );
         break;
-      case 'analysis_script_proposal':
-        console.log(
-          `%c${LABEL_PREFIX}%c 📊 analysis_script_proposal %c${event.status}`,
-          CSS.header, CSS.dim, CSS.value,
-        );
-        break;
       case 'document_proposal':
         console.log(
           `%c${LABEL_PREFIX}%c 📋 document_proposal %c${truncate((e.title ?? e.summary ?? '') as string, 40)}`,

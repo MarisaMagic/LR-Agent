@@ -10,11 +10,6 @@ export const PIPELINE_TITLES: Record<
     failed: '批量标注未完成',
     idle: '批量标注步骤',
   },
-  analysis: {
-    active: '数据分析进行中…',
-    failed: '数据分析未完成',
-    idle: '数据分析步骤',
-  },
   mutation: {
     active: '标注变更进行中…',
     failed: '标注变更未完成',
@@ -29,9 +24,6 @@ export const PIPELINE_TITLES: Record<
 
 /** 根据消息块推断 pipelineKind（兼容历史数据缺字段）。 */
 export function inferPipelineKindFromBlocks(blocks: MessageBlock[]): PipelineKind {
-  if (blocks.some((b) => b.type === 'analysis_script_proposal')) {
-    return 'analysis';
-  }
   if (blocks.some(isFileProposalBlock)) {
     return 'report';
   }
@@ -55,7 +47,6 @@ export function inferPipelineKindFromBlocks(blocks: MessageBlock[]): PipelineKin
       return block.pipelineKind;
     }
     const stages = new Set(block.steps.map((s) => s.stage));
-    if (stages.has('execute') || stages.has('summarize')) return 'analysis';
     if (stages.has('resolve') && !stages.has('workers')) return 'mutation';
     if (stages.has('collect') && !stages.has('workers') && !stages.has('execute')) {
       return 'report';

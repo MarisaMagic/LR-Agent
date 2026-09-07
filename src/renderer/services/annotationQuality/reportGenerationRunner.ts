@@ -1,9 +1,7 @@
-import { API_BASE_URL } from '../../config';
+import { resolveLocalAgentBaseUrl } from '../../config';
 import type { AnnotationProjectSnapshot } from '../../../shared/annotationAgentTypes';
 import type { EffectiveTheme } from '../../theme/themeConstants';
-import { ApiError } from '../../types/auth';
-import { authFetch, parseApiError } from '../authenticatedFetch';
-import { requireCloudAuth } from '../cloudAuthGuard';
+import { parseApiError } from '../authenticatedFetch';
 import {
   buildQualitySnapshot,
   deriveCurrentFolderPath,
@@ -98,13 +96,15 @@ async function* streamQualityReportCompose(options: {
   payload: ReturnType<typeof buildComposePayload>;
   signal?: AbortSignal;
 }): AsyncGenerator<string> {
-  requireCloudAuth();
-
-  const response = await authFetch(
-    `${API_BASE_URL}/agent/annotation-quality/report/compose/stream`,
+  const baseUrl = await resolveLocalAgentBaseUrl();
+  const response = await fetch(
+    `${baseUrl}/agent/annotation-quality/report/compose/stream`,
     {
       method: 'POST',
-      headers: { Accept: 'text/event-stream' },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
       body: JSON.stringify({
         provider_id: options.providerId,
         api_key: options.providerApiKey,

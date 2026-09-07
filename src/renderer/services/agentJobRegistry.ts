@@ -14,7 +14,6 @@ import { streamChatDirectly } from './localChatClient';
 import { buildBackendMessages, streamChatViaBackend } from './backendChatClient';
 import { startAnnotationBatchJob } from './annotationBatchJob';
 import { startAnnotationMutationJob } from './annotationMutationBatchJob';
-import { startAnalysisBatchJob } from './analysisBatchJob';
 import { createDebugLogger } from './agentDebugLogger';
 
 export type JobEventListener = (event: StreamEvent) => void;
@@ -85,7 +84,7 @@ export interface ClientToolContext {
   project: AnnotationProjectSnapshot;
   detectionModels: PretrainedModelConfig[];
   currentFileAbsolutePath: string | null;
-  /** 对话上下文 transcript，透传给 batch/mutation/analysis prepare API */
+  /** 对话上下文 transcript，透传给 batch/mutation prepare API */
   conversationTranscript?: string;
 }
 
@@ -129,7 +128,6 @@ function pendingToolCallsFromEvent(event: StreamEvent): ClientToolCall[] | null 
 const ANNOTATION_CLIENT_TOOLS = new Set([
   'auto_annotate',
   'mutate_annotation',
-  'analyze_data',
 ]);
 
 async function runClientTool(
@@ -255,50 +253,6 @@ async function runClientTool(
       tool: 'mutate_annotation',
       user_request: userRequest,
       summary: '标注变更流水线已完成，提案已发送给用户确认。',
-    });
-  }
-
-  if (toolCall.name === 'analyze_data') {
-    if (!ctx) {
-      return formatClientToolResult({
-        status: 'error',
-        tool: 'analyze_data',
-        user_request: userRequest,
-        summary: '未绑定标注项目，无法执行数据分析',
-        message: '未绑定标注项目，无法执行数据分析',
-      });
-    }
-    const controller = new AbortController();
-    signal.addEventListener('abort', () => controller.abort());
-    let analysisResult: string | null = null;
-    const onEvent = (event: StreamEvent): void => {
-      emit(event);
-      if (event.type === 'analysis_script_proposal' && event.result) {
-        analysisResult = event.result;
-      }
-    };
-    try {
-      await startAnalysisBatchJob({
-        providerId,
-        userRequest,
-        project: ctx.project,
-        sessionId,
-        conversationTranscript: ctx.conversationTranscript,
-        signal: controller.signal,
-        onEvent,
-        providerApiKey,
-        providerBaseUrl,
-        providerModel,
-      });
-    } catch {
-      // already emitted
-    }
-    return formatClientToolResult({
-      status: 'completed',
-      tool: 'analyze_data',
-      user_request: userRequest,
-      summary: analysisResult ?? '分析脚本已执行，结果已展示给用户。',
-      file_written: false,
     });
   }
 
@@ -596,48 +550,6 @@ export async function startAnnotationBatchJobRunner(options: {
     emitJobEvent(options.jobId, {
       type: 'error',
       message: err instanceof Error ? err.message : '批量标注失败',
-    });
-  } finally {
-    runningJobs.delete(options.jobId);
-    pendingListeners.delete(options.jobId);
-  }
-}
-
-export async function startAnalysisJobRunner(options: {
-  jobId: string;
-  providerId: string;
-  userRequest: string;
-  sessionId?: string;
-  project: AnnotationProjectSnapshot;
-  onPersistEvent?: (event: StreamEvent) => void;
-}): Promise<void> {
-  if (runningJobs.has(options.jobId)) return;
-
-  const controller = new AbortController();
-  const job: RunningJob = {
-    controller,
-    listeners: new Set(),
-  };
-  runningJobs.set(options.jobId, job);
-  attachPendingListeners(options.jobId, job);
-
-  try {
-    await startAnalysisBatchJob({
-      providerId: options.providerId,
-      userRequest: options.userRequest,
-      project: options.project,
-      sessionId: options.sessionId,
-      signal: controller.signal,
-      onEvent: (event) => emitJobEvent(options.jobId, event),
-      onPersistEvent: options.onPersistEvent,
-    });
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      return;
-    }
-    emitJobEvent(options.jobId, {
-      type: 'error',
-      message: err instanceof Error ? err.message : '数据分析失败',
     });
   } finally {
     runningJobs.delete(options.jobId);

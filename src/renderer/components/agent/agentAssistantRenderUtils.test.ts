@@ -1,8 +1,6 @@
 import type { MessageBlock } from '../../../shared/agentTypes';
 import {
-  proposalBlockSummaryLine,
   shouldHideToolCallInChat,
-  shouldRenderProposalSummaryOnly,
   shouldSkipRedundantFileText,
 } from './agentAssistantRenderUtils';
 
@@ -58,67 +56,5 @@ describe('shouldSkipRedundantFileText', () => {
       },
     ];
     expect(shouldSkipRedundantFileText(code, blocks)).toBe(true);
-  });
-});
-
-describe('shouldRenderProposalSummaryOnly', () => {
-  it('does not summary-only file proposals (inline block handles them)', () => {
-    const block: MessageBlock = {
-      type: 'file_proposal',
-      title: 'main',
-      content: 'code',
-      suggestedRelativePath: 'src/main.cpp',
-      status: 'pending',
-    };
-    expect(shouldRenderProposalSummaryOnly(block)).toBe(false);
-  });
-
-  it('does not summary-only annotation proposals', () => {
-    const block: MessageBlock = {
-      type: 'annotation_proposal',
-      status: 'pending',
-      proposal: {
-        id: 'prop-1',
-        projectId: 'p1',
-        changes: [],
-        stats: {
-          kind: 'bbox',
-          processed: 0,
-          succeeded: 0,
-          skipped: 0,
-          totalBoxes: 0,
-        },
-        summary: '',
-        createdAt: 1,
-      },
-    };
-    expect(shouldRenderProposalSummaryOnly(block)).toBe(false);
-  });
-});
-
-describe('proposalBlockSummaryLine', () => {
-  it('returns one-line summary for applied file proposal', () => {
-    const block: MessageBlock = {
-      type: 'file_proposal',
-      title: 'main',
-      content: 'code',
-      suggestedRelativePath: 'src/main.cpp',
-      status: 'applied',
-    };
-    expect(proposalBlockSummaryLine(block, 0)).toEqual({
-      key: 'file-applied-0',
-      text: '已写入 src/main.cpp',
-    });
-  });
-
-  it('returns null for pending proposals', () => {
-    const block: MessageBlock = {
-      type: 'file_proposal',
-      title: 'main',
-      content: 'code',
-      suggestedRelativePath: 'src/main.cpp',
-      status: 'pending',
-    };
-    expect(proposalBlockSummaryLine(block, 0)).toBeNull();
   });
 });

@@ -271,7 +271,18 @@
       "output": "release/build"
     },
     "extraResources": [
-      "./assets/**"
+      "./assets/**",
+      {
+        "from": "vendor/local-agent",
+        "to": "local-agent",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/.pytest_cache/**",
+          "!**/tests/**",
+          "!**/.env"
+        ]
+      }
     ],
     "publish": {
       "provider": "github",

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { resolveLocalAgentBaseUrl } from '../config';
 import type {
   AnnotationJudgeSummary,
   AnnotationJudgeVerdict,
@@ -6,23 +6,27 @@ import type {
   BatchPrepareResult,
   ImageCandidate,
 } from '../../shared/annotationAgentTypes';
-import { authFetch, parseApiError } from './authenticatedFetch';
-import { requireCloudAuth } from './cloudAuthGuard';
+import { parseApiError } from './authenticatedFetch';
 
 interface ApiSuccess<T> {
   code?: number;
   data: T;
 }
 
+/**
+ * 调用本地 Agent 编排服务（LR-Agent-local）。
+ *
+ * 无认证、不经云端：API Key 仅在请求体中直传本地服务用于本次 LLM 调用。
+ */
 async function postAnnotationLlm<T>(
   path: string,
   body: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<T> {
-  requireCloudAuth();
-
-  const response = await authFetch(`${API_BASE_URL}${path}`, {
+  const baseUrl = await resolveLocalAgentBaseUrl();
+  const response = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal,
   });

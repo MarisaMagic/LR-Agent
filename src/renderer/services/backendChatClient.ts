@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { resolveLocalAgentBaseUrl } from '../config';
 import type {
   AgentSession,
   ChatContextConfig,
@@ -128,7 +128,8 @@ export async function* streamChatViaBackend(
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/agent/chat/stream`, {
+    const localAgentBaseUrl = await resolveLocalAgentBaseUrl();
+    response = await fetch(`${localAgentBaseUrl}/agent/chat/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

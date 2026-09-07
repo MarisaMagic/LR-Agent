@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { VscodeIcon } from '@vscode-elements/react-elements';
 import type { AnnotationPipelineStep } from '../../types/agent';
 import {
@@ -11,18 +11,8 @@ import {
   PIPELINE_TITLES,
 } from '../../services/annotationAgent/pipelineKinds';
 import type { PipelineKind } from '../../types/agent';
-import { formatAnalysisStdout } from '../../services/agentDataAnalysis/analysisOutputFormat';
 import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
-import AgentScrollablePre from './AgentScrollablePre';
 import './AgentAnnotationPipelineBlock.css';
-
-export interface PipelineAnalysisDetail {
-  script: string;
-  explanation: string;
-  status: 'pending' | 'running' | 'done' | 'error' | 'dismissed';
-  result?: string;
-  error?: string;
-}
 
 interface AgentAnnotationPipelineBlockProps {
   steps: AnnotationPipelineStep[];
@@ -31,7 +21,6 @@ interface AgentAnnotationPipelineBlockProps {
   pipelineCompleted?: boolean;
   batchCompleted?: boolean;
   pipelineKind?: PipelineKind;
-  analysisDetail?: PipelineAnalysisDetail;
   onToggle: () => void;
 }
 
@@ -68,51 +57,6 @@ function sortWorkerSteps(steps: AnnotationPipelineStep[]): AnnotationPipelineSte
   });
 }
 
-function PipelineAnalysisEmbedded({ detail }: { detail: PipelineAnalysisDetail }) {
-  const [scriptOpen, setScriptOpen] = useState(false);
-  const [outputOpen, setOutputOpen] = useState(false);
-
-  return (
-    <div className="agent-pipeline-embedded">
-      {detail.error ? (
-        <div className="agent-pipeline-embedded-error">{detail.error}</div>
-      ) : null}
-      {detail.script ? (
-        <button
-          type="button"
-          className="agent-pipeline-embedded-toggle"
-          onClick={() => setScriptOpen((v) => !v)}
-          aria-expanded={scriptOpen}
-        >
-          <VscodeIcon name={scriptOpen ? 'chevron-down' : 'chevron-right'} size={12} />
-          <span>查看脚本</span>
-        </button>
-      ) : null}
-      {scriptOpen && detail.script ? (
-        <AgentScrollablePre className="agent-pipeline-embedded-pre">
-          {detail.script}
-        </AgentScrollablePre>
-      ) : null}
-      {detail.result ? (
-        <button
-          type="button"
-          className="agent-pipeline-embedded-toggle"
-          onClick={() => setOutputOpen((v) => !v)}
-          aria-expanded={outputOpen}
-        >
-          <VscodeIcon name={outputOpen ? 'chevron-down' : 'chevron-right'} size={12} />
-          <span>查看原始输出</span>
-        </button>
-      ) : null}
-      {outputOpen && detail.result ? (
-        <AgentScrollablePre className="agent-pipeline-embedded-pre">
-          {formatAnalysisStdout(detail.result)}
-        </AgentScrollablePre>
-      ) : null}
-    </div>
-  );
-}
-
 export default function AgentAnnotationPipelineBlock({
   steps,
   collapsed,
@@ -120,7 +64,6 @@ export default function AgentAnnotationPipelineBlock({
   pipelineCompleted = false,
   batchCompleted = false,
   pipelineKind = 'batch',
-  analysisDetail,
   onToggle,
 }: AgentAnnotationPipelineBlockProps) {
   const completed = pipelineCompleted || batchCompleted;
@@ -184,12 +127,6 @@ export default function AgentAnnotationPipelineBlock({
               </li>
             ))}
           </ul>
-
-          {analysisDetail &&
-          (pipelineKind === 'analysis' ||
-            steps.some((s) => ['collect', 'execute', 'summarize'].includes(s.stage))) ? (
-            <PipelineAnalysisEmbedded detail={analysisDetail} />
-          ) : null}
 
           {workerSteps.length > 0 && pipelineKind === 'batch' ? (
             <details className="agent-pipeline-workers" open={inProgress}>

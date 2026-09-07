@@ -1,7 +1,7 @@
 import type { AnnotationBatchProposal } from './annotationAgentTypes';
 
 /** Agent 流水线类型：与 UI 标题、阶段标签一一对应 */
-export type PipelineKind = 'batch' | 'analysis' | 'mutation' | 'report';
+export type PipelineKind = 'batch' | 'mutation' | 'report';
 
 /** Agent 任务生命周期状态（与后端 JobState 一致）。 */
 export enum JobState {
@@ -57,14 +57,6 @@ export type MessageBlock =
       steps: AnnotationPipelineStep[];
       /** 流水线类型，默认 batch */
       pipelineKind?: PipelineKind;
-    }
-  | {
-      type: 'analysis_script_proposal';
-      script: string;
-      explanation: string;
-      status: 'pending' | 'running' | 'done' | 'error' | 'dismissed';
-      result?: string;
-      error?: string;
     }
   | {
       type: 'file_proposal';
@@ -211,14 +203,6 @@ export type StreamEvent =
     }
   | { type: 'annotation_proposal'; proposal: AnnotationBatchProposal }
   | {
-      type: 'analysis_script_proposal';
-      script: string;
-      explanation: string;
-      status?: 'pending' | 'running' | 'done' | 'error' | 'dismissed';
-      result?: string;
-      error?: string;
-    }
-  | {
       type: 'file_proposal_start';
       title: string;
       suggestedRelativePath: string;
@@ -262,8 +246,7 @@ export interface ClientToolCall {
 /** 客户端工具名称枚举，与后端 CLIENT_TOOL_NAMES 保持一致。 */
 export type ClientToolName =
   | 'auto_annotate'
-  | 'mutate_annotation'
-  | 'analyze_data';
+  | 'mutate_annotation';
 
 /** 客户端工具执行结果，随 resume 请求一并发送给后端。 */
 export interface ClientToolResult {

@@ -8,7 +8,6 @@
 declare global {
   interface Window {
     __LR_AGENT_MUTATION_ENABLED__?: boolean;
-    __LR_AGENT_ANALYSIS_ENABLED__?: boolean;
     __LR_AGENT_DOCUMENT_WRITE_ENABLED__?: boolean;
   }
 }
@@ -16,7 +15,6 @@ declare global {
 function readWindowFlag(
   key:
     | '__LR_AGENT_MUTATION_ENABLED__'
-    | '__LR_AGENT_ANALYSIS_ENABLED__'
     | '__LR_AGENT_DOCUMENT_WRITE_ENABLED__',
 ): boolean {
   if (typeof window === 'undefined') {
@@ -31,10 +29,6 @@ function readWindowFlag(
 
 export function isAgentMutationEnabled(): boolean {
   return readWindowFlag('__LR_AGENT_MUTATION_ENABLED__');
-}
-
-export function isAgentAnalysisEnabled(): boolean {
-  return readWindowFlag('__LR_AGENT_ANALYSIS_ENABLED__');
 }
 
 export function isAgentDocumentWriteEnabled(): boolean {

@@ -90,7 +90,7 @@ export default function AgentComposer() {
             ref={textareaRef}
             className="agent-composer-input"
             value={composerDraft}
-            placeholder="请描述任务，如：辅助标注、数据分析、生成报告等"
+            placeholder="请描述任务，如：辅助标注、生成报告等"
             rows={1}
             onChange={(event) => {
               setComposerDraft(event.target.value);
