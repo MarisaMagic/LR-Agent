@@ -10,7 +10,9 @@ export function imagesFromAgentPaths(
   selectedPaths: string[],
   maxFiles: number,
 ): { images: ImageCandidate[]; missing: string[] } {
-  const byRel = new Map(candidates.map((c) => [normalizeKey(c.relativePath), c]));
+  const byRel = new Map(
+    candidates.map((c) => [normalizeKey(c.relativePath), c]),
+  );
   const images: ImageCandidate[] = [];
   const missing: string[] = [];
   const seen = new Set<string>();

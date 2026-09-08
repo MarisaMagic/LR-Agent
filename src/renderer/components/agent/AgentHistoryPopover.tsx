@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import type { AgentSession } from '../../types/agent';
@@ -15,9 +22,10 @@ interface AgentHistoryPopoverProps {
   onExitComplete?: () => void;
 }
 
-export function computeHistoryPopoverPosition(
-  anchor: HTMLElement,
-): { top: number; right: number } {
+export function computeHistoryPopoverPosition(anchor: HTMLElement): {
+  top: number;
+  right: number;
+} {
   const rect = anchor.getBoundingClientRect();
   return {
     top: rect.bottom + 6,
@@ -57,7 +65,8 @@ function groupSessions(sessions: AgentSession[]): HistoryGroup[] {
 
   const groups: HistoryGroup[] = [];
   if (today.length) groups.push({ label: 'Today', sessions: today });
-  if (yesterday.length) groups.push({ label: 'Yesterday', sessions: yesterday });
+  if (yesterday.length)
+    groups.push({ label: 'Yesterday', sessions: yesterday });
   if (previous7Days.length) {
     groups.push({ label: 'Previous 7 days', sessions: previous7Days });
   }
@@ -163,90 +172,92 @@ export default function AgentHistoryPopover({
           aria-label="历史对话"
           {...getPopoverMotionProps('top', reducedMotion)}
         >
-      <div className="agent-history-search">
-        <span className="codicon codicon-search agent-history-search-icon" />
-        <input
-          type="search"
-          value={query}
-          placeholder="Search Agents..."
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </div>
+          <div className="agent-history-search">
+            <span className="codicon codicon-search agent-history-search-icon" />
+            <input
+              type="search"
+              value={query}
+              placeholder="Search Agents..."
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
 
-      <OverlayVerticalScrollArea
-        className="agent-history-groups-scroll"
-        onScroll={(event) => {
-          const el = event.currentTarget;
-          if (
-            sessionsHasMore &&
-            !loadingMoreSessions &&
-            el.scrollHeight - el.scrollTop - el.clientHeight < 48
-          ) {
-            void loadMoreSessions();
-          }
-        }}
-      >
-        <div className="agent-history-groups">
-        {groups.length === 0 ? (
-          <div className="agent-history-empty">暂无历史对话</div>
-        ) : (
-          groups.map((group) => (
-            <section key={group.label} className="agent-history-group">
-              <div className="agent-history-group-label">{group.label}</div>
-              <ul className="agent-history-group-list">
-                {group.sessions.map((session) => {
-                  const streaming = isSessionStreaming(session.id);
-                  const active = session.id === activeSessionId;
-                  return (
-                    <li key={session.id} className="agent-history-row">
-                      <button
-                        type="button"
-                        className={`agent-history-row-main${
-                          active ? ' agent-history-row-main--active' : ''
-                        }`}
-                        onClick={() => openSessionTab(session.id)}
-                      >
-                        <span
-                          className={`codicon ${
-                            streaming
-                              ? 'codicon-sync codicon-mod-spin'
-                              : active
-                                ? 'codicon-check'
-                                : 'codicon-history'
-                          } agent-history-row-icon`}
-                        />
-                        <span className="agent-history-row-text">
-                          <span className="agent-history-row-title">
-                            {session.title}
-                          </span>
-                          {session.lastMessagePreview ? (
-                            <span className="agent-history-row-preview">
-                              {session.lastMessagePreview}
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="agent-history-row-delete"
-                        aria-label="删除对话"
-                        title="删除"
-                        onClick={() => deleteSession(session.id)}
-                      >
-                        <span className="codicon codicon-trash" />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))
-        )}
-        {loadingMoreSessions ? (
-          <div className="agent-history-loading">加载中…</div>
-        ) : null}
-        </div>
-      </OverlayVerticalScrollArea>
+          <OverlayVerticalScrollArea
+            className="agent-history-groups-scroll"
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              if (
+                sessionsHasMore &&
+                !loadingMoreSessions &&
+                el.scrollHeight - el.scrollTop - el.clientHeight < 48
+              ) {
+                void loadMoreSessions();
+              }
+            }}
+          >
+            <div className="agent-history-groups">
+              {groups.length === 0 ? (
+                <div className="agent-history-empty">暂无历史对话</div>
+              ) : (
+                groups.map((group) => (
+                  <section key={group.label} className="agent-history-group">
+                    <div className="agent-history-group-label">
+                      {group.label}
+                    </div>
+                    <ul className="agent-history-group-list">
+                      {group.sessions.map((session) => {
+                        const streaming = isSessionStreaming(session.id);
+                        const active = session.id === activeSessionId;
+                        return (
+                          <li key={session.id} className="agent-history-row">
+                            <button
+                              type="button"
+                              className={`agent-history-row-main${
+                                active ? ' agent-history-row-main--active' : ''
+                              }`}
+                              onClick={() => openSessionTab(session.id)}
+                            >
+                              <span
+                                className={`codicon ${
+                                  streaming
+                                    ? 'codicon-sync codicon-mod-spin'
+                                    : active
+                                      ? 'codicon-check'
+                                      : 'codicon-history'
+                                } agent-history-row-icon`}
+                              />
+                              <span className="agent-history-row-text">
+                                <span className="agent-history-row-title">
+                                  {session.title}
+                                </span>
+                                {session.lastMessagePreview ? (
+                                  <span className="agent-history-row-preview">
+                                    {session.lastMessagePreview}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              className="agent-history-row-delete"
+                              aria-label="删除对话"
+                              title="删除"
+                              onClick={() => deleteSession(session.id)}
+                            >
+                              <span className="codicon codicon-trash" />
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ))
+              )}
+              {loadingMoreSessions ? (
+                <div className="agent-history-loading">加载中…</div>
+              ) : null}
+            </div>
+          </OverlayVerticalScrollArea>
         </m.div>
       )}
     </AnimatePresence>,

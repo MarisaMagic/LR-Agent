@@ -22,7 +22,8 @@ const INDEX_MAX_BYTES = 25 * 1024;
 const TOPIC_MAX_CHARS = 64_000;
 
 const SCOPE_KEY_PATTERN = /^(user|projects\/[A-Za-z0-9][A-Za-z0-9._-]*)$/;
-const TOPIC_FILE_PATTERN = /^[A-Za-z0-9\u4e00-\u9fa5][A-Za-z0-9\u4e00-\u9fa5._-]*\.md$/;
+const TOPIC_FILE_PATTERN =
+  /^[A-Za-z0-9\u4e00-\u9fa5][A-Za-z0-9\u4e00-\u9fa5._-]*\.md$/;
 
 /** 当前活动记忆作用域（renderer 发消息时设置，MCP 工具使用） */
 let activeScopeKey = 'user';
@@ -56,7 +57,9 @@ function resolveTopicPath(scopeKey: string, topicFile: string): string {
 }
 
 /** 读取 MEMORY.md 索引，按 200 行 / 25KB 截断；不存在或为空时返回 null */
-export async function readMemoryIndex(scopeKey: string): Promise<string | null> {
+export async function readMemoryIndex(
+  scopeKey: string,
+): Promise<string | null> {
   const indexPath = path.join(resolveScopeDir(scopeKey), 'MEMORY.md');
   let content: string;
   try {

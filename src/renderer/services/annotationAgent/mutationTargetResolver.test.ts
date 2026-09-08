@@ -66,12 +66,7 @@ describe('resolveMutationTargets', () => {
   });
 
   it('resolves all bboxes', () => {
-    const result = resolveMutationTargets(
-      bboxes,
-      [{ by: 'all' }],
-      labels,
-      [],
-    );
+    const result = resolveMutationTargets(bboxes, [{ by: 'all' }], labels, []);
     expect(result.ids.sort()).toEqual(['left', 'right']);
   });
 });

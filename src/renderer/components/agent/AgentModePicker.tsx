@@ -102,7 +102,9 @@ export default function AgentModePicker({
             className={`agent-mode-picker-option${
               option.id === mode ? ' agent-mode-picker-option--active' : ''
             }${option.id === 'chat' ? ' agent-mode-picker-option--ask' : ''}${
-              option.id === 'annotation' ? ' agent-mode-picker-option--agent' : ''
+              option.id === 'annotation'
+                ? ' agent-mode-picker-option--agent'
+                : ''
             }`}
             onClick={() => {
               onSelect(option.id);
@@ -111,9 +113,13 @@ export default function AgentModePicker({
           >
             <span className="agent-mode-picker-option-leading">
               <ModeIcon kind={option.icon} />
-              <span className="agent-mode-picker-option-name">{option.label}</span>
+              <span className="agent-mode-picker-option-name">
+                {option.label}
+              </span>
             </span>
-            <span className="agent-mode-picker-option-desc">{option.description}</span>
+            <span className="agent-mode-picker-option-desc">
+              {option.description}
+            </span>
           </button>
         ))}
       </PopoverMotion>

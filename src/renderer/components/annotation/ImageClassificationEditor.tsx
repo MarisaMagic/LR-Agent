@@ -25,7 +25,12 @@ export default function ImageClassificationEditor({
   const labels = activeProject?.labels ?? [];
 
   const assignedIds = useMemo(
-    () => new Set(classificationAnnotations.map((a) => a.labelId).filter(Boolean) as string[]),
+    () =>
+      new Set(
+        classificationAnnotations
+          .map((a) => a.labelId)
+          .filter(Boolean) as string[],
+      ),
     [classificationAnnotations],
   );
 
@@ -59,10 +64,7 @@ export default function ImageClassificationEditor({
 
   return (
     <div className="image-classification-editor">
-      <ImageAnnotationToolbar
-        mode="classification"
-        imagePath={imagePath}
-      />
+      <ImageAnnotationToolbar mode="classification" imagePath={imagePath} />
 
       <div className="image-classification-body">
         <div className="image-classification-preview">
@@ -82,7 +84,9 @@ export default function ImageClassificationEditor({
               <div className="image-classification-assigned-list">
                 {classificationAnnotations.map((ann) => {
                   const currentLabel = labels.find((l) => l.id === ann.labelId);
-                  const otherLabels = labels.filter((l) => l.id !== ann.labelId);
+                  const otherLabels = labels.filter(
+                    (l) => l.id !== ann.labelId,
+                  );
                   return (
                     <div
                       key={ann.id}
@@ -102,7 +106,9 @@ export default function ImageClassificationEditor({
                           {currentLabel.name}
                         </span>
                       ) : (
-                        <span className="image-classification-unknown">未知标签</span>
+                        <span className="image-classification-unknown">
+                          未知标签
+                        </span>
                       )}
                       <div className="image-classification-assigned-actions">
                         {otherLabels.length > 0 && (
@@ -111,7 +117,11 @@ export default function ImageClassificationEditor({
                             value=""
                             onChange={(e) => {
                               if (e.target.value) {
-                                handleChangeLabel(ann.id, ann.labelId ?? '', e.target.value);
+                                handleChangeLabel(
+                                  ann.id,
+                                  ann.labelId ?? '',
+                                  e.target.value,
+                                );
                                 e.target.value = '';
                               }
                             }}
@@ -148,10 +158,12 @@ export default function ImageClassificationEditor({
                     key={label.id}
                     type="button"
                     className="image-classification-label-btn"
-                    style={{
-                      borderColor: label.color,
-                      '--label-color': label.color,
-                    } as React.CSSProperties}
+                    style={
+                      {
+                        borderColor: label.color,
+                        '--label-color': label.color,
+                      } as React.CSSProperties
+                    }
                     onClick={() => handleAssignLabel(label.id)}
                   >
                     <span

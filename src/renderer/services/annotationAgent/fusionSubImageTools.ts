@@ -1,10 +1,7 @@
 /**
  * 单图标注本地工具：YOLO 检测与图像读取。
  */
-import {
-  assertPreAnnotResult,
-  runPreAnnot,
-} from '../preAnnotService';
+import { assertPreAnnotResult, runPreAnnot } from '../preAnnotService';
 import type {
   AnnotationBatchChange,
   BatchAnnotationPlan,
@@ -53,16 +50,30 @@ export async function runObjectDetectionForSubAgent(
   plan: BatchAnnotationPlan,
   detectionModel: PretrainedModelConfig,
   args: Record<string, unknown> = {},
-): Promise<{ rawCount: number; keptCount: number; excludedCount: number; boxes: DetectBox[] }> {
+): Promise<{
+  rawCount: number;
+  keptCount: number;
+  excludedCount: number;
+  boxes: DetectBox[];
+}> {
   const hints = plan.detection_hints;
   const conf =
-    typeof args.conf_threshold === 'number' ? args.conf_threshold : hints.conf_threshold;
+    typeof args.conf_threshold === 'number'
+      ? args.conf_threshold
+      : hints.conf_threshold;
   const iou =
-    typeof args.iou_threshold === 'number' ? args.iou_threshold : hints.iou_threshold;
+    typeof args.iou_threshold === 'number'
+      ? args.iou_threshold
+      : hints.iou_threshold;
 
-  const response = await runPreAnnot('yolo_detect', image.absolutePath, detectionModel, {
-    overrides: { confThreshold: conf, iouThreshold: iou },
-  });
+  const response = await runPreAnnot(
+    'yolo_detect',
+    image.absolutePath,
+    detectionModel,
+    {
+      overrides: { confThreshold: conf, iouThreshold: iou },
+    },
+  );
   const detResult = assertPreAnnotResult(response, isDetectResult, '检测');
   const rawItems = detResult.items.map((item, idx) => {
     const g = item.geometry;

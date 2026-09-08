@@ -72,7 +72,8 @@ export function syncDocumentRefCounts(
   const paths = new Set([...prevCounts.keys(), ...nextCounts.keys()]);
 
   for (const filePath of paths) {
-    const delta = (nextCounts.get(filePath) ?? 0) - (prevCounts.get(filePath) ?? 0);
+    const delta =
+      (nextCounts.get(filePath) ?? 0) - (prevCounts.get(filePath) ?? 0);
     if (delta > 0) {
       for (let i = 0; i < delta; i += 1) retainDocument(filePath);
     } else if (delta < 0) {
@@ -97,8 +98,7 @@ export function openDocument(
   const uri = monaco.Uri.file(filePath);
   const reused = monaco.editor.getModel(uri);
   const model =
-    reused ??
-    monaco.editor.createModel(text, getLanguage(filePath), uri);
+    reused ?? monaco.editor.createModel(text, getLanguage(filePath), uri);
 
   monaco.editor.setModelLanguage(model, getLanguage(filePath));
   documents.set(filePath, {
@@ -146,11 +146,7 @@ export function attachDocumentToEditor(
 ): AttachDocumentResult {
   const switched = previousPath !== filePath;
 
-  if (
-    !switched &&
-    editor.getModel() === model &&
-    previousPath === filePath
-  ) {
+  if (!switched && editor.getModel() === model && previousPath === filePath) {
     return { switched: false, model };
   }
 

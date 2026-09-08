@@ -148,8 +148,7 @@ export async function prepareChatContext(
     return fallback;
   }
 
-  const summaryUpToMessageId =
-    evictedLines[evictedLines.length - 1]!.messageId;
+  const summaryUpToMessageId = evictedLines[evictedLines.length - 1]!.messageId;
   const summaryCutoff = eligibleIds.indexOf(summaryUpToMessageId);
   const windowedMessageIds =
     summaryCutoff >= 0 ? eligibleIds.slice(summaryCutoff + 1) : eligibleIds;

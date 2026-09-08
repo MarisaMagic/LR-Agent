@@ -82,7 +82,8 @@ function buildLabelDistribution(snapshot: AnnotationQualitySnapshot): {
       id: 'label_distribution',
       category: 'distribution',
       title: '标签分布',
-      summary: total > 0 ? `共 ${labels.length} 个标签，${total} 个框` : '暂无标注框',
+      summary:
+        total > 0 ? `共 ${labels.length} 个标签，${total} 个框` : '暂无标注框',
       severity: findings.length > 0 ? 'warning' : 'info',
       data: { labelCounts, total },
       chartBindings: [
@@ -111,9 +112,7 @@ function buildCoverage(snapshot: AnnotationQualitySnapshot): {
   findings: ConsistencyFinding[];
 } {
   const coverage =
-    snapshot.totalFiles > 0
-      ? snapshot.annotatedFiles / snapshot.totalFiles
-      : 0;
+    snapshot.totalFiles > 0 ? snapshot.annotatedFiles / snapshot.totalFiles : 0;
   const findings: ConsistencyFinding[] = [];
 
   if (snapshot.totalFiles > 0 && coverage < 0.5) {
@@ -153,7 +152,11 @@ function buildCoverage(snapshot: AnnotationQualitySnapshot): {
             value: unannotatedFiles,
             themeRole: 'muted' as ChartSemanticRole,
           },
-        ] as Array<{ name: string; value: number; themeRole?: ChartSemanticRole }>,
+        ] as Array<{
+          name: string;
+          value: number;
+          themeRole?: ChartSemanticRole;
+        }>,
       },
     ],
   };
@@ -224,7 +227,13 @@ function buildBoxesPerFile(snapshot: AnnotationQualitySnapshot): {
       axisLabel: { fontSize: 11 },
     },
     yAxis: { type: 'value', name: '图片数' },
-    series: [{ type: 'bar', data: Object.values(buckets), emphasis: { focus: 'series' } }],
+    series: [
+      {
+        type: 'bar',
+        data: Object.values(buckets),
+        emphasis: { focus: 'series' },
+      },
+    ],
     grid: { left: 40, right: 16, bottom: 40, top: 32 },
   };
 
@@ -273,9 +282,7 @@ function buildLabelBalance(snapshot: AnnotationQualitySnapshot): {
   }
 
   const coverage =
-    snapshot.totalFiles > 0
-      ? snapshot.annotatedFiles / snapshot.totalFiles
-      : 0;
+    snapshot.totalFiles > 0 ? snapshot.annotatedFiles / snapshot.totalFiles : 0;
   const balance = computeLabelEntropy(labelCounts);
   const unlabeledRate =
     snapshot.totalBoxes > 0 ? 1 - unlabeled / snapshot.totalBoxes : 1;
@@ -428,7 +435,8 @@ function buildUnlabeledBoxes(snapshot: AnnotationQualitySnapshot): {
       id: 'unlabeled_boxes',
       category: 'consistency',
       title: '未标标签框',
-      summary: unlabeled > 0 ? `${unlabeled} 个框尚未分配标签` : '所有框均已分配标签',
+      summary:
+        unlabeled > 0 ? `${unlabeled} 个框尚未分配标签` : '所有框均已分配标签',
       severity: unlabeled > 0 ? 'warning' : 'info',
       data: { unlabeled },
       chartBindings: [],
@@ -461,8 +469,7 @@ function buildBoxSizeAnomaly(snapshot: AnnotationQualitySnapshot): {
     }
   }
 
-  const rate =
-    snapshot.totalBoxes > 0 ? anomalyCount / snapshot.totalBoxes : 0;
+  const rate = snapshot.totalBoxes > 0 ? anomalyCount / snapshot.totalBoxes : 0;
   if (rate > 0.05) {
     findings.push({
       id: 'size_anomaly_rate',

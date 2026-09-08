@@ -51,12 +51,6 @@ function computeFileKey(relativePath: string): string {
   return crypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
 }
 
-async function readAnnotationIndex(
-  projectDir: string,
-): Promise<AnnotationIndexFilePayload | null> {
-  return readIndex(projectDir);
-}
-
 export async function loadAllAnnotationDocs(
   projectDir: string,
 ): Promise<Array<{ relativePath: string; doc: unknown }>> {

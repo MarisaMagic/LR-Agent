@@ -29,7 +29,8 @@ export default function AgentMessageList() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const messages = activeSessionId ? getSessionMessages(activeSessionId) : [];
-  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  const lastMessage =
+    messages.length > 0 ? messages[messages.length - 1] : null;
   const scrollKey = activeSessionId
     ? `${activeSessionId}:${lastMessage?.id ?? '_empty'}:${lastMessage?.updatedAt ?? 0}`
     : '';
@@ -44,17 +45,14 @@ export default function AgentMessageList() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [scrollKey, editTargetMessageId]);
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      const container = containerRef.current;
-      if (!container) return;
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !isSelectionInside(container)) return;
-      e.preventDefault();
-      setContextMenu({ x: e.clientX, y: e.clientY });
-    },
-    [],
-  );
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    const container = containerRef.current;
+    if (!container) return;
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !isSelectionInside(container)) return;
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
 
   const closeContextMenu = useCallback(() => {
     setContextMenu(null);

@@ -1,5 +1,12 @@
-import type { AnnotationType, LabelDefinition, Modality } from '../renderer/types/annotation';
-import type { AnnotationInstance, BboxAnnotation } from '../renderer/types/annotationDocument';
+import type {
+  AnnotationType,
+  LabelDefinition,
+  Modality,
+} from '../renderer/types/annotation';
+import type {
+  AnnotationInstance,
+  BboxAnnotation,
+} from '../renderer/types/annotationDocument';
 
 export interface ImageCandidate {
   relativePath: string;
@@ -59,11 +66,7 @@ export interface BatchPrepareResult extends BatchAnnotationPlan {
 
 /** Unified mutation operations for batch proposals (append/replace/patch/delete). */
 export type AnnotationChangeOperation =
-  | 'append'
-  | 'replace'
-  | 'replace_bboxes'
-  | 'patch'
-  | 'delete';
+  'append' | 'replace' | 'replace_bboxes' | 'patch' | 'delete';
 
 export interface AnnotationPatch {
   id: string;
@@ -149,9 +152,7 @@ export interface GeometryProposalStats {
 }
 
 export type AnnotationProposalStats =
-  | BboxProposalStats
-  | GenericProposalStats
-  | GeometryProposalStats;
+  BboxProposalStats | GenericProposalStats | GeometryProposalStats;
 
 export interface AnnotationBatchProposal {
   id: string;

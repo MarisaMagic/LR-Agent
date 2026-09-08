@@ -162,7 +162,11 @@ export default function AgentModelPicker({
         disabled={disabled || providers.length === 0}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={selected ? `${selected.name || selected.model} · ${selected.model}` : undefined}
+        title={
+          selected
+            ? `${selected.name || selected.model} · ${selected.model}`
+            : undefined
+        }
         onClick={() => setOpen((value) => !value)}
       >
         <span className="agent-model-picker-label">{label}</span>

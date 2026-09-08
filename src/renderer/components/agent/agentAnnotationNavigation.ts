@@ -3,8 +3,7 @@ import { basename } from '../../types/file';
 import { resolveWorkspaceAbsolutePath } from '../../utils/workspacePaths';
 
 export type AnnotationOpenTarget =
-  | { kind: 'file'; absolutePath: string }
-  | { kind: 'synthetic' };
+  { kind: 'file'; absolutePath: string } | { kind: 'synthetic' };
 
 export function isSyntheticAnnotationPath(path: string): boolean {
   return path.replace(/^[/\\]+/, '').startsWith('_synthetic_/');

@@ -1,7 +1,6 @@
 import type { StreamEvent } from '../../shared/agentTypes';
 
-const MOCK_REASONING =
-  '让我先理解你的问题，整理关键约束，再给出可执行的回答。';
+const MOCK_REASONING = '让我先理解你的问题，整理关键约束，再给出可执行的回答。';
 
 const MOCK_TOOL_ARGS = JSON.stringify(
   { path: 'src/renderer/components/AgentPanel.tsx' },

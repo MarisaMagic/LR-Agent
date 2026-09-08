@@ -24,10 +24,11 @@ import {
 } from './fabric/fabricViewportZoom';
 import { createResizeObserver } from '../../utils/resizeObserver';
 import ImageAnnotationToolbar from './ImageAnnotationToolbar';
+import { runSam2PreAnnot } from './PreAnnotToolbarSection';
 import {
-  runSam2PreAnnot,
-} from './PreAnnotToolbarSection';
-import { bindPreAnnotBoxDraw, isPreAnnotBoxTool } from './fabric/fabricPreAnnotBoxDraw';
+  bindPreAnnotBoxDraw,
+  isPreAnnotBoxTool,
+} from './fabric/fabricPreAnnotBoxDraw';
 import { usePretrainedModels } from '../../context/PretrainedModelsContext';
 import {
   loadSavedPreAnnotModelId,
@@ -489,10 +490,9 @@ export default function ImageFabricPolygonAnnotationEditor({
             showToast('已添加多边形预标注', { type: 'info' });
           }
         } catch (error) {
-          showToast(
-            error instanceof Error ? error.message : 'SAM2 分割失败',
-            { type: 'error' },
-          );
+          showToast(error instanceof Error ? error.message : 'SAM2 分割失败', {
+            type: 'error',
+          });
         } finally {
           setTool('select');
         }

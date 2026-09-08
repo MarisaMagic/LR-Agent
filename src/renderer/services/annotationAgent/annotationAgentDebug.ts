@@ -102,7 +102,9 @@ export function logAnnotationDebugLabelPool(
     project_names: pool?.project_names ?? fallback?.project_names,
     scoped_names: pool?.scoped_names,
     effective_names: pool?.effective_names,
-    excluded_names: pool?.excluded_names?.length ? pool.excluded_names : undefined,
+    excluded_names: pool?.excluded_names?.length
+      ? pool.excluded_names
+      : undefined,
     preflight_label_ids: pool?.preflight_label_ids?.length
       ? pool.preflight_label_ids
       : undefined,
@@ -159,20 +161,16 @@ export function logAnnotationDebugImageResult(
     mappings?: MapMappingRow[];
   },
 ): void {
-  logAnnotationDebug(
-    result.ok ? 'image-ok' : 'image-skip',
-    relativePath,
-    {
-      ok: result.ok,
-      reason: result.reason,
-      rawCount: result.rawCount,
-      keptCount: result.keptCount,
-      mappedCount: result.mappedCount,
-      unmappedCount: result.unmappedCount,
-      method: result.method,
-      mapHint: result.mapHint,
-      autoFinalized: result.autoFinalized,
-      mappings: result.mappings?.length ? result.mappings : undefined,
-    },
-  );
+  logAnnotationDebug(result.ok ? 'image-ok' : 'image-skip', relativePath, {
+    ok: result.ok,
+    reason: result.reason,
+    rawCount: result.rawCount,
+    keptCount: result.keptCount,
+    mappedCount: result.mappedCount,
+    unmappedCount: result.unmappedCount,
+    method: result.method,
+    mapHint: result.mapHint,
+    autoFinalized: result.autoFinalized,
+    mappings: result.mappings?.length ? result.mappings : undefined,
+  });
 }

@@ -41,9 +41,7 @@ function runtimeUserDir(version: 'py312'): string {
 }
 
 /** 嵌入式运行时解释器在 userData 下的路径（python-build-standalone 布局） */
-export function getEmbeddedRuntimePythonPath(
-  version: 'py312',
-): string {
+export function getEmbeddedRuntimePythonPath(version: 'py312'): string {
   return process.platform === 'win32'
     ? path.join(runtimeUserDir(version), 'python.exe')
     : path.join(runtimeUserDir(version), 'bin', 'python3');

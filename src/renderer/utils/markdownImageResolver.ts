@@ -74,7 +74,8 @@ function mimeTypeForPath(absolutePath: string): string {
 export async function loadMarkdownImageBlobUrl(
   absolutePath: string,
 ): Promise<string | null> {
-  const buffer = await window.electron?.fileSystem?.readFileBuffer(absolutePath);
+  const buffer =
+    await window.electron?.fileSystem?.readFileBuffer(absolutePath);
   if (!buffer) return null;
   const blob = new Blob([buffer], { type: mimeTypeForPath(absolutePath) });
   return URL.createObjectURL(blob);

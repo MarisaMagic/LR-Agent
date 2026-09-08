@@ -23,10 +23,7 @@ import {
   readMemoryTopic,
   writeMemoryTopic,
 } from '../memory/memoryStore';
-import {
-  readSkillMarkdown,
-  scanSkillsCatalog,
-} from '../skills/skillScanner';
+import { readSkillMarkdown, scanSkillsCatalog } from '../skills/skillScanner';
 
 type McpSession = {
   transport: StreamableHTTPServerTransport;
@@ -125,12 +122,22 @@ function createMcpServer(): McpServer {
         }
         return {
           content: [
-            { type: 'text' as const, text: JSON.stringify({ ok: true, content }) },
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ ok: true, content }),
+            },
           ],
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: msg }) }] };
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ ok: false, error: msg }),
+            },
+          ],
+        };
       }
     },
   );
@@ -141,7 +148,9 @@ function createMcpServer(): McpServer {
     {
       skill_name: z
         .string()
-        .describe('Skill name as listed in the available-skills block, e.g. "caveman"'),
+        .describe(
+          'Skill name as listed in the available-skills block, e.g. "caveman"',
+        ),
     },
     async ({ skill_name }) => {
       try {
@@ -163,12 +172,22 @@ function createMcpServer(): McpServer {
         }
         return {
           content: [
-            { type: 'text' as const, text: JSON.stringify({ ok: true, content }) },
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ ok: true, content }),
+            },
           ],
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: msg }) }] };
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ ok: false, error: msg }),
+            },
+          ],
+        };
       }
     },
   );
@@ -179,11 +198,19 @@ function createMcpServer(): McpServer {
     {
       topic_file: z
         .string()
-        .describe('Memory topic filename, e.g. "annotation-preferences.md" (letters/digits/dash/underscore, must end with .md)'),
-      content: z.string().describe('Full markdown content of the topic file (overwrites existing)'),
+        .describe(
+          'Memory topic filename, e.g. "annotation-preferences.md" (letters/digits/dash/underscore, must end with .md)',
+        ),
+      content: z
+        .string()
+        .describe(
+          'Full markdown content of the topic file (overwrites existing)',
+        ),
       index_line: z
         .string()
-        .describe('One-line index entry describing this topic, e.g. "- [标注偏好](topics/annotation-preferences.md)：用户偏好紧贴目标的小框"'),
+        .describe(
+          'One-line index entry describing this topic, e.g. "- [标注偏好](topics/annotation-preferences.md)：用户偏好紧贴目标的小框"',
+        ),
     },
     async ({ topic_file, content, index_line }) => {
       try {
@@ -204,7 +231,14 @@ function createMcpServer(): McpServer {
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: msg }) }] };
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ ok: false, error: msg }),
+            },
+          ],
+        };
       }
     },
   );
@@ -225,7 +259,7 @@ async function createSession(): Promise<McpSession> {
   });
   // 只清 map。不要在这里 server.close()：Protocol.close() 会再调 transport.close()，形成同步死递归。
   transport.onclose = () => {
-    const sessionId = transport.sessionId;
+    const { sessionId } = transport;
     if (sessionId) {
       sessions.delete(sessionId);
     }

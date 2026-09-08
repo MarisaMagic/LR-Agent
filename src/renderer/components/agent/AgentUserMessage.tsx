@@ -31,7 +31,10 @@ export default function AgentUserMessage({ message }: AgentUserMessageProps) {
   const canEdit = message.status === 'done' && !streaming;
 
   const textContent = message.blocks
-    .filter((block): block is Extract<typeof block, { type: 'text' }> => block.type === 'text')
+    .filter(
+      (block): block is Extract<typeof block, { type: 'text' }> =>
+        block.type === 'text',
+    )
     .map((block) => block.content)
     .join('\n');
 

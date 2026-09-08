@@ -77,7 +77,8 @@ export async function reconcileAppliedAnnotationProposals(options: {
   ) => void;
 }): Promise<number> {
   const projectDir = options.project?.directoryPath;
-  if (!projectDir || !window.electron?.annotation?.readFileAnnotationDoc) return 0;
+  if (!projectDir || !window.electron?.annotation?.readFileAnnotationDoc)
+    return 0;
 
   let reconciled = 0;
 
@@ -87,7 +88,8 @@ export async function reconcileAppliedAnnotationProposals(options: {
 
     for (let blockIndex = 0; blockIndex < msg.blocks.length; blockIndex += 1) {
       const block = msg.blocks[blockIndex];
-      if (block.type !== 'annotation_proposal' || block.status !== 'pending') continue;
+      if (block.type !== 'annotation_proposal' || block.status !== 'pending')
+        continue;
 
       let allApplied = true;
       for (const change of block.proposal.changes) {

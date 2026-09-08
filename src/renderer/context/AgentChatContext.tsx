@@ -56,7 +56,10 @@ import {
   applyAllPendingProposals,
   countPendingProposals,
 } from '../services/agentProposalApply';
-import { reconcileAppliedFileProposals, reconcileAppliedAnnotationProposals } from '../services/agentProposalReconcile';
+import {
+  reconcileAppliedFileProposals,
+  reconcileAppliedAnnotationProposals,
+} from '../services/agentProposalReconcile';
 import {
   createDraftSession,
   mergeProjectSessionsIntoState,
@@ -79,7 +82,10 @@ import { usePretrainedModels } from './PretrainedModelsContext';
 import { shouldClearSummaryOnEdit } from '../services/chatContextUtils';
 import { prepareChatContext } from '../services/contextPreparer';
 import { loadProjectInstructions } from '../services/projectInstructions';
-import { computeMemoryScopeKey, loadMemoryIndex } from '../services/agentMemory';
+import {
+  computeMemoryScopeKey,
+  loadMemoryIndex,
+} from '../services/agentMemory';
 import { loadSkillsCatalog } from '../services/agentSkills';
 import { buildTurnContextFromState } from '../services/turnContext';
 import { useAnnotation } from './AnnotationContext';
@@ -88,7 +94,10 @@ import { useApp } from './AppContext';
 import { useLlmProviders } from './LlmProvidersContext';
 import { useToast } from './ToastContext';
 import { ApiError } from '../types/auth';
-import translateError, { isAuthError, resolveErrorMessage } from '../utils/errors';
+import translateError, {
+  isAuthError,
+  resolveErrorMessage,
+} from '../utils/errors';
 
 interface AgentChatContextValue {
   sessions: Record<string, AgentSession>;
@@ -149,7 +158,9 @@ interface AgentChatContextValue {
 
 const AgentChatContext = createContext<AgentChatContextValue | null>(null);
 
-function normalizeLoadedState(state: AgentChatPersistedState): AgentChatPersistedState {
+function normalizeLoadedState(
+  state: AgentChatPersistedState,
+): AgentChatPersistedState {
   const next = { ...state };
   for (const sessionId of Object.keys(next.messagesBySession)) {
     const messages = next.messagesBySession[sessionId] ?? {};
@@ -208,8 +219,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const agentUiRef = useRef(loadAgentChatUiState());
   const activeProjectIdRef = useRef<string | null>(activeProject?.id ?? null);
   activeProjectIdRef.current = activeProject?.id ?? null;
-  const [agentMode, setAgentModeState] = useState<AgentInteractionMode>(() =>
-    getProjectUi(agentUiRef.current, activeProject?.id).agentMode,
+  const [agentMode, setAgentModeState] = useState<AgentInteractionMode>(
+    () => getProjectUi(agentUiRef.current, activeProject?.id).agentMode,
   );
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -255,14 +266,16 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const removeGhostSession = useCallback(
     (sessionId: string) => {
-      const current = stateRef.current;
+      const { current } = stateRef;
       if (!current.sessions[sessionId]) return;
       const { [sessionId]: _removedSession, ...sessions } = current.sessions;
       const { [sessionId]: _removedMessages, ...messagesBySession } =
         current.messagesBySession;
-      const sessionOrder = current.sessionOrder.filter((id) => id !== sessionId);
+      const sessionOrder = current.sessionOrder.filter(
+        (id) => id !== sessionId,
+      );
       const openTabIds = current.openTabIds.filter((id) => id !== sessionId);
-      let activeSessionId = current.activeSessionId;
+      let { activeSessionId } = current;
       if (activeSessionId === sessionId) {
         activeSessionId = openTabIds[openTabIds.length - 1] ?? null;
       }
@@ -298,7 +311,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         showToast('加载对话失败，请重试', { type: 'error' });
         return false;
       }
-      const current = stateRef.current;
+      const { current } = stateRef;
       if (!sessionHasHistoryContent(sessionId, current)) {
         return true;
       }
@@ -311,10 +324,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       ) {
         return true;
       }
-      if (
-        loadedSessionsRef.current.has(sessionId) &&
-        messageCount === 0
-      ) {
+      if (loadedSessionsRef.current.has(sessionId) && messageCount === 0) {
         return true;
       }
       try {
@@ -429,9 +439,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       const orderSeen = new Set(latest.sessionOrder);
       const sessionOrder = [...latest.sessionOrder];
       for (const session of page.sessions) {
-        if (
-          !sessionBelongsToProject(session, activeProjectIdRef.current)
-        ) {
+        if (!sessionBelongsToProject(session, activeProjectIdRef.current)) {
           continue;
         }
         sessions[session.id] = mergeSessionFromRemote(
@@ -455,7 +463,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoadingMoreSessions(false);
     }
-  }, [loadingMoreSessions, persist, sessionsHasMore, showToast, activeProject?.id]);
+  }, [
+    loadingMoreSessions,
+    persist,
+    sessionsHasMore,
+    showToast,
+    activeProject?.id,
+  ]);
 
   const loadOlderMessages = useCallback(
     async (sessionId?: string) => {
@@ -463,7 +477,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       if (!targetId || loadingOlderMessages) {
         return;
       }
-      const current = stateRef.current;
+      const { current } = stateRef;
       const session = current.sessions[targetId];
       if (!session?.hasMoreMessagesBefore) return;
       const oldestId = session.messageIds[0];
@@ -471,9 +485,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
       setLoadingOlderMessages(true);
       try {
-        const detail = await fetchAgentSessionDetail(currentUserIdRef.current, targetId, {
-          beforeMessageId: oldestId,
-        });
+        const detail = await fetchAgentSessionDetail(
+          currentUserIdRef.current,
+          targetId,
+          {
+            beforeMessageId: oldestId,
+          },
+        );
         const latest = stateRef.current;
         const mergedMessages = {
           ...(latest.messagesBySession[targetId] ?? {}),
@@ -520,9 +538,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       bootstrappedUserIdRef.current === userId
     ) {
       const remote = await loadLocalAgentChatStateForProject(userId, projectId);
-      const current = stateRef.current;
+      const { current } = stateRef;
       const ui = getProjectUi(agentUiRef.current, projectId);
-      let merged = mergeProjectSessionsIntoState(
+      const merged = mergeProjectSessionsIntoState(
         current,
         remote,
         projectId,
@@ -588,7 +606,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     );
     const remote = await loadLocalAgentChatStateForProject(userId, projectId);
     const ui = getProjectUi(agentUiRef.current, projectId);
-    let merged = mergeProjectSessionsIntoState(
+    const merged = mergeProjectSessionsIntoState(
       createEmptyChatState(),
       remote,
       projectId,
@@ -624,7 +642,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    if (!shouldApplyBootstrapResult(generation, bootstrapGenerationRef.current)) {
+    if (
+      !shouldApplyBootstrapResult(generation, bootstrapGenerationRef.current)
+    ) {
       return;
     }
 
@@ -675,7 +695,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [activeProject?.id, authStatus, currentUserId, bootstrapProjectAgent, showToast]);
+  }, [
+    activeProject?.id,
+    authStatus,
+    currentUserId,
+    bootstrapProjectAgent,
+    showToast,
+  ]);
 
   useEffect(() => {
     if (authStatus === 'loading' || authStatus === 'unauthenticated') return;
@@ -683,13 +709,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     const projectId = activeProject?.id ?? null;
     const ui = getProjectUi(agentUiRef.current, projectId);
     setAgentModeState(ui.agentMode);
-    const current = stateRef.current;
+    const { current } = stateRef;
     const openTabIds = ui.openTabIds.filter(
       (id) =>
         current.sessions[id] &&
         sessionBelongsToProject(current.sessions[id], projectId),
     );
-    let activeSessionId = ui.activeSessionId;
+    let { activeSessionId } = ui;
     if (!activeSessionId || !openTabIds.includes(activeSessionId)) {
       activeSessionId = openTabIds[openTabIds.length - 1] ?? null;
     }
@@ -718,7 +744,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     if (authStatus === 'loading' || authStatus === 'unauthenticated') return;
     if (initializedRef.current) return;
     initializedRef.current = true;
-    const current = stateRef.current;
+    const { current } = stateRef;
     if (current.openTabIds.length > 0) return;
 
     const projectId = activeProject?.id ?? null;
@@ -747,7 +773,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       messageId: string,
       updater: (message: ChatMessage) => ChatMessage,
     ) => {
-      const current = stateRef.current;
+      const { current } = stateRef;
       const sessionMessages = {
         ...(current.messagesBySession[sessionId] ?? {}),
       };
@@ -825,12 +851,15 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               : latest.sessions,
           });
           // 写入最终 blocks 到 SQLite
-          const finalMsg = stateRef.current.messagesBySession[sessionId]?.[messageId];
+          const finalMsg =
+            stateRef.current.messagesBySession[sessionId]?.[messageId];
           if (finalMsg) {
             updateMessageLocally(messageId, {
               blocksJson: JSON.stringify(finalMsg.blocks),
               status: 'done',
-            }).catch((err) => console.error('[DB] Failed to update message:', err));
+            }).catch((err) =>
+              console.error('[DB] Failed to update message:', err),
+            );
           }
           return;
         }
@@ -854,7 +883,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
                     ...block,
                     collapsed: true,
                     steps: block.steps.map((s) =>
-                      s.status === 'running' ? { ...s, status: 'error' as const } : s,
+                      s.status === 'running'
+                        ? { ...s, status: 'error' as const }
+                        : s,
                     ),
                   }
                 : block,
@@ -880,13 +911,16 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               : latest.sessions,
           });
           // 写入 error 到 SQLite
-          const errMsg = stateRef.current.messagesBySession[sessionId]?.[messageId];
+          const errMsg =
+            stateRef.current.messagesBySession[sessionId]?.[messageId];
           if (errMsg) {
             updateMessageLocally(messageId, {
               blocksJson: JSON.stringify(errMsg.blocks),
               status: 'error',
               error: errMsg.error,
-            }).catch((err) => console.error('[DB] Failed to update message:', err));
+            }).catch((err) =>
+              console.error('[DB] Failed to update message:', err),
+            );
           }
           return;
         }
@@ -903,8 +937,16 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               [sessionId]: {
                 ...session,
                 contextSummary: event.summary,
-                summaryUpToMessageId: (event as Record<string, unknown>).summaryUpToMessageId as string | undefined ?? (event as Record<string, unknown>).summary_up_to_message_id as string | undefined,
-                lastContextTokenEstimate: (event as Record<string, unknown>).tokenEstimate as number | undefined ?? (event as Record<string, unknown>).token_estimate as number | undefined,
+                summaryUpToMessageId:
+                  ((event as Record<string, unknown>).summaryUpToMessageId as
+                    string | undefined) ??
+                  ((event as Record<string, unknown>)
+                    .summary_up_to_message_id as string | undefined),
+                lastContextTokenEstimate:
+                  ((event as Record<string, unknown>).tokenEstimate as
+                    number | undefined) ??
+                  ((event as Record<string, unknown>).token_estimate as
+                    number | undefined),
                 updatedAt: Date.now(),
               },
             },
@@ -912,10 +954,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        if (
-          event.type === 'preparing' ||
-          event.type === 'route_decided'
-        ) {
+        if (event.type === 'preparing' || event.type === 'route_decided') {
           return;
         }
 
@@ -931,7 +970,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   );
 
   const createSession = useCallback(() => {
-    const current = stateRef.current;
+    const { current } = stateRef;
     const provider = defaultProvider;
     const session = createDraftSession(
       activeProject?.id ?? null,
@@ -955,7 +994,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const switchSession = useCallback(
     (sessionId: string) => {
-      const current = stateRef.current;
+      const { current } = stateRef;
       if (!current.sessions[sessionId]) return;
       persist({ ...current, activeSessionId: sessionId });
       setEditTargetMessageId(null);
@@ -967,7 +1006,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const openSessionTab = useCallback(
     (sessionId: string) => {
-      const current = stateRef.current;
+      const { current } = stateRef;
       if (!current.sessions[sessionId]) return;
       const openTabIds = current.openTabIds.includes(sessionId)
         ? current.openTabIds
@@ -987,16 +1026,16 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const closeTab = useCallback(
     (sessionId: string) => {
-      const current = stateRef.current;
+      const { current } = stateRef;
       const openTabIds = current.openTabIds.filter((id) => id !== sessionId);
-      let activeSessionId = current.activeSessionId;
+      let { activeSessionId } = current;
       if (activeSessionId === sessionId) {
         activeSessionId = openTabIds[openTabIds.length - 1] ?? null;
       }
 
-      let sessions = current.sessions;
-      let sessionOrder = current.sessionOrder;
-      let messagesBySession = current.messagesBySession;
+      let { sessions } = current;
+      let { sessionOrder } = current;
+      let { messagesBySession } = current;
       if (!sessionHasHistoryContent(sessionId, current)) {
         const { [sessionId]: _removed, ...restSessions } = sessions;
         sessions = restSessions;
@@ -1022,22 +1061,29 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         });
         return;
       }
-      persist({ ...current, sessions, sessionOrder, openTabIds, activeSessionId, messagesBySession });
+      persist({
+        ...current,
+        sessions,
+        sessionOrder,
+        openTabIds,
+        activeSessionId,
+        messagesBySession,
+      });
     },
     [activeProject?.id, agentMode, defaultProvider, persist],
   );
 
   const deleteSession = useCallback(
     async (sessionId: string) => {
-      const current = stateRef.current;
+      const { current } = stateRef;
       const session = current.sessions[sessionId];
       if (session?.activeJobId && isJobRunning(session.activeJobId)) {
         stopJob(session.activeJobId);
       }
 
       if (sessionHasHistoryContent(sessionId, current)) {
-        deleteAgentSessionRemote(currentUserIdRef.current, sessionId).catch((err) =>
-          console.error('[DB] Failed to delete session:', err),
+        deleteAgentSessionRemote(currentUserIdRef.current, sessionId).catch(
+          (err) => console.error('[DB] Failed to delete session:', err),
         );
       }
 
@@ -1046,9 +1092,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       const { [sessionId]: _removed, ...sessions } = current.sessions;
       const { [sessionId]: _msgs, ...messagesBySession } =
         current.messagesBySession;
-      const sessionOrder = current.sessionOrder.filter((id) => id !== sessionId);
+      const sessionOrder = current.sessionOrder.filter(
+        (id) => id !== sessionId,
+      );
       const openTabIds = current.openTabIds.filter((id) => id !== sessionId);
-      let activeSessionId = current.activeSessionId;
+      let { activeSessionId } = current;
       if (activeSessionId === sessionId) {
         activeSessionId = openTabIds[openTabIds.length - 1] ?? null;
       }
@@ -1075,10 +1123,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         activeSessionId,
         messagesBySession,
       });
-      if (activeSessionId && sessionHasHistoryContent(activeSessionId, {
-        sessions,
-        messagesBySession,
-      })) {
+      if (
+        activeSessionId &&
+        sessionHasHistoryContent(activeSessionId, {
+          sessions,
+          messagesBySession,
+        })
+      ) {
         void ensureSessionLoaded(activeSessionId);
       }
     },
@@ -1094,7 +1145,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const stopGeneration = useCallback(
     (sessionId?: string) => {
-      const current = stateRef.current;
+      const { current } = stateRef;
       const targetSessionId = sessionId ?? current.activeSessionId;
       if (!targetSessionId) return;
       const session = current.sessions[targetSessionId];
@@ -1124,14 +1175,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   );
 
   const sendMessage = useCallback(
-    async (
-      content: string,
-      options?: { editMessageId?: string },
-    ) => {
+    async (content: string, options?: { editMessageId?: string }) => {
       const trimmed = content.trim();
       if (!trimmed) return;
 
-      const current = stateRef.current;
+      const { current } = stateRef;
       const sessionId = current.activeSessionId;
       if (!sessionId) return;
 
@@ -1182,8 +1230,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             delete sessionMessages[removedId];
           }
           // 同步清理 SQLite 中编辑点之后的废弃消息
-          deleteMessagesAfterIdLocally(sessionId, editMessageId).catch(
-            (err) => console.error('[DB] Failed to cleanup after edit:', err),
+          deleteMessagesAfterIdLocally(sessionId, editMessageId).catch((err) =>
+            console.error('[DB] Failed to cleanup after edit:', err),
           );
           sessionMessages[editMessageId] = {
             ...sessionMessages[editMessageId],
@@ -1274,7 +1322,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         createSessionLocally(currentUserIdRef.current, {
           id: sessionId,
           title: nextTitle,
-          annotationProjectId: current.sessions[sessionId].annotationProjectId ?? activeProject?.id ?? null,
+          annotationProjectId:
+            current.sessions[sessionId].annotationProjectId ??
+            activeProject?.id ??
+            null,
           interactionMode: agentMode,
           providerId: selectedProvider.id,
           model: selectedProvider.model,
@@ -1287,7 +1338,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         if (isEdit) {
           updateMessageLocally(userMessageData.id, {
             blocksJson: JSON.stringify(userMessageData.blocks),
-          }).catch((err) => console.error('[DB] Failed to update user message:', err));
+          }).catch((err) =>
+            console.error('[DB] Failed to update user message:', err),
+          );
         } else {
           createMessageLocally({
             id: userMessageData.id,
@@ -1299,7 +1352,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             status: userMessageData.status,
             providerId: userMessageData.providerId,
             model: userMessageData.model,
-          }).catch((err) => console.error('[DB] Failed to create user message:', err));
+          }).catch((err) =>
+            console.error('[DB] Failed to create user message:', err),
+          );
         }
       }
 
@@ -1313,7 +1368,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         status: 'streaming',
         providerId: selectedProvider.id,
         model: selectedProvider.model,
-      }).catch((err) => console.error('[DB] Failed to create assistant message:', err));
+      }).catch((err) =>
+        console.error('[DB] Failed to create assistant message:', err),
+      );
 
       setComposerDraft('');
 
@@ -1321,21 +1378,27 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       setPreparingContext(true);
       // 异步获取本地 MCP Server URL（Electron 环境下可用）
       const mcpServerUrl: string | null =
-        (await (window as Window & typeof globalThis & {
-          electron?: { mcp?: { getServerUrl?: () => Promise<string | null> } };
-        }).electron?.mcp?.getServerUrl?.()) ?? null;
+        (await (
+          window as Window &
+            typeof globalThis & {
+              electron?: {
+                mcp?: { getServerUrl?: () => Promise<string | null> };
+              };
+            }
+        ).electron?.mcp?.getServerUrl?.()) ?? null;
 
       // 项目级指令：标注模式读项目目录，编辑器模式读工作区根目录
       const instructionsDir =
         workMode === 'annotation' && activeProject
           ? activeProject.directoryPath
           : rootPath;
-      const projectInstructions = await loadProjectInstructions(instructionsDir);
+      const projectInstructions =
+        await loadProjectInstructions(instructionsDir);
 
       // Auto Memory：读取当前作用域索引（同时设置活动记忆作用域，供 MCP memory 工具使用）
       const memoryScopeKey = computeMemoryScopeKey({
         annotationProjectId:
-          workMode === 'annotation' ? activeProject?.id ?? null : null,
+          workMode === 'annotation' ? (activeProject?.id ?? null) : null,
         workspaceRoot: rootPath,
       });
       const memoryIndex = await loadMemoryIndex(memoryScopeKey);
@@ -1343,7 +1406,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       // 全局 Skills catalog：扫描 ~/.agents/skills，注入 system prompt（失败返回空数组不阻塞）
       const skillsCatalog = await loadSkillsCatalog();
 
-      let clientContext = buildClientContextPayload({
+      const clientContext = buildClientContextPayload({
         rootPath,
         activeFilePath,
         activeProject: activeProject ?? null,
@@ -1443,16 +1506,18 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           : null;
 
       // Debug: 发送前上下文摘要
-        if (
-        typeof window !== 'undefined' &&
-        (window as any).__LR_AGENT_DEBUG__
-      ) {
-        const displayContent = trimmed.length > 120 ? trimmed.slice(0, 120) + '…' : trimmed;
+      if (typeof window !== 'undefined' && (window as any).__LR_AGENT_DEBUG__) {
+        const displayContent =
+          trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed;
         console.log(
           '%c[LR-Agent]%c 📤 发送消息 %c"%s"%c (session=%s provider=%s)',
-          'color: #ff9800; font-weight:bold;', '',
-          'color: #e0e0e0;', displayContent, '',
-          sessionId.slice(0, 12), selectedProvider.id.slice(0, 12),
+          'color: #ff9800; font-weight:bold;',
+          '',
+          'color: #e0e0e0;',
+          displayContent,
+          '',
+          sessionId.slice(0, 12),
+          selectedProvider.id.slice(0, 12),
         );
       }
 
@@ -1519,7 +1584,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const setSessionProvider = useCallback(
     (sessionId: string, providerId: string) => {
-      const current = stateRef.current;
+      const { current } = stateRef;
       const session = current.sessions[sessionId];
       const provider = resolveProvider(providerId);
       if (!session || !provider) return;
@@ -1538,27 +1603,26 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       patchAgentSessionRemote(currentUserIdRef.current, sessionId, {
         providerId: provider.id,
         model: provider.model,
-      }).catch((err) => console.error('[DB] Failed to update session provider:', err));
+      }).catch((err) =>
+        console.error('[DB] Failed to update session provider:', err),
+      );
     },
     [persist, resolveProvider],
   );
 
-  const beginEditMessage = useCallback(
-    (messageId: string) => {
-      const current = stateRef.current;
-      const sessionId = current.activeSessionId;
-      if (!sessionId) return;
-      const session = current.sessions[sessionId];
-      if (session?.activeJobId && isJobRunning(session.activeJobId)) return;
-      const message = current.messagesBySession[sessionId]?.[messageId];
-      if (!message || message.role !== 'user' || message.status !== 'done') {
-        return;
-      }
-      setEditTargetMessageId(messageId);
-      setEditDraft(getUserTextFromMessage(message));
-    },
-    [],
-  );
+  const beginEditMessage = useCallback((messageId: string) => {
+    const { current } = stateRef;
+    const sessionId = current.activeSessionId;
+    if (!sessionId) return;
+    const session = current.sessions[sessionId];
+    if (session?.activeJobId && isJobRunning(session.activeJobId)) return;
+    const message = current.messagesBySession[sessionId]?.[messageId];
+    if (!message || message.role !== 'user' || message.status !== 'done') {
+      return;
+    }
+    setEditTargetMessageId(messageId);
+    setEditDraft(getUserTextFromMessage(message));
+  }, []);
 
   const cancelEdit = useCallback(() => {
     setEditTargetMessageId(null);
@@ -1567,7 +1631,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const regenerateAssistant = useCallback(
     async (assistantMessageId: string) => {
-      const current = stateRef.current;
+      const { current } = stateRef;
       const sessionId = current.activeSessionId;
       if (!sessionId) return;
 
@@ -1654,9 +1718,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const isSessionStreaming = useCallback((sessionId: string) => {
     const session = stateRef.current.sessions[sessionId];
-    return Boolean(
-      session?.activeJobId && isJobRunning(session.activeJobId),
-    );
+    return Boolean(session?.activeJobId && isJobRunning(session.activeJobId));
   }, []);
 
   const getSessionMessages = useCallback(
@@ -1677,7 +1739,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     const sessionId = state.activeSessionId;
     if (!sessionId) return 0;
     const messagesMap = state.messagesBySession[sessionId] ?? {};
-    const ids = resolveSessionMessageIds(state.sessions[sessionId], messagesMap);
+    const ids = resolveSessionMessageIds(
+      state.sessions[sessionId],
+      messagesMap,
+    );
     const messages = ids
       .map((id) => messagesMap[id])
       .filter((message): message is ChatMessage => Boolean(message));
@@ -1706,7 +1771,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         workspaceRoot: rootPath,
         updateBlock: (messageId, blockIndex, patch) => {
           updateMessageBlocks(sessionId, messageId, (blocks) =>
-            blocks.map((b, i) => (i === blockIndex ? ({ ...b, ...patch } as MessageBlock) : b)),
+            blocks.map((b, i) =>
+              i === blockIndex ? ({ ...b, ...patch } as MessageBlock) : b,
+            ),
           );
         },
         onSyncWarning: (message) => {
@@ -1742,10 +1809,17 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     () =>
       state.sessionOrder.filter(
         (id) =>
-          sessionBelongsToProject(state.sessions[id], currentAnnotationProjectId) &&
-          sessionHasHistoryContent(id, state),
+          sessionBelongsToProject(
+            state.sessions[id],
+            currentAnnotationProjectId,
+          ) && sessionHasHistoryContent(id, state),
       ),
-    [state.sessionOrder, state.sessions, state.messagesBySession, currentAnnotationProjectId],
+    [
+      state.sessionOrder,
+      state.sessions,
+      state.messagesBySession,
+      currentAnnotationProjectId,
+    ],
   );
 
   const value = useMemo(

@@ -31,7 +31,9 @@ describe('copySourceMediaForDocs', () => {
     );
     expect(result.copiedCount).toBe(2);
     expect(result.pathMap.get('a.jpg')).toBe('images/a.jpg');
-    expect(await fs.pathExists(path.join(outputDir, 'images/a.jpg'))).toBe(true);
+    expect(await fs.pathExists(path.join(outputDir, 'images/a.jpg'))).toBe(
+      true,
+    );
   });
 
   it('deduplicates basename conflicts with hash suffix', async () => {

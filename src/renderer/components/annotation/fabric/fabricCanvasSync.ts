@@ -79,7 +79,9 @@ export function hitTopAnnotationBoxAtScenePoint(
 export function syncBoxesFromAnnotations(
   canvas: Canvas,
   annotations: BboxAnnotation[],
-  labelResolver: (labelId: string | null) => { name: string; color: string } | null,
+  labelResolver: (
+    labelId: string | null,
+  ) => { name: string; color: string } | null,
   naturalWidth: number,
   naturalHeight: number,
   tool: ImageCanvasTool,
@@ -126,7 +128,9 @@ export function extractNormFromBoxRect(
 export function patchAnnotationBoxStyles(
   canvas: Canvas,
   annotations: BboxAnnotation[],
-  labelResolver: (labelId: string | null) => { name: string; color: string } | null,
+  labelResolver: (
+    labelId: string | null,
+  ) => { name: string; color: string } | null,
 ): void {
   annotations.forEach((ann) => {
     const rect = findAnnotationBoxById(canvas, ann.id);

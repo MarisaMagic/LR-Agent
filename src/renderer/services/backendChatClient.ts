@@ -42,7 +42,9 @@ export function buildBackendMessages(
   return messageIds
     .map((id) => sessionMessages[id])
     .filter((message): message is ChatMessage => Boolean(message))
-    .filter((message) => message.role === 'user' || message.role === 'assistant')
+    .filter(
+      (message) => message.role === 'user' || message.role === 'assistant',
+    )
     .map((message) => {
       const text = message.blocks
         .filter(
@@ -56,7 +58,9 @@ export function buildBackendMessages(
     .filter((message) => message.content.trim());
 }
 
-export function sessionContextPayload(session: AgentSession): BackendChatRequest['context'] {
+export function sessionContextPayload(
+  session: AgentSession,
+): BackendChatRequest['context'] {
   return {
     summary: session.contextSummary,
     summaryUpToMessageId: session.summaryUpToMessageId,
@@ -64,7 +68,10 @@ export function sessionContextPayload(session: AgentSession): BackendChatRequest
   };
 }
 
-function parseSseBuffer(buffer: string): { events: StreamEvent[]; rest: string } {
+function parseSseBuffer(buffer: string): {
+  events: StreamEvent[];
+  rest: string;
+} {
   const events: StreamEvent[] = [];
   const parts = buffer.split('\n');
   const rest = parts.pop() ?? '';
@@ -113,7 +120,8 @@ export async function* streamChatViaBackend(
     body.context_summary = request.context.summary;
   }
   if (request.context.summaryUpToMessageId) {
-    body.context_summary_up_to_message_id = request.context.summaryUpToMessageId;
+    body.context_summary_up_to_message_id =
+      request.context.summaryUpToMessageId;
   }
   if (request.clientContext) {
     body.client_context = buildApiClientContext(request.clientContext);
@@ -139,7 +147,10 @@ export async function* streamChatViaBackend(
       signal,
     });
   } catch (err) {
-    yield { type: 'error', message: err instanceof Error ? err.message : '网络请求失败' };
+    yield {
+      type: 'error',
+      message: err instanceof Error ? err.message : '网络请求失败',
+    };
     return;
   }
 

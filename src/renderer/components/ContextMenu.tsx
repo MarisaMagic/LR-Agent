@@ -21,17 +21,24 @@ interface ContextMenuProps {
 const MENU_MAX_HEIGHT = 400;
 const MENU_WIDTH = 220;
 const MENU_ITEM_HEIGHT = 30;
-const SEPARATOR_HEIGHT = 9;  // 1px height + 4px top margin + 4px bottom margin
-const MENU_PADDING_V = 8;    // 4px top + 4px bottom
+const SEPARATOR_HEIGHT = 9; // 1px height + 4px top margin + 4px bottom margin
+const MENU_PADDING_V = 8; // 4px top + 4px bottom
 
 function estimateMenuHeight(items: ContextMenuItem[]): number {
   const separatorCount = items.filter((i) => i.separatorAfter).length;
-  return items.length * MENU_ITEM_HEIGHT
-    + separatorCount * SEPARATOR_HEIGHT
-    + MENU_PADDING_V;
+  return (
+    items.length * MENU_ITEM_HEIGHT +
+    separatorCount * SEPARATOR_HEIGHT +
+    MENU_PADDING_V
+  );
 }
 
-export default function ContextMenu({ items, x, y, onClose }: ContextMenuProps) {
+export default function ContextMenu({
+  items,
+  x,
+  y,
+  onClose,
+}: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const mousePos = useRef({ x, y });
   const [adjustedPos, setAdjustedPos] = useState(() => {
@@ -49,7 +56,7 @@ export default function ContextMenu({ items, x, y, onClose }: ContextMenuProps) 
     if (adjustedY + totalHeight > window.innerHeight) {
       // 下方不够，尝试翻转向上
       if (adjustedY - totalHeight >= 0) {
-        adjustedY = adjustedY - totalHeight;
+        adjustedY -= totalHeight;
       } else {
         // 上下都不够，贴窗口底部
         adjustedY = Math.max(4, window.innerHeight - totalHeight - 4);

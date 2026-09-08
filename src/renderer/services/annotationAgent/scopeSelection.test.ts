@@ -27,7 +27,10 @@ describe('imagesFromAgentPaths', () => {
       100,
     );
     expect(missing).toEqual([]);
-    expect(images.map((i) => i.relativePath)).toEqual(['data/7.jpg', 'data/8.jpg']);
+    expect(images.map((i) => i.relativePath)).toEqual([
+      'data/7.jpg',
+      'data/8.jpg',
+    ]);
   });
 
   it('reports missing paths', () => {

@@ -115,7 +115,11 @@ describe('mergeProposalChangesIntoDoc', () => {
       ],
     };
 
-    const merged = mergeProposalChangesIntoDoc(doc, [append1, append2], project);
+    const merged = mergeProposalChangesIntoDoc(
+      doc,
+      [append1, append2],
+      project,
+    );
     expect(merged.annotations).toHaveLength(3);
     expect(merged.annotations.map((a) => a.id)).toEqual(['a1', 'a2', 'a3']);
   });
@@ -155,7 +159,11 @@ describe('mergeProposalChangesIntoDoc', () => {
       ],
     };
 
-    const merged = mergeProposalChangesIntoDoc(docWithCaption, [change], project);
+    const merged = mergeProposalChangesIntoDoc(
+      docWithCaption,
+      [change],
+      project,
+    );
     expect(merged.annotations).toHaveLength(2);
     expect(merged.annotations.some((a) => a.id === 'c1')).toBe(true);
     expect(merged.annotations.some((a) => a.id === 'b2')).toBe(true);

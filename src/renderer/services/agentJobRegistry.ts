@@ -11,7 +11,10 @@ import type { AnnotationProjectSnapshot } from '../../shared/annotationAgentType
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import { mockChatStream } from './agentStreamMock';
 import { streamChatDirectly } from './localChatClient';
-import { buildBackendMessages, streamChatViaBackend } from './backendChatClient';
+import {
+  buildBackendMessages,
+  streamChatViaBackend,
+} from './backendChatClient';
 import { startAnnotationBatchJob } from './annotationBatchJob';
 import { startAnnotationMutationJob } from './annotationMutationBatchJob';
 import { createDebugLogger } from './agentDebugLogger';
@@ -117,7 +120,9 @@ function composeDirectSystemPrompt(
   return systemPrompt ? `${systemPrompt}\n\n${summaryBlock}` : summaryBlock;
 }
 
-function pendingToolCallsFromEvent(event: StreamEvent): ClientToolCall[] | null {
+function pendingToolCallsFromEvent(
+  event: StreamEvent,
+): ClientToolCall[] | null {
   if (event.type === 'tool_pending') {
     const e = event as Record<string, unknown>;
     return (e.toolCalls ?? e.client_tool_calls) as ClientToolCall[] | null;
@@ -125,10 +130,7 @@ function pendingToolCallsFromEvent(event: StreamEvent): ClientToolCall[] | null 
   return null;
 }
 
-const ANNOTATION_CLIENT_TOOLS = new Set([
-  'auto_annotate',
-  'mutate_annotation',
-]);
+const ANNOTATION_CLIENT_TOOLS = new Set(['auto_annotate', 'mutate_annotation']);
 
 async function runClientTool(
   toolCall: ClientToolCall,
@@ -145,8 +147,8 @@ async function runClientTool(
   providerSupportsVision = false,
 ): Promise<string> {
   const userRequest =
-    (toolCall.arguments as { user_request?: string }).user_request?.trim()
-    || JSON.stringify(toolCall.arguments);
+    (toolCall.arguments as { user_request?: string }).user_request?.trim() ||
+    JSON.stringify(toolCall.arguments);
 
   const emit = (event: StreamEvent): void => {
     emitJobEvent(jobId, event);
@@ -177,7 +179,8 @@ async function runClientTool(
       });
     }
     const scopeHint =
-      (toolCall.arguments as { scope_hint?: string }).scope_hint?.trim() || undefined;
+      (toolCall.arguments as { scope_hint?: string }).scope_hint?.trim() ||
+      undefined;
     const controller = new AbortController();
     signal.addEventListener('abort', () => controller.abort());
     const onEvent = (event: StreamEvent): void => {
@@ -202,7 +205,8 @@ async function runClientTool(
         scopeHint,
       });
       return formatClientToolResult({
-        status: batchResult.status === 'completed' ? 'completed' : batchResult.status,
+        status:
+          batchResult.status === 'completed' ? 'completed' : batchResult.status,
         tool: 'auto_annotate',
         user_request: userRequest,
         summary: batchResult.summary,
@@ -325,7 +329,9 @@ export async function startChatJob(options: {
   });
 
   // ── 内部：执行一轮 SSE 流并处理 tool_pending 的 resume 循环 ──────
-  const runLoop = async (accumulatedResults: ClientToolResult[] = []): Promise<void> => {
+  const runLoop = async (
+    accumulatedResults: ClientToolResult[] = [],
+  ): Promise<void> => {
     if (controller.signal.aborted) return;
 
     // 若携带累积结果，标记为 resume 状态并记录
@@ -376,9 +382,8 @@ export async function startChatJob(options: {
               truncateFromMessageId: options.truncateFromMessageId,
               userContent: options.userContent,
               clientContext: options.clientContext,
-              clientToolResults: accumulatedResults.length > 0
-                ? accumulatedResults
-                : undefined,
+              clientToolResults:
+                accumulatedResults.length > 0 ? accumulatedResults : undefined,
               apiKey: options.providerApiKey,
               baseUrl: options.providerBaseUrl,
               model: options.providerModel,
@@ -417,7 +422,9 @@ export async function startChatJob(options: {
         break;
       }
       if (event.type === 'error' || controller.signal.aborted) {
-        job.state = controller.signal.aborted ? JobState.Cancelled : JobState.Error;
+        job.state = controller.signal.aborted
+          ? JobState.Cancelled
+          : JobState.Error;
         debugLogger.logJobState(job.state);
         debugLogger.logTextOutput(accumulatedText);
         break;
@@ -441,7 +448,9 @@ export async function startChatJob(options: {
         // Debug: log client tool dispatch
         console.log(
           `%c[LR-Agent]%c ⚡ runClientTool %c${toolCall.name}`,
-          'color: #ff9800; font-weight:bold;', '', 'color: #4caf50;',
+          'color: #ff9800; font-weight:bold;',
+          '',
+          'color: #4caf50;',
         );
         const result = await runClientTool(
           toolCall,
@@ -464,7 +473,10 @@ export async function startChatJob(options: {
         });
         console.log(
           `%c[LR-Agent]%c ⚡ clientToolResult %c${toolCall.name}%c → ${result.slice(0, 120)}`,
-          'color: #ff9800; font-weight:bold;', '', 'color: #4caf50;', '',
+          'color: #ff9800; font-weight:bold;',
+          '',
+          'color: #4caf50;',
+          '',
         );
         if (controller.signal.aborted) return;
       }
@@ -488,7 +500,9 @@ export async function startChatJob(options: {
     const errorMsg = err instanceof Error ? err.message : '流式请求失败';
     console.log(
       `%c[LR-Agent]%c ❌ startChatJob error %c${errorMsg}`,
-      'color: #ff9800; font-weight:bold;', '', 'color: #f44336; font-weight:bold;',
+      'color: #ff9800; font-weight:bold;',
+      '',
+      'color: #f44336; font-weight:bold;',
     );
     emitJobEvent(options.jobId, {
       type: 'error',

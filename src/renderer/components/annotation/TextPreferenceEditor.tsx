@@ -59,15 +59,17 @@ export default function TextPreferenceEditor() {
     setRejected('');
     setNote('');
     selectAnnotation(null);
-  }, [prompt, chosen, rejected, note, addPreferenceAnnotation, selectAnnotation]);
+  }, [
+    prompt,
+    chosen,
+    rejected,
+    note,
+    addPreferenceAnnotation,
+    selectAnnotation,
+  ]);
 
   const handleSave = useCallback(() => {
-    if (
-      !editingAnn ||
-      !prompt.trim() ||
-      !chosen.trim() ||
-      !rejected.trim()
-    ) {
+    if (!editingAnn || !prompt.trim() || !chosen.trim() || !rejected.trim()) {
       return;
     }
     updatePreferenceAnnotation(editingAnn.id, {

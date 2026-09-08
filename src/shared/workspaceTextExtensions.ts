@@ -57,7 +57,9 @@ function getDottedExtension(filePath: string): string {
 }
 
 export function isBlockedTextExtension(ext: string): boolean {
-  const normalized = ext.startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`;
+  const normalized = ext.startsWith('.')
+    ? ext.toLowerCase()
+    : `.${ext.toLowerCase()}`;
   return TEXT_WRITE_BLOCKLIST.has(normalized);
 }
 

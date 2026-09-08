@@ -60,9 +60,10 @@ export interface AnnotationDrawLabelPickerProps {
   className?: string;
 }
 
-function readChipWidths(
-  measureRoot: HTMLElement,
-): { chipWidths: Map<string, number>; moreButtonWidth: number } {
+function readChipWidths(measureRoot: HTMLElement): {
+  chipWidths: Map<string, number>;
+  moreButtonWidth: number;
+} {
   const chipWidths = new Map<string, number>();
   measureRoot.querySelectorAll<HTMLElement>('[data-label-id]').forEach((el) => {
     const id = el.dataset.labelId;

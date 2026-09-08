@@ -70,7 +70,10 @@ export default function TextClassificationEditor() {
     <div className="text-classification-editor">
       {/* 工具栏 */}
       <div className="text-classification-toolbar">
-        <span className="text-classification-file-path" title={relativeFilePath ?? ''}>
+        <span
+          className="text-classification-file-path"
+          title={relativeFilePath ?? ''}
+        >
           {relativeFilePath ?? '无文件'}
         </span>
         <span className="text-classification-stats">
@@ -100,10 +103,17 @@ export default function TextClassificationEditor() {
               <div className="text-classification-assigned-list">
                 {assigned.map((ann, idx) => {
                   const currentLabel = labels.find((l) => l.id === ann.labelId);
-                  const otherLabels = labels.filter((l) => l.id !== ann.labelId);
+                  const otherLabels = labels.filter(
+                    (l) => l.id !== ann.labelId,
+                  );
                   return (
-                    <div key={ann.id} className="text-classification-assigned-item">
-                      <span className="text-classification-index">#{idx + 1}</span>
+                    <div
+                      key={ann.id}
+                      className="text-classification-assigned-item"
+                    >
+                      <span className="text-classification-index">
+                        #{idx + 1}
+                      </span>
                       {currentLabel ? (
                         <span
                           className="text-classification-chip"
@@ -112,7 +122,9 @@ export default function TextClassificationEditor() {
                           {currentLabel.name}
                         </span>
                       ) : (
-                        <span className="text-classification-unknown">未知标签</span>
+                        <span className="text-classification-unknown">
+                          未知标签
+                        </span>
                       )}
                       <div className="text-classification-assigned-actions">
                         {otherLabels.length > 0 && (
@@ -134,7 +146,10 @@ export default function TextClassificationEditor() {
                             ))}
                           </select>
                         )}
-                        <VscodeButton secondary onClick={() => handleRemove(ann.id)}>
+                        <VscodeButton
+                          secondary
+                          onClick={() => handleRemove(ann.id)}
+                        >
                           移除
                         </VscodeButton>
                       </div>
@@ -155,10 +170,12 @@ export default function TextClassificationEditor() {
                     key={label.id}
                     type="button"
                     className="text-classification-label-btn"
-                    style={{
-                      borderColor: label.color,
-                      '--label-color': label.color,
-                    } as React.CSSProperties}
+                    style={
+                      {
+                        borderColor: label.color,
+                        '--label-color': label.color,
+                      } as React.CSSProperties
+                    }
                     onClick={() => handleAssign(label.id)}
                   >
                     <span

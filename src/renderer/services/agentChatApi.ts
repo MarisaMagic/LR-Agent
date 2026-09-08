@@ -101,39 +101,56 @@ function mapDbMessage(row: DbMessageRow): ChatMessage {
 // ── IPC helper ─────────────────────────────────────────────────────
 
 function getDb() {
-  return (window as unknown as { electron: { db: {
-    sessions: {
-      list: (opts: unknown) => Promise<DbSessionListResult>;
-      get: (id: string) => Promise<DbSessionRow | undefined>;
-      create: (s: unknown) => Promise<DbSessionRow>;
-      update: (id: string, p: unknown) => Promise<DbSessionRow | undefined>;
-      softDelete: (id: string) => Promise<void>;
-      getMessageIds: (id: string) => Promise<string[]>;
-      getMessageCount: (id: string) => Promise<number>;
-      getLastMessagePreview: (id: string) => Promise<string | null>;
-      listWithStats: (opts: unknown) => Promise<{
-        sessions: Array<DbSessionRow & { message_count: number; last_message_preview: string | null }>;
-        nextCursor: string | null;
-        hasMore: boolean;
-      }>;
-      backfillLegacyUserId: (userId: string) => Promise<{
-        sessionsUpdated: number;
-        messagesUpdated: number;
-      }>;
-    };
-    messages: {
-      list: (sid: string, opts: unknown) => Promise<DbMessageListResult>;
-      get: (id: string) => Promise<DbMessageRow | undefined>;
-      create: (m: unknown) => Promise<DbMessageRow>;
-      update: (id: string, p: unknown) => Promise<DbMessageRow | undefined>;
-      deleteAfter: (sid: string, idx: number) => Promise<void>;
-      deleteAfterId: (sid: string, msgId: string) => Promise<void>;
-      cleanupStreaming: (sid?: string) => Promise<number>;
-      deleteBySession: (sid: string) => Promise<void>;
-      batchCreate: (msgs: unknown[]) => Promise<void>;
-      getForExport: (sid: string) => Promise<DbMessageRow[]>;
-    };
-  } } }).electron.db;
+  return (
+    window as unknown as {
+      electron: {
+        db: {
+          sessions: {
+            list: (opts: unknown) => Promise<DbSessionListResult>;
+            get: (id: string) => Promise<DbSessionRow | undefined>;
+            create: (s: unknown) => Promise<DbSessionRow>;
+            update: (
+              id: string,
+              p: unknown,
+            ) => Promise<DbSessionRow | undefined>;
+            softDelete: (id: string) => Promise<void>;
+            getMessageIds: (id: string) => Promise<string[]>;
+            getMessageCount: (id: string) => Promise<number>;
+            getLastMessagePreview: (id: string) => Promise<string | null>;
+            listWithStats: (opts: unknown) => Promise<{
+              sessions: Array<
+                DbSessionRow & {
+                  message_count: number;
+                  last_message_preview: string | null;
+                }
+              >;
+              nextCursor: string | null;
+              hasMore: boolean;
+            }>;
+            backfillLegacyUserId: (userId: string) => Promise<{
+              sessionsUpdated: number;
+              messagesUpdated: number;
+            }>;
+          };
+          messages: {
+            list: (sid: string, opts: unknown) => Promise<DbMessageListResult>;
+            get: (id: string) => Promise<DbMessageRow | undefined>;
+            create: (m: unknown) => Promise<DbMessageRow>;
+            update: (
+              id: string,
+              p: unknown,
+            ) => Promise<DbMessageRow | undefined>;
+            deleteAfter: (sid: string, idx: number) => Promise<void>;
+            deleteAfterId: (sid: string, msgId: string) => Promise<void>;
+            cleanupStreaming: (sid?: string) => Promise<number>;
+            deleteBySession: (sid: string) => Promise<void>;
+            batchCreate: (msgs: unknown[]) => Promise<void>;
+            getForExport: (sid: string) => Promise<DbMessageRow[]>;
+          };
+        };
+      };
+    }
+  ).electron.db;
 }
 
 // ── Public API ─────────────────────────────────────────────────────
@@ -223,7 +240,12 @@ export async function createSessionLocally(
   userId: string,
   session: Pick<
     AgentSession,
-    'id' | 'title' | 'providerId' | 'model' | 'annotationProjectId' | 'interactionMode'
+    | 'id'
+    | 'title'
+    | 'providerId'
+    | 'model'
+    | 'annotationProjectId'
+    | 'interactionMode'
   >,
 ): Promise<AgentSession> {
   const db = getDb();
@@ -266,7 +288,10 @@ export async function updateSessionLocally(
   return row ? mapDbSession(row) : undefined;
 }
 
-export async function deleteSessionLocally(userId: string, sessionId: string): Promise<void> {
+export async function deleteSessionLocally(
+  userId: string,
+  sessionId: string,
+): Promise<void> {
   const db = getDb();
   await db.sessions.softDelete(sessionId, userId);
 }
@@ -317,7 +342,9 @@ export async function deleteMessagesAfterIdLocally(
   await db.messages.deleteAfterId(sessionId, messageId);
 }
 
-export async function cleanupStreamingLocally(sessionId?: string): Promise<number> {
+export async function cleanupStreamingLocally(
+  sessionId?: string,
+): Promise<number> {
   const db = getDb();
   return db.messages.cleanupStreaming(sessionId);
 }
@@ -334,7 +361,10 @@ export async function patchAgentMessageBlockRemote(options: {
   const db = getDb();
   const row = await db.messages.get(options.messageId);
   if (!row) {
-    console.error('[patchAgentMessageBlock] message not found:', options.messageId);
+    console.error(
+      '[patchAgentMessageBlock] message not found:',
+      options.messageId,
+    );
     return;
   }
   let blocks: MessageBlock[];
@@ -377,13 +407,14 @@ export async function loadLocalAgentChatStateForProject(
   userId: string,
   annotationProjectId: string | null,
 ): Promise<
-  AgentChatPersistedState & { sessionsNextCursor: string | null; sessionsHasMore: boolean }
+  AgentChatPersistedState & {
+    sessionsNextCursor: string | null;
+    sessionsHasMore: boolean;
+  }
 > {
   const page = await listSessionsLocally(
     userId,
-    annotationProjectId
-      ? { annotationProjectId }
-      : { workspaceOnly: true },
+    annotationProjectId ? { annotationProjectId } : { workspaceOnly: true },
   );
   const sessionsMap: Record<string, AgentSession> = {};
   const messagesBySession: AgentChatPersistedState['messagesBySession'] = {};
@@ -409,7 +440,10 @@ export async function loadLocalAgentChatStateForProject(
 }
 
 export async function loadLocalAgentChatState(userId: string): Promise<
-  AgentChatPersistedState & { sessionsNextCursor: string | null; sessionsHasMore: boolean }
+  AgentChatPersistedState & {
+    sessionsNextCursor: string | null;
+    sessionsHasMore: boolean;
+  }
 > {
   return loadLocalAgentChatStateForProject(userId, null);
 }

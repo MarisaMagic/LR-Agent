@@ -116,7 +116,9 @@ export async function loadExportDocs(
       if (parsed) {
         docs.push(parsed);
         if (isSyntheticPath(relativePath)) {
-          warnings.push(`${relativePath}: 合成路径条目已导出（无 source_file）`);
+          warnings.push(
+            `${relativePath}: 合成路径条目已导出（无 source_file）`,
+          );
         }
       }
       continue;

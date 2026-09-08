@@ -345,9 +345,7 @@ export function createLabelForPose(
   return t;
 }
 
-export function syncLabelFromPoseGroup(
-  group: AnnotatedPoseGroup,
-): void {
+export function syncLabelFromPoseGroup(group: AnnotatedPoseGroup): void {
   const labelObj = group._labelObj;
   if (!labelObj) return;
   const scene = getPoseSceneGeometryFromGroup(group);
@@ -439,8 +437,7 @@ export function findPoseGroupById(
   return canvas
     .getObjects()
     .find((o) => isAnnotationPoseGroup(o) && o._poseId === poseId) as
-    | AnnotatedPoseGroup
-    | undefined;
+    AnnotatedPoseGroup | undefined;
 }
 
 export function createPointCircle(
@@ -503,8 +500,7 @@ export function findPointCircleById(
   return canvas
     .getObjects()
     .find((o) => isAnnotationPointCircle(o) && o._pointId === pointId) as
-    | AnnotatedPointCircle
-    | undefined;
+    AnnotatedPointCircle | undefined;
 }
 
 export function removePointFromCanvas(canvas: Canvas, pointId: string): void {
@@ -614,7 +610,10 @@ export function hitPoseGroupAtScenePoint(
       const y1 = line.y1 ?? 0;
       const x2 = line.x2 ?? 0;
       const y2 = line.y2 ?? 0;
-      if (pointToSegmentDist(scenePoint, { x: x1, y: y1 }, { x: x2, y: y2 }) <= SKELETON_HIT_WIDTH) {
+      if (
+        pointToSegmentDist(scenePoint, { x: x1, y: y1 }, { x: x2, y: y2 }) <=
+        SKELETON_HIT_WIDTH
+      ) {
         return group;
       }
     }

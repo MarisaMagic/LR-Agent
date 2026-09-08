@@ -1,6 +1,9 @@
 /** Preference data generation pipeline. */
 
-import type { AnnotationBatchChange, AnnotationProjectSnapshot } from '../../../../shared/annotationAgentTypes';
+import type {
+  AnnotationBatchChange,
+  AnnotationProjectSnapshot,
+} from '../../../../shared/annotationAgentTypes';
 import type { PreferenceAnnotation } from '../../../types/annotationDocument';
 import { callLlmApi } from './llmUtil';
 import { readSourceTextForProject } from './sourceTextUtil';
@@ -35,7 +38,10 @@ export interface PreferencePipelineOptions {
 
 export async function runPreferencePipeline(
   options: PreferencePipelineOptions,
-): Promise<{ annotations: PreferenceAnnotation[]; changes: AnnotationBatchChange[] }> {
+): Promise<{
+  annotations: PreferenceAnnotation[];
+  changes: AnnotationBatchChange[];
+}> {
   const changes: AnnotationBatchChange[] = [];
   const inputPaths = options.inputPaths ?? [];
 
@@ -92,8 +98,8 @@ export async function runPreferencePipeline(
       if (options.isCancelled?.()) break;
       options.onProgress?.(`正在生成偏好数据（${i + 1}/${count}）…`);
 
-      const userPrompt = options.userRequest
-        || `请生成一组偏好对比数据（第 ${i + 1} 条）。`;
+      const userPrompt =
+        options.userRequest || `请生成一组偏好对比数据（第 ${i + 1} 条）。`;
 
       const result = await callLlmApi({
         providerId: options.providerId,
@@ -149,9 +155,12 @@ function parsePreferenceJson(content: string): PreferenceOutput | null {
     if (!match) return null;
     const parsed = JSON.parse(match[0]);
     if (
-      typeof parsed.prompt === 'string' && parsed.prompt.trim() &&
-      typeof parsed.chosen === 'string' && parsed.chosen.trim() &&
-      typeof parsed.rejected === 'string' && parsed.rejected.trim()
+      typeof parsed.prompt === 'string' &&
+      parsed.prompt.trim() &&
+      typeof parsed.chosen === 'string' &&
+      parsed.chosen.trim() &&
+      typeof parsed.rejected === 'string' &&
+      parsed.rejected.trim()
     ) {
       return {
         prompt: parsed.prompt.trim(),

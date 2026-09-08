@@ -6,10 +6,7 @@ import {
   buildQualitySnapshot,
   deriveCurrentFolderPath,
 } from './buildQualitySnapshot';
-import {
-  dataUrlToBase64,
-  renderChartToDataUrl,
-} from './chartExportService';
+import { dataUrlToBase64, renderChartToDataUrl } from './chartExportService';
 import { runQualityMetricsEngine } from './metricsEngine';
 import type {
   QualityReportIndexEntry,
@@ -32,7 +29,8 @@ function parseSseBuffer(buffer: string): {
   events: Array<{ type: string; content?: string; message?: string }>;
   rest: string;
 } {
-  const events: Array<{ type: string; content?: string; message?: string }> = [];
+  const events: Array<{ type: string; content?: string; message?: string }> =
+    [];
   const parts = buffer.split('\n');
   const rest = parts.pop() ?? '';
 
@@ -166,8 +164,8 @@ export async function* runQualityReportGeneration(options: {
 }): AsyncGenerator<QualityReportProgressEvent> {
   const scopePath =
     options.scope === 'current_folder'
-      ? options.scopePath ??
-        deriveCurrentFolderPath(options.relativeFilePath ?? null)
+      ? (options.scopePath ??
+        deriveCurrentFolderPath(options.relativeFilePath ?? null))
       : undefined;
 
   yield progress('collect', '正在采集标注数据…', 'running');
@@ -272,11 +270,7 @@ export async function* runQualityReportGeneration(options: {
     }
   }
 
-  yield progress(
-    'export_charts',
-    `已导出 ${chartPaths.length} 张图表`,
-    'done',
-  );
+  yield progress('export_charts', `已导出 ${chartPaths.length} 张图表`, 'done');
 
   if (options.isCancelled?.()) return;
 
@@ -289,7 +283,8 @@ export async function* runQualityReportGeneration(options: {
     !options.providerBaseUrl.trim() ||
     !options.providerModel.trim()
   ) {
-    const msg = '所选大模型缺少 API Key、Base URL 或 Model，请在「大模型配置」中补全';
+    const msg =
+      '所选大模型缺少 API Key、Base URL 或 Model，请在「大模型配置」中补全';
     yield progress('compose_llm', 'AI 报告撰写失败', 'error', msg);
     yield { type: 'error', message: msg };
     return;
@@ -398,8 +393,8 @@ export async function loadQualityDashboard(options: {
 }): Promise<ReturnType<typeof runQualityMetricsEngine>> {
   const scopePath =
     options.scope === 'current_folder'
-      ? options.scopePath ??
-        deriveCurrentFolderPath(options.relativeFilePath ?? null)
+      ? (options.scopePath ??
+        deriveCurrentFolderPath(options.relativeFilePath ?? null))
       : undefined;
 
   const snapshot = await buildQualitySnapshot({

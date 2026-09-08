@@ -1,4 +1,7 @@
-import type { AnnotationBatchChange, BatchAnnotationPlan } from '../../../shared/annotationAgentTypes';
+import type {
+  AnnotationBatchChange,
+  BatchAnnotationPlan,
+} from '../../../shared/annotationAgentTypes';
 import type { BboxAnnotation } from '../../types/annotationDocument';
 import { validateMappingsForFinalize } from './boxValidation';
 
@@ -77,7 +80,11 @@ export function tryAutoFinalizeFromMap(options: {
   unlabeledInProposal?: number;
 } {
   const validIds = new Set(options.labelCandidates.map((l) => l.id));
-  const validation = validateMappingsForFinalize(options.boxes, options.mappings, validIds);
+  const validation = validateMappingsForFinalize(
+    options.boxes,
+    options.mappings,
+    validIds,
+  );
   if (!validation.valid) {
     return {
       ok: false,
@@ -89,8 +96,7 @@ export function tryAutoFinalizeFromMap(options: {
 
   const constraints = options.plan.sub_agent_constraints;
   const minLabeled = constraints.min_labeled_box_count ?? 1;
-  const allowUnlabeled =
-    constraints.allow_unlabeled_boxes !== false;
+  const allowUnlabeled = constraints.allow_unlabeled_boxes !== false;
   const annotations = buildLabeledAnnotationsFromMappings(
     options.boxes,
     options.mappings,
@@ -98,7 +104,9 @@ export function tryAutoFinalizeFromMap(options: {
     { allowUnlabeledBoxes: allowUnlabeled },
   );
   const mappedCount = validation.labeledCount;
-  const unlabeledInProposal = annotations.filter((a) => a.labelId == null).length;
+  const unlabeledInProposal = annotations.filter(
+    (a) => a.labelId == null,
+  ).length;
 
   if (mappedCount < minLabeled) {
     return {

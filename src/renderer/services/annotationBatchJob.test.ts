@@ -1,5 +1,8 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import type { AnnotationBatchProposal, AnnotationProjectSnapshot } from '../../shared/annotationAgentTypes';
+import type {
+  AnnotationBatchProposal,
+  AnnotationProjectSnapshot,
+} from '../../shared/annotationAgentTypes';
 import type { StreamEvent } from '../../shared/agentTypes';
 import { runAnnotationBatchJob } from './annotationAgent/batchOrchestrator';
 import type { AnnotationProgressEvent } from './annotationAgent/batchOrchestrator';

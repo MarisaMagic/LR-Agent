@@ -1,6 +1,9 @@
 /** Instruction data generation pipeline. */
 
-import type { AnnotationBatchChange, AnnotationProjectSnapshot } from '../../../../shared/annotationAgentTypes';
+import type {
+  AnnotationBatchChange,
+  AnnotationProjectSnapshot,
+} from '../../../../shared/annotationAgentTypes';
 import type { InstructionAnnotation } from '../../../types/annotationDocument';
 import { callLlmApi } from './llmUtil';
 import { readSourceTextForProject } from './sourceTextUtil';
@@ -33,12 +36,16 @@ export interface InstructionPipelineOptions {
 
 export async function runInstructionPipeline(
   options: InstructionPipelineOptions,
-): Promise<{ annotations: InstructionAnnotation[]; changes: AnnotationBatchChange[] }> {
+): Promise<{
+  annotations: InstructionAnnotation[];
+  changes: AnnotationBatchChange[];
+}> {
   const changes: AnnotationBatchChange[] = [];
 
-  const sources = options.inputPaths.length > 0
-    ? options.inputPaths
-    : [{ relativePath: '_synthetic_', absolutePath: '' }];
+  const sources =
+    options.inputPaths.length > 0
+      ? options.inputPaths
+      : [{ relativePath: '_synthetic_', absolutePath: '' }];
 
   for (const source of sources) {
     if (options.isCancelled?.()) break;
@@ -59,7 +66,8 @@ export async function runInstructionPipeline(
 
     const userPrompt = sourceText
       ? `基于以下文本内容，生成一个高质量的指令-输出对：\n\n---\n${sourceText.slice(0, 8000)}\n---\n\n用户需求：${options.userRequest || '生成有代表性的指令数据'}`
-      : options.userRequest || '请随机生成一个高质量的指令-输出对，覆盖常见的问答场景。';
+      : options.userRequest ||
+        '请随机生成一个高质量的指令-输出对，覆盖常见的问答场景。';
 
     const result = await callLlmApi({
       providerId: options.providerId,
@@ -89,7 +97,10 @@ export async function runInstructionPipeline(
     };
 
     changes.push({
-      relativePath: source.relativePath !== '_synthetic_' ? source.relativePath : `_synthetic_/${Date.now()}.json`,
+      relativePath:
+        source.relativePath !== '_synthetic_'
+          ? source.relativePath
+          : `_synthetic_/${Date.now()}.json`,
       absolutePath: source.absolutePath || `_synthetic_/${Date.now()}.json`,
       operation: 'append',
       annotations: [annotation],
@@ -102,14 +113,18 @@ export async function runInstructionPipeline(
   return { annotations, changes };
 }
 
-function parseInstructionJson(content: string): { instruction: string; input: string; output: string } | null {
+function parseInstructionJson(
+  content: string,
+): { instruction: string; input: string; output: string } | null {
   try {
     const match = content.match(/\{[\s\S]*\}/);
     if (!match) return null;
     const parsed = JSON.parse(match[0]);
     if (
-      typeof parsed.instruction === 'string' && parsed.instruction.trim() &&
-      typeof parsed.output === 'string' && parsed.output.trim()
+      typeof parsed.instruction === 'string' &&
+      parsed.instruction.trim() &&
+      typeof parsed.output === 'string' &&
+      parsed.output.trim()
     ) {
       return {
         instruction: parsed.instruction.trim(),

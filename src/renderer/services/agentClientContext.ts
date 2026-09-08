@@ -9,9 +9,7 @@ export function buildApiClientContext(
     active_file_path: clientContext.activeFilePath ?? null,
     active_relative_path: clientContext.activeRelativePath ?? null,
     project_directory_path:
-      clientContext.projectDirectoryPath ??
-      snap?.directoryPath ??
-      null,
+      clientContext.projectDirectoryPath ?? snap?.directoryPath ?? null,
     active_annotation_project_id:
       clientContext.activeAnnotationProjectId ?? null,
     annotation_project_modality:

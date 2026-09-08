@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { readSourceTextForProject } from './sourceTextUtil';
 
+import { readWorkspaceTextFile } from '../../../utils/workspaceFileRead';
+
 jest.mock('../../../utils/workspaceFileRead', () => ({
   readWorkspaceTextFile: jest.fn(),
 }));
-
-import { readWorkspaceTextFile } from '../../../utils/workspaceFileRead';
 
 const mockRead = readWorkspaceTextFile as jest.MockedFunction<
   typeof readWorkspaceTextFile

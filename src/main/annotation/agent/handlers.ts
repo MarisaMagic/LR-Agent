@@ -1,6 +1,10 @@
 import { ipcMain } from 'electron';
 import { listProjectImages } from './catalog';
-import { globProjectImages, listProjectDirectory, resolveProjectRelativeFile } from './fs_tools';
+import {
+  globProjectImages,
+  listProjectDirectory,
+  resolveProjectRelativeFile,
+} from './fs_tools';
 import { listProjectTextFiles } from './textCatalog';
 
 export default function registerAnnotationAgentHandlers(): void {
@@ -34,7 +38,11 @@ export default function registerAnnotationAgentHandlers(): void {
       relativeDir?: string,
       maxEntries?: number,
     ) => {
-      return listProjectDirectory(projectDir, relativeDir ?? '', maxEntries ?? 80);
+      return listProjectDirectory(
+        projectDir,
+        relativeDir ?? '',
+        maxEntries ?? 80,
+      );
     },
   );
 

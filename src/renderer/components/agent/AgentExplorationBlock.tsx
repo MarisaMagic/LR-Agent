@@ -20,9 +20,9 @@ export default function AgentExplorationBlock({
   streaming = false,
 }: AgentExplorationBlockProps) {
   const [collapsed, setCollapsed] = useState(true);
-  const [expandedToolIds, setExpandedToolIds] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [expandedToolIds, setExpandedToolIds] = useState<
+    Record<string, boolean>
+  >({});
 
   const label = streaming ? `${summary} · 进行中` : summary;
 
@@ -75,7 +75,9 @@ export default function AgentExplorationBlock({
                   <div className="agent-tool-body">
                     <div className="agent-tool-section">
                       <div className="agent-tool-label">参数</div>
-                      <AgentScrollablePre>{tool.arguments || '{}'}</AgentScrollablePre>
+                      <AgentScrollablePre>
+                        {tool.arguments || '{}'}
+                      </AgentScrollablePre>
                     </div>
                     {displayResult && (
                       <div className="agent-tool-section">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { getExtension } from '../types/file';
+import { getExtension } from './file';
 
 describe('getExtension', () => {
   it('handles dotfiles as pseudo extensions', () => {

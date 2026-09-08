@@ -56,8 +56,8 @@ describe('realTextOffsetInContainer', () => {
 
   it('reports full real text length at end of container', () => {
     // 10 + 3 + 9 = 22
-    expect(realTextOffsetInContainer(container, nodes[nodes.length - 1], 9)).toBe(
-      22,
-    );
+    expect(
+      realTextOffsetInContainer(container, nodes[nodes.length - 1], 9),
+    ).toBe(22);
   });
 });

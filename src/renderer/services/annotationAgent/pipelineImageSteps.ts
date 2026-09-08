@@ -9,7 +9,9 @@ export function isImageDetailPipelineStage(stage: string): boolean {
 }
 
 /** 从 worker/judge/retry 进度文案中解析相对路径（兼容历史数据）。 */
-export function extractImagePathFromWorkerMessage(message: string): string | null {
+export function extractImagePathFromWorkerMessage(
+  message: string,
+): string | null {
   const trimmed = message.trim();
   if (!trimmed) return null;
 
@@ -44,7 +46,11 @@ export function workerStepDisplayMessage(step: AnnotationPipelineStep): string {
     return step.detail?.trim() || '完成';
   }
   if (step.status === 'error' || step.status === 'skipped') {
-    return step.detail?.trim() || step.message.replace(/^跳过：/, '').trim() || '跳过';
+    return (
+      step.detail?.trim() ||
+      step.message.replace(/^跳过：/, '').trim() ||
+      '跳过'
+    );
   }
   if (step.status === 'running') {
     if (step.message.startsWith('处理中')) return '处理中…';
@@ -55,7 +61,9 @@ export function workerStepDisplayMessage(step: AnnotationPipelineStep): string {
   return step.message;
 }
 
-function trimRunningDetailTail(steps: AnnotationPipelineStep[]): AnnotationPipelineStep[] {
+function trimRunningDetailTail(
+  steps: AnnotationPipelineStep[],
+): AnnotationPipelineStep[] {
   const main = steps.filter((s) => !isImageDetailPipelineStage(s.stage));
   const details = steps.filter((s) => isImageDetailPipelineStage(s.stage));
   const terminal = details.filter((s) => s.status !== 'running');

@@ -1,8 +1,5 @@
 export type AuthStatus =
-  | 'loading'
-  | 'unauthenticated'
-  | 'authenticated'
-  | 'authenticated_offline';
+  'loading' | 'unauthenticated' | 'authenticated' | 'authenticated_offline';
 
 export interface LocalSessionCache {
   user: UserPublic;

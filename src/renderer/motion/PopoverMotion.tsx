@@ -11,13 +11,9 @@ export function getFloatingMenuMotionProps(
   reducedMotion: boolean | null,
 ) {
   const enterY =
-    origin === 'below-anchor'
-      ? -motionDistance.y / 2
-      : motionDistance.y / 2;
+    origin === 'below-anchor' ? -motionDistance.y / 2 : motionDistance.y / 2;
   const exitY =
-    origin === 'below-anchor'
-      ? -motionDistance.y / 4
-      : motionDistance.y / 4;
+    origin === 'below-anchor' ? -motionDistance.y / 4 : motionDistance.y / 4;
 
   return {
     initial: reducedMotion

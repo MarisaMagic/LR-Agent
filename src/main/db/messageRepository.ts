@@ -83,7 +83,8 @@ export function createMessage(message: {
     finalSortIndex = (maxRow?.max_idx ?? 0) + 1;
   }
 
-  db.run(`
+  db.run(
+    `
     INSERT INTO messages (id, session_id, user_id, role, interaction_mode, sort_index, blocks_json, status, provider_id, model, error, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
@@ -102,7 +103,10 @@ export function createMessage(message: {
     now,
   );
 
-  return db.get('SELECT * FROM messages WHERE id = ?', message.id) as unknown as MessageRow;
+  return db.get(
+    'SELECT * FROM messages WHERE id = ?',
+    message.id,
+  ) as unknown as MessageRow;
 }
 
 export function updateMessage(
@@ -146,38 +150,42 @@ export function updateMessage(
   }
 
   if (sets.length === 0) {
-    return db.get('SELECT * FROM messages WHERE id = ?', messageId) as MessageRow | undefined;
+    return db.get('SELECT * FROM messages WHERE id = ?', messageId) as
+      MessageRow | undefined;
   }
 
   sets.push('updated_at = ?');
   params.push(Date.now());
   params.push(messageId);
 
-  db.run(
-    `UPDATE messages SET ${sets.join(', ')} WHERE id = ?`,
-    ...params,
-  );
+  db.run(`UPDATE messages SET ${sets.join(', ')} WHERE id = ?`, ...params);
 
-  return db.get('SELECT * FROM messages WHERE id = ?', messageId) as MessageRow | undefined;
+  return db.get('SELECT * FROM messages WHERE id = ?', messageId) as
+    MessageRow | undefined;
 }
 
-export function deleteMessagesAfter(sessionId: string, sortIndex: number): void {
+export function deleteMessagesAfter(
+  sessionId: string,
+  sortIndex: number,
+): void {
   const db = getDatabase();
   db.run(
     'DELETE FROM messages WHERE session_id = ? AND sort_index > ?',
-    sessionId, sortIndex,
+    sessionId,
+    sortIndex,
   );
 }
 
 export function getMessage(messageId: string): MessageRow | undefined {
   const db = getDatabase();
-  return db.get(
-    'SELECT * FROM messages WHERE id = ?',
-    messageId,
-  ) as MessageRow | undefined;
+  return db.get('SELECT * FROM messages WHERE id = ?', messageId) as
+    MessageRow | undefined;
 }
 
-export function deleteMessagesAfterId(sessionId: string, messageId: string): void {
+export function deleteMessagesAfterId(
+  sessionId: string,
+  messageId: string,
+): void {
   const msg = getMessage(messageId);
   if (!msg || msg.session_id !== sessionId) return;
   deleteMessagesAfter(sessionId, msg.sort_index);
@@ -188,11 +196,13 @@ export function cleanupStreamingMessages(sessionId?: string): number {
   if (sessionId) {
     const result = db.get(
       'SELECT COUNT(*) as count FROM messages WHERE session_id = ? AND status = ?',
-      sessionId, 'streaming',
+      sessionId,
+      'streaming',
     ) as { count: number } | undefined;
     db.run(
       "UPDATE messages SET status = 'stopped', updated_at = ? WHERE session_id = ? AND status = 'streaming'",
-      Date.now(), sessionId,
+      Date.now(),
+      sessionId,
     );
     return result?.count ?? 0;
   }
@@ -211,26 +221,29 @@ export function deleteMessagesBySession(sessionId: string): void {
   db.run('DELETE FROM messages WHERE session_id = ?', sessionId);
 }
 
-export function batchCreateMessages(messages: Array<{
-  id: string;
-  sessionId: string;
-  userId: string;
-  role: string;
-  interactionMode?: string | null;
-  sortIndex: number;
-  blocksJson: string;
-  status?: string;
-  providerId?: string | null;
-  model?: string | null;
-  error?: string | null;
-  createdAt: number;
-  updatedAt: number;
-}>): void {
+export function batchCreateMessages(
+  messages: Array<{
+    id: string;
+    sessionId: string;
+    userId: string;
+    role: string;
+    interactionMode?: string | null;
+    sortIndex: number;
+    blocksJson: string;
+    status?: string;
+    providerId?: string | null;
+    model?: string | null;
+    error?: string | null;
+    createdAt: number;
+    updatedAt: number;
+  }>,
+): void {
   const db = getDatabase();
 
   db.transaction(() => {
     for (const msg of messages) {
-      db.run(`
+      db.run(
+        `
         INSERT OR REPLACE INTO messages (id, session_id, user_id, role, interaction_mode, sort_index, blocks_json, status, provider_id, model, error, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
@@ -259,4 +272,3 @@ export function getSessionMessagesForExport(sessionId: string): MessageRow[] {
     sessionId,
   ) as unknown as MessageRow[];
 }
-

@@ -76,7 +76,10 @@ export default function TextSpanNerEditor() {
       return;
     }
     const container = textContainerRef.current;
-    if (!container.contains(sel.anchorNode) || !container.contains(sel.focusNode)) {
+    if (
+      !container.contains(sel.anchorNode) ||
+      !container.contains(sel.focusNode)
+    ) {
       setSelection(null);
       return;
     }
@@ -98,7 +101,11 @@ export default function TextSpanNerEditor() {
       : range.toString();
 
     if (text.trim()) {
-      setSelection({ start: Math.min(start, end), end: Math.max(start, end), text });
+      setSelection({
+        start: Math.min(start, end),
+        end: Math.max(start, end),
+        text,
+      });
     } else {
       setSelection(null);
     }
@@ -111,7 +118,8 @@ export default function TextSpanNerEditor() {
       requestAnimationFrame(captureSelection);
     };
     document.addEventListener('selectionchange', onSelectionChange);
-    return () => document.removeEventListener('selectionchange', onSelectionChange);
+    return () =>
+      document.removeEventListener('selectionchange', onSelectionChange);
   }, [captureSelection]);
 
   // 创建 span 标注
@@ -149,13 +157,10 @@ export default function TextSpanNerEditor() {
   );
 
   // 点击已标注 span
-  const handleSpanClick = useCallback(
-    (annId: string, e: ReactMouseEvent) => {
-      e.stopPropagation();
-      // 可以在此添加选中逻辑
-    },
-    [],
-  );
+  const handleSpanClick = useCallback((annId: string, e: ReactMouseEvent) => {
+    e.stopPropagation();
+    // 可以在此添加选中逻辑
+  }, []);
 
   // 渲染带高亮的文本
   const renderHighlightedText = useMemo(() => {
@@ -241,7 +246,10 @@ export default function TextSpanNerEditor() {
       {/* 工具栏 */}
       <div className="text-span-ner-toolbar">
         <div className="text-span-ner-toolbar-left">
-          <span className="text-span-ner-file-path" title={relativeFilePath ?? ''}>
+          <span
+            className="text-span-ner-file-path"
+            title={relativeFilePath ?? ''}
+          >
             {relativeFilePath ?? '无文件'}
           </span>
           <span className="text-span-ner-stats">
@@ -295,7 +303,9 @@ export default function TextSpanNerEditor() {
       {/* 当前选区提示 */}
       {selection && (
         <div className="text-span-ner-selection-bar">
-          已选中: "{selection.text.slice(0, 50)}{selection.text.length > 50 ? '…' : ''}" ({selection.start}-{selection.end})
+          已选中: "{selection.text.slice(0, 50)}
+          {selection.text.length > 50 ? '…' : ''}" ({selection.start}-
+          {selection.end})
         </div>
       )}
     </div>

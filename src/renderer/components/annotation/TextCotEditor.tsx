@@ -181,9 +181,7 @@ export default function TextCotEditor() {
     <div className="text-lfm-editor">
       <div className="text-lfm-toolbar">
         <span className="text-lfm-title">思维链数据集标注</span>
-        <span className="text-lfm-stats">
-          {cotAnnotations.length} 条思维链
-        </span>
+        <span className="text-lfm-stats">{cotAnnotations.length} 条思维链</span>
       </div>
 
       {freeformMode && (

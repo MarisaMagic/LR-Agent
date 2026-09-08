@@ -32,10 +32,7 @@ function locateSpanInSource(
   if (hintStart != null && Number.isFinite(hintStart)) {
     const start = Math.max(0, Math.floor(hintStart));
     const end = start + needle.length;
-    if (
-      end <= sourceText.length &&
-      sourceText.slice(start, end) === needle
-    ) {
+    if (end <= sourceText.length && sourceText.slice(start, end) === needle) {
       return { start, end };
     }
   }
@@ -55,7 +52,10 @@ function locateSpanInSource(
   let normPos = 0;
   while (rawStart < sourceText.length && normPos < idx) {
     if (/\s/.test(sourceText[rawStart] ?? '')) {
-      while (rawStart < sourceText.length && /\s/.test(sourceText[rawStart] ?? '')) {
+      while (
+        rawStart < sourceText.length &&
+        /\s/.test(sourceText[rawStart] ?? '')
+      ) {
         rawStart += 1;
       }
       normPos += 1;

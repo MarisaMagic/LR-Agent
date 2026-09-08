@@ -62,7 +62,9 @@ function blocksToPreview(blocks: ChatMessage['blocks'], maxLen = 400): string {
     if (block.type === 'annotation_proposal') {
       const summary = block.proposal?.summary?.trim();
       if (summary) {
-        return summary.length > maxLen ? `${summary.slice(0, maxLen)}…` : summary;
+        return summary.length > maxLen
+          ? `${summary.slice(0, maxLen)}…`
+          : summary;
       }
     }
   }
@@ -79,7 +81,10 @@ function windowMessages<T extends { role: string }>(
   return items.slice(-maxMessages);
 }
 
-function truncateTranscript(transcript: string, maxChars = MAX_TRANSCRIPT_CHARS): string {
+function truncateTranscript(
+  transcript: string,
+  maxChars = MAX_TRANSCRIPT_CHARS,
+): string {
   if (transcript.length <= maxChars) return transcript;
   const lines = transcript.split('\n');
   const kept: string[] = [];
@@ -105,7 +110,8 @@ export function buildTurnContextFromState(
   } = {},
 ): TurnContext {
   const exclude = options.excludeMessageIds ?? new Set<string>();
-  const maxTurns = options.maxTurnsInWindow ?? DEFAULT_CHAT_CONTEXT_CONFIG.maxTurnsInWindow;
+  const maxTurns =
+    options.maxTurnsInWindow ?? DEFAULT_CHAT_CONTEXT_CONFIG.maxTurnsInWindow;
   const sessionId = session?.id ?? '';
   const all = messagesBySession[sessionId] ?? [];
   const byId = new Map(all.map((m) => [m.id, m]));
@@ -133,9 +139,7 @@ export function buildTurnContextFromState(
 
   const windowedLines = windowMessages(lines, maxTurns);
   const transcript = truncateTranscript(
-    windowedLines
-      .map((ln) => formatTurnLine(ln.role, ln.content))
-      .join('\n'),
+    windowedLines.map((ln) => formatTurnLine(ln.role, ln.content)).join('\n'),
   );
 
   return {

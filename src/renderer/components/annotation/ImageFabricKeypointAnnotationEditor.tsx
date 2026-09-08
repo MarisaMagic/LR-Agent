@@ -25,7 +25,10 @@ import {
 import { createResizeObserver } from '../../utils/resizeObserver';
 import ImageAnnotationToolbar from './ImageAnnotationToolbar';
 import { runKeypointRoiPreAnnot } from './PreAnnotToolbarSection';
-import { bindPreAnnotBoxDraw, isPreAnnotBoxTool } from './fabric/fabricPreAnnotBoxDraw';
+import {
+  bindPreAnnotBoxDraw,
+  isPreAnnotBoxTool,
+} from './fabric/fabricPreAnnotBoxDraw';
 import { usePretrainedModels } from '../../context/PretrainedModelsContext';
 import {
   getEligiblePreAnnotModels,
@@ -140,11 +143,7 @@ export default function ImageFabricKeypointAnnotationEditor({
     const animator = zoomAnimatorRef.current;
     const zDisplay = animator?.getDisplayZoom() ?? viewZoomRef.current;
     const zLayout = animator?.getTargetZoom() ?? viewZoomRef.current;
-    const { maxX, maxY } = getSceneExtents(
-      nw,
-      nh,
-      poseAnnotationsRef.current,
-    );
+    const { maxX, maxY } = getSceneExtents(nw, nh, poseAnnotationsRef.current);
     const contentW = VIEWPORT_EDGE_PAD * 2 + maxX * zLayout;
     const contentH = VIEWPORT_EDGE_PAD * 2 + maxY * zLayout;
     const { width: cw, height: ch } = resolveContentCanvasSize(
@@ -473,10 +472,9 @@ export default function ImageFabricKeypointAnnotationEditor({
         const labels = activeProject?.labels ?? [];
         const labelId = resolveLabelIdForPoseTemplate(activeTemplate, labels);
         if (!labelId) {
-          showToast(
-            `请先在项目中添加标签「${activeTemplate.defaultLabel}」`,
-            { type: 'info' },
-          );
+          showToast(`请先在项目中添加标签「${activeTemplate.defaultLabel}」`, {
+            type: 'info',
+          });
           setTool('select');
           return;
         }
@@ -501,14 +499,15 @@ export default function ImageFabricKeypointAnnotationEditor({
           }));
           const count = addPreAnnotPoses(items);
           showToast(
-            count > 0 ? `已生成 ${count} 条骨架预标注` : '框选区域内未检测到实例',
+            count > 0
+              ? `已生成 ${count} 条骨架预标注`
+              : '框选区域内未检测到实例',
             { type: 'info' },
           );
         } catch (error) {
-          showToast(
-            error instanceof Error ? error.message : '关键点检测失败',
-            { type: 'error' },
-          );
+          showToast(error instanceof Error ? error.message : '关键点检测失败', {
+            type: 'error',
+          });
         } finally {
           setTool('select');
         }

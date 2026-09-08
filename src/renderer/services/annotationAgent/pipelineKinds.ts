@@ -23,7 +23,9 @@ export const PIPELINE_TITLES: Record<
 };
 
 /** 根据消息块推断 pipelineKind（兼容历史数据缺字段）。 */
-export function inferPipelineKindFromBlocks(blocks: MessageBlock[]): PipelineKind {
+export function inferPipelineKindFromBlocks(
+  blocks: MessageBlock[],
+): PipelineKind {
   if (blocks.some(isFileProposalBlock)) {
     return 'report';
   }
@@ -33,9 +35,7 @@ export function inferPipelineKindFromBlocks(blocks: MessageBlock[]): PipelineKin
     const changes = proposal.proposal.changes ?? [];
     if (
       changes.length > 0 &&
-      changes.every(
-        (c) => c.operation === 'patch' || c.operation === 'delete',
-      )
+      changes.every((c) => c.operation === 'patch' || c.operation === 'delete')
     ) {
       return 'mutation';
     }
@@ -48,7 +48,11 @@ export function inferPipelineKindFromBlocks(blocks: MessageBlock[]): PipelineKin
     }
     const stages = new Set(block.steps.map((s) => s.stage));
     if (stages.has('resolve') && !stages.has('workers')) return 'mutation';
-    if (stages.has('collect') && !stages.has('workers') && !stages.has('execute')) {
+    if (
+      stages.has('collect') &&
+      !stages.has('workers') &&
+      !stages.has('execute')
+    ) {
       return 'report';
     }
   }
@@ -56,7 +60,9 @@ export function inferPipelineKindFromBlocks(blocks: MessageBlock[]): PipelineKin
   return 'batch';
 }
 
-export function normalizePipelineKindsInBlocks(blocks: MessageBlock[]): MessageBlock[] {
+export function normalizePipelineKindsInBlocks(
+  blocks: MessageBlock[],
+): MessageBlock[] {
   const inferred = inferPipelineKindFromBlocks(blocks);
   if (inferred === 'batch') {
     return blocks;

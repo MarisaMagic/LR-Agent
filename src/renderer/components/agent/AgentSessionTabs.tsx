@@ -8,13 +8,20 @@ import {
 } from 'react';
 import { useLayoutResizing } from '../../hooks/useLayoutResizing';
 import { createResizeObserver } from '../../utils/resizeObserver';
-import { motionDuration, motionEase, motionDistance } from '../../motion/tokens';
+import {
+  motionDuration,
+  motionEase,
+  motionDistance,
+} from '../../motion/tokens';
 import VscodeClickableToolbarButton from '../VscodeClickableButton';
 import { useAgentChat } from '../../context/AgentChatContext';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useApp } from '../../context/AppContext';
 import { useWorkMode } from '../../context/WorkModeContext';
-import { computeMemoryScopeKey, openMemoryDir } from '../../services/agentMemory';
+import {
+  computeMemoryScopeKey,
+  openMemoryDir,
+} from '../../services/agentMemory';
 import AgentHistoryPopover, {
   computeHistoryPopoverPosition,
 } from './AgentHistoryPopover';
@@ -82,8 +89,7 @@ export default function AgentSessionTabs() {
 
     const widthPercent = (clientWidth / scrollWidth) * 100;
     const maxLeft = scrollWidth - clientWidth;
-    const leftPercent =
-      maxLeft > 0 ? (scrollLeft / scrollWidth) * 100 : 0;
+    const leftPercent = maxLeft > 0 ? (scrollLeft / scrollWidth) * 100 : 0;
 
     setThumb({
       visible: true,
@@ -246,7 +252,7 @@ export default function AgentSessionTabs() {
   const openMemory = () => {
     const scopeKey = computeMemoryScopeKey({
       annotationProjectId:
-        workMode === 'annotation' ? activeProject?.id ?? null : null,
+        workMode === 'annotation' ? (activeProject?.id ?? null) : null,
       workspaceRoot: rootPath,
     });
     void openMemoryDir(scopeKey);

@@ -48,7 +48,9 @@ export function getUserSkillsRoot(): string {
  * 仅提取 name（单行标量）、description（单行 / `>` 折叠 / `|` 字面量）、
  * disable-model-invocation（布尔）。frontmatter 缺失或结构非法时返回 null。
  */
-export function parseSkillFrontmatter(content: string): ParsedSkillFrontmatter | null {
+export function parseSkillFrontmatter(
+  content: string,
+): ParsedSkillFrontmatter | null {
   const trimmed = content.replace(/^\uFEFF/, '');
   if (!trimmed.startsWith('---')) return null;
   const endMarker = trimmed.indexOf('\n---', 3);
@@ -140,7 +142,10 @@ interface TimedEntry<T> {
 const catalogCache = new Map<string, TimedEntry<AgentSkillEntry[]>>();
 const skillContentCache = new Map<string, TimedEntry<string | null>>();
 
-function readCache<T>(cache: Map<string, TimedEntry<T>>, key: string): T | undefined {
+function readCache<T>(
+  cache: Map<string, TimedEntry<T>>,
+  key: string,
+): T | undefined {
   const entry = cache.get(key);
   if (entry && Date.now() - entry.loadedAt < CACHE_TTL_MS) {
     return entry.value;
@@ -148,7 +153,11 @@ function readCache<T>(cache: Map<string, TimedEntry<T>>, key: string): T | undef
   return undefined;
 }
 
-function writeCache<T>(cache: Map<string, TimedEntry<T>>, key: string, value: T): void {
+function writeCache<T>(
+  cache: Map<string, TimedEntry<T>>,
+  key: string,
+  value: T,
+): void {
   cache.set(key, { value, loadedAt: Date.now() });
 }
 

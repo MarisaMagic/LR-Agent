@@ -31,9 +31,7 @@ export interface ApplyMutationsResult {
   relativePaths: string[];
 }
 
-async function statsForPath(
-  absPath: string,
-): Promise<SourceFreshnessHint> {
+async function statsForPath(absPath: string): Promise<SourceFreshnessHint> {
   const s = await window.electron.fileSystem?.getFileStats(absPath);
   if (!s || s.isDirectory) return {};
   return { mtimeMs: s.mtime.getTime(), size: s.size };
@@ -91,9 +89,7 @@ export function validateMutations(
 ): MutationValidationResult {
   const errors: string[] = [];
   const validLabelIds = labelIdSet(projectLabels);
-  const existingIds = new Set(
-    (doc?.annotations ?? []).map((a) => a.id),
-  );
+  const existingIds = new Set((doc?.annotations ?? []).map((a) => a.id));
   const mutationCount = countMutationsInChange(change);
 
   if (mutationCount === 0) {
@@ -253,7 +249,9 @@ export function mergeProposalChangesIntoDoc(
     doc = applyChangeToDoc(doc, change, project, hint);
   }
   if (!doc) {
-    throw new Error('mergeProposalChangesIntoDoc: no changes produced a document');
+    throw new Error(
+      'mergeProposalChangesIntoDoc: no changes produced a document',
+    );
   }
   return doc;
 }

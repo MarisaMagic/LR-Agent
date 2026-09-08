@@ -18,7 +18,11 @@ describe('formatToolCallLabel', () => {
   it('formats read with line range', () => {
     const label = formatToolCallLabel(
       'read_workspace_file',
-      JSON.stringify({ relative_path: 'src/Foo.tsx', start_line: 1, end_line: 80 }),
+      JSON.stringify({
+        relative_path: 'src/Foo.tsx',
+        start_line: 1,
+        end_line: 80,
+      }),
     );
     expect(label).toBe('Read src/Foo.tsx L1-80');
   });
@@ -55,7 +59,10 @@ describe('summarizeToolArgumentsForDisplay', () => {
       relative_path: 'algo/dijkstra.cpp',
       content: 'line1\nline2\nline3',
     });
-    const display = summarizeToolArgumentsForDisplay('write_workspace_file', raw);
+    const display = summarizeToolArgumentsForDisplay(
+      'write_workspace_file',
+      raw,
+    );
     expect(display).toContain('algo/dijkstra.cpp');
     expect(display).toContain('字符');
     expect(display).not.toContain('line1');

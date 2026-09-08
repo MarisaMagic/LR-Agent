@@ -6,22 +6,13 @@ import {
   VscodeScrollable,
 } from '@vscode-elements/react-elements';
 import mammoth from 'mammoth';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useApp } from '../context/AppContext';
 import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
 import { basename, dirname, getExtension } from '../types/file';
-import {
-  resolveViewerType,
-  type ViewerType,
-} from '../utils/fileViewerType';
+import { resolveViewerType, type ViewerType } from '../utils/fileViewerType';
 import { getLanguageForFile } from '../utils/syntaxHighlight';
 import { createMarkdownCodeComponents } from './markdown/markdownCodeComponents';
 import {
@@ -257,49 +248,43 @@ export default function FileViewer({
   }, []);
 
   // 键盘处理
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      const body = viewerBodyRef.current;
-      if (!body) return;
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const body = viewerBodyRef.current;
+    if (!body) return;
 
-      switch (e.key.toLowerCase()) {
-        case 'a':
-          e.preventDefault();
-          selectAllInViewer(body);
-          break;
-        case 'c':
-          e.preventDefault();
-          document.execCommand('copy');
-          break;
-        case 'x':
-          e.preventDefault();
-          document.execCommand('cut');
-          break;
-        case 'v':
-          e.preventDefault();
-          document.execCommand('paste');
-          break;
-        default:
-          break;
-      }
-    },
-    [],
-  );
+    switch (e.key.toLowerCase()) {
+      case 'a':
+        e.preventDefault();
+        selectAllInViewer(body);
+        break;
+      case 'c':
+        e.preventDefault();
+        document.execCommand('copy');
+        break;
+      case 'x':
+        e.preventDefault();
+        document.execCommand('cut');
+        break;
+      case 'v':
+        e.preventDefault();
+        document.execCommand('paste');
+        break;
+      default:
+        break;
+    }
+  }, []);
 
   // 右键菜单
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      const sel = window.getSelection();
-      const body = viewerBodyRef.current;
-      if (!body || !sel || sel.isCollapsed || !isSelectionInsideViewer(body)) {
-        return;
-      }
-      e.preventDefault();
-      setContextMenu({ x: e.clientX, y: e.clientY });
-    },
-    [],
-  );
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    const sel = window.getSelection();
+    const body = viewerBodyRef.current;
+    if (!body || !sel || sel.isCollapsed || !isSelectionInsideViewer(body)) {
+      return;
+    }
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
 
   const closeContextMenu = useCallback(() => {
     setContextMenu(null);
@@ -547,10 +532,7 @@ export default function FileViewer({
                 imagePath={filePath!}
               />
             ) : isCaptionAnnotator ? (
-              <ImageCaptionEditor
-                imageUrl={binaryUrl}
-                imagePath={filePath!}
-              />
+              <ImageCaptionEditor imageUrl={binaryUrl} imagePath={filePath!} />
             ) : isClassificationAnnotator ? (
               <ImageClassificationEditor
                 imageUrl={binaryUrl}
@@ -575,7 +557,10 @@ export default function FileViewer({
       body = (
         <VscodeScrollable className="viewer-body markdown-content">
           {textContent ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+            >
               {textContent}
             </ReactMarkdown>
           ) : (
@@ -632,7 +617,10 @@ export default function FileViewer({
             body = (
               <VscodeScrollable className="viewer-body text-content">
                 {highlightLanguage ? (
-                  <HighlightedCodeBlock content={textContent} filePath={filePath!} />
+                  <HighlightedCodeBlock
+                    content={textContent}
+                    filePath={filePath!}
+                  />
                 ) : (
                   <pre className="code-block">{textContent}</pre>
                 )}
@@ -640,15 +628,18 @@ export default function FileViewer({
             );
         }
       } else {
-      body = (
-        <VscodeScrollable className="viewer-body text-content">
-          {highlightLanguage ? (
-            <HighlightedCodeBlock content={textContent} filePath={filePath!} />
-          ) : (
-            <pre className="code-block">{textContent}</pre>
-          )}
-        </VscodeScrollable>
-      );
+        body = (
+          <VscodeScrollable className="viewer-body text-content">
+            {highlightLanguage ? (
+              <HighlightedCodeBlock
+                content={textContent}
+                filePath={filePath!}
+              />
+            ) : (
+              <pre className="code-block">{textContent}</pre>
+            )}
+          </VscodeScrollable>
+        );
       }
     } else {
       body = (

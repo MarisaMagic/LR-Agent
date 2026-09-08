@@ -1,4 +1,7 @@
-import type { AnnotationBatchChange, BatchAnnotationPlan } from '../../../shared/annotationAgentTypes';
+import type {
+  AnnotationBatchChange,
+  BatchAnnotationPlan,
+} from '../../../shared/annotationAgentTypes';
 import type { AnnotationInstance } from '../../types/annotationDocument';
 import { validateMappingsForFinalize } from './boxValidation';
 import type {
@@ -158,12 +161,16 @@ export function tryAutoFinalizeFromGeometry(options: {
   );
 
   const mappedCount = validation.labeledCount;
-  const unlabeledInProposal = annotations.filter((a) => a.labelId == null).length;
+  const unlabeledInProposal = annotations.filter(
+    (a) => a.labelId == null,
+  ).length;
 
   if (!validation.valid && mappedCount < minLabeled) {
     return {
       ok: false,
-      reason: validation.errors.join('；') || `成功映射 ${mappedCount} 个实例，不足 ${minLabeled}`,
+      reason:
+        validation.errors.join('；') ||
+        `成功映射 ${mappedCount} 个实例，不足 ${minLabeled}`,
       mappedCount,
       unlabeledInProposal,
     };

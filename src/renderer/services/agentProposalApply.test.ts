@@ -43,7 +43,10 @@ describe('collectPendingProposals', () => {
           status: 'pending',
         },
       ]),
-      { ...assistantMessage('msg-2', [{ type: 'text', content: 'ok' }]), role: 'user' } as ChatMessage,
+      {
+        ...assistantMessage('msg-2', [{ type: 'text', content: 'ok' }]),
+        role: 'user',
+      } as ChatMessage,
       assistantMessage('msg-3', [
         {
           type: 'file_proposal',

@@ -50,7 +50,10 @@ export interface SpanNerPipelineOptions {
 
 export async function runSpanNerPipeline(
   options: SpanNerPipelineOptions,
-): Promise<{ annotations: SpanAnnotation[]; changes: AnnotationBatchChange[] }> {
+): Promise<{
+  annotations: SpanAnnotation[];
+  changes: AnnotationBatchChange[];
+}> {
   const changes: AnnotationBatchChange[] = [];
 
   for (const input of options.inputPaths) {
@@ -69,8 +72,7 @@ export async function runSpanNerPipeline(
       baseUrl: options.providerBaseUrl,
       model: options.providerModel,
       systemPrompt: buildSystemPrompt(options.project),
-      userPrompt:
-        `${options.userRequest || '请识别以下文本中的所有命名实体。'}\n\n---\n${sourceText.slice(0, 8000)}\n---`,
+      userPrompt: `${options.userRequest || '请识别以下文本中的所有命名实体。'}\n\n---\n${sourceText.slice(0, 8000)}\n---`,
       temperature: 0.2,
     });
 

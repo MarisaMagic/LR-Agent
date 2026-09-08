@@ -16,16 +16,16 @@ function severityLabel(severity: QualityMetric['severity']): string {
   }
 }
 
-export default function QualityMetricCard({
-  metric,
-}: QualityMetricCardProps) {
+export default function QualityMetricCard({ metric }: QualityMetricCardProps) {
   return (
     <article
       className={`quality-metric-card quality-metric-card--${metric.severity}`}
     >
       <header className="quality-metric-card__header">
         <h3 className="quality-metric-card__title">{metric.title}</h3>
-        <span className={`quality-metric-card__badge quality-metric-card__badge--${metric.severity}`}>
+        <span
+          className={`quality-metric-card__badge quality-metric-card__badge--${metric.severity}`}
+        >
           {severityLabel(metric.severity)}
         </span>
       </header>

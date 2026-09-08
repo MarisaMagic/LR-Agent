@@ -1,7 +1,13 @@
 /** Image caption generation pipeline. */
 
-import type { AnnotationBatchChange, AnnotationProjectSnapshot } from '../../../../shared/annotationAgentTypes';
-import type { CaptionAnnotation, AnnotationInstance } from '../../../../types/annotationDocument';
+import type {
+  AnnotationBatchChange,
+  AnnotationProjectSnapshot,
+} from '../../../../shared/annotationAgentTypes';
+import type {
+  CaptionAnnotation,
+  AnnotationInstance,
+} from '../../../../types/annotationDocument';
 import { callLlmApi } from './llmUtil';
 import { readImageBase64 } from '../fusionSubImageTools';
 
@@ -34,7 +40,10 @@ export interface CaptionPipelineOptions {
 
 export async function runCaptionPipeline(
   options: CaptionPipelineOptions,
-): Promise<{ annotations: CaptionAnnotation[]; changes: AnnotationBatchChange[] }> {
+): Promise<{
+  annotations: CaptionAnnotation[];
+  changes: AnnotationBatchChange[];
+}> {
   const changes: AnnotationBatchChange[] = [];
 
   for (const input of options.inputPaths) {

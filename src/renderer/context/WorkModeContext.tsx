@@ -106,7 +106,9 @@ export function WorkModeProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <WorkModeContext.Provider value={value}>{children}</WorkModeContext.Provider>
+    <WorkModeContext.Provider value={value}>
+      {children}
+    </WorkModeContext.Provider>
   );
 }
 

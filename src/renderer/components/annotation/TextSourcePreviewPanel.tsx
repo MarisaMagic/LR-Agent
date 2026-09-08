@@ -18,12 +18,8 @@ export default function TextSourcePreviewPanel({
   quoteSelectionLabel = '引用选中',
   quoteFullLabel = '引用全文',
 }: TextSourcePreviewPanelProps) {
-  const {
-    freeformMode,
-    relativeFilePath,
-    textContent,
-    textContentLoading,
-  } = useAnnotationWorkspace();
+  const { freeformMode, relativeFilePath, textContent, textContentLoading } =
+    useAnnotationWorkspace();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectionText, setSelectionText] = useState('');
@@ -72,10 +68,7 @@ export default function TextSourcePreviewPanel({
           </VscodeButton>
         )}
         {onQuoteFull && textContent && (
-          <VscodeButton
-            secondary
-            onClick={() => onQuoteFull(textContent)}
-          >
+          <VscodeButton secondary onClick={() => onQuoteFull(textContent)}>
             {quoteFullLabel}
           </VscodeButton>
         )}

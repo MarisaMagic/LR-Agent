@@ -10,10 +10,7 @@ interface EditorPaneProps {
   isActive: boolean;
 }
 
-export default function EditorPane({
-  filePath,
-  isActive,
-}: EditorPaneProps) {
+export default function EditorPane({ filePath, isActive }: EditorPaneProps) {
   const { workMode } = useWorkMode();
   const monacoEligible = isMonacoEditableFile(filePath);
   const loadPaused = !isActive;

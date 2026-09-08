@@ -1,17 +1,26 @@
 import type { LlmProviderConfig } from '../../shared/agentTypes';
 
 function getDb() {
-  return (window as unknown as { electron: { db: {
-    providers: {
-      list: () => Promise<ProviderRow[]>;
-      get: (id: string) => Promise<ProviderRow | undefined>;
-      create: (p: CreateProviderParams) => Promise<ProviderRow>;
-      update: (id: string, patch: Record<string, unknown>) => Promise<ProviderRow | undefined>;
-      delete: (id: string) => Promise<void>;
-      setDefault: (id: string) => Promise<ProviderRow>;
-      getDefault: () => Promise<ProviderRow | undefined>;
-    };
-  } } }).electron.db;
+  return (
+    window as unknown as {
+      electron: {
+        db: {
+          providers: {
+            list: () => Promise<ProviderRow[]>;
+            get: (id: string) => Promise<ProviderRow | undefined>;
+            create: (p: CreateProviderParams) => Promise<ProviderRow>;
+            update: (
+              id: string,
+              patch: Record<string, unknown>,
+            ) => Promise<ProviderRow | undefined>;
+            delete: (id: string) => Promise<void>;
+            setDefault: (id: string) => Promise<ProviderRow>;
+            getDefault: () => Promise<ProviderRow | undefined>;
+          };
+        };
+      };
+    }
+  ).electron.db;
 }
 
 interface ProviderRow {
@@ -75,7 +84,9 @@ function configToCreateParams(config: LlmProviderConfig): CreateProviderParams {
   };
 }
 
-function configToUpdatePatch(config: LlmProviderConfig): Record<string, unknown> {
+function configToUpdatePatch(
+  config: LlmProviderConfig,
+): Record<string, unknown> {
   const patch: Record<string, unknown> = {
     name: config.name,
     baseUrl: config.baseUrl,
@@ -114,7 +125,10 @@ export async function updateLlmProviderOnApi(
   provider: LlmProviderConfig,
 ): Promise<LlmProviderConfig> {
   const db = getDb();
-  const row = await db.providers.update(provider.id, configToUpdatePatch(provider));
+  const row = await db.providers.update(
+    provider.id,
+    configToUpdatePatch(provider),
+  );
   return rowToConfig(row!);
 }
 
@@ -163,7 +177,8 @@ export async function probeLlmProviderVisionOnApi(
     return config;
   }
 
-  const probePrompt = '这是一张纯色测试图。请只回复一个大写字母 OK，不要其它内容。';
+  const probePrompt =
+    '这是一张纯色测试图。请只回复一个大写字母 OK，不要其它内容。';
 
   try {
     const baseUrl = config.baseUrl.replace(/\/+$/, '');
@@ -208,7 +223,9 @@ export async function probeLlmProviderVisionOnApi(
     } else if (Array.isArray(content)) {
       const text = content
         .map((part: unknown) =>
-          typeof part === 'object' && part !== null && 'text' in (part as Record<string, unknown>)
+          typeof part === 'object' &&
+          part !== null &&
+          'text' in (part as Record<string, unknown>)
             ? String((part as Record<string, unknown>).text)
             : String(part),
         )
@@ -216,7 +233,9 @@ export async function probeLlmProviderVisionOnApi(
       looksOk = text.toLowerCase().includes('ok');
     }
 
-    const detail = looksOk ? 'probe_ok' : `probe_no_ok_response:${JSON.stringify(content).slice(0, 120)}`;
+    const detail = looksOk
+      ? 'probe_ok'
+      : `probe_no_ok_response:${JSON.stringify(content).slice(0, 120)}`;
     await db.providers.update(id, {
       supportsVision: looksOk,
       visionProbedAt: Date.now(),
@@ -224,7 +243,10 @@ export async function probeLlmProviderVisionOnApi(
     });
     return rowToConfig((await db.providers.get(id))!);
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? `${err.name}:${err.message}`.slice(0, 200) : 'unknown';
+    const errorMsg =
+      err instanceof Error
+        ? `${err.name}:${err.message}`.slice(0, 200)
+        : 'unknown';
     await db.providers.update(id, {
       supportsVision: false,
       visionProbedAt: Date.now(),

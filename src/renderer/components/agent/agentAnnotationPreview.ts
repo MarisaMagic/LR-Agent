@@ -45,7 +45,9 @@ export function buildFileChangesFromProposal(
   proposal: AnnotationBatchProposal,
   relativePath: string,
 ): AnnotationBatchProposal['changes'] {
-  return proposal.changes.filter((change) => change.relativePath === relativePath);
+  return proposal.changes.filter(
+    (change) => change.relativePath === relativePath,
+  );
 }
 
 function shouldUseSelectTool(project: AnnotationProject | null): boolean {

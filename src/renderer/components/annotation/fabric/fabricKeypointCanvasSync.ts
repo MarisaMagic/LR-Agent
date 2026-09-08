@@ -101,7 +101,9 @@ export function syncKeypointInteraction(
 export function syncPosesFromAnnotations(
   canvas: Canvas,
   annotations: PoseAnnotation[],
-  labelResolver: (labelId: string | null) => { name: string; color: string } | null,
+  labelResolver: (
+    labelId: string | null,
+  ) => { name: string; color: string } | null,
   naturalWidth: number,
   naturalHeight: number,
   tool: ImageCanvasTool,
@@ -172,7 +174,9 @@ export function syncPosesFromAnnotations(
 
   const bg = canvas
     .getObjects()
-    .find((o) => (o as FabricObject & { name?: string }).name === BG_IMAGE_NAME);
+    .find(
+      (o) => (o as FabricObject & { name?: string }).name === BG_IMAGE_NAME,
+    );
   if (bg) canvas.sendObjectToBack(bg);
   syncKeypointInteraction(canvas, tool, selectedId);
 }
@@ -180,7 +184,9 @@ export function syncPosesFromAnnotations(
 export function syncPointsFromAnnotations(
   canvas: Canvas,
   annotations: ImagePointAnnotation[],
-  labelResolver: (labelId: string | null) => { name: string; color: string } | null,
+  labelResolver: (
+    labelId: string | null,
+  ) => { name: string; color: string } | null,
   naturalWidth: number,
   naturalHeight: number,
   tool: ImageCanvasTool,

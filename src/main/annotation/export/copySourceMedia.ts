@@ -1,8 +1,7 @@
 import path from 'path';
 import crypto from 'crypto';
 import fs from 'fs-extra';
-import { ensureDir } from './fsUtil';
-import { isSyntheticPath } from './fsUtil';
+import { ensureDir, isSyntheticPath } from './fsUtil';
 
 export type MediaFolder = 'images' | 'sources';
 

@@ -18,18 +18,12 @@ import type { PretrainedModelConfig } from '../../types/pretrainedModel';
 import { getKeypointTemplate } from '../../types/keypointTemplate';
 import { resolveLabelIdForPoseTemplate } from '../../utils/preAnnotLabelMapping';
 import { AsyncEventQueue } from './asyncEventQueue';
-import {
-  formatDurationMs,
-  formatSubImageTiming,
-} from './annotationTiming';
+import { formatDurationMs, formatSubImageTiming } from './annotationTiming';
 import { getGeometryAdapter } from './geometryPipelineAdapter';
 import { runGeometrySubImageAgent } from './geometrySubImageRunner';
 import type { GeometryAnnotationType } from './geometryTypes';
 import type { FusionSubImageResult } from './fusionSubImageTypes';
-import {
-  resolveScopeHintPaths,
-  type InputPathEntry,
-} from './scopePathUtil';
+import { resolveScopeHintPaths, type InputPathEntry } from './scopePathUtil';
 
 type WorkerResult = FusionSubImageResult;
 
@@ -56,7 +50,9 @@ function progress(
   return { type: 'progress', stage, message, status, detail, imagePath };
 }
 
-function defaultGeometryPlan(providerSupportsVision?: boolean): BatchAnnotationPlan {
+function defaultGeometryPlan(
+  providerSupportsVision?: boolean,
+): BatchAnnotationPlan {
   return {
     intent_summary: '几何实例检测 + 标签映射 + 评分复核',
     label_strategy: 'map_each_box_to_label',
@@ -218,7 +214,10 @@ export async function* runGeometryPipeline(
     labels: project.labels,
   };
 
-  const primaryModel = adapter.pickPrimaryModel(detectionModels, adapterContext);
+  const primaryModel = adapter.pickPrimaryModel(
+    detectionModels,
+    adapterContext,
+  );
   if (!primaryModel) {
     yield {
       type: 'error',
@@ -258,7 +257,10 @@ export async function* runGeometryPipeline(
     }
   }
 
-  const labelCandidates = project.labels.map((l) => ({ id: l.id, name: l.name }));
+  const labelCandidates = project.labels.map((l) => ({
+    id: l.id,
+    name: l.name,
+  }));
   const plan = defaultGeometryPlan(options.providerSupportsVision);
 
   yield progress('prepare', `正在准备${typeLabel}批量标注…`);
@@ -316,7 +318,11 @@ export async function* runGeometryPipeline(
   }
 
   const total = images.length;
-  yield progress('workers', `共 ${total} 张图片，并发处理 ${typeLabel}`, 'running');
+  yield progress(
+    'workers',
+    `共 ${total} 张图片，并发处理 ${typeLabel}`,
+    'running',
+  );
 
   const pipelineGen = drainConcurrentPipelines(
     images,
@@ -373,7 +379,9 @@ export async function* runGeometryPipeline(
   while (true) {
     const next = await pipelineGen.next();
     if (next.done) {
-      workerResults = (next.value ?? []).filter((r): r is WorkerResult => r != null);
+      workerResults = (next.value ?? []).filter(
+        (r): r is WorkerResult => r != null,
+      );
       break;
     }
     yield next.value;
@@ -382,7 +390,10 @@ export async function* runGeometryPipeline(
   const cancelled = isCancelled();
   for (const result of workerResults) {
     if (result.ok) {
-      logAnnotationDebugImageResult(result.relativePath, { ok: true, geometryType });
+      logAnnotationDebugImageResult(result.relativePath, {
+        ok: true,
+        geometryType,
+      });
       yield progress(
         'worker',
         `完成：${result.relativePath}`,

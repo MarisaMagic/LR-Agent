@@ -68,7 +68,9 @@ export default function RightPanelToolbar({
               ? '快捷推理（编辑器模式下不可用）'
               : '快捷推理'
           }
-          active={activePanel === 'quickInference' && !quickInferenceTabDisabled}
+          active={
+            activePanel === 'quickInference' && !quickInferenceTabDisabled
+          }
           disabled={quickInferenceTabDisabled}
           onClick={onQuickInferenceClick}
         />
@@ -82,9 +84,7 @@ export default function RightPanelToolbar({
         <ActivityIcon
           name="graph-line"
           label={
-            qualityTabDisabled
-              ? '质量看板（标注模式下不可用）'
-              : '质量看板'
+            qualityTabDisabled ? '质量看板（标注模式下不可用）' : '质量看板'
           }
           active={activePanel === 'quality' && !qualityTabDisabled}
           disabled={qualityTabDisabled}

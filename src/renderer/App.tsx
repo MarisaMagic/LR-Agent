@@ -59,8 +59,7 @@ function AppProviders({ children }: { children: ReactNode }) {
 function AppRouteViews() {
   const location = useLocation();
   const standalone =
-    location.pathname === '/verify' ||
-    location.pathname === '/reset-password';
+    location.pathname === '/verify' || location.pathname === '/reset-password';
 
   const routes = (
     <Routes>
@@ -111,8 +110,7 @@ function AppRouteViews() {
 
 function isElectronShell(): boolean {
   return (
-    Boolean(window.electron?.platform) ||
-    /Electron/i.test(navigator.userAgent)
+    Boolean(window.electron?.platform) || /Electron/i.test(navigator.userAgent)
   );
 }
 

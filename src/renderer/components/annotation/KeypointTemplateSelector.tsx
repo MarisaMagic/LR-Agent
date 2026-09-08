@@ -53,7 +53,9 @@ export default function KeypointTemplateSelector() {
             role="option"
             aria-selected={t.id === activeTemplateId}
             className={`keypoint-template-option${
-              t.id === activeTemplateId ? ' keypoint-template-option--active' : ''
+              t.id === activeTemplateId
+                ? ' keypoint-template-option--active'
+                : ''
             }`}
             onClick={() => {
               setActiveTemplateId(t.id);
@@ -70,7 +72,10 @@ export default function KeypointTemplateSelector() {
         ))}
       </PopoverMotion>
 
-      <span className="keypoint-template-hint" title={activeTemplate.description}>
+      <span
+        className="keypoint-template-hint"
+        title={activeTemplate.description}
+      >
         标签: {activeTemplate.defaultLabel}
       </span>
     </div>

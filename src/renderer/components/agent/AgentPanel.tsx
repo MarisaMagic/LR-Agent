@@ -13,16 +13,19 @@ export default function AgentPanel() {
     if (!editTargetMessageId) return undefined;
 
     const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
+      const { target } = event;
       if (!(target instanceof Node)) return;
-      if (document.querySelector('[data-editing-bubble="true"]')?.contains(target)) {
+      if (
+        document.querySelector('[data-editing-bubble="true"]')?.contains(target)
+      ) {
         return;
       }
       cancelEdit();
     };
 
     document.addEventListener('pointerdown', onPointerDown, true);
-    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+    return () =>
+      document.removeEventListener('pointerdown', onPointerDown, true);
   }, [editTargetMessageId, cancelEdit]);
 
   return (

@@ -80,7 +80,10 @@ export function sceneGeometryToPoseAnn(
   scene: PoseSceneGeometry,
   naturalWidth: number,
   naturalHeight: number,
-  base: Pick<PoseAnnotation, 'id' | 'labelId' | 'templateId' | 'createdAt' | 'note'>,
+  base: Pick<
+    PoseAnnotation,
+    'id' | 'labelId' | 'templateId' | 'createdAt' | 'note'
+  >,
 ): PoseAnnotation {
   const nw = naturalWidth > 0 ? naturalWidth : 1;
   const nh = naturalHeight > 0 ? naturalHeight : 1;
@@ -218,7 +221,10 @@ export function sceneToPointAnn(
   };
 }
 
-export function poseKeypointsEqual(a: PoseKeypoint[], b: PoseKeypoint[]): boolean {
+export function poseKeypointsEqual(
+  a: PoseKeypoint[],
+  b: PoseKeypoint[],
+): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     if (

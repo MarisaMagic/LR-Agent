@@ -19,38 +19,34 @@ describe('buildTurnContextFromState', () => {
       createdAt: 1,
       updatedAt: 1,
     };
-    const ctx = buildTurnContextFromState(
-      session,
-      ['u1', 'a1'],
-      {
-        s1: [
-          {
-            id: 'u1',
-            sessionId: 's1',
-            role: 'user',
-            blocks: [{ type: 'text', content: 'hi' }],
-            status: 'done',
-            interactionMode: 'chat',
-            providerId: 'p1',
-            model: 'm',
-            createdAt: 1,
-            updatedAt: 1,
-          },
-          {
-            id: 'a1',
-            sessionId: 's1',
-            role: 'assistant',
-            blocks: [{ type: 'text', content: 'ok' }],
-            status: 'done',
-            interactionMode: 'annotation',
-            providerId: 'p1',
-            model: 'm',
-            createdAt: 2,
-            updatedAt: 2,
-          },
-        ],
-      },
-    );
+    const ctx = buildTurnContextFromState(session, ['u1', 'a1'], {
+      s1: [
+        {
+          id: 'u1',
+          sessionId: 's1',
+          role: 'user',
+          blocks: [{ type: 'text', content: 'hi' }],
+          status: 'done',
+          interactionMode: 'chat',
+          providerId: 'p1',
+          model: 'm',
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          id: 'a1',
+          sessionId: 's1',
+          role: 'assistant',
+          blocks: [{ type: 'text', content: 'ok' }],
+          status: 'done',
+          interactionMode: 'annotation',
+          providerId: 'p1',
+          model: 'm',
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+    });
     expect(ctx.transcript).toContain('用户: hi');
     expect(ctx.transcript).toContain('助手: ok');
     expect(ctx.transcript).not.toContain('[Ask]');

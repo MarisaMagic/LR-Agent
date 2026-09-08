@@ -29,7 +29,9 @@ export interface LlmCallResult {
  * 生成类标注（caption/cot/instruction 等）统一走本地 Agent，
  * 避免 renderer 直连 LLM Provider 带来的 CORS / 路径问题。
  */
-export async function callLlmApi(options: LlmCallOptions): Promise<LlmCallResult> {
+export async function callLlmApi(
+  options: LlmCallOptions,
+): Promise<LlmCallResult> {
   try {
     const baseUrl = await resolveLocalAgentBaseUrl();
     const response = await fetch(`${baseUrl}/agent/annotation/llm-generate`, {

@@ -17,6 +17,7 @@ import {
   shouldHideToolCallInChat,
   shouldSkipRedundantProposalText,
 } from './agentAssistantRenderUtils';
+
 interface AgentAssistantMessageProps {
   message: ChatMessage;
 }

@@ -1,5 +1,15 @@
 import { describe, expect, it, jest, beforeEach } from '@jest/globals';
 
+import {
+  attachDocumentToEditor,
+  getSavedText,
+  isDocumentDirty,
+  markDocumentSaved,
+  openDocument,
+  resetEditorDocumentStoreForTests,
+  saveDocumentViewState,
+} from './editorDocumentStore';
+
 jest.mock('monaco-editor/esm/vs/editor/editor.api', () => {
   const models = new Map<string, { value: string; language: string }>();
 
@@ -46,16 +56,6 @@ jest.mock('monaco-editor/esm/vs/editor/editor.api', () => {
   };
 });
 
-import {
-  attachDocumentToEditor,
-  getSavedText,
-  isDocumentDirty,
-  markDocumentSaved,
-  openDocument,
-  resetEditorDocumentStoreForTests,
-  saveDocumentViewState,
-} from './editorDocumentStore';
-
 describe('editorDocumentStore', () => {
   beforeEach(() => {
     resetEditorDocumentStoreForTests();
@@ -88,12 +88,7 @@ describe('editorDocumentStore', () => {
       restoreViewState: jest.fn(),
     };
 
-    attachDocumentToEditor(
-      editor as never,
-      '/a.ts',
-      model as never,
-      '/a.ts',
-    );
+    attachDocumentToEditor(editor as never, '/a.ts', model as never, '/a.ts');
 
     const setModel = jest.spyOn(editor, 'setModel');
     const restore = jest.spyOn(editor, 'restoreViewState');
@@ -125,30 +120,15 @@ describe('editorDocumentStore', () => {
       restoreViewState: jest.fn(),
     };
 
-    attachDocumentToEditor(
-      editor as never,
-      '/a.ts',
-      modelA as never,
-      '',
-    );
+    attachDocumentToEditor(editor as never, '/a.ts', modelA as never, '');
     saveDocumentViewState('/a.ts', editor as never);
 
-    attachDocumentToEditor(
-      editor as never,
-      '/b.ts',
-      modelB as never,
-      '/a.ts',
-    );
+    attachDocumentToEditor(editor as never, '/b.ts', modelB as never, '/a.ts');
 
     expect(editor.saveViewState).toHaveBeenCalled();
 
     editor.restoreViewState.mockClear();
-    attachDocumentToEditor(
-      editor as never,
-      '/a.ts',
-      modelA as never,
-      '/b.ts',
-    );
+    attachDocumentToEditor(editor as never, '/a.ts', modelA as never, '/b.ts');
 
     expect(editor.restoreViewState).toHaveBeenCalledWith({ scrollTop: 42 });
   });

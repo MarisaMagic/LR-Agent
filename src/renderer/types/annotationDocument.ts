@@ -186,7 +186,9 @@ type ParsedAnnotBase = {
   note?: string;
 };
 
-function parseAnnotBase(record: Record<string, unknown>): ParsedAnnotBase | null {
+function parseAnnotBase(
+  record: Record<string, unknown>,
+): ParsedAnnotBase | null {
   if (
     typeof record.id !== 'string' ||
     typeof record.createdAt !== 'string' ||
@@ -402,7 +404,8 @@ export function parseInstructionAnnotation(
     raw.kind !== 'instruction' ||
     typeof raw.instruction !== 'string' ||
     typeof raw.output !== 'string'
-  ) return null;
+  )
+    return null;
   const base = parseAnnotBase(raw);
   if (!base) return null;
   return {
@@ -422,7 +425,8 @@ export function parsePreferenceAnnotation(
     typeof raw.prompt !== 'string' ||
     typeof raw.chosen !== 'string' ||
     typeof raw.rejected !== 'string'
-  ) return null;
+  )
+    return null;
   const base = parseAnnotBase(raw);
   if (!base) return null;
   return {
@@ -441,7 +445,8 @@ function parseConversationTurn(turn: unknown): ConversationTurn | null {
   if (
     (turn.role !== 'user' && turn.role !== 'assistant') ||
     typeof turn.content !== 'string'
-  ) return null;
+  )
+    return null;
   return { role: turn.role, content: turn.content };
 }
 
@@ -470,7 +475,8 @@ function parseCotStep(step: unknown): CotStep | null {
   if (
     typeof step.description !== 'string' ||
     typeof step.conclusion !== 'string'
-  ) return null;
+  )
+    return null;
   return { description: step.description, conclusion: step.conclusion };
 }
 
@@ -508,8 +514,10 @@ export function parseAnnotationInstance(
     if (item.kind === 'pose') return parsePoseAnnotation(item);
     if (item.kind === 'point') return parseImagePointAnnotation(item);
     if (item.kind === 'caption') return parseCaptionAnnotation(item);
-    if (item.kind === 'classification') return parseClassificationAnnotation(item);
-    if (item.kind === 'text_classification') return parseTextClassificationAnnotation(item);
+    if (item.kind === 'classification')
+      return parseClassificationAnnotation(item);
+    if (item.kind === 'text_classification')
+      return parseTextClassificationAnnotation(item);
     if (item.kind === 'instruction') return parseInstructionAnnotation(item);
     if (item.kind === 'preference') return parsePreferenceAnnotation(item);
     if (item.kind === 'conversation') return parseConversationAnnotation(item);
@@ -558,7 +566,9 @@ export function parseFileAnnotationDocument(
       typeof sourceUnknown.width === 'number' &&
       typeof sourceUnknown.height === 'number';
     source = {
-      ...(hasImageSource ? { width: sourceUnknown.width, height: sourceUnknown.height } : { width: 1, height: 1 }),
+      ...(hasImageSource
+        ? { width: sourceUnknown.width, height: sourceUnknown.height }
+        : { width: 1, height: 1 }),
       ...(typeof sourceUnknown.mtimeMs === 'number' && {
         mtimeMs: sourceUnknown.mtimeMs,
       }),

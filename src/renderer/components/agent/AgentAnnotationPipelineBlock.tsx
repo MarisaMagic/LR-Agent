@@ -1,16 +1,14 @@
 import { useMemo } from 'react';
 import { VscodeIcon } from '@vscode-elements/react-elements';
-import type { AnnotationPipelineStep } from '../../types/agent';
+import type { AnnotationPipelineStep, PipelineKind } from '../../types/agent';
 import {
   isImageDetailPipelineStage,
   resolvePipelineImagePath,
   workerStepDisplayLabel,
   workerStepDisplayMessage,
 } from '../../services/annotationAgent/pipelineImageSteps';
-import {
-  PIPELINE_TITLES,
-} from '../../services/annotationAgent/pipelineKinds';
-import type { PipelineKind } from '../../types/agent';
+import { PIPELINE_TITLES } from '../../services/annotationAgent/pipelineKinds';
+
 import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './AgentAnnotationPipelineBlock.css';
 
@@ -42,7 +40,9 @@ function statusClass(status: AnnotationPipelineStep['status']): string {
   return `agent-pipeline-step--${status}`;
 }
 
-function sortWorkerSteps(steps: AnnotationPipelineStep[]): AnnotationPipelineStep[] {
+function sortWorkerSteps(
+  steps: AnnotationPipelineStep[],
+): AnnotationPipelineStep[] {
   const statusRank = (status: AnnotationPipelineStep['status']): number => {
     if (status === 'running') return 0;
     if (status === 'error' || status === 'skipped') return 1;
@@ -79,7 +79,8 @@ export default function AgentAnnotationPipelineBlock({
 
   const mainStages = steps.filter((s) => !isImageDetailPipelineStage(s.stage));
   const workerSteps = useMemo(
-    () => sortWorkerSteps(steps.filter((s) => isImageDetailPipelineStage(s.stage))),
+    () =>
+      sortWorkerSteps(steps.filter((s) => isImageDetailPipelineStage(s.stage))),
     [steps],
   );
   const workerDoneCount = workerSteps.filter((s) => s.status === 'done').length;
@@ -89,7 +90,11 @@ export default function AgentAnnotationPipelineBlock({
 
   return (
     <div className="agent-pipeline-block">
-      <button type="button" className="agent-pipeline-toggle" onClick={onToggle}>
+      <button
+        type="button"
+        className="agent-pipeline-toggle"
+        onClick={onToggle}
+      >
         <VscodeIcon
           name={collapsed ? 'chevron-right' : 'chevron-down'}
           size={12}
@@ -118,10 +123,16 @@ export default function AgentAnnotationPipelineBlock({
                   }
                 />
                 <div className="agent-pipeline-step-text">
-                  <span className="agent-pipeline-step-label">{step.label}</span>
-                  <span className="agent-pipeline-step-message">{step.message}</span>
+                  <span className="agent-pipeline-step-label">
+                    {step.label}
+                  </span>
+                  <span className="agent-pipeline-step-message">
+                    {step.message}
+                  </span>
                   {step.detail ? (
-                    <span className="agent-pipeline-step-detail">{step.detail}</span>
+                    <span className="agent-pipeline-step-detail">
+                      {step.detail}
+                    </span>
                   ) : null}
                 </div>
               </li>
@@ -139,33 +150,36 @@ export default function AgentAnnotationPipelineBlock({
               </summary>
               <OverlayVerticalScrollArea maxHeight="160px">
                 <ul className="agent-pipeline-list agent-pipeline-list--nested">
-                {workerSteps.map((step) => {
-                  const rowKey =
-                    resolvePipelineImagePath(step) ?? `${step.stage}-${step.message}`;
-                  const displayMessage = workerStepDisplayMessage(step);
-                  return (
-                    <li
-                      key={rowKey}
-                      className={`agent-pipeline-step ${statusClass(step.status)}`}
-                    >
-                      <VscodeIcon
-                        name={statusIcon(step.status)}
-                        size={12}
-                        className={
-                          inProgress && step.status === 'running'
-                            ? 'agent-pipeline-spin'
-                            : undefined
-                        }
-                      />
-                      <div className="agent-pipeline-step-text">
-                        <span className="agent-pipeline-step-label">
-                          {workerStepDisplayLabel(step)}
-                        </span>
-                        <span className="agent-pipeline-step-message">{displayMessage}</span>
-                      </div>
-                    </li>
-                  );
-                })}
+                  {workerSteps.map((step) => {
+                    const rowKey =
+                      resolvePipelineImagePath(step) ??
+                      `${step.stage}-${step.message}`;
+                    const displayMessage = workerStepDisplayMessage(step);
+                    return (
+                      <li
+                        key={rowKey}
+                        className={`agent-pipeline-step ${statusClass(step.status)}`}
+                      >
+                        <VscodeIcon
+                          name={statusIcon(step.status)}
+                          size={12}
+                          className={
+                            inProgress && step.status === 'running'
+                              ? 'agent-pipeline-spin'
+                              : undefined
+                          }
+                        />
+                        <div className="agent-pipeline-step-text">
+                          <span className="agent-pipeline-step-label">
+                            {workerStepDisplayLabel(step)}
+                          </span>
+                          <span className="agent-pipeline-step-message">
+                            {displayMessage}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </OverlayVerticalScrollArea>
             </details>

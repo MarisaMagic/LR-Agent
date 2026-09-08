@@ -48,14 +48,14 @@ const LABEL_PREFIX = '[LR-Agent]';
 
 function truncate(s: string, maxLen = 200): string {
   if (s.length <= maxLen) return s;
-  return s.slice(0, maxLen) + `… (${s.length} 字符)`;
+  return `${s.slice(0, maxLen)}… (${s.length} 字符)`;
 }
 
 function toOneLineJson(obj: unknown, maxLen = 300): string {
   try {
     const s = JSON.stringify(obj);
     if (s.length <= maxLen) return s;
-    return s.slice(0, maxLen) + `… (${s.length} 字符)`;
+    return `${s.slice(0, maxLen)}… (${s.length} 字符)`;
   } catch {
     return String(obj);
   }
@@ -80,6 +80,7 @@ interface SendContext {
 
 export class AgentDebugLogger {
   private jobId: string;
+
   private prevState: JobState | null = null;
 
   /** 内部计数器，给 console.group 生成唯一 ID */
@@ -102,14 +103,8 @@ export class AgentDebugLogger {
     );
 
     // session & provider
-    console.log(
-      `%cprovider%c ${ctx.providerId}`,
-      CSS.key, CSS.value,
-    );
-    console.log(
-      `%csession%c ${ctx.sessionId}`,
-      CSS.key, CSS.value,
-    );
+    console.log(`%cprovider%c ${ctx.providerId}`, CSS.key, CSS.value);
+    console.log(`%csession%c ${ctx.sessionId}`, CSS.key, CSS.value);
 
     // clientContext 摘要
     if (ctx.clientContext) {
@@ -120,9 +115,13 @@ export class AgentDebugLogger {
       if (cc.annotationProjectSnapshot) {
         const snap = cc.annotationProjectSnapshot;
         console.log(`annotationProject: ${snap.name} (${snap.projectId})`);
-        console.log(`  modality: ${snap.modality}, type: ${snap.annotationType}`);
+        console.log(
+          `  modality: ${snap.modality}, type: ${snap.annotationType}`,
+        );
         console.log(`  labels: ${snap.labels?.length ?? 0}`);
-        console.log(`  detectionModels: ${snap.detectionModels?.map(m => m.name).join(', ') ?? 'none'}`);
+        console.log(
+          `  detectionModels: ${snap.detectionModels?.map((m) => m.name).join(', ') ?? 'none'}`,
+        );
       }
       if (cc.mcpServerUrl) console.log(`mcpServer: ${cc.mcpServerUrl}`);
       if (cc.agentMode) console.log(`agentMode: ${cc.agentMode}`);
@@ -133,14 +132,16 @@ export class AgentDebugLogger {
     // userContent
     console.log(
       `%cuserContent%c ${truncate(ctx.userContent, 300)}`,
-      CSS.key, CSS.value,
+      CSS.key,
+      CSS.value,
     );
 
     // resume ctx
     if (ctx.clientToolResults && ctx.clientToolResults.length > 0) {
       console.groupCollapsed(
         `%cclientToolResults%c (${ctx.clientToolResults.length})`,
-        CSS.key, CSS.muted,
+        CSS.key,
+        CSS.muted,
       );
       for (const r of ctx.clientToolResults) {
         console.log(`${r.name} → ${truncate(r.result, 120)}`);
@@ -156,16 +157,22 @@ export class AgentDebugLogger {
     // messages
     console.groupCollapsed(
       `%cmessages%c (${ctx.messages.length})`,
-      CSS.key, CSS.muted,
+      CSS.key,
+      CSS.muted,
     );
     for (const m of ctx.messages) {
       const roleTag =
-        m.role === 'system' ? '🔧' :
-        m.role === 'user' ? '👤' :
-        m.role === 'assistant' ? '🤖' : '❓';
+        m.role === 'system'
+          ? '🔧'
+          : m.role === 'user'
+            ? '👤'
+            : m.role === 'assistant'
+              ? '🤖'
+              : '❓';
       console.log(
         `%c${roleTag} [${m.role}]%c ${truncate(m.content, 200)}`,
-        CSS.key, CSS.value,
+        CSS.key,
+        CSS.value,
       );
     }
     console.groupEnd();
@@ -197,7 +204,9 @@ export class AgentDebugLogger {
         break;
       }
       case 'tool_pending': {
-        const toolCalls = (e.toolCalls ?? e.client_tool_calls ?? []) as ClientToolCall[];
+        const toolCalls = (e.toolCalls ??
+          e.client_tool_calls ??
+          []) as ClientToolCall[];
         this._logToolPending(toolCalls);
         break;
       }
@@ -209,8 +218,11 @@ export class AgentDebugLogger {
         break;
       case 'context_updated': {
         const summary = (e.summary ?? '') as string;
-        const msgId = (e.summaryUpToMessageId ?? e.summary_up_to_message_id ?? '') as string;
-        const tokens = (e.tokenEstimate ?? e.token_estimate ?? undefined) as number | undefined;
+        const msgId = (e.summaryUpToMessageId ??
+          e.summary_up_to_message_id ??
+          '') as string;
+        const tokens = (e.tokenEstimate ?? e.token_estimate ?? undefined) as
+          number | undefined;
         this._logContextUpdated(summary, msgId, tokens);
         break;
       }
@@ -220,46 +232,56 @@ export class AgentDebugLogger {
       case 'file_proposal_start':
         console.log(
           `%c${LABEL_PREFIX}%c 📄 file_proposal_start %c${truncate((e.title ?? e.summary ?? '') as string, 40)}`,
-          CSS.header, CSS.dim, CSS.value,
+          CSS.header,
+          CSS.dim,
+          CSS.value,
         );
         break;
       case 'file_proposal':
         console.log(
           `%c${LABEL_PREFIX}%c ✅ file_proposal      %c${(e.suggestedRelativePath ?? e.image_path ?? '') as string}%c (${String((e.content ?? '') as string).length} 字符)`,
-          CSS.header, CSS.dim, CSS.value, CSS.muted,
+          CSS.header,
+          CSS.dim,
+          CSS.value,
+          CSS.muted,
         );
         break;
       case 'file_proposal_delta':
         // 跳过逐条，太啰嗦
         break;
       case 'done':
-        console.log(
-          `%c${LABEL_PREFIX}%c ✅ done`,
-          CSS.header, CSS.dim,
-        );
+        console.log(`%c${LABEL_PREFIX}%c ✅ done`, CSS.header, CSS.dim);
         break;
       case 'annotation_progress':
         console.log(
           `%c${LABEL_PREFIX}%c 🏷 annotation_progress %c${event.stage}%c ${event.message}`,
-          CSS.header, CSS.dim, CSS.value, CSS.muted,
+          CSS.header,
+          CSS.dim,
+          CSS.value,
+          CSS.muted,
         );
         break;
       case 'annotation_proposal':
         console.log(
           `%c${LABEL_PREFIX}%c 🏷 annotation_proposal`,
-          CSS.header, CSS.dim,
+          CSS.header,
+          CSS.dim,
         );
         break;
       case 'document_proposal':
         console.log(
           `%c${LABEL_PREFIX}%c 📋 document_proposal %c${truncate((e.title ?? e.summary ?? '') as string, 40)}`,
-          CSS.header, CSS.dim, CSS.value,
+          CSS.header,
+          CSS.dim,
+          CSS.value,
         );
         break;
       default:
         console.log(
           `%c${LABEL_PREFIX}%c ? %c${(event as any).type}`,
-          CSS.header, CSS.dim, CSS.muted,
+          CSS.header,
+          CSS.dim,
+          CSS.muted,
         );
     }
   }
@@ -271,7 +293,10 @@ export class AgentDebugLogger {
 
     console.log(
       `%c${LABEL_PREFIX}%c 💬 LLM 输出 (%c${text.length} 字符%c)`,
-      CSS.header, CSS.dim, CSS.muted, CSS.dim,
+      CSS.header,
+      CSS.dim,
+      CSS.muted,
+      CSS.dim,
     );
 
     const lines = text.split('\n');
@@ -297,7 +322,10 @@ export class AgentDebugLogger {
     const arrow = from ? `${from} → ` : '';
     console.log(
       `%c${LABEL_PREFIX}%c 🔄 State %c${arrow}%c${newState}`,
-      CSS.header, CSS.dim, CSS.state, CSS.state,
+      CSS.header,
+      CSS.dim,
+      CSS.state,
+      CSS.state,
     );
   }
 
@@ -306,7 +334,8 @@ export class AgentDebugLogger {
   private _logToolStart(name: string, args: string): void {
     console.groupCollapsed(
       `%c${LABEL_PREFIX}%c 🔧 ${name}`,
-      CSS.header, CSS.tool,
+      CSS.header,
+      CSS.tool,
     );
 
     let parsedArgs: unknown = args;
@@ -332,7 +361,9 @@ export class AgentDebugLogger {
   private _logToolResult(toolCallId: string, result: string): void {
     console.groupCollapsed(
       `%c${LABEL_PREFIX}%c ✅ tool_result %c${toolCallId.slice(0, 10)}`,
-      CSS.header, CSS.dim, CSS.muted,
+      CSS.header,
+      CSS.dim,
+      CSS.muted,
     );
     console.log(`%cresult:%c ${truncate(result, 500)}`, CSS.key, CSS.value);
     console.groupEnd();
@@ -341,12 +372,16 @@ export class AgentDebugLogger {
   private _logToolPending(toolCalls: ClientToolCall[]): void {
     console.groupCollapsed(
       `%c${LABEL_PREFIX}%c ⏳ tool_pending (%c${toolCalls.length}%c)`,
-      CSS.header, CSS.dim, CSS.muted, CSS.dim,
+      CSS.header,
+      CSS.dim,
+      CSS.muted,
+      CSS.dim,
     );
     for (const tc of toolCalls) {
       console.log(
         `%c${tc.name}%c → ${toOneLineJson(tc.arguments, 200)}`,
-        CSS.tool, CSS.value,
+        CSS.tool,
+        CSS.value,
       );
     }
     console.groupEnd();
@@ -355,21 +390,34 @@ export class AgentDebugLogger {
   private _logRouteDecided(mode: string, domain: string): void {
     console.log(
       `%c${LABEL_PREFIX}%c 🧭 route_decided %cmode=%c${mode}%c domain=%c${domain}`,
-      CSS.header, CSS.dim, CSS.key, CSS.value, CSS.key, CSS.value,
+      CSS.header,
+      CSS.dim,
+      CSS.key,
+      CSS.value,
+      CSS.key,
+      CSS.value,
     );
   }
 
   private _logPreparing(stage: string): void {
     console.log(
       `%c${LABEL_PREFIX}%c ⏳ preparing %c${stage}`,
-      CSS.header, CSS.dim, CSS.muted,
+      CSS.header,
+      CSS.dim,
+      CSS.muted,
     );
   }
 
-  private _logContextUpdated(summary: string, msgId: string, tokenEstimate?: number): void {
+  private _logContextUpdated(
+    summary: string,
+    msgId: string,
+    tokenEstimate?: number,
+  ): void {
     console.groupCollapsed(
       `%c${LABEL_PREFIX}%c 📝 context_updated %c${truncate(summary, 60)}`,
-      CSS.header, CSS.dim, CSS.muted,
+      CSS.header,
+      CSS.dim,
+      CSS.muted,
     );
     console.log(`summaryUpToMessageId: ${msgId.slice(0, 12)}…`);
     if (tokenEstimate !== undefined) {
@@ -381,7 +429,9 @@ export class AgentDebugLogger {
   private _logError(message: string): void {
     console.log(
       `%c${LABEL_PREFIX}%c ❌ error %c${message}`,
-      CSS.header, CSS.error, CSS.error,
+      CSS.header,
+      CSS.error,
+      CSS.error,
     );
   }
 }

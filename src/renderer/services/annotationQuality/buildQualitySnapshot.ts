@@ -37,8 +37,13 @@ export interface BuildQualitySnapshotOptions {
 export async function buildQualitySnapshot(
   options: BuildQualitySnapshotOptions,
 ): Promise<AnnotationQualitySnapshot> {
-  const { project, scope, scopePath, maxFiles = DEFAULT_MAX_FILES, onProgress } =
-    options;
+  const {
+    project,
+    scope,
+    scopePath,
+    maxFiles = DEFAULT_MAX_FILES,
+    onProgress,
+  } = options;
 
   const catalog = await window.electron?.annotationAgent?.listImages(
     project.directoryPath,
@@ -82,7 +87,7 @@ export async function buildQualitySnapshot(
 
     const boxes = bboxes.map((box) => {
       const rawName = box.labelId
-        ? labelNameById.get(box.labelId) ?? box.labelId
+        ? (labelNameById.get(box.labelId) ?? box.labelId)
         : '(unlabeled)';
       const labelName = sanitizeUnicodeText(rawName);
       const area = box.width * box.height;
@@ -124,7 +129,9 @@ export async function buildQualitySnapshot(
   };
 }
 
-export function deriveCurrentFolderPath(relativeFilePath: string | null): string {
+export function deriveCurrentFolderPath(
+  relativeFilePath: string | null,
+): string {
   if (!relativeFilePath) return '';
   const parts = normalizeFolderPath(relativeFilePath).split('/');
   if (parts.length <= 1) return '';

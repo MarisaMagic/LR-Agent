@@ -79,11 +79,7 @@ export function bindPreAnnotBoxDraw(
     const { width: nw, height: nh } = deps.getNaturalSize();
     const left = r.left ?? 0;
     const top = r.top ?? 0;
-    const norm = sceneRectToNorm(
-      { left, top, width: w, height: h },
-      nw,
-      nh,
-    );
+    const norm = sceneRectToNorm({ left, top, width: w, height: h }, nw, nh);
     const x1 = norm.x;
     const y1 = norm.y;
     const x2 = norm.x + norm.width;
@@ -108,7 +104,10 @@ export function bindPreAnnotBoxDraw(
     };
   };
 
-  const onMouseDown = (opt: { e: Event; pointer?: { x: number; y: number } }) => {
+  const onMouseDown = (opt: {
+    e: Event;
+    pointer?: { x: number; y: number };
+  }) => {
     const tool = deps.getTool();
     if (!isBoxTool(tool)) return;
 
@@ -139,7 +138,14 @@ export function bindPreAnnotBoxDraw(
     const w = Math.abs(pointer.x - origin.x);
     const h = Math.abs(pointer.y - origin.y);
 
-    drawingRect.set({ left: x, top: y, width: w, height: h, scaleX: 1, scaleY: 1 });
+    drawingRect.set({
+      left: x,
+      top: y,
+      width: w,
+      height: h,
+      scaleX: 1,
+      scaleY: 1,
+    });
     canvas.requestRenderAll();
   };
 

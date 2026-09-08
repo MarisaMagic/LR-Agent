@@ -21,7 +21,7 @@ export async function exportNativeBundle(
 ): Promise<NativeExportResult> {
   const { project, options } = request;
   const projectDir = project.directoryPath;
-  const outputDir = options.outputDir;
+  const { outputDir } = options;
   let filesWritten = 0;
 
   if (options.includeLrAgentAnnotations) {
@@ -39,12 +39,7 @@ export async function exportNativeBundle(
     const paths = docs
       .map((d) => d.relativePath)
       .filter((p) => !isSyntheticPath(p));
-    media = await copySourceMediaForDocs(
-      projectDir,
-      outputDir,
-      paths,
-      folder,
-    );
+    media = await copySourceMediaForDocs(projectDir, outputDir, paths, folder);
     filesWritten += media.copiedCount;
     if (media.missing.length > 0) {
       warnings.push(`有 ${media.missing.length} 个源文件未找到，未拷贝`);

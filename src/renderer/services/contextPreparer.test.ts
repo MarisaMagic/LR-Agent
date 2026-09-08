@@ -48,8 +48,16 @@ function makeTurns(
     const uid = `u${i}`;
     const aid = `a${i}`;
     ids.push(uid, aid);
-    messages[uid] = makeMessage(uid, 'user', `q${i} ${'x'.repeat(contentLength)}`);
-    messages[aid] = makeMessage(aid, 'assistant', `r${i} ${'y'.repeat(contentLength)}`);
+    messages[uid] = makeMessage(
+      uid,
+      'user',
+      `q${i} ${'x'.repeat(contentLength)}`,
+    );
+    messages[aid] = makeMessage(
+      aid,
+      'assistant',
+      `r${i} ${'y'.repeat(contentLength)}`,
+    );
   }
   return { ids, messages };
 }

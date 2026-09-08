@@ -82,7 +82,11 @@ export function listSessionsWithStats(options: {
   cursor?: string | null;
   annotationProjectId?: string | null;
   workspaceOnly?: boolean;
-}): { sessions: SessionWithStatsRow[]; nextCursor: string | null; hasMore: boolean } {
+}): {
+  sessions: SessionWithStatsRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
+} {
   const db = getDatabase();
   const limit = options.limit ?? DEFAULT_PAGE_SIZE;
 
@@ -172,11 +176,15 @@ export function listSessionsWithStats(options: {
   return { sessions: result, nextCursor, hasMore };
 }
 
-export function getSession(sessionId: string, userId: string): SessionRow | undefined {
+export function getSession(
+  sessionId: string,
+  userId: string,
+): SessionRow | undefined {
   const db = getDatabase();
   return db.get(
     'SELECT * FROM sessions WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
-    sessionId, userId,
+    sessionId,
+    userId,
   ) as SessionRow | undefined;
 }
 
@@ -191,7 +199,8 @@ export function createSession(session: {
 }): SessionRow {
   const db = getDatabase();
   const now = Date.now();
-  db.run(`
+  db.run(
+    `
     INSERT INTO sessions (id, user_id, title, annotation_project_id, interaction_mode, provider_id, model, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
@@ -279,7 +288,10 @@ export function softDeleteSession(sessionId: string, userId: string): void {
   const now = Date.now();
   db.run(
     'UPDATE sessions SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?',
-    now, now, sessionId, userId,
+    now,
+    now,
+    sessionId,
+    userId,
   );
   // Cascade delete all messages for this session
   db.run('DELETE FROM messages WHERE session_id = ?', sessionId);
@@ -344,12 +356,15 @@ export function getLastMessagePreview(sessionId: string): string | null {
   const db = getDatabase();
   const rows = db.all(
     'SELECT blocks_json FROM messages WHERE session_id = ? AND role = ? ORDER BY sort_index DESC LIMIT 1',
-    sessionId, 'assistant',
+    sessionId,
+    'assistant',
   ) as { blocks_json: string }[];
   if (rows.length === 0) return null;
   try {
     const blocks = JSON.parse(rows[0].blocks_json);
-    const textBlock = blocks.find((b: { type: string; content?: string }) => b.type === 'text');
+    const textBlock = blocks.find(
+      (b: { type: string; content?: string }) => b.type === 'text',
+    );
     if (textBlock?.content) {
       return textBlock.content.slice(0, 80);
     }
@@ -358,4 +373,3 @@ export function getLastMessagePreview(sessionId: string): string | null {
   }
   return null;
 }
-

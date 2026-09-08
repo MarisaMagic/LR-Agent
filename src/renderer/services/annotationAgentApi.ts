@@ -223,7 +223,11 @@ export async function mapDetectionBoxesUnified(
     imageBase64?: string;
     ocrText?: string;
     judgeFeedback?: string;
-    previousMappings?: Array<{ box_index: number; label_id: string; reason?: string }>;
+    previousMappings?: Array<{
+      box_index: number;
+      label_id: string;
+      reason?: string;
+    }>;
     attempt?: number;
     providerApiKey?: string;
     providerBaseUrl?: string;
@@ -307,24 +311,26 @@ export async function judgeDetectionLabels(
     retryFeedback?: string;
     checked_boxes?: number;
     checkedBoxes?: number;
-  }>('/agent/annotation/judge-detection-labels', {
-    provider_id: providerId,
-    api_key: options.providerApiKey ?? '',
-    base_url: options.providerBaseUrl ?? '',
-    model: options.providerModel ?? '',
-    supports_vision: options.providerSupportsVision ?? false,
-    user_request: options.userRequest,
-    intent_summary: options.intentSummary,
-    label_candidates: options.labelCandidates,
-    boxes: options.boxes,
-    mappings: options.mappings,
-    annotations: options.annotations,
-    image_absolute_path: options.imageAbsolutePath ?? '',
-    image_base64: options.imageBase64 ?? '',
-    attempt: options.attempt ?? 0,
-    max_retries: options.maxRetries ?? 1,
-  },
-  options.signal,
+  }>(
+    '/agent/annotation/judge-detection-labels',
+    {
+      provider_id: providerId,
+      api_key: options.providerApiKey ?? '',
+      base_url: options.providerBaseUrl ?? '',
+      model: options.providerModel ?? '',
+      supports_vision: options.providerSupportsVision ?? false,
+      user_request: options.userRequest,
+      intent_summary: options.intentSummary,
+      label_candidates: options.labelCandidates,
+      boxes: options.boxes,
+      mappings: options.mappings,
+      annotations: options.annotations,
+      image_absolute_path: options.imageAbsolutePath ?? '',
+      image_base64: options.imageBase64 ?? '',
+      attempt: options.attempt ?? 0,
+      max_retries: options.maxRetries ?? 1,
+    },
+    options.signal,
   );
   return {
     ok: result.ok,
@@ -347,11 +353,13 @@ export async function judgeDetectionLabels(
 export async function mapDetectionBoxesHeuristic(
   providerId: string,
   options: {
-  boxes: Array<{ box_index: number; class_name: string; confidence: number }>;
-  labelCandidates: Array<{ id: string; name: string }>;
-  ocrText?: string;
-},
-): Promise<{ mappings: Array<{ box_index: number; label_id: string; reason?: string }> }> {
+    boxes: Array<{ box_index: number; class_name: string; confidence: number }>;
+    labelCandidates: Array<{ id: string; name: string }>;
+    ocrText?: string;
+  },
+): Promise<{
+  mappings: Array<{ box_index: number; label_id: string; reason?: string }>;
+}> {
   return postAnnotationLlm('/agent/annotation/map-heuristic', {
     provider_id: providerId,
     boxes: options.boxes,
@@ -359,4 +367,3 @@ export async function mapDetectionBoxesHeuristic(
     ocr_text: options.ocrText ?? '',
   });
 }
-

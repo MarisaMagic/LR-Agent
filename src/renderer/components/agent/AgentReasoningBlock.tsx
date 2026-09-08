@@ -22,7 +22,11 @@ export default function AgentReasoningBlock({
 
   return (
     <div className="agent-reasoning-block">
-      <button type="button" className="agent-reasoning-toggle" onClick={onToggle}>
+      <button
+        type="button"
+        className="agent-reasoning-toggle"
+        onClick={onToggle}
+      >
         <VscodeIcon
           name={block.collapsed ? 'chevron-right' : 'chevron-down'}
           size={12}

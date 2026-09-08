@@ -13,7 +13,10 @@ describe('reportImageResolver', () => {
 
   it('resolveReportImageAbsolutePath avoids double charts segment', () => {
     const root = 'D:/project/.lr-agent/quality-reports/run-1';
-    const resolved = resolveReportImageAbsolutePath(root, 'charts/coverage.png');
+    const resolved = resolveReportImageAbsolutePath(
+      root,
+      'charts/coverage.png',
+    );
     expect(resolved).not.toContain('charts/charts');
   });
 

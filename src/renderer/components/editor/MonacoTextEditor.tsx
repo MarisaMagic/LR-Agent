@@ -58,44 +58,47 @@ export default function MonacoTextEditor({
   readOnlyRef.current = readOnly;
   themeRef.current = effectiveTheme;
 
-  const ensureEditor = useCallback(async (): Promise<monaco.editor.IStandaloneCodeEditor | null> => {
-    if (editorRef.current) return editorRef.current;
-    const container = containerRef.current;
-    if (!container) return null;
+  const ensureEditor =
+    useCallback(async (): Promise<monaco.editor.IStandaloneCodeEditor | null> => {
+      if (editorRef.current) return editorRef.current;
+      const container = containerRef.current;
+      if (!container) return null;
 
-    const ready = await waitForEditorContainer(container, () => !containerRef.current);
-    if (!ready || !containerRef.current) return null;
-    if (editorRef.current) return editorRef.current;
+      const ready = await waitForEditorContainer(
+        container,
+        () => !containerRef.current,
+      );
+      if (!ready || !containerRef.current) return null;
+      if (editorRef.current) return editorRef.current;
 
-    const editorInstance = monaco.editor.create(containerRef.current, {
-      readOnly: readOnlyRef.current,
-      minimap: { enabled: false },
-      fontSize: EDITOR_FONT_SIZE,
-      lineHeight: EDITOR_LINE_HEIGHT,
-      wordWrap: 'on',
-      automaticLayout: true,
-      scrollBeyondLastLine: false,
-      tabSize: 2,
-      theme:
-        themeRef.current === 'dark' ? 'lr-agent-dark' : 'lr-agent-light',
-    });
-    editorRef.current = editorInstance;
+      const editorInstance = monaco.editor.create(containerRef.current, {
+        readOnly: readOnlyRef.current,
+        minimap: { enabled: false },
+        fontSize: EDITOR_FONT_SIZE,
+        lineHeight: EDITOR_LINE_HEIGHT,
+        wordWrap: 'on',
+        automaticLayout: true,
+        scrollBeyondLastLine: false,
+        tabSize: 2,
+        theme: themeRef.current === 'dark' ? 'lr-agent-dark' : 'lr-agent-light',
+      });
+      editorRef.current = editorInstance;
 
-    const changeDisposable = editorInstance.onDidChangeModelContent(() => {
-      const path = currentPathRef.current;
-      const currentTabId = currentTabIdRef.current;
-      const model = editorInstance.getModel();
-      if (!path || !currentTabId || !model) return;
+      const changeDisposable = editorInstance.onDidChangeModelContent(() => {
+        const path = currentPathRef.current;
+        const currentTabId = currentTabIdRef.current;
+        const model = editorInstance.getModel();
+        if (!path || !currentTabId || !model) return;
 
-      const next = model.getValue();
-      const saved = getSavedText(path);
-      onDirtyChangeRef.current(currentTabId, next !== saved);
-    });
-    disposablesRef.current.push(changeDisposable);
+        const next = model.getValue();
+        const saved = getSavedText(path);
+        onDirtyChangeRef.current(currentTabId, next !== saved);
+      });
+      disposablesRef.current.push(changeDisposable);
 
-    scheduleEditorLayout(editorInstance);
-    return editorInstance;
-  }, []);
+      scheduleEditorLayout(editorInstance);
+      return editorInstance;
+    }, []);
 
   useEffect(() => {
     return () => {
@@ -132,8 +135,7 @@ export default function MonacoTextEditor({
     let cancelled = false;
     setLoading(true);
 
-    const isStale = () =>
-      cancelled || generation !== loadGenerationRef.current;
+    const isStale = () => cancelled || generation !== loadGenerationRef.current;
 
     const run = async () => {
       const editorInstance = await ensureEditor();
@@ -165,12 +167,7 @@ export default function MonacoTextEditor({
       const model = openDocument(filePath, text);
       if (isStale()) return;
 
-      attachDocumentToEditor(
-        editorInstance,
-        filePath,
-        model,
-        previousPath,
-      );
+      attachDocumentToEditor(editorInstance, filePath, model, previousPath);
       currentPathRef.current = filePath;
       scheduleEditorLayout(editorInstance);
       setLoading(false);

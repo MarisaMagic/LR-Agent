@@ -159,10 +159,7 @@ export default function Layout() {
       RESIZER_WIDTH -
       minMainContentWidth -
       rightOccupied;
-    return Math.max(
-      minSidebarWidth,
-      Math.min(maxSidebarWidth, spaceMax),
-    );
+    return Math.max(minSidebarWidth, Math.min(maxSidebarWidth, spaceMax));
   }, [
     rightCollapsed,
     rightWidth,
@@ -409,13 +406,9 @@ export default function Layout() {
                     ? ' editor-tab-strip-tabs--annotation'
                     : ''
                 }`}
-                initial={
-                  reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }
-                }
+                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={
-                  reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }
-                }
+                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
                 transition={{
                   duration: reducedMotion ? 0.1 : motionDuration.tab,
                   ease: motionEase,
@@ -510,7 +503,8 @@ export default function Layout() {
             >
               {rightPanel === 'annotation' && !annotationTabDisabled ? (
                 <AnnotationRightPanel />
-              ) : rightPanel === 'quickInference' && !quickInferenceTabDisabled ? (
+              ) : rightPanel === 'quickInference' &&
+                !quickInferenceTabDisabled ? (
                 <QuickInferencePanel />
               ) : rightPanel === 'quality' && !qualityTabDisabled ? (
                 <QualityDashboardPanel />

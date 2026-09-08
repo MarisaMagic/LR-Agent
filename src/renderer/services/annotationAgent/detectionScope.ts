@@ -1,4 +1,7 @@
-import type { AnnotationScopePayload, BatchAnnotationPlan } from '../../../shared/annotationAgentTypes';
+import type {
+  AnnotationScopePayload,
+  BatchAnnotationPlan,
+} from '../../../shared/annotationAgentTypes';
 
 function normList(items: string[] | undefined): string[] {
   return (items ?? []).map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -25,15 +28,23 @@ export function mergeEffectiveDetectionScope(
 
   const includeLabelNames = [
     ...new Set([
-      ...(taskScope?.include_label_names ?? []).map((s) => s.trim()).filter(Boolean),
-      ...(planScope?.include_label_names ?? []).map((s) => s.trim()).filter(Boolean),
+      ...(taskScope?.include_label_names ?? [])
+        .map((s) => s.trim())
+        .filter(Boolean),
+      ...(planScope?.include_label_names ?? [])
+        .map((s) => s.trim())
+        .filter(Boolean),
     ]),
   ];
 
   const excludeLabelNames = [
     ...new Set([
-      ...(taskScope?.exclude_label_names ?? []).map((s) => s.trim()).filter(Boolean),
-      ...(planScope?.exclude_label_names ?? []).map((s) => s.trim()).filter(Boolean),
+      ...(taskScope?.exclude_label_names ?? [])
+        .map((s) => s.trim())
+        .filter(Boolean),
+      ...(planScope?.exclude_label_names ?? [])
+        .map((s) => s.trim())
+        .filter(Boolean),
     ]),
   ];
 
@@ -76,8 +87,8 @@ function detectionLabelMatches(label: string, patterns: string[]): boolean {
 function isScopeRestricted(scope: AnnotationScopePayload): boolean {
   return Boolean(
     scope.scope_summary?.trim() ||
-      (scope.include_detection_labels?.length ?? 0) > 0 ||
-      (scope.exclude_detection_labels?.length ?? 0) > 0,
+    (scope.include_detection_labels?.length ?? 0) > 0 ||
+    (scope.exclude_detection_labels?.length ?? 0) > 0,
   );
 }
 

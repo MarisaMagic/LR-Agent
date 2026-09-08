@@ -1,4 +1,8 @@
-import type { AgentInteractionMode, AgentSkillEntry, ClientContextPayload } from '../../shared/agentTypes';
+import type {
+  AgentInteractionMode,
+  AgentSkillEntry,
+  ClientContextPayload,
+} from '../../shared/agentTypes';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import type { AnnotationProject } from '../types/annotation';
 import { getRelativeProjectPath } from '../utils/projectPaths';

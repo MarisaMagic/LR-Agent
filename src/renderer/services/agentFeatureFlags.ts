@@ -13,9 +13,7 @@ declare global {
 }
 
 function readWindowFlag(
-  key:
-    | '__LR_AGENT_MUTATION_ENABLED__'
-    | '__LR_AGENT_DOCUMENT_WRITE_ENABLED__',
+  key: '__LR_AGENT_MUTATION_ENABLED__' | '__LR_AGENT_DOCUMENT_WRITE_ENABLED__',
 ): boolean {
   if (typeof window === 'undefined') {
     return true;

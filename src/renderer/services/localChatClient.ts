@@ -1,7 +1,4 @@
-import type {
-  ChatContextConfig,
-  StreamEvent,
-} from '../../shared/agentTypes';
+import type { ChatContextConfig, StreamEvent } from '../../shared/agentTypes';
 import { DEFAULT_CHAT_CONTEXT_CONFIG } from '../../shared/agentTypes';
 
 export interface DirectChatRequest {
@@ -18,7 +15,10 @@ export interface DirectChatRequest {
   systemPrompt?: string;
 }
 
-function parseSseBuffer(buffer: string): { events: StreamEvent[]; rest: string } {
+function parseSseBuffer(buffer: string): {
+  events: StreamEvent[];
+  rest: string;
+} {
   const events: StreamEvent[] = [];
   const parts = buffer.split('\n');
   const rest = parts.pop() ?? '';
@@ -57,7 +57,10 @@ function parseOpenAiChunk(chunk: Record<string, unknown>): StreamEvent | null {
 
   if (delta) {
     // Handle reasoning content (DeepSeek-style)
-    if (delta.reasoning_content && typeof delta.reasoning_content === 'string') {
+    if (
+      delta.reasoning_content &&
+      typeof delta.reasoning_content === 'string'
+    ) {
       return { type: 'reasoning_delta', content: delta.reasoning_content };
     }
     // Handle regular text content
@@ -122,8 +125,8 @@ export async function* streamChatDirectly(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${request.apiKey}`,
-        'Accept': 'text/event-stream',
+        Authorization: `Bearer ${request.apiKey}`,
+        Accept: 'text/event-stream',
       },
       body: JSON.stringify(body),
       signal,
@@ -132,7 +135,10 @@ export async function* streamChatDirectly(
     if (err instanceof DOMException && err.name === 'AbortError') {
       return;
     }
-    yield { type: 'error', message: err instanceof Error ? err.message : '请求失败' };
+    yield {
+      type: 'error',
+      message: err instanceof Error ? err.message : '请求失败',
+    };
     return;
   }
 

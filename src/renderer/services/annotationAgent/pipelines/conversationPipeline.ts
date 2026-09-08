@@ -1,6 +1,9 @@
 /** Multi-turn conversation generation pipeline. */
 
-import type { AnnotationBatchChange, AnnotationProjectSnapshot } from '../../../../shared/annotationAgentTypes';
+import type {
+  AnnotationBatchChange,
+  AnnotationProjectSnapshot,
+} from '../../../../shared/annotationAgentTypes';
 import type { ConversationAnnotation } from '../../../types/annotationDocument';
 import { callLlmApi } from './llmUtil';
 import { readSourceTextForProject } from './sourceTextUtil';
@@ -38,7 +41,10 @@ export interface ConversationPipelineOptions {
 
 export async function runConversationPipeline(
   options: ConversationPipelineOptions,
-): Promise<{ annotations: ConversationAnnotation[]; changes: AnnotationBatchChange[] }> {
+): Promise<{
+  annotations: ConversationAnnotation[];
+  changes: AnnotationBatchChange[];
+}> {
   const changes: AnnotationBatchChange[] = [];
   const inputPaths = options.inputPaths ?? [];
 
@@ -93,8 +99,9 @@ export async function runConversationPipeline(
       if (options.isCancelled?.()) break;
       options.onProgress?.(`正在生成多轮对话数据（${i + 1}/${count}）…`);
 
-      const userPrompt = options.userRequest
-        || `请生成一段自然的多轮对话（第 ${i + 1} 条），话题尽量多样化。`;
+      const userPrompt =
+        options.userRequest ||
+        `请生成一段自然的多轮对话（第 ${i + 1} 条），话题尽量多样化。`;
 
       const result = await callLlmApi({
         providerId: options.providerId,
@@ -145,10 +152,7 @@ function parseConversationJson(content: string): ConversationOutput | null {
     const match = content.match(/\{[\s\S]*\}/);
     if (!match) return null;
     const parsed = JSON.parse(match[0]);
-    if (
-      Array.isArray(parsed.turns) &&
-      parsed.turns.length >= 2
-    ) {
+    if (Array.isArray(parsed.turns) && parsed.turns.length >= 2) {
       const turns = parsed.turns
         .filter(
           (t: unknown) =>

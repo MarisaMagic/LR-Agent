@@ -18,7 +18,9 @@ export interface ProviderRow {
 
 export function listProviders(): ProviderRow[] {
   const db = getDatabase();
-  return db.all('SELECT * FROM llm_providers ORDER BY created_at ASC') as unknown as ProviderRow[];
+  return db.all(
+    'SELECT * FROM llm_providers ORDER BY created_at ASC',
+  ) as unknown as ProviderRow[];
 }
 
 export function createProvider(provider: {
@@ -35,7 +37,8 @@ export function createProvider(provider: {
   const db = getDatabase();
   const now = Date.now();
 
-  db.run(`
+  db.run(
+    `
     INSERT INTO llm_providers (id, name, base_url, api_key_encrypted, encryption_key_id, model, enabled, is_default, supports_vision, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
@@ -52,12 +55,16 @@ export function createProvider(provider: {
     now,
   );
 
-  return db.get('SELECT * FROM llm_providers WHERE id = ?', provider.id) as unknown as ProviderRow;
+  return db.get(
+    'SELECT * FROM llm_providers WHERE id = ?',
+    provider.id,
+  ) as unknown as ProviderRow;
 }
 
 export function getProvider(id: string): ProviderRow | undefined {
   const db = getDatabase();
-  return db.get('SELECT * FROM llm_providers WHERE id = ?', id) as ProviderRow | undefined;
+  return db.get('SELECT * FROM llm_providers WHERE id = ?', id) as
+    ProviderRow | undefined;
 }
 
 export function updateProvider(
@@ -126,10 +133,7 @@ export function updateProvider(
   params.push(Date.now());
   params.push(id);
 
-  db.run(
-    `UPDATE llm_providers SET ${sets.join(', ')} WHERE id = ?`,
-    ...params,
-  );
+  db.run(`UPDATE llm_providers SET ${sets.join(', ')} WHERE id = ?`, ...params);
 
   return getProvider(id);
 }
@@ -146,7 +150,11 @@ export function setDefaultProvider(id: string): ProviderRow | undefined {
   // Clear all defaults first
   db.run('UPDATE llm_providers SET is_default = 0, updated_at = ?', now);
   // Set this one as default
-  db.run('UPDATE llm_providers SET is_default = 1, updated_at = ? WHERE id = ?', now, id);
+  db.run(
+    'UPDATE llm_providers SET is_default = 1, updated_at = ? WHERE id = ?',
+    now,
+    id,
+  );
 
   return getProvider(id);
 }

@@ -79,12 +79,7 @@ const IMAGE_EXT = new Set([
   'ico',
 ]);
 
-const TEXT_EXT = new Set([
-  'txt',
-  'md',
-  'json',
-  'jsonl',
-]);
+const TEXT_EXT = new Set(['txt', 'md', 'json', 'jsonl']);
 
 function getExtensionLower(filePath: string): string {
   const base = filePath.split(/[/\\]/).pop() ?? '';
@@ -119,7 +114,9 @@ function isPoseInstance(a: AnnotationInstance): a is PoseAnnotation {
   return a.kind === 'pose';
 }
 
-function isImagePointInstance(a: AnnotationInstance): a is ImagePointAnnotation {
+function isImagePointInstance(
+  a: AnnotationInstance,
+): a is ImagePointAnnotation {
   return a.kind === 'point';
 }
 
@@ -295,13 +292,24 @@ export interface AnnotationWorkspaceContextValue {
   ) => Promise<void>;
   // 文本标注操作方法
   /** NER: 在文本上新增 span 标注 */
-  addSpanAnnotation: (start: number, end: number, labelId: string) => string | null;
+  addSpanAnnotation: (
+    start: number,
+    end: number,
+    labelId: string,
+  ) => string | null;
   /** NER: 更新 span 区间 */
   updateSpanAnnotation: (id: string, start: number, end: number) => void;
   /** 文本分类: 新增一个分类标注（支持多标签） */
-  addTextClassificationAnnotation: (labelId: string, note?: string) => string | null;
+  addTextClassificationAnnotation: (
+    labelId: string,
+    note?: string,
+  ) => string | null;
   /** 文本分类: 更新分类标签 */
-  updateTextClassificationAnnotation: (id: string, labelId: string, note?: string) => void;
+  updateTextClassificationAnnotation: (
+    id: string,
+    labelId: string,
+    note?: string,
+  ) => void;
   /** 指令: 新增指令数据 */
   addInstructionAnnotation: (params: {
     instruction: string;
@@ -310,11 +318,14 @@ export interface AnnotationWorkspaceContextValue {
     labelId?: string | null;
   }) => string | null;
   /** 指令: 更新指令数据 */
-  updateInstructionAnnotation: (id: string, params: {
-    instruction?: string;
-    input?: string;
-    output?: string;
-  }) => void;
+  updateInstructionAnnotation: (
+    id: string,
+    params: {
+      instruction?: string;
+      input?: string;
+      output?: string;
+    },
+  ) => void;
   /** 偏好: 新增偏好数据 */
   addPreferenceAnnotation: (params: {
     prompt: string;
@@ -324,22 +335,28 @@ export interface AnnotationWorkspaceContextValue {
     labelId?: string | null;
   }) => string | null;
   /** 偏好: 更新偏好数据 */
-  updatePreferenceAnnotation: (id: string, params: {
-    prompt?: string;
-    chosen?: string;
-    rejected?: string;
-    preferenceNote?: string;
-  }) => void;
+  updatePreferenceAnnotation: (
+    id: string,
+    params: {
+      prompt?: string;
+      chosen?: string;
+      rejected?: string;
+      preferenceNote?: string;
+    },
+  ) => void;
   /** 对话: 新增对话数据 */
   addConversationAnnotation: (params: {
     turns: Array<{ role: 'user' | 'assistant'; content: string }>;
     labelId?: string | null;
   }) => string | null;
   /** 对话: 更新对话数据（替换全部 turns） */
-  updateConversationAnnotation: (id: string, turns: Array<{
-    role: 'user' | 'assistant';
-    content: string;
-  }>) => void;
+  updateConversationAnnotation: (
+    id: string,
+    turns: Array<{
+      role: 'user' | 'assistant';
+      content: string;
+    }>,
+  ) => void;
   /** CoT: 新增思维链数据 */
   addCotAnnotation: (params: {
     instruction?: string;
@@ -349,12 +366,15 @@ export interface AnnotationWorkspaceContextValue {
     labelId?: string | null;
   }) => string | null;
   /** CoT: 更新思维链数据 */
-  updateCotAnnotation: (id: string, params: {
-    instruction?: string;
-    input?: string;
-    steps?: Array<{ description: string; conclusion: string }>;
-    answer?: string;
-  }) => void;
+  updateCotAnnotation: (
+    id: string,
+    params: {
+      instruction?: string;
+      input?: string;
+      steps?: Array<{ description: string; conclusion: string }>;
+      answer?: string;
+    },
+  ) => void;
   // 图片标注操作方法（保留不变）
   addBboxAnnotation: (rect: {
     x: number;
@@ -376,11 +396,7 @@ export interface AnnotationWorkspaceContextValue {
     naturalWidth: number,
     naturalHeight: number,
   ) => string | null;
-  addPointAnnotation: (
-    x: number,
-    y: number,
-    labelId: string,
-  ) => string | null;
+  addPointAnnotation: (x: number, y: number, labelId: string) => string | null;
   addCaptionAnnotation: (params: {
     text: string;
     granularity: 'brief' | 'detailed' | 'dense';
@@ -389,7 +405,11 @@ export interface AnnotationWorkspaceContextValue {
   }) => string | null;
   updateCaptionAnnotation: (
     id: string,
-    params: { text: string; granularity?: 'brief' | 'detailed' | 'dense'; language?: string },
+    params: {
+      text: string;
+      granularity?: 'brief' | 'detailed' | 'dense';
+      language?: string;
+    },
   ) => void;
   addClassificationAnnotation: (labelId: string) => string | null;
   updateClassificationAnnotation: (id: string, labelId: string) => void;
@@ -554,22 +574,22 @@ export function AnnotationWorkspaceProvider({
 
   const isTextLLMType = Boolean(
     textAnnotationType &&
-      (textAnnotationType === 'instruction' ||
-        textAnnotationType === 'preference' ||
-        textAnnotationType === 'conversation' ||
-        textAnnotationType === 'cot'),
+    (textAnnotationType === 'instruction' ||
+      textAnnotationType === 'preference' ||
+      textAnnotationType === 'conversation' ||
+      textAnnotationType === 'cot'),
   );
 
   const workspaceEnabled = Boolean(
     projectRootMatched &&
-      activeProject &&
-      ((imageAnnotationType &&
-        activeFilePath &&
-        IMAGE_EXT.has(getExtensionLower(activeFilePath))) ||
-        (textAnnotationType &&
-          (isTextLLMType ||
-            (activeFilePath &&
-              TEXT_EXT.has(getExtensionLower(activeFilePath)))))),
+    activeProject &&
+    ((imageAnnotationType &&
+      activeFilePath &&
+      IMAGE_EXT.has(getExtensionLower(activeFilePath))) ||
+      (textAnnotationType &&
+        (isTextLLMType ||
+          (activeFilePath &&
+            TEXT_EXT.has(getExtensionLower(activeFilePath)))))),
   );
 
   /** LLM 类型在无文件选中时也可以工作 */
@@ -1033,7 +1053,10 @@ export function AnnotationWorkspaceProvider({
 
       clearAgentPreview();
       try {
-        const raw = await readFileAnnotationDoc(proj.directoryPath, relativePath);
+        const raw = await readFileAnnotationDoc(
+          proj.directoryPath,
+          relativePath,
+        );
         const parsed = raw ? parseFileAnnotationDocument(raw) : null;
         if (!parsed) {
           setSelectedAnnotationId(annotationId);
@@ -1099,21 +1122,12 @@ export function AnnotationWorkspaceProvider({
     return true;
   }, [captureHistorySnapshot, applyHistorySnapshot, bumpHistory]);
 
-  const setLocalUndoHandler = useCallback(
-    (handler: (() => boolean) | null) => {
-      localUndoHandlerRef.current = handler;
-    },
-    [],
-  );
+  const setLocalUndoHandler = useCallback((handler: (() => boolean) | null) => {
+    localUndoHandlerRef.current = handler;
+  }, []);
 
-  const canUndo = useMemo(
-    () => historyRef.current.canUndo(),
-    [historyTick],
-  );
-  const canRedo = useMemo(
-    () => historyRef.current.canRedo(),
-    [historyTick],
-  );
+  const canUndo = useMemo(() => historyRef.current.canUndo(), [historyTick]);
+  const canRedo = useMemo(() => historyRef.current.canRedo(), [historyTick]);
 
   useEffect(() => {
     if (!annotationPanelVisible) return undefined;
@@ -1123,8 +1137,7 @@ export function AnnotationWorkspaceProvider({
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (!(ev.ctrlKey || ev.metaKey)) return;
 
-      const isUndo =
-        !ev.shiftKey && (ev.key === 'z' || ev.key === 'Z');
+      const isUndo = !ev.shiftKey && (ev.key === 'z' || ev.key === 'Z');
       const isRedo =
         (ev.shiftKey && (ev.key === 'z' || ev.key === 'Z')) ||
         ev.key === 'y' ||
@@ -1274,11 +1287,7 @@ export function AnnotationWorkspaceProvider({
           setDirty(false);
           setSourceStale(stale);
           currentPairRef.current = { rel, abs: activeFilePath };
-          applyPendingAgentNavigation(
-            rel,
-            parsed,
-            stats,
-          );
+          applyPendingAgentNavigation(rel, parsed, stats);
         } else {
           const meta = emptyDocMeta(projForMeta, rel, stats);
           setLoadedDocMeta(meta);
@@ -1331,9 +1340,10 @@ export function AnnotationWorkspaceProvider({
     if (!annotationPanelVisible || !projectRootMatched) return undefined;
 
     const onBatchApplied = (event: Event) => {
-      const detail = (
-        event as CustomEvent<{ projectId?: string; relativePaths?: string[] }>
-      ).detail;
+      const { detail } = event as CustomEvent<{
+        projectId?: string;
+        relativePaths?: string[];
+      }>;
       const proj = activeProjectRef.current;
       if (!proj || detail?.projectId !== proj.id) return;
       const rel = relativeFilePath;
@@ -1367,13 +1377,19 @@ export function AnnotationWorkspaceProvider({
       'lr-agent:annotation-mutations-applied',
       onMutationsApplied,
     );
-    window.addEventListener('lr-agent:annotation-batch-applied', onBatchApplied);
+    window.addEventListener(
+      'lr-agent:annotation-batch-applied',
+      onBatchApplied,
+    );
     return () => {
       window.removeEventListener(
         'lr-agent:annotation-mutations-applied',
         onMutationsApplied,
       );
-      window.removeEventListener('lr-agent:annotation-batch-applied', onBatchApplied);
+      window.removeEventListener(
+        'lr-agent:annotation-batch-applied',
+        onBatchApplied,
+      );
     };
   }, [
     annotationPanelVisible,
@@ -1392,9 +1408,7 @@ export function AnnotationWorkspaceProvider({
 
     setAgentPreviewSession((session) => {
       if (!session) return null;
-      if (
-        isAgentPreviewPathMatch(session.relativePath, relativeFilePath)
-      ) {
+      if (isAgentPreviewPathMatch(session.relativePath, relativeFilePath)) {
         return session;
       }
       agentPreviewSessionRef.current = null;
@@ -1677,7 +1691,11 @@ export function AnnotationWorkspaceProvider({
   const updateCaptionAnnotation = useCallback(
     (
       id: string,
-      params: { text: string; granularity?: 'brief' | 'detailed' | 'dense'; language?: string },
+      params: {
+        text: string;
+        granularity?: 'brief' | 'detailed' | 'dense';
+        language?: string;
+      },
     ) => {
       recordHistory();
       setEditableAnnotations((prev) =>
@@ -1686,7 +1704,9 @@ export function AnnotationWorkspaceProvider({
           return {
             ...item,
             text: params.text.trim(),
-            ...(params.granularity !== undefined && { granularity: params.granularity }),
+            ...(params.granularity !== undefined && {
+              granularity: params.granularity,
+            }),
             ...(params.language !== undefined && { language: params.language }),
             updatedAt: new Date().toISOString(),
           };
@@ -1962,7 +1982,8 @@ export function AnnotationWorkspaceProvider({
       recordHistory();
       setEditableAnnotations((prev) =>
         prev.map((item) => {
-          if (item.id !== id || item.kind !== 'text_classification') return item;
+          if (item.id !== id || item.kind !== 'text_classification')
+            return item;
           return {
             ...item,
             labelId,
@@ -2007,18 +2028,23 @@ export function AnnotationWorkspaceProvider({
   );
 
   const updateInstructionAnnotation = useCallback(
-    (id: string, params: {
-      instruction?: string;
-      input?: string;
-      output?: string;
-    }) => {
+    (
+      id: string,
+      params: {
+        instruction?: string;
+        input?: string;
+        output?: string;
+      },
+    ) => {
       recordHistory();
       setEditableAnnotations((prev) =>
         prev.map((item) => {
           if (item.id !== id || item.kind !== 'instruction') return item;
           return {
             ...item,
-            ...(params.instruction !== undefined && { instruction: params.instruction }),
+            ...(params.instruction !== undefined && {
+              instruction: params.instruction,
+            }),
             ...(params.input !== undefined && { input: params.input }),
             ...(params.output !== undefined && { output: params.output }),
             updatedAt: new Date().toISOString(),
@@ -2038,7 +2064,13 @@ export function AnnotationWorkspaceProvider({
       preferenceNote?: string;
       labelId?: string | null;
     }): string | null => {
-      if (!loadedDocMeta || !params.prompt || !params.chosen || !params.rejected) return null;
+      if (
+        !loadedDocMeta ||
+        !params.prompt ||
+        !params.chosen ||
+        !params.rejected
+      )
+        return null;
       const now = new Date().toISOString();
       const id = crypto.randomUUID();
       const next: PreferenceAnnotation = {
@@ -2062,12 +2094,15 @@ export function AnnotationWorkspaceProvider({
   );
 
   const updatePreferenceAnnotation = useCallback(
-    (id: string, params: {
-      prompt?: string;
-      chosen?: string;
-      rejected?: string;
-      preferenceNote?: string;
-    }) => {
+    (
+      id: string,
+      params: {
+        prompt?: string;
+        chosen?: string;
+        rejected?: string;
+        preferenceNote?: string;
+      },
+    ) => {
       recordHistory();
       setEditableAnnotations((prev) =>
         prev.map((item) => {
@@ -2077,7 +2112,9 @@ export function AnnotationWorkspaceProvider({
             ...(params.prompt !== undefined && { prompt: params.prompt }),
             ...(params.chosen !== undefined && { chosen: params.chosen }),
             ...(params.rejected !== undefined && { rejected: params.rejected }),
-            ...(params.preferenceNote !== undefined && { preferenceNote: params.preferenceNote }),
+            ...(params.preferenceNote !== undefined && {
+              preferenceNote: params.preferenceNote,
+            }),
             updatedAt: new Date().toISOString(),
           };
         }),
@@ -2113,7 +2150,10 @@ export function AnnotationWorkspaceProvider({
   );
 
   const updateConversationAnnotation = useCallback(
-    (id: string, turns: Array<{ role: 'user' | 'assistant'; content: string }>) => {
+    (
+      id: string,
+      turns: Array<{ role: 'user' | 'assistant'; content: string }>,
+    ) => {
       if (turns.length === 0) return;
       recordHistory();
       setEditableAnnotations((prev) =>
@@ -2135,7 +2175,8 @@ export function AnnotationWorkspaceProvider({
       answer: string;
       labelId?: string | null;
     }): string | null => {
-      if (!loadedDocMeta || params.steps.length === 0 || !params.answer) return null;
+      if (!loadedDocMeta || params.steps.length === 0 || !params.answer)
+        return null;
       const now = new Date().toISOString();
       const id = crypto.randomUUID();
       const next: CotAnnotation = {
@@ -2159,19 +2200,24 @@ export function AnnotationWorkspaceProvider({
   );
 
   const updateCotAnnotation = useCallback(
-    (id: string, params: {
-      instruction?: string;
-      input?: string;
-      steps?: Array<{ description: string; conclusion: string }>;
-      answer?: string;
-    }) => {
+    (
+      id: string,
+      params: {
+        instruction?: string;
+        input?: string;
+        steps?: Array<{ description: string; conclusion: string }>;
+        answer?: string;
+      },
+    ) => {
       recordHistory();
       setEditableAnnotations((prev) =>
         prev.map((item) => {
           if (item.id !== id || item.kind !== 'cot') return item;
           return {
             ...item,
-            ...(params.instruction !== undefined && { instruction: params.instruction }),
+            ...(params.instruction !== undefined && {
+              instruction: params.instruction,
+            }),
             ...(params.input !== undefined && { input: params.input }),
             ...(params.steps !== undefined && { steps: params.steps }),
             ...(params.answer !== undefined && { answer: params.answer }),

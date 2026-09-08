@@ -68,15 +68,16 @@ export async function startAnnotationBatchJob(options: {
         // 收到有效提案即视为完成；text 事件先于 proposal 到达时曾把 status 置为 skipped，必须恢复
         outcome.status = 'completed';
         outcome.processedImages = event.proposal.stats.processed;
-        const stats = event.proposal.stats;
+        const { stats } = event.proposal;
         outcome.summary = stats.cancelled
           ? `标注已取消，已保存 ${stats.succeeded} 张的部分结果。`
-          : `批量标注完成：处理 ${stats.processed} 张` +
-            ('totalBoxes' in stats
-              ? `，共 ${(stats as { totalBoxes: number }).totalBoxes} 个框`
-              : 'totalInstances' in stats
-                ? `，共 ${(stats as { totalInstances: number }).totalInstances} 个实例`
-                : '') + '。';
+          : `批量标注完成：处理 ${stats.processed} 张${
+              'totalBoxes' in stats
+                ? `，共 ${(stats as { totalBoxes: number }).totalBoxes} 个框`
+                : 'totalInstances' in stats
+                  ? `，共 ${(stats as { totalInstances: number }).totalInstances} 个实例`
+                  : ''
+            }。`;
       }
       if (event.type === 'text' && !outcome.hasProposal) {
         outcome.status = 'skipped';

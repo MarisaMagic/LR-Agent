@@ -1,12 +1,7 @@
 export type PretrainedModelType =
-  | 'object_detection'
-  | 'image_segmentation'
-  | 'keypoint_estimation';
+  'object_detection' | 'image_segmentation' | 'keypoint_estimation';
 
-export type KeypointBackend =
-  | 'yolo_pose'
-  | 'mediapipe_hand'
-  | 'face_alignment';
+export type KeypointBackend = 'yolo_pose' | 'mediapipe_hand' | 'face_alignment';
 
 export type ObjectDetectionMode = 'detect' | 'obb';
 
@@ -156,10 +151,7 @@ function basename(filePath: string): string {
 export function getModelDisplayName(model: PretrainedModelConfig): string {
   if (model.name.trim()) return model.name.trim();
   if (model.checkpointPath.trim()) {
-    return basename(model.checkpointPath).replace(
-      /\.(pt|task|pth|tar)$/i,
-      '',
-    );
+    return basename(model.checkpointPath).replace(/\.(pt|task|pth|tar)$/i, '');
   }
   return PRETRAINED_MODEL_TYPE_LABELS[model.modelType];
 }
@@ -197,8 +189,7 @@ function normalizeTypeDefaults(
   const enabledDefaults = list.filter((m) => m.enabled && m.isDefault);
   if (enabledDefaults.length === 1) return;
 
-  const pick =
-    enabledDefaults[0] ?? list.find((m) => m.enabled) ?? list[0];
+  const pick = enabledDefaults[0] ?? list.find((m) => m.enabled) ?? list[0];
   if (!pick) return;
 
   for (const model of list) {
@@ -227,9 +218,7 @@ function normalizeKeypointDefaults(models: PretrainedModelConfig[]): void {
     if (enabledDefaults.length === 1) continue;
 
     const pick =
-      enabledDefaults[0] ??
-      candidates.find((m) => m.enabled) ??
-      candidates[0];
+      enabledDefaults[0] ?? candidates.find((m) => m.enabled) ?? candidates[0];
 
     for (const model of candidates) {
       if (model.id === pick.id) {
@@ -260,10 +249,7 @@ export function normalizeModelsOnSave(
       }
     } else {
       for (const model of next) {
-        if (
-          model.modelType === changed.modelType &&
-          model.id !== changed.id
-        ) {
+        if (model.modelType === changed.modelType && model.id !== changed.id) {
           model.isDefault = false;
         }
       }

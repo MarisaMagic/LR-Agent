@@ -1,11 +1,17 @@
 import type { AnnotationBatchProposal } from '../../shared/annotationAgentTypes';
 import type { AnnotationProject, LabelDefinition } from '../types/annotation';
-import type { ChatMessage, FileProposalLikeBlock, MessageBlock } from '../../shared/agentTypes';
+import type {
+  ChatMessage,
+  FileProposalLikeBlock,
+  MessageBlock,
+} from '../../shared/agentTypes';
 import { isFileProposalBlock } from '../../shared/agentTypes';
 import type { AnnotationInstance } from '../types/annotationDocument';
-import { applyAnnotationBatchProposal } from './annotationProposalApply';
+import {
+  applyAnnotationBatchProposal,
+  dispatchMutationsAppliedEvent,
+} from './annotationProposalApply';
 import { getAnnotationWorkspaceAgentSnapshot } from './annotationAgentBridge';
-import { dispatchMutationsAppliedEvent } from './annotationProposalApply';
 import { isAgentDocumentWriteEnabled } from './agentFeatureFlags';
 import { patchAgentMessageBlockRemote } from './agentChatApi';
 
@@ -50,7 +56,7 @@ function inferAnnotationKindLabel(
 ): string {
   const annotations = change.annotations ?? [];
   if (annotations.length === 0) return '项';
-  const kind = annotations[0].kind;
+  const { kind } = annotations[0];
   switch (kind) {
     case 'bbox':
     case 'rotated_bbox':
@@ -84,7 +90,7 @@ const MAX_PREVIEW_LEN = 80;
 
 function truncate(text: string, max: number = MAX_PREVIEW_LEN): string {
   if (text.length <= max) return text;
-  return text.slice(0, max) + '...';
+  return `${text.slice(0, max)}...`;
 }
 
 function labelName(
@@ -176,7 +182,9 @@ export function collectPendingChangeItems(
   return items;
 }
 
-export function collectPendingProposals(messages: ChatMessage[]): PendingProposalRef[] {
+export function collectPendingProposals(
+  messages: ChatMessage[],
+): PendingProposalRef[] {
   const refs: PendingProposalRef[] = [];
   for (const msg of messages) {
     if (msg.role !== 'assistant') continue;
@@ -197,14 +205,14 @@ export function countPendingProposals(messages: ChatMessage[]): number {
 
 function annotationHasUnresolved(proposal: AnnotationBatchProposal): boolean {
   return proposal.changes.some((change) => {
-    if (change.operation === 'patch') return !(change.patches?.length);
-    if (change.operation === 'delete') return !(change.deleteIds?.length);
+    if (change.operation === 'patch') return !change.patches?.length;
+    if (change.operation === 'delete') return !change.deleteIds?.length;
     if (
       change.operation === 'append' ||
       change.operation === 'replace' ||
       change.operation === 'replace_bboxes'
     ) {
-      return !(change.annotations?.length);
+      return !change.annotations?.length;
     }
     return true;
   });
@@ -306,10 +314,16 @@ export async function applyAllPendingProposals(options: {
 
     try {
       if (ref.kind === 'annotation' && block.type === 'annotation_proposal') {
-        if (!options.project || options.project.id !== block.proposal.projectId) {
+        if (
+          !options.project ||
+          options.project.id !== block.proposal.projectId
+        ) {
           throw new Error('请先打开对应的标注项目');
         }
-        await applyAnnotationProposalWithGuards(options.project, block.proposal);
+        await applyAnnotationProposalWithGuards(
+          options.project,
+          block.proposal,
+        );
         options.updateBlock(ref.messageId, ref.blockIndex, {
           ...block,
           status: 'applied',
@@ -324,7 +338,11 @@ export async function applyAllPendingProposals(options: {
         });
         applied += 1;
       } else if (ref.kind === 'file' && isFileProposalBlock(block)) {
-        await applyFileBlock(options.project, options.workspaceRoot ?? null, block);
+        await applyFileBlock(
+          options.project,
+          options.workspaceRoot ?? null,
+          block,
+        );
         options.updateBlock(ref.messageId, ref.blockIndex, {
           ...block,
           status: 'applied',

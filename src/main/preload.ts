@@ -143,8 +143,9 @@ const electronHandler = {
       ipcRenderer.invoke('auth:setRefreshToken', token),
     clearRefreshToken: (): Promise<void> =>
       ipcRenderer.invoke('auth:clearRefreshToken'),
-    getSessionCache: (): Promise<import('./auth/sessionCacheStore').LocalSessionCache | null> =>
-      ipcRenderer.invoke('auth:getSessionCache'),
+    getSessionCache: (): Promise<
+      import('./auth/sessionCacheStore').LocalSessionCache | null
+    > => ipcRenderer.invoke('auth:getSessionCache'),
     setSessionCache: (
       cache: import('./auth/sessionCacheStore').LocalSessionCache,
     ): Promise<void> => ipcRenderer.invoke('auth:setSessionCache', cache),
@@ -200,12 +201,20 @@ const electronHandler = {
     ): Promise<
       | import('./pretrainedModels/pretrainedModelStore').KeypointAssetScanResult
       | null
-    > => ipcRenderer.invoke('pretrainedModels:scanFaceAlignmentDirectory', rootDir),
+    > =>
+      ipcRenderer.invoke(
+        'pretrainedModels:scanFaceAlignmentDirectory',
+        rootDir,
+      ),
     scanKeypointBundleDirectory: (
       rootDir: string,
     ): Promise<
       import('./pretrainedModels/pretrainedModelStore').KeypointBundleScanResult
-    > => ipcRenderer.invoke('pretrainedModels:scanKeypointBundleDirectory', rootDir),
+    > =>
+      ipcRenderer.invoke(
+        'pretrainedModels:scanKeypointBundleDirectory',
+        rootDir,
+      ),
   },
   preAnnot: {
     checkRuntime: (): Promise<
@@ -335,12 +344,17 @@ const electronHandler = {
         absolutePath: string;
         index: number;
       }>
-    > => ipcRenderer.invoke('annotationAgent:listTextFiles', projectDir, maxFiles),
+    > =>
+      ipcRenderer.invoke('annotationAgent:listTextFiles', projectDir, maxFiles),
     resolveRelativeFile: (
       projectDir: string,
       relativePath: string,
     ): Promise<{ relativePath: string; absolutePath: string } | null> =>
-      ipcRenderer.invoke('annotationAgent:resolveRelativeFile', projectDir, relativePath),
+      ipcRenderer.invoke(
+        'annotationAgent:resolveRelativeFile',
+        projectDir,
+        relativePath,
+      ),
   },
   quality: {
     createRun: (
@@ -467,9 +481,7 @@ const electronHandler = {
       ) => void,
     ): (() => void) =>
       electronHandler.ipcRenderer.on('localAgent:status', (value) => {
-        callback(
-          value as import('../shared/envTypes').LocalAgentServiceStatus,
-        );
+        callback(value as import('../shared/envTypes').LocalAgentServiceStatus);
       }),
   },
   env: {
@@ -504,7 +516,9 @@ const electronHandler = {
       ipcRenderer.invoke('env:validatePython', pythonPath),
     /** 订阅一键安装进度流 */
     onInstallProgress: (
-      callback: (progress: import('../shared/envTypes').InstallProgress) => void,
+      callback: (
+        progress: import('../shared/envTypes').InstallProgress,
+      ) => void,
     ): (() => void) =>
       electronHandler.ipcRenderer.on('env:install:progress', (value) => {
         callback(value as import('../shared/envTypes').InstallProgress);
@@ -558,7 +572,11 @@ const electronHandler = {
         providerId?: string | null;
         model?: string | null;
       }): Promise<unknown> => ipcRenderer.invoke('db:sessions:create', session),
-      update: (sessionId: string, userId: string, patch: Record<string, unknown>): Promise<unknown> =>
+      update: (
+        sessionId: string,
+        userId: string,
+        patch: Record<string, unknown>,
+      ): Promise<unknown> =>
         ipcRenderer.invoke('db:sessions:update', sessionId, userId, patch),
       softDelete: (sessionId: string, userId: string): Promise<void> =>
         ipcRenderer.invoke('db:sessions:softDelete', sessionId, userId),
@@ -576,17 +594,23 @@ const electronHandler = {
         workspaceOnly?: boolean;
       }): Promise<unknown> =>
         ipcRenderer.invoke('db:sessions:listWithStats', options),
-      backfillLegacyUserId: (userId: string): Promise<{
+      backfillLegacyUserId: (
+        userId: string,
+      ): Promise<{
         sessionsUpdated: number;
         messagesUpdated: number;
       }> => ipcRenderer.invoke('db:sessions:backfillLegacyUserId', userId),
     },
     // ── Message operations ──
     messages: {
-      list: (sessionId: string, options: {
-        beforeMessageId?: string | null;
-        limit?: number;
-      }): Promise<unknown> => ipcRenderer.invoke('db:messages:list', sessionId, options),
+      list: (
+        sessionId: string,
+        options: {
+          beforeMessageId?: string | null;
+          limit?: number;
+        },
+      ): Promise<unknown> =>
+        ipcRenderer.invoke('db:messages:list', sessionId, options),
       create: (message: {
         id: string;
         sessionId: string;
@@ -600,7 +624,10 @@ const electronHandler = {
         model?: string | null;
         error?: string | null;
       }): Promise<unknown> => ipcRenderer.invoke('db:messages:create', message),
-      update: (messageId: string, patch: Record<string, unknown>): Promise<unknown> =>
+      update: (
+        messageId: string,
+        patch: Record<string, unknown>,
+      ): Promise<unknown> =>
         ipcRenderer.invoke('db:messages:update', messageId, patch),
       deleteAfter: (sessionId: string, sortIndex: number): Promise<void> =>
         ipcRenderer.invoke('db:messages:deleteAfter', sessionId, sortIndex),
@@ -620,7 +647,8 @@ const electronHandler = {
     // ── Provider operations ──
     providers: {
       list: (): Promise<unknown> => ipcRenderer.invoke('db:providers:list'),
-      get: (id: string): Promise<unknown> => ipcRenderer.invoke('db:providers:get', id),
+      get: (id: string): Promise<unknown> =>
+        ipcRenderer.invoke('db:providers:get', id),
       create: (provider: {
         id: string;
         name: string;
@@ -631,14 +659,16 @@ const electronHandler = {
         enabled?: boolean;
         isDefault?: boolean;
         supportsVision?: boolean;
-      }): Promise<unknown> => ipcRenderer.invoke('db:providers:create', provider),
+      }): Promise<unknown> =>
+        ipcRenderer.invoke('db:providers:create', provider),
       update: (id: string, patch: Record<string, unknown>): Promise<unknown> =>
         ipcRenderer.invoke('db:providers:update', id, patch),
       delete: (id: string): Promise<void> =>
         ipcRenderer.invoke('db:providers:delete', id),
       setDefault: (id: string): Promise<unknown> =>
         ipcRenderer.invoke('db:providers:setDefault', id),
-      getDefault: (): Promise<unknown> => ipcRenderer.invoke('db:providers:getDefault'),
+      getDefault: (): Promise<unknown> =>
+        ipcRenderer.invoke('db:providers:getDefault'),
     },
   },
 };

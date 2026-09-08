@@ -42,9 +42,7 @@ export function createMarkdownCodeComponents(
             e.preventDefault();
             // 仅 http(s) 绝对链接交给系统浏览器，相对链接不再触发当前窗口导航
             if (/^https?:\/\//i.test(href)) {
-              window.electron.window
-                .openExternal(href)
-                .catch(() => undefined);
+              window.electron.window.openExternal(href).catch(() => undefined);
             }
           }}
         >
@@ -61,14 +59,11 @@ export function createMarkdownCodeComponents(
     code({ className, children, ...props }) {
       const language = extractLanguage(className);
       const content = normalizeCodeContent(children);
-      const isBlock =
-        language != null || content.includes('\n');
+      const isBlock = language != null || content.includes('\n');
 
       if (isBlock) {
         const html = highlightMarkdownCode(content, language);
-        const hljsClassName = language
-          ? `hljs language-${language}`
-          : 'hljs';
+        const hljsClassName = language ? `hljs language-${language}` : 'hljs';
         return (
           <code
             className={[hljsClassName, className].filter(Boolean).join(' ')}

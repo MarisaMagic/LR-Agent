@@ -6,7 +6,8 @@ import {
 } from './pipelineImageSteps';
 
 function workerStep(
-  partial: Partial<AnnotationPipelineStep> & Pick<AnnotationPipelineStep, 'message' | 'status'>,
+  partial: Partial<AnnotationPipelineStep> &
+    Pick<AnnotationPipelineStep, 'message' | 'status'>,
 ): AnnotationPipelineStep {
   return {
     stage: 'worker',
@@ -17,7 +18,9 @@ function workerStep(
 
 describe('pipelineImageSteps', () => {
   it('extracts path from worker messages', () => {
-    expect(extractImagePathFromWorkerMessage('完成：data/7.jpg')).toBe('data/7.jpg');
+    expect(extractImagePathFromWorkerMessage('完成：data/7.jpg')).toBe(
+      'data/7.jpg',
+    );
     expect(extractImagePathFromWorkerMessage('处理中 (2/5)：foo/bar.png')).toBe(
       'foo/bar.png',
     );
@@ -54,6 +57,8 @@ describe('pipelineImageSteps', () => {
     const details = steps.filter((s) => s.stage === 'worker');
     expect(details).toHaveLength(2);
     expect(details.find((s) => s.imagePath === 'a.jpg')?.status).toBe('done');
-    expect(details.find((s) => s.imagePath === 'b.jpg')?.detail).toBe('映射 4 框');
+    expect(details.find((s) => s.imagePath === 'b.jpg')?.detail).toBe(
+      '映射 4 框',
+    );
   });
 });

@@ -25,11 +25,7 @@ import registerPreAnnotHandlers from './preAnnot/preAnnotHandlers';
 import { registerWorkspaceHandlers } from './workspace/workspaceHandlers';
 import registerAnnotationAgentHandlers from './annotation/agent/handlers';
 import registerQualityReportHandlers from './annotation/quality/handlers';
-import {
-  startMcpServer,
-  stopMcpServer,
-  getMcpServerUrl,
-} from './mcp/server';
+import { startMcpServer, stopMcpServer, getMcpServerUrl } from './mcp/server';
 import {
   startLocalAgentServer,
   stopLocalAgentServer,
@@ -238,7 +234,7 @@ function startWatchingWorkspace(rootPath: string): void {
 
   workspaceWatcher = chokidar.watch(rootPath, {
     ignored: [
-      /(^|[\/\\])\./,          // 隐藏文件/目录
+      /(^|[\/\\])\./, // 隐藏文件/目录
       '**/node_modules/**',
       '**/.git/**',
       '**/dist/**',
@@ -269,12 +265,9 @@ function startWatchingWorkspace(rootPath: string): void {
 
 // ── IPC: 工作区文件监听控制 ──
 
-ipcMain.handle(
-  'workspace:startWatch',
-  async (_event, rootPath: string) => {
-    startWatchingWorkspace(rootPath);
-  },
-);
+ipcMain.handle('workspace:startWatch', async (_event, rootPath: string) => {
+  startWatchingWorkspace(rootPath);
+});
 
 ipcMain.handle('workspace:stopWatch', async () => {
   stopWatchingWorkspace();
@@ -308,10 +301,7 @@ ipcMain.handle('shell:openPath', async (_event, filePath: string) => {
 
 ipcMain.handle(
   'dialog:confirm',
-  async (
-    _event,
-    options: { title?: string; message: string },
-  ) => {
+  async (_event, options: { title?: string; message: string }) => {
     const win = BrowserWindow.getFocusedWindow();
     if (!win) return { confirmed: false };
     const result = await dialog.showMessageBox(win, {
@@ -369,22 +359,19 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle(
-  'workspace:deleteEntry',
-  async (_event, entryPath: string) => {
-    try {
-      await shell.trashItem(entryPath);
-      const parentDir = path.dirname(entryPath);
-      BrowserWindow.getAllWindows().forEach((win) => {
-        win.webContents.send('file-system:changed', parentDir);
-      });
-      return { success: true };
-    } catch (error) {
-      console.error('Error deleting entry:', error);
-      return { success: false, error: String(error) };
-    }
-  },
-);
+ipcMain.handle('workspace:deleteEntry', async (_event, entryPath: string) => {
+  try {
+    await shell.trashItem(entryPath);
+    const parentDir = path.dirname(entryPath);
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('file-system:changed', parentDir);
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting entry:', error);
+    return { success: false, error: String(error) };
+  }
+});
 
 ipcMain.handle(
   'workspace:renameEntry',

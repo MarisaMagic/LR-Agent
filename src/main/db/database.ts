@@ -5,7 +5,7 @@ import path from 'path';
 import { app } from 'electron';
 
 let SQL: SqlJsStatic | null = null;
-let innerDb: SqlJsDb | null = null;
+const innerDb: SqlJsDb | null = null;
 let dbPath: string = '';
 
 function getDbPath(): string {
@@ -17,6 +17,7 @@ function getDbPath(): string {
 
 export class SqlJsDatabase {
   private db: SqlJsDb;
+
   private onDirty: (() => void) | null;
 
   constructor(db: SqlJsDb, onDirty?: () => void) {
@@ -120,7 +121,9 @@ function doFlush(): void {
 
 export function getDatabase(): SqlJsDatabase {
   if (!_db) {
-    throw new Error('Database not initialized. Call initializeDatabase() first.');
+    throw new Error(
+      'Database not initialized. Call initializeDatabase() first.',
+    );
   }
   return _db;
 }
@@ -130,7 +133,8 @@ export async function initializeDatabase(): Promise<void> {
   console.log(`[DB] Initializing SQLite database at: ${dbPath}`);
 
   SQL = await initSqlJs({
-    locateFile: (file) => path.join(__dirname, '../../node_modules/sql.js/dist', file),
+    locateFile: (file) =>
+      path.join(__dirname, '../../node_modules/sql.js/dist', file),
   });
 
   let buffer: Uint8Array | null = null;
@@ -206,8 +210,12 @@ function runMigrations(): void {
     )
   `);
 
-  d.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_annotation_project_id ON sessions(annotation_project_id)`);
-  d.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at)`);
+  d.exec(
+    `CREATE INDEX IF NOT EXISTS idx_sessions_annotation_project_id ON sessions(annotation_project_id)`,
+  );
+  d.exec(
+    `CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at)`,
+  );
 
   d.exec(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -227,9 +235,15 @@ function runMigrations(): void {
     )
   `);
 
-  d.exec(`CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)`);
-  d.exec(`CREATE INDEX IF NOT EXISTS idx_messages_sort_index ON messages(session_id, sort_index)`);
-  d.exec(`CREATE INDEX IF NOT EXISTS idx_messages_session_role_sort ON messages(session_id, role, sort_index)`);
+  d.exec(
+    `CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)`,
+  );
+  d.exec(
+    `CREATE INDEX IF NOT EXISTS idx_messages_sort_index ON messages(session_id, sort_index)`,
+  );
+  d.exec(
+    `CREATE INDEX IF NOT EXISTS idx_messages_session_role_sort ON messages(session_id, role, sort_index)`,
+  );
 
   d.exec(`
     CREATE TABLE IF NOT EXISTS llm_providers (
@@ -250,15 +264,24 @@ function runMigrations(): void {
   `);
 
   // user_id multi-user isolation migration
-  _addColumnIfMissing(d, 'sessions', 'user_id', 'TEXT NOT NULL DEFAULT \'\'');
-  _addColumnIfMissing(d, 'messages', 'user_id', 'TEXT NOT NULL DEFAULT \'\'');
-  d.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`);
-  d.exec(`CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)`);
+  _addColumnIfMissing(d, 'sessions', 'user_id', "TEXT NOT NULL DEFAULT ''");
+  _addColumnIfMissing(d, 'messages', 'user_id', "TEXT NOT NULL DEFAULT ''");
+  d.exec(
+    `CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`,
+  );
+  d.exec(
+    `CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)`,
+  );
 
   console.log('[DB] Migrations completed successfully');
 }
 
-function _addColumnIfMissing(d: SqlJsDatabase, table: string, column: string, definition: string): void {
+function _addColumnIfMissing(
+  d: SqlJsDatabase,
+  table: string,
+  column: string,
+  definition: string,
+): void {
   const rows = d.all(`PRAGMA table_info(${table})`) as { name: string }[];
   if (rows.some((r) => r.name === column)) {
     return;

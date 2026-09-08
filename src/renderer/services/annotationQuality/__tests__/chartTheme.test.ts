@@ -45,7 +45,10 @@ describe('applyChartTheme', () => {
     const tokens = getChartThemeTokens('light');
     const option = {
       grid: { left: 40, right: 16, bottom: 48, top: 32 },
-      tooltip: { trigger: 'axis' as const, axisPointer: { type: 'shadow' as const } },
+      tooltip: {
+        trigger: 'axis' as const,
+        axisPointer: { type: 'shadow' as const },
+      },
       xAxis: { type: 'category' as const, data: ['a', 'b'] },
       yAxis: { type: 'value' as const },
       series: [{ type: 'bar' as const, data: [1, 2] }],
@@ -75,8 +78,11 @@ describe('applyChartTheme', () => {
     };
 
     const themed = applyChartTheme(option, tokens);
-    const series = Array.isArray(themed.series) ? themed.series[0] : themed.series;
-    const data = (series as { data?: Array<Record<string, unknown>> }).data ?? [];
+    const series = Array.isArray(themed.series)
+      ? themed.series[0]
+      : themed.series;
+    const data =
+      (series as { data?: Array<Record<string, unknown>> }).data ?? [];
 
     expect(data[0]?.itemStyle).toEqual({ color: tokens.semantic.success });
     expect(data[1]?.itemStyle).toEqual({ color: tokens.semantic.muted });
@@ -102,8 +108,11 @@ describe('applyChartTheme', () => {
     };
 
     const themed = applyChartTheme(option, tokens);
-    const series = Array.isArray(themed.series) ? themed.series[0] : themed.series;
-    const data = (series as { data?: Array<Record<string, unknown>> }).data ?? [];
+    const series = Array.isArray(themed.series)
+      ? themed.series[0]
+      : themed.series;
+    const data =
+      (series as { data?: Array<Record<string, unknown>> }).data ?? [];
 
     expect((data[0]?.label as { color?: string })?.color).toBe('#cccccc');
   });

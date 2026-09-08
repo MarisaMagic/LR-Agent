@@ -1,8 +1,4 @@
-import {
-  type ReactNode,
-  type Ref,
-  type UIEventHandler,
-} from 'react';
+import { type ReactNode, type Ref, type UIEventHandler } from 'react';
 import { useOverlayHorizontalScrollbar } from '../hooks/useOverlayHorizontalScrollbar';
 import './OverlayHorizontalScrollArea.css';
 

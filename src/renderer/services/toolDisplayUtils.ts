@@ -143,9 +143,7 @@ export function summarizeToolResultForDisplay(
   return result;
 }
 
-export function buildExplorationSummary(
-  tools: { name: string }[],
-): string {
+export function buildExplorationSummary(tools: { name: string }[]): string {
   let reads = 0;
   let greps = 0;
   let lists = 0;

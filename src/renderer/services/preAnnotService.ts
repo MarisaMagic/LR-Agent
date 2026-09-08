@@ -6,7 +6,10 @@ import type {
   PreAnnotRunResponse,
   PreAnnotRuntimeInfo,
 } from '../../shared/preAnnotTypes';
-import type { PretrainedModelConfig, PretrainedModelParams } from '../types/pretrainedModel';
+import type {
+  PretrainedModelConfig,
+  PretrainedModelParams,
+} from '../types/pretrainedModel';
 
 function createJobId(): string {
   return `preannot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;

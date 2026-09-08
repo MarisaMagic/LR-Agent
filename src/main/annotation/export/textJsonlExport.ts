@@ -20,7 +20,9 @@ async function readSourceText(
 }
 
 function sourceFileField(relativePath: string): string | null {
-  return isSyntheticPath(relativePath) ? null : relativePath.replace(/\\/g, '/');
+  return isSyntheticPath(relativePath)
+    ? null
+    : relativePath.replace(/\\/g, '/');
 }
 
 export async function exportTextJsonl(

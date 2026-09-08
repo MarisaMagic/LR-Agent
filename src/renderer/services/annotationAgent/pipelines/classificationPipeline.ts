@@ -1,7 +1,13 @@
 /** Image classification generation pipeline. */
 
-import type { AnnotationBatchChange, AnnotationProjectSnapshot } from '../../../../shared/annotationAgentTypes';
-import type { ClassificationAnnotation, AnnotationInstance } from '../../../../types/annotationDocument';
+import type {
+  AnnotationBatchChange,
+  AnnotationProjectSnapshot,
+} from '../../../../shared/annotationAgentTypes';
+import type {
+  ClassificationAnnotation,
+  AnnotationInstance,
+} from '../../../../types/annotationDocument';
 import { callLlmApi } from './llmUtil';
 import { readImageBase64 } from '../fusionSubImageTools';
 
@@ -39,7 +45,10 @@ export interface ClassificationPipelineOptions {
 
 export async function runClassificationPipeline(
   options: ClassificationPipelineOptions,
-): Promise<{ annotations: ClassificationAnnotation[]; changes: AnnotationBatchChange[] }> {
+): Promise<{
+  annotations: ClassificationAnnotation[];
+  changes: AnnotationBatchChange[];
+}> {
   const changes: AnnotationBatchChange[] = [];
 
   for (const input of options.inputPaths) {
@@ -124,7 +133,9 @@ function parseClassificationJson(
     if (typeof labelName === 'string' && labelName.trim()) {
       const name = labelName.trim().toLowerCase();
       const found = project.labels.find(
-        (l) => l.name.toLowerCase().includes(name) || name.includes(l.name.toLowerCase()),
+        (l) =>
+          l.name.toLowerCase().includes(name) ||
+          name.includes(l.name.toLowerCase()),
       );
       if (found) return { labelId: found.id };
     }

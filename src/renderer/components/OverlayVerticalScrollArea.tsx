@@ -53,7 +53,9 @@ export default function OverlayVerticalScrollArea({
 
   if (!enabled) {
     return (
-      <div className={disabledContentClassName || contentClassName}>{children}</div>
+      <div className={disabledContentClassName || contentClassName}>
+        {children}
+      </div>
     );
   }
 
@@ -77,7 +79,9 @@ export default function OverlayVerticalScrollArea({
 
   const scrollerStyle: CSSProperties | undefined =
     reserveBottomPx != null
-      ? ({ '--overlay-vertical-scroll-reserve-bottom': reserveBottomPx } as CSSProperties)
+      ? ({
+          '--overlay-vertical-scroll-reserve-bottom': reserveBottomPx,
+        } as CSSProperties)
       : undefined;
 
   const scroller = (

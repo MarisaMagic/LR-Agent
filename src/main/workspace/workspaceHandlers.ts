@@ -26,10 +26,7 @@ export function registerWorkspaceHandlers(): void {
 
   ipcMain.handle(
     'workspace:readTextFile',
-    async (
-      _event,
-      payload: { rootDir: string; relativePath: string },
-    ) => {
+    async (_event, payload: { rootDir: string; relativePath: string }) => {
       return readScopedTextFile(payload.rootDir, payload.relativePath);
     },
   );

@@ -49,11 +49,8 @@ export function registerMemoryHandlers(): void {
     },
   );
 
-  ipcMain.handle(
-    'agent:memory:openDir',
-    async (_event, scopeKey: string) => {
-      const dir = await ensureMemoryDir(scopeKey);
-      return shell.openPath(dir);
-    },
-  );
+  ipcMain.handle('agent:memory:openDir', async (_event, scopeKey: string) => {
+    const dir = await ensureMemoryDir(scopeKey);
+    return shell.openPath(dir);
+  });
 }

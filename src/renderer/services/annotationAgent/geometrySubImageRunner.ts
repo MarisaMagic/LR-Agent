@@ -33,7 +33,10 @@ import { readImageBase64 } from './fusionSubImageTools';
 
 type MappingRow = { box_index: number; label_id: string; reason?: string };
 
-function mergeMappings(base: MappingRow[], updates: MappingRow[]): MappingRow[] {
+function mergeMappings(
+  base: MappingRow[],
+  updates: MappingRow[],
+): MappingRow[] {
   const byIndex = new Map<number, MappingRow>();
   for (const row of base) byIndex.set(row.box_index, row);
   for (const row of updates) byIndex.set(row.box_index, row);
@@ -86,7 +89,8 @@ export async function runGeometrySubImageAgent(options: {
 
   const minLabeled = plan.sub_agent_constraints.min_labeled_box_count ?? 1;
   const useVision = Boolean(plan.use_vision_mapping);
-  const skipMapping = adapter.skipLabelMapping?.(options.adapterContext) ?? false;
+  const skipMapping =
+    adapter.skipLabelMapping?.(options.adapterContext) ?? false;
   const totalStarted = performance.now();
   const timing: SubImageTimingBreakdown = { total_ms: 0 };
 
@@ -302,12 +306,15 @@ export async function runGeometrySubImageAgent(options: {
         checkedBoxes: mappings.length,
       };
     } finally {
-      timing.judge_ms = (timing.judge_ms ?? 0) + Math.round(performance.now() - tJudge);
+      timing.judge_ms =
+        (timing.judge_ms ?? 0) + Math.round(performance.now() - tJudge);
     }
   };
 
   const judgeEnabled = useVision && (plan.judge_config?.enabled ?? true);
-  const maxJudgeRetries = judgeEnabled ? Math.max(0, plan.judge_config?.maxRetries ?? 1) : 0;
+  const maxJudgeRetries = judgeEnabled
+    ? Math.max(0, plan.judge_config?.maxRetries ?? 1)
+    : 0;
   const rejectSubmitPartial = plan.judge_config?.rejectSubmitPartial !== false;
   let judgeFeedback = '';
   let previousMappings: MappingRow[] = [];
@@ -316,7 +323,9 @@ export async function runGeometrySubImageAgent(options: {
   let judgeRetryRounds = 0;
   let lastJudge: JudgeDetectionLabelsResult | undefined;
   let lastMapMappings = formatMapMappingRows([], options.labelCandidates);
-  let ctxMappings: MappingRow[] = skipMapping ? buildPresetMappings(instances) : [];
+  let ctxMappings: MappingRow[] = skipMapping
+    ? buildPresetMappings(instances)
+    : [];
 
   const buildSuccessResult = (
     auto: {
@@ -324,7 +333,10 @@ export async function runGeometrySubImageAgent(options: {
       mappedCount: number;
       unlabeledInProposal?: number;
     },
-    judgeSummary?: AnnotationJudgeSummary & { attempts?: number; retryRounds?: number },
+    judgeSummary?: AnnotationJudgeSummary & {
+      attempts?: number;
+      retryRounds?: number;
+    },
     weakAccepted = false,
   ): FusionSubImageResult => {
     timing.total_ms = Math.round(performance.now() - totalStarted);
@@ -332,7 +344,9 @@ export async function runGeometrySubImageAgent(options: {
       ok: true,
       relativePath: image.relativePath,
       absolutePath: image.absolutePath,
-      change: judgeSummary ? { ...auto.change!, judge: judgeSummary } : auto.change!,
+      change: judgeSummary
+        ? { ...auto.change!, judge: judgeSummary }
+        : auto.change!,
       rawCount,
       keptCount,
       mappedCount: auto.mappedCount,
@@ -357,7 +371,12 @@ export async function runGeometrySubImageAgent(options: {
         const subsetBoxes = mapBoxesPayload.filter((b) =>
           issueBoxIndices.includes(b.box_index),
         );
-        mapResult = await runMap(attempt, judgeFeedback, previousMappings, subsetBoxes);
+        mapResult = await runMap(
+          attempt,
+          judgeFeedback,
+          previousMappings,
+          subsetBoxes,
+        );
         ctxMappings = mergeMappings(previousMappings, mapResult.mappings ?? []);
       } else {
         mapResult = await runMap(attempt, judgeFeedback, previousMappings);
@@ -365,7 +384,10 @@ export async function runGeometrySubImageAgent(options: {
       }
       mapMethod = mapResult.method ?? '';
       mapHint = mapResult.hint ?? '';
-      lastMapMappings = formatMapMappingRows(ctxMappings, options.labelCandidates);
+      lastMapMappings = formatMapMappingRows(
+        ctxMappings,
+        options.labelCandidates,
+      );
       logAnnotationDebugMapDetail(image.relativePath, {
         elapsed_ms: timing.map_ms,
         mapResult,
@@ -380,7 +402,10 @@ export async function runGeometrySubImageAgent(options: {
         reason: 'single_label_strategy',
       }));
       mapMethod = 'preset';
-      lastMapMappings = formatMapMappingRows(ctxMappings, options.labelCandidates);
+      lastMapMappings = formatMapMappingRows(
+        ctxMappings,
+        options.labelCandidates,
+      );
     }
 
     const auto = tryAutoFinalizeFromGeometry({
@@ -397,7 +422,10 @@ export async function runGeometrySubImageAgent(options: {
       timing.total_ms = Math.round(performance.now() - totalStarted);
       return withTiming({
         ...base,
-        reason: auto.reason || mapHint || `成功映射 ${mappedCount} 个实例，不足 ${minLabeled}`,
+        reason:
+          auto.reason ||
+          mapHint ||
+          `成功映射 ${mappedCount} 个实例，不足 ${minLabeled}`,
         rawCount,
         keptCount,
         mappedCount,
@@ -435,7 +463,11 @@ export async function runGeometrySubImageAgent(options: {
     };
 
     if (lastJudge.verdict === 'accept' || lastJudge.verdict === 'weak_accept') {
-      return buildSuccessResult(auto, judgeSummary, lastJudge.verdict === 'weak_accept');
+      return buildSuccessResult(
+        auto,
+        judgeSummary,
+        lastJudge.verdict === 'weak_accept',
+      );
     }
 
     if (attempt < maxJudgeRetries) {
@@ -449,7 +481,12 @@ export async function runGeometrySubImageAgent(options: {
       continue;
     }
 
-    if (rejectSubmitPartial && auto.ok && auto.change && auto.mappedCount >= minLabeled) {
+    if (
+      rejectSubmitPartial &&
+      auto.ok &&
+      auto.change &&
+      auto.mappedCount >= minLabeled
+    ) {
       return buildSuccessResult(auto, judgeSummary, true);
     }
 

@@ -10,13 +10,8 @@ import './EditorWorkspace.css';
 
 export default function EditorWorkspace() {
   const { workMode } = useWorkMode();
-  const {
-    openTabs,
-    activeTabId,
-    markTabDirty,
-    saveActiveTab,
-    refreshTree,
-  } = useApp();
+  const { openTabs, activeTabId, markTabDirty, saveActiveTab, refreshTree } =
+    useApp();
 
   const activeTab = useMemo(
     () => openTabs.find((tab) => tab.id === activeTabId) ?? null,
@@ -53,9 +48,9 @@ export default function EditorWorkspace() {
   /** 仅编辑器模式下、当前激活 tab 是文本且非二进制时才显示 Monaco 浮层 */
   const showSharedMonaco = Boolean(
     workMode === 'editor' &&
-      activeTab &&
-      isMonacoEditableFile(activeTab.filePath) &&
-      !activeTabBinary,
+    activeTab &&
+    isMonacoEditableFile(activeTab.filePath) &&
+    !activeTabBinary,
   );
 
   const handleDirtyChange = useCallback(
@@ -123,7 +118,7 @@ export default function EditorWorkspace() {
           aria-hidden={!showSharedMonaco}
         >
           <MonacoTextEditor
-            filePath={showSharedMonaco ? activeTab?.filePath ?? '' : ''}
+            filePath={showSharedMonaco ? (activeTab?.filePath ?? '') : ''}
             tabId={activeTab?.id ?? ''}
             dirty={activeTab?.dirty ?? false}
             readOnly={false}

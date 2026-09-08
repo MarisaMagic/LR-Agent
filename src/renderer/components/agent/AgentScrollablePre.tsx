@@ -1,7 +1,4 @@
-import {
-  type ComponentPropsWithoutRef,
-  type ReactNode,
-} from 'react';
+import { type ComponentPropsWithoutRef, type ReactNode } from 'react';
 import OverlayHorizontalScrollArea from '../OverlayHorizontalScrollArea';
 import './AgentScrollablePre.css';
 

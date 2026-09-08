@@ -100,7 +100,8 @@ export default function FloatingActionMenuPortal({
   }, [open, anchorEl, onClose]);
 
   const origin = position?.openUp ? 'above-anchor' : 'below-anchor';
-  const openUpClass = position?.openUp && openUpClassName ? ` ${openUpClassName}` : '';
+  const openUpClass =
+    position?.openUp && openUpClassName ? ` ${openUpClassName}` : '';
 
   return createPortal(
     <AnimatePresence onExitComplete={onExitComplete}>

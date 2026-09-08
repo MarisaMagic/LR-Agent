@@ -128,7 +128,9 @@ export default function LabelEditor({
                     type="text"
                     className="label-editor-name"
                     placeholder={
-                      keypointMode ? '如 person、hand、face' : '标签名称，如 dog'
+                      keypointMode
+                        ? '如 person、hand、face'
+                        : '标签名称，如 dog'
                     }
                     value={label.name}
                     onFocus={() => handleNameFocus(label.id, label.name)}

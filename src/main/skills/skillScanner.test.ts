@@ -53,7 +53,9 @@ description: |
   line two
 ---
 Body here`;
-    expect(parseSkillFrontmatter(content)?.description).toBe('line one\nline two');
+    expect(parseSkillFrontmatter(content)?.description).toBe(
+      'line one\nline two',
+    );
   });
 
   it('returns null when frontmatter is missing', () => {

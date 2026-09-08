@@ -25,9 +25,7 @@ import {
   type PoseSceneGeometry,
   type ScenePoint,
 } from './fabricKeypointCoords';
-import {
-  patchPoseHoverStyles,
-} from './fabricKeypointCanvasSync';
+import { patchPoseHoverStyles } from './fabricKeypointCanvasSync';
 import {
   applySceneGeometryToPoseGroup,
   buildPreviewPoseGroup,
@@ -227,12 +225,7 @@ export class KeypointCanvasInteraction {
     const coord = group.oCoords[transform.corner];
     if (control && coord) {
       if (control.cursorStyleHandler) {
-        return control.cursorStyleHandler(
-          pointerEvent,
-          control,
-          group,
-          coord,
-        );
+        return control.cursorStyleHandler(pointerEvent, control, group, coord);
       }
       return control.cursorStyle ?? null;
     }
@@ -272,11 +265,7 @@ export class KeypointCanvasInteraction {
   } | null {
     const canvas = this.deps.getCanvas();
     if (!canvas) return null;
-    return hitKeypointHandleAtScenePoint(
-      canvas,
-      scene,
-      this.getHitThreshold(),
-    );
+    return hitKeypointHandleAtScenePoint(canvas, scene, this.getHitThreshold());
   }
 
   private selectPose(group: AnnotatedPoseGroup): void {
@@ -394,10 +383,7 @@ export class KeypointCanvasInteraction {
     }
 
     if (active && isAnnotationPoseGroup(active)) {
-      const controlCursor = this.resolvePoseControlCursor(
-        active,
-        pointerEvent,
-      );
+      const controlCursor = this.resolvePoseControlCursor(active, pointerEvent);
       if (controlCursor) {
         this.setCanvasCursor(controlCursor);
         return;
@@ -596,7 +582,7 @@ export class KeypointCanvasInteraction {
   private onObjectModified(e: ModifiedEvent): void {
     const canvas = this.deps.getCanvas();
     if (!canvas) return;
-    const target = e.target;
+    const { target } = e;
     if (!target) return;
 
     const { width, height } = this.deps.getNaturalSize();
@@ -687,13 +673,18 @@ export class KeypointCanvasInteraction {
     const scene = this.getClampedScene(canvas, e);
     const hit = this.getKeypointHit(scene);
     if (!hit) {
-      const target = e.target;
+      const { target } = e;
       if (!isKeypointHandle(target)) return;
       ev.preventDefault();
       const poseId = target._poseId;
       const index = target._keypointIndex;
       if (poseId === undefined || index === undefined) return;
-      this.applyVisibilityCycle(canvas, target as AnnotatedKeypointCircle, poseId, index);
+      this.applyVisibilityCycle(
+        canvas,
+        target as AnnotatedKeypointCircle,
+        poseId,
+        index,
+      );
       return;
     }
 

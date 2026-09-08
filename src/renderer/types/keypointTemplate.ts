@@ -97,13 +97,16 @@ const RAW_TEMPLATES: RawTemplateJson[] = [
 export const KEYPOINT_TEMPLATES: KeypointTemplate[] =
   RAW_TEMPLATES.map(normalizeTemplate);
 
-export const DEFAULT_KEYPOINT_TEMPLATE_ID = KEYPOINT_TEMPLATES[0]?.id ?? 'person_coco';
+export const DEFAULT_KEYPOINT_TEMPLATE_ID =
+  KEYPOINT_TEMPLATES[0]?.id ?? 'person_coco';
 
 export function getKeypointTemplate(id: string): KeypointTemplate | undefined {
   return KEYPOINT_TEMPLATES.find((t) => t.id === id);
 }
 
-export function getKeypointTemplateByName(name: string): KeypointTemplate | undefined {
+export function getKeypointTemplateByName(
+  name: string,
+): KeypointTemplate | undefined {
   return KEYPOINT_TEMPLATES.find((t) => t.name === name);
 }
 

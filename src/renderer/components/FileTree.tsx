@@ -99,11 +99,7 @@ function PromptDialog({
             >
               确定
             </button>
-            <button
-              type="button"
-              className="lr-prompt-btn"
-              onClick={onCancel}
-            >
+            <button type="button" className="lr-prompt-btn" onClick={onCancel}>
               取消
             </button>
           </div>
@@ -121,9 +117,7 @@ function findContextTarget(
   let current: HTMLElement | null = el;
   while (current) {
     if (current.tagName === 'VSCODE-TREE-ITEM') {
-      const label = current.querySelector<HTMLElement>(
-        '.file-tree-item-label',
-      );
+      const label = current.querySelector<HTMLElement>('.file-tree-item-label');
       const path =
         label?.dataset?.filePath ??
         current.querySelector<HTMLElement>('[data-file-path]')?.dataset
@@ -301,10 +295,7 @@ export default function FileTree() {
           refreshTree();
           break;
         case 'new-folder':
-          await window.electron.workspace.createFolder(
-            action.parentDir,
-            name,
-          );
+          await window.electron.workspace.createFolder(action.parentDir, name);
           refreshTree();
           break;
         case 'rename': {
@@ -392,10 +383,7 @@ export default function FileTree() {
         for (const srcPath of fileClipboard.paths) {
           try {
             if (fileClipboard.action === 'cut') {
-              await window.electron.workspace.moveEntry(
-                srcPath,
-                targetPath,
-              );
+              await window.electron.workspace.moveEntry(srcPath, targetPath);
             }
           } catch {
             // ignore
@@ -537,7 +525,9 @@ export default function FileTree() {
       {promptAction && (
         <PromptDialog
           title={promptTitle}
-          defaultValue={promptAction.type === 'rename' ? promptAction.oldName : undefined}
+          defaultValue={
+            promptAction.type === 'rename' ? promptAction.oldName : undefined
+          }
           onConfirm={handlePromptConfirm}
           onCancel={handlePromptCancel}
         />

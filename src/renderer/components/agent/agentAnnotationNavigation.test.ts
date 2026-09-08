@@ -59,12 +59,7 @@ describe('resolveAnnotationOpenTarget', () => {
 
   it('resolves real file from relative path', () => {
     expect(
-      resolveAnnotationOpenTarget(
-        'business_math.txt',
-        '',
-        project,
-        null,
-      ),
+      resolveAnnotationOpenTarget('business_math.txt', '', project, null),
     ).toEqual({
       kind: 'file',
       absolutePath: 'D:/project/business_math.txt',

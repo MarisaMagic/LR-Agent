@@ -8,11 +8,7 @@ import ActivityIcon from './ActivityIcon';
 import './ActivityBar.css';
 
 export type LeftPanel =
-  | 'explorer'
-  | 'annotations'
-  | 'models'
-  | 'llmProviders'
-  | 'settings';
+  'explorer' | 'annotations' | 'models' | 'llmProviders' | 'settings';
 export type RightPanel = 'agent' | 'annotation' | 'quality' | 'quickInference';
 
 interface ActivityBarProps {

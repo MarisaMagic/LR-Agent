@@ -1,7 +1,4 @@
-import {
-  createAgentId,
-  type LlmProviderConfig,
-} from '../../shared/agentTypes';
+import { createAgentId, type LlmProviderConfig } from '../../shared/agentTypes';
 import {
   createLlmProviderOnApi,
   deleteLlmProviderOnApi,
@@ -58,9 +55,7 @@ export function resolveDefaultProvider(
   const enabled = getEnabledProviders(providers);
   if (enabled.length === 0) return null;
   const storedId = loadDefaultProviderId();
-  const stored = storedId
-    ? enabled.find((item) => item.id === storedId)
-    : null;
+  const stored = storedId ? enabled.find((item) => item.id === storedId) : null;
   if (stored) return stored;
   return enabled.find((item) => item.isDefault) ?? enabled[0] ?? null;
 }
@@ -86,7 +81,9 @@ export async function removeLlmProvider(id: string): Promise<void> {
   await deleteLlmProviderOnApi(id);
 }
 
-export async function markDefaultLlmProvider(id: string): Promise<LlmProviderConfig> {
+export async function markDefaultLlmProvider(
+  id: string,
+): Promise<LlmProviderConfig> {
   const updated = await setDefaultLlmProviderOnApi(id);
   persistDefaultProviderId(updated.id);
   return updated;

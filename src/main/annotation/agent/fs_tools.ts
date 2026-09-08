@@ -2,15 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { listProjectImages, type ImageCatalogEntry } from './catalog';
 
-const IMAGE_EXT = new Set([
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'bmp',
-  'ico',
-]);
+const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico']);
 
 function normalizeRelativePath(relativePath: string): string {
   return relativePath.split(/[/\\]/).filter(Boolean).join('/');
@@ -34,7 +26,10 @@ export async function globProjectImages(
   options: GlobProjectImagesOptions = {},
 ): Promise<{ count: number; images: ImageCatalogEntry[] }> {
   const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
-  const parent = normalizeRelativePath(options.parentFolder ?? '').replace(/\/$/, '');
+  const parent = normalizeRelativePath(options.parentFolder ?? '').replace(
+    /\/$/,
+    '',
+  );
   const pattern = (options.namePattern ?? '').trim().toLowerCase();
 
   const catalog = await listProjectImages(projectDir, limit * 4);

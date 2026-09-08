@@ -37,10 +37,7 @@ export default function FileTreeVscItem({
       ) : (
         <span className="file-tree-item-row">
           <span className="file-tree-item-glyph" aria-hidden="true">
-            <FileTypeIcon
-              path={node.path}
-              className="file-tree-inline-icon"
-            />
+            <FileTypeIcon path={node.path} className="file-tree-inline-icon" />
           </span>
           <span className="file-tree-item-label" data-file-path={node.path}>
             {node.name}

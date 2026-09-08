@@ -39,15 +39,15 @@ describe('buildFileChangesFromProposal', () => {
   it('filters changes by relative path preserving order', () => {
     const changes = buildFileChangesFromProposal(proposal, 'a.txt');
     expect(changes).toHaveLength(2);
-    expect(changes.every((change) => change.relativePath === 'a.txt')).toBe(true);
+    expect(changes.every((change) => change.relativePath === 'a.txt')).toBe(
+      true,
+    );
   });
 });
 
 describe('isAgentPreviewPathMatch', () => {
   it('matches synthetic path in freeform workspace', () => {
-    expect(
-      isAgentPreviewPathMatch('_synthetic_/1_cot.json', null),
-    ).toBe(true);
+    expect(isAgentPreviewPathMatch('_synthetic_/1_cot.json', null)).toBe(true);
   });
 
   it('matches regular file paths exactly', () => {

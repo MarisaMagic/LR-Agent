@@ -7,10 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import {
-  createAgentId,
-  type LlmProviderConfig,
-} from '../../shared/agentTypes';
+import { createAgentId, type LlmProviderConfig } from '../../shared/agentTypes';
 import {
   buildEmptyProvider,
   loadDefaultProviderId,
@@ -28,7 +25,10 @@ interface LlmProvidersContextValue {
   loading: boolean;
   defaultProvider: LlmProviderConfig | null;
   refreshProviders: () => Promise<void>;
-  upsertProvider: (provider: LlmProviderConfig, isNew?: boolean) => Promise<void>;
+  upsertProvider: (
+    provider: LlmProviderConfig,
+    isNew?: boolean,
+  ) => Promise<void>;
   deleteProvider: (id: string) => Promise<void>;
   setDefaultProvider: (id: string) => Promise<void>;
   probeProviderVision: (id: string) => Promise<void>;
@@ -113,15 +113,12 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
     [providers],
   );
 
-  const probeProviderVision = useCallback(
-    async (id: string) => {
-      const updated = await probeLlmProviderVisionOnApi(id);
-      setProviders((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item)),
-      );
-    },
-    [],
-  );
+  const probeProviderVision = useCallback(async (id: string) => {
+    const updated = await probeLlmProviderVisionOnApi(id);
+    setProviders((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item)),
+    );
+  }, []);
 
   const defaultProvider = useMemo(
     () =>
@@ -163,9 +160,7 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
 export function useLlmProviders(): LlmProvidersContextValue {
   const ctx = useContext(LlmProvidersContext);
   if (!ctx) {
-    throw new Error(
-      'useLlmProviders must be used within LlmProvidersProvider',
-    );
+    throw new Error('useLlmProviders must be used within LlmProvidersProvider');
   }
   return ctx;
 }

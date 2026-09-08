@@ -11,7 +11,14 @@ describe('filterDocsForTrainingExport', () => {
         source: { width: 100, height: 100 },
         annotations: [
           { kind: 'bbox', labelId: 'l1', x: 0, y: 0, width: 0.5, height: 0.5 },
-          { kind: 'bbox', labelId: '', x: 0.1, y: 0.1, width: 0.2, height: 0.2 },
+          {
+            kind: 'bbox',
+            labelId: '',
+            x: 0.1,
+            y: 0.1,
+            width: 0.2,
+            height: 0.2,
+          },
         ],
       },
     ];

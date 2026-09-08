@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import Cropper, { Area } from 'react-easy-crop';
-import { getCroppedImageBlob, type PixelCrop } from '../utils/cropImage';
 import { VscodeButton } from '@vscode-elements/react-elements';
+import { getCroppedImageBlob, type PixelCrop } from '../utils/cropImage';
 import ModalMotion from '../motion/ModalMotion';
 import './AvatarCropModal.css';
 

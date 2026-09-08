@@ -401,7 +401,7 @@ function renderKeypointWorkspaceBody(
       ) : (
         <AnnotationMotionList className="annotation-right-items">
           {items.map((item, idx) => {
-            const ann = item.ann;
+            const { ann } = item;
             const selected = ann.id === selectedAnnotationId;
             const activeLabel = project.labels.find(
               (l) => l.id === ann.labelId,
@@ -510,7 +510,7 @@ function renderCaptionWorkspaceBody(
                   </span>
                   <p className="annotation-right-caption-summary">
                     {ann.text.length > 60
-                      ? ann.text.slice(0, 60) + '…'
+                      ? `${ann.text.slice(0, 60)}…`
                       : ann.text}
                   </p>
                 </div>

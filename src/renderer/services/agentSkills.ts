@@ -25,8 +25,8 @@ export async function loadSkillsCatalog(): Promise<AgentSkillEntry[]> {
     return cache.value;
   }
 
-  const bridge = (window as Window & typeof globalThis & SkillsBridge)
-    .electron?.skills;
+  const bridge = (window as Window & typeof globalThis & SkillsBridge).electron
+    ?.skills;
   if (!bridge?.listCatalog) return [];
 
   try {
@@ -39,7 +39,11 @@ export async function loadSkillsCatalog(): Promise<AgentSkillEntry[]> {
               typeof (e as AgentSkillEntry).name === 'string' &&
               typeof (e as AgentSkillEntry).description === 'string',
           )
-          .map((e) => ({ name: e.name, description: e.description, scope: 'user' as const }))
+          .map((e) => ({
+            name: e.name,
+            description: e.description,
+            scope: 'user' as const,
+          }))
       : [];
     cache = { value: entries, loadedAt: Date.now() };
     return entries;

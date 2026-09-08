@@ -1,15 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 
-const IMAGE_EXT = new Set([
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'bmp',
-  'ico',
-]);
+const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico']);
 
 export interface ImageCatalogEntry {
   relativePath: string;

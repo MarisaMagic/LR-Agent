@@ -71,18 +71,14 @@ export class AnnotationHistory {
     return this.redoStack.length > 0;
   }
 
-  undo(
-    current: AnnotationHistorySnapshot,
-  ): AnnotationHistorySnapshot | null {
+  undo(current: AnnotationHistorySnapshot): AnnotationHistorySnapshot | null {
     const prev = this.undoStack.pop();
     if (!prev) return null;
     this.redoStack.push(cloneAnnotationHistorySnapshot(current));
     return prev;
   }
 
-  redo(
-    current: AnnotationHistorySnapshot,
-  ): AnnotationHistorySnapshot | null {
+  redo(current: AnnotationHistorySnapshot): AnnotationHistorySnapshot | null {
     const next = this.redoStack.pop();
     if (!next) return null;
     this.undoStack.push(cloneAnnotationHistorySnapshot(current));

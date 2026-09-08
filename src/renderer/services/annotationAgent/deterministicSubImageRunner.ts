@@ -8,7 +8,12 @@ import {
   type JudgeDetectionLabelsResult,
   type MapDetectionBoxesUnifiedResult,
 } from '../annotationAgentApi';
-import type { BatchAnnotationPlan, ImageCandidate, AnnotationBatchChange, AnnotationJudgeSummary } from '../../../shared/annotationAgentTypes';
+import type {
+  BatchAnnotationPlan,
+  ImageCandidate,
+  AnnotationBatchChange,
+  AnnotationJudgeSummary,
+} from '../../../shared/annotationAgentTypes';
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
 import type { SubImageTimingBreakdown } from './annotationTiming';
 import { tryAutoFinalizeFromMap } from './finalizeFromMappings';
@@ -179,28 +184,25 @@ export async function runDeterministicSubImageAgent(options: {
     throwIfAborted();
     const boxesToMap = boxesOverride ?? mapBoxesPayload;
     const tMap = performance.now();
-    let mapResult = await mapDetectionBoxesUnified(
-      options.providerId,
-      {
-        userRequest: options.userRequest,
-        intentSummary: plan.intent_summary,
-        labelCandidates: options.labelCandidates,
-        boxes: boxesToMap,
-        useVision,
-        labelStrategy: plan.label_strategy,
-        singleLabelId,
-        annotationScope: { ...plan.annotation_scope },
-        imageAbsolutePath: image.absolutePath,
-        judgeFeedback,
-        previousMappings,
-        attempt,
-        providerApiKey: options.providerApiKey ?? '',
-        providerBaseUrl: options.providerBaseUrl ?? '',
-        providerModel: options.providerModel ?? '',
-        providerSupportsVision: options.providerSupportsVision ?? false,
-        signal: options.signal,
-      },
-    );
+    let mapResult = await mapDetectionBoxesUnified(options.providerId, {
+      userRequest: options.userRequest,
+      intentSummary: plan.intent_summary,
+      labelCandidates: options.labelCandidates,
+      boxes: boxesToMap,
+      useVision,
+      labelStrategy: plan.label_strategy,
+      singleLabelId,
+      annotationScope: { ...plan.annotation_scope },
+      imageAbsolutePath: image.absolutePath,
+      judgeFeedback,
+      previousMappings,
+      attempt,
+      providerApiKey: options.providerApiKey ?? '',
+      providerBaseUrl: options.providerBaseUrl ?? '',
+      providerModel: options.providerModel ?? '',
+      providerSupportsVision: options.providerSupportsVision ?? false,
+      signal: options.signal,
+    });
 
     if (
       useVision &&
@@ -294,12 +296,15 @@ export async function runDeterministicSubImageAgent(options: {
         checkedBoxes: mappings.length,
       };
     } finally {
-      timing.judge_ms = (timing.judge_ms ?? 0) + Math.round(performance.now() - tJudge);
+      timing.judge_ms =
+        (timing.judge_ms ?? 0) + Math.round(performance.now() - tJudge);
     }
   };
 
   const judgeEnabled = useVision && (plan.judge_config?.enabled ?? true);
-  const maxJudgeRetries = judgeEnabled ? Math.max(0, plan.judge_config?.maxRetries ?? 1) : 0;
+  const maxJudgeRetries = judgeEnabled
+    ? Math.max(0, plan.judge_config?.maxRetries ?? 1)
+    : 0;
   const rejectSubmitPartial = plan.judge_config?.rejectSubmitPartial !== false;
   let judgeFeedback = '';
   let previousMappings: MappingRow[] = [];
@@ -315,7 +320,10 @@ export async function runDeterministicSubImageAgent(options: {
       mappedCount: number;
       unlabeledInProposal?: number;
     },
-    judgeSummary?: AnnotationJudgeSummary & { attempts?: number; retryRounds?: number },
+    judgeSummary?: AnnotationJudgeSummary & {
+      attempts?: number;
+      retryRounds?: number;
+    },
     weakAccepted = false,
   ): FusionSubImageResult => {
     timing.total_ms = Math.round(performance.now() - totalStarted);
@@ -349,7 +357,12 @@ export async function runDeterministicSubImageAgent(options: {
       const subsetBoxes = mapBoxesPayload.filter((b) =>
         issueBoxIndices.includes(b.box_index),
       );
-      mapResult = await runMap(attempt, judgeFeedback, previousMappings, subsetBoxes);
+      mapResult = await runMap(
+        attempt,
+        judgeFeedback,
+        previousMappings,
+        subsetBoxes,
+      );
       ctx.mappings = mergeMappings(previousMappings, mapResult.mappings ?? []);
     } else {
       mapResult = await runMap(attempt, judgeFeedback, previousMappings);
@@ -357,7 +370,10 @@ export async function runDeterministicSubImageAgent(options: {
     }
     ctx.mapMethod = mapResult.method ?? '';
     ctx.mapHint = mapResult.hint ?? '';
-    lastMapMappings = formatMapMappingRows(ctx.mappings, options.labelCandidates);
+    lastMapMappings = formatMapMappingRows(
+      ctx.mappings,
+      options.labelCandidates,
+    );
 
     logAnnotationDebugMapDetail(image.relativePath, {
       elapsed_ms: timing.map_ms,
@@ -367,7 +383,8 @@ export async function runDeterministicSubImageAgent(options: {
       intentSummary: plan.intent_summary,
       judge_feedback: judgeFeedback || undefined,
       attempt,
-      partial_remap: attempt > 0 && issueBoxIndices.length > 0 ? issueBoxIndices : undefined,
+      partial_remap:
+        attempt > 0 && issueBoxIndices.length > 0 ? issueBoxIndices : undefined,
     });
 
     const auto = tryAutoFinalizeFromMap({
@@ -384,7 +401,10 @@ export async function runDeterministicSubImageAgent(options: {
       timing.total_ms = Math.round(performance.now() - totalStarted);
       return withTiming({
         ...base,
-        reason: auto.reason || ctx.mapHint || `成功映射 ${mappedCount} 框，不足 ${minLabeled}`,
+        reason:
+          auto.reason ||
+          ctx.mapHint ||
+          `成功映射 ${mappedCount} 框，不足 ${minLabeled}`,
         rawCount: ctx.rawCount,
         keptCount: ctx.keptCount,
         mappedCount,
@@ -402,7 +422,8 @@ export async function runDeterministicSubImageAgent(options: {
     logAnnotationDebug('finalize', image.relativePath, {
       mapped_count: auto.mappedCount,
       unlabeled_in_proposal: auto.unlabeledInProposal,
-      allow_unlabeled: plan.sub_agent_constraints.allow_unlabeled_boxes !== false,
+      allow_unlabeled:
+        plan.sub_agent_constraints.allow_unlabeled_boxes !== false,
     });
 
     if (!judgeEnabled) {
@@ -450,7 +471,9 @@ export async function runDeterministicSubImageAgent(options: {
         status: 'done',
         detail: [
           lastJudge.verdict === 'weak_accept' ? '弱通过' : '通过',
-          lastJudge.confidence != null ? `置信度 ${lastJudge.confidence.toFixed(2)}` : '',
+          lastJudge.confidence != null
+            ? `置信度 ${lastJudge.confidence.toFixed(2)}`
+            : '',
           auto.unlabeledInProposal ? `留空 ${auto.unlabeledInProposal} 框` : '',
           lastJudge.summary,
         ]

@@ -618,7 +618,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const saveActiveTab = useCallback(async (): Promise<boolean> => {
-    const rootPath = workspace.rootPath;
+    const { rootPath } = workspace;
     const tabId = activeTabIdRef.current;
     if (!rootPath || !tabId) return false;
     const tab = editorTabsRef.current.find((item) => item.id === tabId);

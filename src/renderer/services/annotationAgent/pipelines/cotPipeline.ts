@@ -1,6 +1,9 @@
 /** COT (Chain of Thought) generation pipeline. */
 
-import type { AnnotationBatchChange, AnnotationProjectSnapshot } from '../../../../shared/annotationAgentTypes';
+import type {
+  AnnotationBatchChange,
+  AnnotationProjectSnapshot,
+} from '../../../../shared/annotationAgentTypes';
 import type { CotAnnotation } from '../../../types/annotationDocument';
 import { callLlmApi } from './llmUtil';
 import { readSourceTextForProject } from './sourceTextUtil';
@@ -40,9 +43,10 @@ export async function runCotPipeline(
 ): Promise<{ annotations: CotAnnotation[]; changes: AnnotationBatchChange[] }> {
   const changes: AnnotationBatchChange[] = [];
 
-  const sources = options.inputPaths.length > 0
-    ? options.inputPaths
-    : [{ relativePath: '_synthetic_', absolutePath: '' }];
+  const sources =
+    options.inputPaths.length > 0
+      ? options.inputPaths
+      : [{ relativePath: '_synthetic_', absolutePath: '' }];
 
   for (const source of sources) {
     if (options.isCancelled?.()) break;
@@ -63,7 +67,8 @@ export async function runCotPipeline(
 
     const userPrompt = sourceText
       ? `基于以下文本内容，生成一个包含逐步推理过程的思维链问答：\n\n---\n${sourceText.slice(0, 8000)}\n---\n\n用户需求：${options.userRequest || '生成具有推理深度的思维链数据'}`
-      : options.userRequest || '请随机生成一个需要多步推理的问题及其思维链解答。';
+      : options.userRequest ||
+        '请随机生成一个需要多步推理的问题及其思维链解答。';
 
     const result = await callLlmApi({
       providerId: options.providerId,
@@ -94,7 +99,10 @@ export async function runCotPipeline(
     };
 
     changes.push({
-      relativePath: source.relativePath !== '_synthetic_' ? source.relativePath : `_synthetic_/${Date.now()}_cot.json`,
+      relativePath:
+        source.relativePath !== '_synthetic_'
+          ? source.relativePath
+          : `_synthetic_/${Date.now()}_cot.json`,
       absolutePath: source.absolutePath || `_synthetic_/${Date.now()}_cot.json`,
       operation: 'append',
       annotations: [annotation],
@@ -137,8 +145,12 @@ function parseCotJson(content: string): CotOutput | null {
         }));
       if (steps.length >= 2) {
         return {
-          instruction: typeof parsed.instruction === 'string' ? parsed.instruction.trim() : undefined,
-          input: typeof parsed.input === 'string' ? parsed.input.trim() : undefined,
+          instruction:
+            typeof parsed.instruction === 'string'
+              ? parsed.instruction.trim()
+              : undefined,
+          input:
+            typeof parsed.input === 'string' ? parsed.input.trim() : undefined,
           steps,
           answer: parsed.answer.trim(),
         };

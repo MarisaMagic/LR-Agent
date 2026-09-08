@@ -55,7 +55,12 @@ export function mergeProjectSessionsIntoState(
     }
   }
   const orderSet = new Set(
-    current.sessionOrder.filter((id) => sessionHasHistoryContent(id, { sessions, messagesBySession: current.messagesBySession })),
+    current.sessionOrder.filter((id) =>
+      sessionHasHistoryContent(id, {
+        sessions,
+        messagesBySession: current.messagesBySession,
+      }),
+    ),
   );
   for (const id of incoming.sessionOrder) {
     if (sessions[id]) orderSet.add(id);
@@ -75,14 +80,17 @@ export function normalizeProjectTabs(
   state: AgentChatPersistedState,
   ui: ReturnType<typeof createEmptyProjectUi>,
   annotationProjectId: string | null,
-): { state: AgentChatPersistedState; ui: ReturnType<typeof createEmptyProjectUi> } {
+): {
+  state: AgentChatPersistedState;
+  ui: ReturnType<typeof createEmptyProjectUi>;
+} {
   const validTabIds = ui.openTabIds.filter(
     (id) =>
       state.sessions[id] &&
       sessionBelongsToProject(state.sessions[id], annotationProjectId),
   );
   const openTabIds = validTabIds.length > 0 ? validTabIds : [];
-  let activeSessionId = ui.activeSessionId;
+  let { activeSessionId } = ui;
   if (!activeSessionId || !openTabIds.includes(activeSessionId)) {
     activeSessionId = openTabIds[openTabIds.length - 1] ?? null;
   }

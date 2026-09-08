@@ -24,7 +24,11 @@ export interface ResolveTargetsResult {
   errors: string[];
 }
 
-function bboxCenter(ann: BboxAnnotation): { cx: number; cy: number; area: number } {
+function bboxCenter(ann: BboxAnnotation): {
+  cx: number;
+  cy: number;
+  area: number;
+} {
   return {
     cx: ann.x + ann.width / 2,
     cy: ann.y + ann.height / 2,
@@ -157,7 +161,9 @@ export async function readBboxesForPath(
   if (!raw) return [];
   const parsed = parseFileAnnotationDocument(raw);
   if (!parsed) return [];
-  return parsed.annotations.filter((a) => a.kind === 'bbox') as BboxAnnotation[];
+  return parsed.annotations.filter(
+    (a) => a.kind === 'bbox',
+  ) as BboxAnnotation[];
 }
 
 export function labelIdByName(

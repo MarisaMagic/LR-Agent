@@ -42,8 +42,7 @@ export default function registerPretrainedModelHandlers(): void {
 
   ipcMain.handle(
     'pretrainedModels:scanFaceAlignmentDirectory',
-    async (_event, rootDir: string) =>
-      scanFaceAlignmentDirectory(rootDir),
+    async (_event, rootDir: string) => scanFaceAlignmentDirectory(rootDir),
   );
 
   ipcMain.handle(

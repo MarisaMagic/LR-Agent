@@ -75,11 +75,7 @@ export type MessageBlock =
     };
 
 export type AnnotationPipelineStepStatus =
-  | 'pending'
-  | 'running'
-  | 'done'
-  | 'error'
-  | 'skipped';
+  'pending' | 'running' | 'done' | 'error' | 'skipped';
 
 export interface AnnotationPipelineStep {
   stage: string;
@@ -92,11 +88,7 @@ export interface AnnotationPipelineStep {
 }
 
 export type ChatMessageStatus =
-  | 'pending'
-  | 'streaming'
-  | 'done'
-  | 'stopped'
-  | 'error';
+  'pending' | 'streaming' | 'done' | 'stopped' | 'error';
 
 export interface ChatMessage {
   id: string;
@@ -244,9 +236,7 @@ export interface ClientToolCall {
 }
 
 /** 客户端工具名称枚举，与后端 CLIENT_TOOL_NAMES 保持一致。 */
-export type ClientToolName =
-  | 'auto_annotate'
-  | 'mutate_annotation';
+export type ClientToolName = 'auto_annotate' | 'mutate_annotation';
 
 /** 客户端工具执行结果，随 resume 请求一并发送给后端。 */
 export interface ClientToolResult {
@@ -335,7 +325,9 @@ export function isFileProposalBlock(
 }
 
 /** 将历史 document_proposal 块统一为 file_proposal。 */
-export function normalizeHistoricalBlocks(blocks: MessageBlock[]): MessageBlock[] {
+export function normalizeHistoricalBlocks(
+  blocks: MessageBlock[],
+): MessageBlock[] {
   return blocks.map((block) => {
     if (block.type === 'document_proposal') {
       return { ...block, type: 'file_proposal' as const };

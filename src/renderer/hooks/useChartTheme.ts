@@ -7,8 +7,5 @@ import {
 
 export function useChartTheme(): ChartThemeTokens {
   const { effectiveTheme } = useTheme();
-  return useMemo(
-    () => getChartThemeTokens(effectiveTheme),
-    [effectiveTheme],
-  );
+  return useMemo(() => getChartThemeTokens(effectiveTheme), [effectiveTheme]);
 }

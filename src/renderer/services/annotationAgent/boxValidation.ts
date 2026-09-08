@@ -4,7 +4,12 @@ export function validateMappingsForFinalize(
   boxes: Array<{ box_index: number }>,
   mappings: Array<{ box_index: number; label_id: string }>,
   validLabelIds: Set<string>,
-): { valid: boolean; errors: string[]; labeledCount: number; unlabeledCount: number } {
+): {
+  valid: boolean;
+  errors: string[];
+  labeledCount: number;
+  unlabeledCount: number;
+} {
   const errors: string[] = [];
   if (!boxes.length) {
     errors.push('boxes 为空');

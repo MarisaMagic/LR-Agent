@@ -1,10 +1,10 @@
-import type { BatchAnnotationPlan, ImageCandidate } from '../../../shared/annotationAgentTypes';
+import type {
+  BatchAnnotationPlan,
+  ImageCandidate,
+} from '../../../shared/annotationAgentTypes';
 import type { ImageAnnotationType } from '../../types/annotation';
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
-import {
-  assertPreAnnotResult,
-  runPreAnnot,
-} from '../preAnnotService';
+import { assertPreAnnotResult, runPreAnnot } from '../preAnnotService';
 import {
   isDetectResult,
   isPolygonResult,
@@ -105,7 +105,8 @@ const bboxAdapter: GeometryPipelineAdapter = {
 
 const rotatedBboxAdapter: GeometryPipelineAdapter = {
   annotationType: 'rotated_bbox',
-  pickPrimaryModel: (models) => pickDefaultPreAnnotModel('rotated_bbox', models),
+  pickPrimaryModel: (models) =>
+    pickDefaultPreAnnotModel('rotated_bbox', models),
   runInference: async (ctx) => {
     const response = await runPreAnnot(
       'yolo_obb',
@@ -204,7 +205,11 @@ const polygonAdapter: GeometryPipelineAdapter = {
         ctx.primaryModel,
         { box: normBoxToSamBox(box) },
       );
-      const polyResult = assertPreAnnotResult(response, isPolygonResult, 'SAM2');
+      const polyResult = assertPreAnnotResult(
+        response,
+        isPolygonResult,
+        'SAM2',
+      );
       if (!polyResult.points.length) continue;
       const crop = pointsToAabb(polyResult.points) ?? {
         x: box.x,
@@ -244,9 +249,12 @@ const keypointAdapter: GeometryPipelineAdapter = {
     const template = getKeypointTemplate(templateId);
     const presetLabelId =
       ctx.adapterContext.labelCount <= 1
-        ? ctx.adapterContext.labels[0]?.id ?? null
+        ? (ctx.adapterContext.labels[0]?.id ?? null)
         : template
-          ? resolveLabelIdForPoseTemplate(template, ctx.adapterContext.labels as never)
+          ? resolveLabelIdForPoseTemplate(
+              template,
+              ctx.adapterContext.labels as never,
+            )
           : null;
 
     const response = await runPreAnnot(
@@ -314,8 +322,11 @@ export function buildPresetMappings(
 ): Array<{ box_index: number; label_id: string; reason?: string }> {
   return instances.flatMap((inst) => {
     if (inst.geometry_kind !== 'pose') return [];
-    const preset = (inst.payload as { presetLabelId?: string | null }).presetLabelId;
+    const preset = (inst.payload as { presetLabelId?: string | null })
+      .presetLabelId;
     if (!preset) return [];
-    return [{ box_index: inst.instance_index, label_id: preset, reason: 'template' }];
+    return [
+      { box_index: inst.instance_index, label_id: preset, reason: 'template' },
+    ];
   });
 }

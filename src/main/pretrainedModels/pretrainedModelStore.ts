@@ -125,9 +125,7 @@ function normalizeKeypointDefaults(models: PretrainedModelConfig[]): void {
     if (enabledDefaults.length === 1) continue;
 
     const pick =
-      enabledDefaults[0] ??
-      candidates.find((m) => m.enabled) ??
-      candidates[0];
+      enabledDefaults[0] ?? candidates.find((m) => m.enabled) ?? candidates[0];
 
     for (const model of candidates) {
       if (model.id === pick.id) {
@@ -203,9 +201,7 @@ async function findFileRecursive(
   return null;
 }
 
-async function findYoloPoseCheckpoint(
-  rootDir: string,
-): Promise<string | null> {
+async function findYoloPoseCheckpoint(rootDir: string): Promise<string | null> {
   const yoloDir = path.join(rootDir, 'yolo');
   if (await fs.pathExists(yoloDir)) {
     const files = await fs.readdir(yoloDir);
@@ -221,9 +217,7 @@ async function findYoloPoseCheckpoint(
   );
 }
 
-async function findMediapipeHandTask(
-  rootDir: string,
-): Promise<string | null> {
+async function findMediapipeHandTask(rootDir: string): Promise<string | null> {
   const mediapipeDir = path.join(rootDir, 'mediapipe');
   if (await fs.pathExists(mediapipeDir)) {
     const files = await fs.readdir(mediapipeDir);

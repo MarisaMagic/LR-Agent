@@ -10,16 +10,17 @@ import type {
 import {
   isFileProposalBlock,
   normalizeHistoricalBlocks,
+  WORKSPACE_AGENT_UI_KEY,
 } from '../../shared/agentTypes';
-import {
-  normalizePipelineKindsInBlocks,
-} from './annotationAgent/pipelineKinds';
+import { normalizePipelineKindsInBlocks } from './annotationAgent/pipelineKinds';
 import {
   upsertPipelineSteps,
   buildPipelineStepFromProgressEvent,
 } from './annotationAgent/pipelineStepAccumulator';
-import { WORKSPACE_AGENT_UI_KEY } from '../../shared/agentTypes';
-import { summarizeToolArgumentsForDisplay, summarizeToolResultForDisplay } from './toolDisplayUtils';
+import {
+  summarizeToolArgumentsForDisplay,
+  summarizeToolResultForDisplay,
+} from './toolDisplayUtils';
 
 const STORAGE_KEY = 'lr-agent:agentChatState';
 const UI_STORAGE_KEY = 'lr-agent:agentChatUi';
@@ -50,7 +51,9 @@ export function createEmptyUiStateV2(): AgentChatUiStateV2 {
   };
 }
 
-export function projectUiKey(annotationProjectId: string | null | undefined): string {
+export function projectUiKey(
+  annotationProjectId: string | null | undefined,
+): string {
   return annotationProjectId ?? WORKSPACE_AGENT_UI_KEY;
 }
 
@@ -196,7 +199,8 @@ export function normalizeAnnotationCardOrder(
   for (; i < blocks.length; i += 1) {
     const b = blocks[i];
     const isBatchPipeline =
-      b.type === 'annotation_pipeline' && (b.pipelineKind ?? 'batch') === 'batch';
+      b.type === 'annotation_pipeline' &&
+      (b.pipelineKind ?? 'batch') === 'batch';
     if (isBatchPipeline || b.type === 'annotation_proposal') {
       cardBlocks.push(b);
     } else {
@@ -313,7 +317,9 @@ function applyAnnotationProgressToBlocks(
     };
     // 防御性兜底：正常情况 pipeline 先于 proposal 到达；若 proposal 已存在则插入其前
     if (pipelineKind === 'batch') {
-      const proposalIdx = next.findIndex((b) => b.type === 'annotation_proposal');
+      const proposalIdx = next.findIndex(
+        (b) => b.type === 'annotation_proposal',
+      );
       if (proposalIdx >= 0) {
         next.splice(proposalIdx, 0, block);
         return next;
@@ -467,8 +473,8 @@ export function applyStreamEventToBlocks(
 
   if (event.type === 'tool_start') {
     const toolCallId =
-      (event as Record<string, unknown>).toolCallId as string | undefined ??
-      (event as Record<string, unknown>).tool_call_id as string | undefined ??
+      ((event as Record<string, unknown>).toolCallId as string | undefined) ??
+      ((event as Record<string, unknown>).tool_call_id as string | undefined) ??
       '';
     const existingIdx = next.findIndex(
       (block) => block.type === 'tool_call' && block.id === toolCallId,
@@ -516,8 +522,8 @@ export function applyStreamEventToBlocks(
 
   if (event.type === 'tool_result') {
     const toolCallId =
-      (event as Record<string, unknown>).toolCallId as string | undefined ??
-      (event as Record<string, unknown>).tool_call_id as string | undefined ??
+      ((event as Record<string, unknown>).toolCallId as string | undefined) ??
+      ((event as Record<string, unknown>).tool_call_id as string | undefined) ??
       '';
     const idx = next.findIndex(
       (block) => block.type === 'tool_call' && block.id === toolCallId,
@@ -567,7 +573,9 @@ export function applyStreamEventToBlocks(
     const nextBlock = { ...block, status };
     // 紧贴 batch pipeline 之后插入，确保 [pipeline, proposal] 成组落在消息尾部
     const pipelineIdx = withoutProposal.findIndex(
-      (b) => b.type === 'annotation_pipeline' && (b.pipelineKind ?? 'batch') === 'batch',
+      (b) =>
+        b.type === 'annotation_pipeline' &&
+        (b.pipelineKind ?? 'batch') === 'batch',
     );
     if (pipelineIdx >= 0) {
       withoutProposal.splice(pipelineIdx + 1, 0, nextBlock);
@@ -644,7 +652,8 @@ export function applyStreamEventToBlocks(
       title: resolveFileProposalTitle(raw),
       content: event.content ?? '',
       suggestedRelativePath: path,
-      status: (event.status ?? 'pending') as 'pending' | 'applied' | 'dismissed',
+      status: (event.status ?? 'pending') as
+        'pending' | 'applied' | 'dismissed',
     };
     let existingIdx = -1;
     if (path) {
@@ -681,7 +690,10 @@ export function applyStreamEventToBlocks(
 export function getUserTextFromMessage(message: ChatMessage): string {
   if (message.role !== 'user') return '';
   return message.blocks
-    .filter((block): block is Extract<MessageBlock, { type: 'text' }> => block.type === 'text')
+    .filter(
+      (block): block is Extract<MessageBlock, { type: 'text' }> =>
+        block.type === 'text',
+    )
     .map((block) => block.content)
     .join('\n');
 }
@@ -695,7 +707,9 @@ export function buildApiMessages(
   return messageIds
     .map((id) => messages[id])
     .filter((message): message is ChatMessage => Boolean(message))
-    .filter((message) => message.role === 'user' || message.role === 'assistant')
+    .filter(
+      (message) => message.role === 'user' || message.role === 'assistant',
+    )
     .map((message) => {
       const text = message.blocks
         .filter(

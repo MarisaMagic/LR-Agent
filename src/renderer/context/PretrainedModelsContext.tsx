@@ -28,9 +28,7 @@ interface PretrainedModelsContextValue {
   deleteModel: (id: string) => Promise<void>;
   getModelsByType: (type: PretrainedModelType) => PretrainedModelConfig[];
   getDefaultModel: (type: PretrainedModelType) => PretrainedModelConfig | null;
-  getDefaultKeypointModel: (
-    templateId: string,
-  ) => PretrainedModelConfig | null;
+  getDefaultKeypointModel: (templateId: string) => PretrainedModelConfig | null;
 }
 
 const PretrainedModelsContext =
@@ -168,7 +166,8 @@ export function buildEmptyModel(
         ? [...preset.defaultTemplateIds]
         : undefined,
     auxiliaryPaths:
-      modelType === 'keypoint_estimation' && keypointBackend === 'face_alignment'
+      modelType === 'keypoint_estimation' &&
+      keypointBackend === 'face_alignment'
         ? { detector: '', torchHome: '' }
         : undefined,
     params: defaultParamsForType(modelType, keypointBackend),

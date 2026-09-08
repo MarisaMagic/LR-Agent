@@ -1,9 +1,6 @@
 import path from 'path';
 import type { LabelResolver } from './labelUtil';
-import {
-  exportedMediaPath,
-  type CopyMediaResult,
-} from './copySourceMedia';
+import { exportedMediaPath, type CopyMediaResult } from './copySourceMedia';
 import { writeText } from './fsUtil';
 import type { LoadedImageDoc } from './types';
 

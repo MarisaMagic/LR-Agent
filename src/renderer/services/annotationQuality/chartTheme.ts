@@ -5,13 +5,15 @@ import {
   type ChartThemeTokens,
 } from './chartThemeTokens';
 
-type AxisOption = NonNullable<EChartsOption['xAxis']> extends (infer T)[]
-  ? T
-  : NonNullable<EChartsOption['xAxis']>;
+type AxisOption =
+  NonNullable<EChartsOption['xAxis']> extends (infer T)[]
+    ? T
+    : NonNullable<EChartsOption['xAxis']>;
 
-type SeriesItem = NonNullable<EChartsOption['series']> extends (infer T)[]
-  ? T
-  : NonNullable<EChartsOption['series']>;
+type SeriesItem =
+  NonNullable<EChartsOption['series']> extends (infer T)[]
+    ? T
+    : NonNullable<EChartsOption['series']>;
 
 type PieDataItem = {
   name?: string;
@@ -29,7 +31,10 @@ function themeAxis(
       ? axis.axisLabel
       : undefined;
   const nameTextStyle =
-    axis && typeof axis === 'object' && 'nameTextStyle' in axis && axis.nameTextStyle
+    axis &&
+    typeof axis === 'object' &&
+    'nameTextStyle' in axis &&
+    axis.nameTextStyle
       ? axis.nameTextStyle
       : undefined;
 
@@ -49,10 +54,7 @@ function themeAxis(
   };
 }
 
-function resolvePieData(
-  data: unknown,
-  tokens: ChartThemeTokens,
-): unknown {
+function resolvePieData(data: unknown, tokens: ChartThemeTokens): unknown {
   if (!Array.isArray(data)) return data;
 
   return data.map((item) => {
@@ -84,10 +86,7 @@ function usesInsidePieLabels(data: unknown): boolean {
   );
 }
 
-function themeRadarData(
-  data: unknown,
-  tokens: ChartThemeTokens,
-): unknown {
+function themeRadarData(data: unknown, tokens: ChartThemeTokens): unknown {
   if (!Array.isArray(data)) return data;
 
   return data.map((entry) => {
@@ -149,21 +148,18 @@ function themeSeries(
       };
 
       pieItem.data = resolvePieData(pieItem.data, tokens);
-      const baseLabel =
-        typeof pieItem.label === 'object' ? pieItem.label : {};
+      const baseLabel = typeof pieItem.label === 'object' ? pieItem.label : {};
       const insideLabels = usesInsidePieLabels(pieItem.data);
       pieItem.label = {
         ...baseLabel,
         color: tokens.text.primary,
-        ...(insideLabels || baseLabel.position
-          ? {}
-          : { position: 'outside' }),
+        ...(insideLabels || baseLabel.position ? {} : { position: 'outside' }),
       };
       pieItem.labelLine = {
         ...pieItem.labelLine,
         show: insideLabels
-          ? (pieItem.labelLine?.show as boolean | undefined) ?? false
-          : (pieItem.labelLine?.show as boolean | undefined) ?? true,
+          ? ((pieItem.labelLine?.show as boolean | undefined) ?? false)
+          : ((pieItem.labelLine?.show as boolean | undefined) ?? true),
         lineStyle: {
           ...((pieItem.labelLine?.lineStyle as Record<string, unknown>) || {}),
           color: tokens.pie.labelLine,
@@ -281,9 +277,7 @@ export function applyChartTheme(
       },
     },
     xAxis: Array.isArray(option.xAxis)
-      ? option.xAxis.map((axis) =>
-          themeAxis(axis as AxisOption, tokens),
-        )
+      ? option.xAxis.map((axis) => themeAxis(axis as AxisOption, tokens))
       : option.xAxis
         ? themeAxis(option.xAxis as AxisOption, tokens)
         : option.xAxis,
@@ -308,7 +302,9 @@ export function applyChartTheme(
             color: tokens.text.primary,
             fontSize: 11,
           },
-          splitLine: { lineStyle: { color: tokens.axis.splitLine, width: 0.5 } },
+          splitLine: {
+            lineStyle: { color: tokens.axis.splitLine, width: 0.5 },
+          },
           splitArea: {
             areaStyle: {
               color: tokens.radar.splitArea,

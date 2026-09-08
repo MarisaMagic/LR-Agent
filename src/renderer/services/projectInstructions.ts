@@ -34,8 +34,8 @@ export async function loadProjectInstructions(
     return cached.content;
   }
 
-  const bridge = (window as Window & typeof globalThis & MemoryBridge)
-    .electron?.memory;
+  const bridge = (window as Window & typeof globalThis & MemoryBridge).electron
+    ?.memory;
   if (!bridge?.readInstructions) return null;
 
   try {

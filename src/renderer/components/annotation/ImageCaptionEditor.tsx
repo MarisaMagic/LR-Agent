@@ -42,7 +42,8 @@ export default function ImageCaptionEditor({
   } = useAnnotationWorkspace();
 
   const [text, setText] = useState('');
-  const [granularity, setGranularity] = useState<CaptionGranularity>('detailed');
+  const [granularity, setGranularity] =
+    useState<CaptionGranularity>('detailed');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [activeTab, setActiveTab] = useState<CaptionTab>('input');
@@ -77,7 +78,10 @@ export default function ImageCaptionEditor({
       if (!dragRef.current) return;
       const delta = startYRef.current - e.clientY;
       const containerH = containerRef.current?.clientHeight ?? 600;
-      const maxH = Math.max(MIN_PANEL_HEIGHT, Math.round(containerH * MAX_PANEL_RATIO));
+      const maxH = Math.max(
+        MIN_PANEL_HEIGHT,
+        Math.round(containerH * MAX_PANEL_RATIO),
+      );
       dragHeightRef.current = Math.max(
         MIN_PANEL_HEIGHT,
         Math.min(maxH, startHeightRef.current + delta),
@@ -133,14 +137,11 @@ export default function ImageCaptionEditor({
     setText('');
   }, [text, granularity, addCaptionAnnotation]);
 
-  const handleStartEdit = useCallback(
-    (id: string, currentText: string) => {
-      setEditingId(id);
-      setEditText(currentText);
-      setActiveTab('history');
-    },
-    [],
-  );
+  const handleStartEdit = useCallback((id: string, currentText: string) => {
+    setEditingId(id);
+    setEditText(currentText);
+    setActiveTab('history');
+  }, []);
 
   const handleSaveEdit = useCallback(
     (id: string) => {
@@ -207,11 +208,7 @@ export default function ImageCaptionEditor({
         {/* 底部面板 */}
         <div
           className={`image-caption-drawer${panelCollapsed ? ' image-caption-drawer--collapsed' : ''}`}
-          style={
-            panelCollapsed
-              ? { height: 0 }
-              : { height: panelHeight }
-          }
+          style={panelCollapsed ? { height: 0 } : { height: panelHeight }}
         >
           {/* Tab 栏 */}
           <div className="image-caption-tabs">

@@ -10,10 +10,7 @@ import { ANNOTATION_BATCH_MAX_FILES } from '../../../shared/annotationAgentTypes
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
 import { getRelativeProjectPath } from '../../utils/projectPaths';
 import type { AnnotationInstance } from '../../types/annotationDocument';
-import {
-  resolveScopeHintPaths,
-  type InputPathEntry,
-} from './scopePathUtil';
+import { resolveScopeHintPaths, type InputPathEntry } from './scopePathUtil';
 import { runGeometryPipeline } from './geometryBatchPipeline';
 import {
   isGeometryAnnotationType,
@@ -71,7 +68,7 @@ export async function* runAnnotationBatchJob(options: {
   const isCancelled = () =>
     options.isCancelled?.() === true || options.abortSignal?.aborted === true;
 
-  const annotationType = project.annotationType;
+  const { annotationType } = project;
 
   if (isGeometryAnnotationType(annotationType)) {
     yield* runGeometryPipeline(
@@ -83,7 +80,11 @@ export async function* runAnnotationBatchJob(options: {
   }
 
   if (SUPPORTED_GENERATE_TYPES.has(annotationType)) {
-    yield* runGeneratePipeline(options, isCancelled, annotationType as GenerateType);
+    yield* runGeneratePipeline(
+      options,
+      isCancelled,
+      annotationType as GenerateType,
+    );
     return;
   }
 
@@ -170,9 +171,15 @@ async function* runGeneratePipeline(
 
   let inputPaths: InputPathEntry[] = [];
   if (project.modality === 'image') {
-    inputPaths = await collectImagePaths(project, options.currentFileAbsolutePath);
+    inputPaths = await collectImagePaths(
+      project,
+      options.currentFileAbsolutePath,
+    );
   } else if (TEXT_SOURCE_ANNOTATION_TYPES.has(project.annotationType)) {
-    inputPaths = await collectTextPaths(project, options.currentFileAbsolutePath);
+    inputPaths = await collectTextPaths(
+      project,
+      options.currentFileAbsolutePath,
+    );
   }
 
   inputPaths = await resolveScopePathsForProject(
@@ -194,7 +201,8 @@ async function* runGeneratePipeline(
   try {
     switch (annotationType) {
       case 'caption': {
-        const { runCaptionPipeline } = await import('./pipelines/captionPipeline');
+        const { runCaptionPipeline } =
+          await import('./pipelines/captionPipeline');
         const result = await runCaptionPipeline({
           inputPaths,
           userRequest,
@@ -211,7 +219,8 @@ async function* runGeneratePipeline(
         break;
       }
       case 'classification': {
-        const { runClassificationPipeline } = await import('./pipelines/classificationPipeline');
+        const { runClassificationPipeline } =
+          await import('./pipelines/classificationPipeline');
         const result = await runClassificationPipeline({
           inputPaths,
           userRequest,
@@ -228,7 +237,8 @@ async function* runGeneratePipeline(
         break;
       }
       case 'instruction': {
-        const { runInstructionPipeline } = await import('./pipelines/instructionPipeline');
+        const { runInstructionPipeline } =
+          await import('./pipelines/instructionPipeline');
         const result = await runInstructionPipeline({
           inputPaths,
           userRequest,
@@ -262,7 +272,8 @@ async function* runGeneratePipeline(
         break;
       }
       case 'conversation': {
-        const { runConversationPipeline } = await import('./pipelines/conversationPipeline');
+        const { runConversationPipeline } =
+          await import('./pipelines/conversationPipeline');
         const result = await runConversationPipeline({
           inputPaths,
           userRequest,
@@ -280,7 +291,8 @@ async function* runGeneratePipeline(
         break;
       }
       case 'preference': {
-        const { runPreferencePipeline } = await import('./pipelines/preferencePipeline');
+        const { runPreferencePipeline } =
+          await import('./pipelines/preferencePipeline');
         const result = await runPreferencePipeline({
           inputPaths,
           userRequest,
@@ -298,9 +310,8 @@ async function* runGeneratePipeline(
         break;
       }
       case 'text_classification': {
-        const { runTextClassificationPipeline } = await import(
-          './pipelines/textClassificationPipeline'
-        );
+        const { runTextClassificationPipeline } =
+          await import('./pipelines/textClassificationPipeline');
         const result = await runTextClassificationPipeline({
           inputPaths,
           userRequest,
@@ -317,7 +328,8 @@ async function* runGeneratePipeline(
         break;
       }
       case 'span_ner': {
-        const { runSpanNerPipeline } = await import('./pipelines/spanNerPipeline');
+        const { runSpanNerPipeline } =
+          await import('./pipelines/spanNerPipeline');
         const result = await runSpanNerPipeline({
           inputPaths,
           userRequest,
@@ -337,7 +349,10 @@ async function* runGeneratePipeline(
   } catch (err) {
     yield {
       type: 'error',
-      message: err instanceof Error ? err.message : `${annotationTypeLabel}生成流水线执行失败`,
+      message:
+        err instanceof Error
+          ? err.message
+          : `${annotationTypeLabel}生成流水线执行失败`,
     };
     return;
   }
@@ -411,7 +426,10 @@ async function collectImagePaths(
     }));
   } catch {
     if (currentFileAbsolutePath) {
-      const rel = getRelativeProjectPath(project.directoryPath, currentFileAbsolutePath);
+      const rel = getRelativeProjectPath(
+        project.directoryPath,
+        currentFileAbsolutePath,
+      );
       if (rel) {
         return [{ relativePath: rel, absolutePath: currentFileAbsolutePath }];
       }
@@ -435,7 +453,10 @@ async function collectTextPaths(
     }));
   } catch {
     if (currentFileAbsolutePath) {
-      const rel = getRelativeProjectPath(project.directoryPath, currentFileAbsolutePath);
+      const rel = getRelativeProjectPath(
+        project.directoryPath,
+        currentFileAbsolutePath,
+      );
       if (rel) {
         return [{ relativePath: rel, absolutePath: currentFileAbsolutePath }];
       }

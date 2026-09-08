@@ -5,16 +5,8 @@ import type {
   KeypointTemplateExportMeta,
 } from '../../../shared/annotationExportTypes';
 import { shouldSkipForTrainingExport } from '../../../shared/annotationLabel';
-import {
-  copySourceMediaForDocs,
-  exportedMediaPath,
-} from './copySourceMedia';
-import {
-  ensureDir,
-  stemFromRelative,
-  writeJson,
-  writeText,
-} from './fsUtil';
+import { copySourceMediaForDocs, exportedMediaPath } from './copySourceMedia';
+import { ensureDir, stemFromRelative, writeJson, writeText } from './fsUtil';
 import { LabelResolver } from './labelUtil';
 import type { LoadedImageDoc } from './types';
 
@@ -112,7 +104,10 @@ function fmtCoordPair(
   h: number,
 ): [number, number] {
   if (mode === 'normalized') {
-    return [Math.round(x * 1000000) / 1000000, Math.round(y * 1000000) / 1000000];
+    return [
+      Math.round(x * 1000000) / 1000000,
+      Math.round(y * 1000000) / 1000000,
+    ];
   }
   return [toPixel(x, w), toPixel(y, h)];
 }
@@ -346,10 +341,7 @@ async function exportLabelMe(
       if (ann.kind === 'bbox') {
         const x1 = toPixel(Number(ann.x), doc.source.width);
         const y1 = toPixel(Number(ann.y), doc.source.height);
-        const x2 = toPixel(
-          Number(ann.x) + Number(ann.width),
-          doc.source.width,
-        );
+        const x2 = toPixel(Number(ann.x) + Number(ann.width), doc.source.width);
         const y2 = toPixel(
           Number(ann.y) + Number(ann.height),
           doc.source.height,
@@ -402,23 +394,23 @@ async function exportLabelMe(
           flags: {},
         });
       } else if (ann.kind === 'pose' && Array.isArray(ann.keypoints)) {
-        (ann.keypoints as { x: number; y: number; visibility: number }[]).forEach(
-          (kp, idx) => {
-            if (kp.visibility === 0) return;
-            shapes.push({
-              label: `${label}_kpt${idx}`,
-              points: [
-                [
-                  toPixel(kp.x, doc.source.width),
-                  toPixel(kp.y, doc.source.height),
-                ],
+        (
+          ann.keypoints as { x: number; y: number; visibility: number }[]
+        ).forEach((kp, idx) => {
+          if (kp.visibility === 0) return;
+          shapes.push({
+            label: `${label}_kpt${idx}`,
+            points: [
+              [
+                toPixel(kp.x, doc.source.width),
+                toPixel(kp.y, doc.source.height),
               ],
-              group_id: ann.id,
-              shape_type: 'point',
-              flags: { visibility: kp.visibility },
-            });
-          },
-        );
+            ],
+            group_id: ann.id,
+            shape_type: 'point',
+            flags: { visibility: kp.visibility },
+          });
+        });
       }
     }
 
@@ -552,10 +544,7 @@ async function exportYoloSeg(
       const cls = resolveClassIndex(resolver, String(ann.labelId));
       if (cls === null) continue;
       const coords = (ann.points as { x: number; y: number }[])
-        .flatMap((pt) => [
-          clamp01(pt.x).toFixed(6),
-          clamp01(pt.y).toFixed(6),
-        ])
+        .flatMap((pt) => [clamp01(pt.x).toFixed(6), clamp01(pt.y).toFixed(6)])
         .join(' ');
       lines.push(`${cls} ${coords}`);
     }
@@ -728,10 +717,7 @@ async function exportKeypointCoco(
   const categories: Record<string, unknown>[] = [];
   let annId = 1;
 
-  const ensureCategory = (
-    labelId: string,
-    templateId?: string,
-  ): number => {
+  const ensureCategory = (labelId: string, templateId?: string): number => {
     const key = templateId ? `${labelId}:${templateId}` : labelId;
     if (categoryMap.has(key)) return categoryMap.get(key)!;
     const catId = categoryMap.size + 1;
@@ -915,20 +901,20 @@ async function exportKeypointCsv(
     for (const ann of doc.annotations) {
       if (ann.kind === 'pose' && Array.isArray(ann.keypoints)) {
         const cls = labelName(resolver, String(ann.labelId));
-        (ann.keypoints as { x: number; y: number; visibility: number }[]).forEach(
-          (kp, idx) => {
-            const [x, y] = fmtCoordPair(
-              kp.x,
-              kp.y,
-              mode,
-              doc.source.width,
-              doc.source.height,
-            );
-            lines.push(
-              `${JSON.stringify(imageExportRef(doc, pathMap))},${JSON.stringify(cls)},${idx},${x},${y},${kp.visibility},pose`,
-            );
-          },
-        );
+        (
+          ann.keypoints as { x: number; y: number; visibility: number }[]
+        ).forEach((kp, idx) => {
+          const [x, y] = fmtCoordPair(
+            kp.x,
+            kp.y,
+            mode,
+            doc.source.width,
+            doc.source.height,
+          );
+          lines.push(
+            `${JSON.stringify(imageExportRef(doc, pathMap))},${JSON.stringify(cls)},${idx},${x},${y},${kp.visibility},pose`,
+          );
+        });
       } else if (ann.kind === 'point') {
         const [x, y] = fmtCoordPair(
           Number(ann.x),
@@ -976,16 +962,19 @@ export async function runImageTrainingExport(
   }
 
   const { docs: trainingDocs } =
-    format === 'lr_agent'
-      ? { docs }
-      : filterDocsForTrainingExport(docs);
+    format === 'lr_agent' ? { docs } : filterDocsForTrainingExport(docs);
 
   let filesWritten = 0;
 
   switch (format) {
     case 'yolo':
-      if (annType !== 'bbox') throw new Error('YOLO 检测格式仅适用于矩形框任务');
-      filesWritten = await exportBboxYolo(trainingDocs, resolver, options.outputDir);
+      if (annType !== 'bbox')
+        throw new Error('YOLO 检测格式仅适用于矩形框任务');
+      filesWritten = await exportBboxYolo(
+        trainingDocs,
+        resolver,
+        options.outputDir,
+      );
       break;
     case 'coco':
       if (annType === 'bbox') {
@@ -1018,7 +1007,11 @@ export async function runImageTrainingExport(
       }
       break;
     case 'voc':
-      filesWritten = await exportBboxVoc(trainingDocs, resolver, options.outputDir);
+      filesWritten = await exportBboxVoc(
+        trainingDocs,
+        resolver,
+        options.outputDir,
+      );
       break;
     case 'labelme':
       filesWritten = await exportLabelMe(
@@ -1067,13 +1060,25 @@ export async function runImageTrainingExport(
       }
       break;
     case 'yolo_seg':
-      filesWritten = await exportYoloSeg(trainingDocs, resolver, options.outputDir);
+      filesWritten = await exportYoloSeg(
+        trainingDocs,
+        resolver,
+        options.outputDir,
+      );
       break;
     case 'yolo_obb':
-      filesWritten = await exportYoloObb(trainingDocs, resolver, options.outputDir);
+      filesWritten = await exportYoloObb(
+        trainingDocs,
+        resolver,
+        options.outputDir,
+      );
       break;
     case 'dota':
-      filesWritten = await exportDota(trainingDocs, resolver, options.outputDir);
+      filesWritten = await exportDota(
+        trainingDocs,
+        resolver,
+        options.outputDir,
+      );
       break;
     case 'yolo_pose':
       filesWritten = await exportYoloPose(

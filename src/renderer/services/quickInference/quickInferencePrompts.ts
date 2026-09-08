@@ -3,7 +3,8 @@ import type { AnnotationProject, AnnotationType } from '../../types/annotation';
 const BASE_PROMPTS: Partial<Record<AnnotationType, string>> = {
   caption: '请为当前图片生成内容描述，涵盖主要对象、场景与关键细节。',
   classification: '请根据当前图片内容，从项目标签集中选择最合适的整图分类。',
-  instruction: '请基于当前文本内容，生成一条高质量的 instruction-output 指令数据。',
+  instruction:
+    '请基于当前文本内容，生成一条高质量的 instruction-output 指令数据。',
   cot: '请基于当前文本内容，生成思维链（CoT）问答数据，包含推理步骤与最终答案。',
   conversation: '请基于当前文本内容，生成多轮对话数据。',
   preference: '请基于当前文本内容，生成偏好对比数据（chosen 与 rejected）。',

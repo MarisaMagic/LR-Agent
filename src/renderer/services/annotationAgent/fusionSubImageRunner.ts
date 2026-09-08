@@ -1,7 +1,10 @@
 /**
  * 单图子 Agent 入口：几何流水线（含 bbox）。
  */
-import type { BatchAnnotationPlan, ImageCandidate } from '../../../shared/annotationAgentTypes';
+import type {
+  BatchAnnotationPlan,
+  ImageCandidate,
+} from '../../../shared/annotationAgentTypes';
 import type { FusionSubImageResult } from './fusionSubImageTypes';
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
 import { runGeometrySubImageAgent } from './geometrySubImageRunner';

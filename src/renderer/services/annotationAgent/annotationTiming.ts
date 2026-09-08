@@ -6,7 +6,10 @@ export function formatDurationMs(ms: number): string {
   return `${(n / 1000).toFixed(1)}s`;
 }
 
-export function appendTimingDetail(base: string | undefined, ms: number): string {
+export function appendTimingDetail(
+  base: string | undefined,
+  ms: number,
+): string {
   const suffix = `耗时 ${formatDurationMs(ms)}`;
   const trimmed = base?.trim();
   return trimmed ? `${trimmed} · ${suffix}` : suffix;
@@ -14,6 +17,7 @@ export function appendTimingDetail(base: string | undefined, ms: number): string
 
 export class AnnotationStageTimer {
   private readonly t0 = performance.now();
+
   private readonly marks = new Map<string, number>();
 
   mark(key: string): void {

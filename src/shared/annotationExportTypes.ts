@@ -1,4 +1,7 @@
-import type { AnnotationType, ImageAnnotationType } from '../renderer/types/annotation';
+import type {
+  AnnotationType,
+  ImageAnnotationType,
+} from '../renderer/types/annotation';
 
 export type ExportFormatId =
   | 'yolo'

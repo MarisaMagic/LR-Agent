@@ -65,24 +65,28 @@ export async function runTextClassificationPipeline(
       baseUrl: options.providerBaseUrl,
       model: options.providerModel,
       systemPrompt: buildSystemPrompt(options.project),
-      userPrompt:
-        `${options.userRequest || '请为以下文本选择所有适用的分类标签。'}\n\n---\n${sourceText.slice(0, 8000)}\n---`,
+      userPrompt: `${options.userRequest || '请为以下文本选择所有适用的分类标签。'}\n\n---\n${sourceText.slice(0, 8000)}\n---`,
       temperature: 0.2,
     });
 
     if (!result.ok) continue;
 
-    const labelIds = parseTextClassificationLabels(result.content, options.project);
+    const labelIds = parseTextClassificationLabels(
+      result.content,
+      options.project,
+    );
     if (labelIds.length === 0) continue;
 
     const now = new Date().toISOString();
-    const annotations: TextClassificationAnnotation[] = labelIds.map((labelId) => ({
-      id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      kind: 'text_classification',
-      labelId,
-      createdAt: now,
-      updatedAt: now,
-    }));
+    const annotations: TextClassificationAnnotation[] = labelIds.map(
+      (labelId) => ({
+        id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        kind: 'text_classification',
+        labelId,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
 
     changes.push({
       relativePath: input.relativePath,
@@ -110,7 +114,11 @@ function parseTextClassificationLabels(
     if (rows.length > 0) {
       return resolveUniqueLabelIds(rows, project.labels);
     }
-    const singleId = resolveLabelId(parsed.labelId, parsed.labelName, project.labels);
+    const singleId = resolveLabelId(
+      parsed.labelId,
+      parsed.labelName,
+      project.labels,
+    );
     return singleId ? [singleId] : [];
   } catch {
     return [];

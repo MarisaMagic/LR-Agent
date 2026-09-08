@@ -93,7 +93,8 @@ export async function* runAnnotationMutationJob(options: {
 
   if (options.isCancelled?.()) return;
 
-  const operations = (prepareResult.operations ?? []) as MutationOperationSpec[];
+  const operations = (prepareResult.operations ??
+    []) as MutationOperationSpec[];
   if (operations.length === 0 && !prepareResult.selected_paths?.length) {
     yield progress('prepare', '未识别变更目标', 'error');
     yield {
@@ -105,7 +106,12 @@ export async function* runAnnotationMutationJob(options: {
     return;
   }
 
-  yield progress('prepare', '变更意图已解析', 'done', prepareResult.intent_summary);
+  yield progress(
+    'prepare',
+    '变更意图已解析',
+    'done',
+    prepareResult.intent_summary,
+  );
   yield progress('resolve', '定位标注目标', 'running');
 
   const changes: AnnotationBatchChange[] = [];
@@ -191,7 +197,9 @@ export async function* runAnnotationMutationJob(options: {
   );
 
   const patchCount = changes.reduce(
-    (n, c) => n + (c.patches?.length ?? c.deleteIds?.length ?? c.annotations?.length ?? 0),
+    (n, c) =>
+      n +
+      (c.patches?.length ?? c.deleteIds?.length ?? c.annotations?.length ?? 0),
     0,
   );
 

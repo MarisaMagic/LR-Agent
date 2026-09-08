@@ -155,14 +155,15 @@ export default function PretrainedModelList({
                   {basename(model.checkpointPath) || '未设置权重路径'}
                 </div>
 
-                {model.modelType === 'image_segmentation' && model.configPath && (
-                  <div
-                    className="pretrained-model-item-path pretrained-model-item-path-sub"
-                    title={model.configPath}
-                  >
-                    {basename(model.configPath)}
-                  </div>
-                )}
+                {model.modelType === 'image_segmentation' &&
+                  model.configPath && (
+                    <div
+                      className="pretrained-model-item-path pretrained-model-item-path-sub"
+                      title={model.configPath}
+                    >
+                      {basename(model.configPath)}
+                    </div>
+                  )}
 
                 {model.modelType === 'keypoint_estimation' &&
                   model.auxiliaryPaths?.detector && (

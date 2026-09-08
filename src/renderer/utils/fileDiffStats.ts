@@ -26,7 +26,11 @@ export function computeLineDiff(
 
   for (const part of parts) {
     const partLines = part.value.replace(/\n$/, '').split('\n');
-    if (part.value.endsWith('\n') && partLines.length === 1 && partLines[0] === '') {
+    if (
+      part.value.endsWith('\n') &&
+      partLines.length === 1 &&
+      partLines[0] === ''
+    ) {
       partLines.pop();
     }
     for (const line of partLines) {
@@ -51,7 +55,10 @@ export function computeLineDiff(
       deletions,
       lines: [
         ...head,
-        { kind: 'unchanged', text: `… 省略 ${lines.length - head.length - tail.length} 行 …` },
+        {
+          kind: 'unchanged',
+          text: `… 省略 ${lines.length - head.length - tail.length} 行 …`,
+        },
         ...tail,
       ],
     };
@@ -95,15 +102,23 @@ export function pickCollapsedDiffLines(
 
   return {
     lines: picked,
-    hasMore: sorted.length < lines.filter((l) => l.kind !== 'unchanged').length + sorted.length,
+    hasMore:
+      sorted.length <
+      lines.filter((l) => l.kind !== 'unchanged').length + sorted.length,
   };
 }
 
-export function proposalAnchorId(messageId: string, blockIndex: number): string {
+export function proposalAnchorId(
+  messageId: string,
+  blockIndex: number,
+): string {
   return `proposal-${messageId}-${blockIndex}`;
 }
 
-export function scrollToProposalAnchor(messageId: string, blockIndex: number): void {
+export function scrollToProposalAnchor(
+  messageId: string,
+  blockIndex: number,
+): void {
   const id = proposalAnchorId(messageId, blockIndex);
   document
     .querySelector(`[data-proposal-id="${id}"]`)

@@ -1,12 +1,11 @@
-import type { PretrainedModelConfig, PretrainedModelParams } from './pretrainedModelTypes';
-import type { ObjectDetectionMode } from './pretrainedModelTypes';
+import type {
+  PretrainedModelConfig,
+  PretrainedModelParams,
+  ObjectDetectionMode,
+} from './pretrainedModelTypes';
 
 export type PreAnnotJobKind =
-  | 'yolo_detect'
-  | 'yolo_obb'
-  | 'sam2_box'
-  | 'keypoint_full'
-  | 'keypoint_roi';
+  'yolo_detect' | 'yolo_obb' | 'sam2_box' | 'keypoint_full' | 'keypoint_roi';
 
 export interface PreAnnotNormBox {
   x1: number;
@@ -76,9 +75,7 @@ export interface PreAnnotPoseResult {
 }
 
 export type PreAnnotResult =
-  | PreAnnotDetectResult
-  | PreAnnotPolygonResult
-  | PreAnnotPoseResult;
+  PreAnnotDetectResult | PreAnnotPolygonResult | PreAnnotPoseResult;
 
 export interface PreAnnotRuntimeInfo {
   pythonOk: boolean;
@@ -118,7 +115,9 @@ export function isPolygonResult(
   return 'points' in result && !('items' in result);
 }
 
-export function isPoseResult(result: PreAnnotResult): result is PreAnnotPoseResult {
+export function isPoseResult(
+  result: PreAnnotResult,
+): result is PreAnnotPoseResult {
   return 'poses' in result;
 }
 

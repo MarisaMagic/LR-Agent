@@ -1,9 +1,9 @@
+import { loadAllAnnotationDocs } from '../../annotationDataStore';
+import { loadExportDocs } from '../loadExportDocs';
+
 jest.mock('../../annotationDataStore', () => ({
   loadAllAnnotationDocs: jest.fn(),
 }));
-
-import { loadAllAnnotationDocs } from '../../annotationDataStore';
-import { loadExportDocs } from '../loadExportDocs';
 
 const mockedLoad = loadAllAnnotationDocs as jest.MockedFunction<
   typeof loadAllAnnotationDocs

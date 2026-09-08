@@ -4,11 +4,7 @@ import {
 } from '../../theme/themeConstants';
 
 export type ChartSemanticRole =
-  | 'success'
-  | 'warning'
-  | 'danger'
-  | 'muted'
-  | 'info';
+  'success' | 'warning' | 'danger' | 'muted' | 'info';
 
 export interface ChartThemeTokens {
   palette: string[];

@@ -95,15 +95,21 @@ function AnnotationPreviewCard({
       onClick={() => onOpen(ann)}
       onKeyDown={(event) => handleCardKeyDown(event, () => onOpen(ann))}
     >
-      <span className="agent-annotation-change-block__preview-index">#{index + 1}</span>
-      <span className="agent-annotation-change-block__preview-kind">{kindLabel}</span>
+      <span className="agent-annotation-change-block__preview-index">
+        #{index + 1}
+      </span>
+      <span className="agent-annotation-change-block__preview-kind">
+        {kindLabel}
+      </span>
       <span
         className="agent-annotation-change-block__preview-text"
         title={previewText}
       >
         {previewText || '(空)'}
       </span>
-      <span className="agent-annotation-change-block__preview-open">{openLabel}</span>
+      <span className="agent-annotation-change-block__preview-open">
+        {openLabel}
+      </span>
     </div>
   );
 }
@@ -122,7 +128,9 @@ function AnnotationPreviewCards({
   if (annotations.length === 0) {
     return (
       <div className="agent-annotation-change-block__preview-area">
-        <div className="agent-annotation-change-block__preview-empty">无标注数据</div>
+        <div className="agent-annotation-change-block__preview-empty">
+          无标注数据
+        </div>
       </div>
     );
   }
@@ -184,7 +192,9 @@ function AnnotationChangeListItems({
           <li key={item.key}>
             <div
               className={`agent-annotation-change-block__item-row${
-                isExpanded ? ' agent-annotation-change-block__item-row--expanded' : ''
+                isExpanded
+                  ? ' agent-annotation-change-block__item-row--expanded'
+                  : ''
               } agent-annotation-change-block__item-row--clickable`}
             >
               <button
@@ -233,7 +243,9 @@ function AnnotationChangeListItems({
             ) : null}
             {isExpanded && !hasAnnotations ? (
               <div className="agent-annotation-change-block__preview-area">
-                <div className="agent-annotation-change-block__preview-empty">无标注数据</div>
+                <div className="agent-annotation-change-block__preview-empty">
+                  无标注数据
+                </div>
               </div>
             ) : null}
           </li>

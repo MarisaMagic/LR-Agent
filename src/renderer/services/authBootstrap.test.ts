@@ -1,10 +1,7 @@
 import { ApiError, TokenResponse, UserPublic } from '../types/auth';
 import { restoreSession, tryRefreshSession } from './auth';
 import { apiFetch } from './api';
-import {
-  decodeJwtPayload,
-  isRefreshTokenExpiredLocally,
-} from './jwtUtils';
+import { decodeJwtPayload, isRefreshTokenExpiredLocally } from './jwtUtils';
 import { isAuthRejection, isNetworkError } from './networkUtils';
 
 jest.mock('./api');

@@ -42,7 +42,9 @@ function DiffLineContent({
   }, [text, relativePath]);
 
   if (html === null) {
-    return <span className="agent-file-change-block__diff-plain">{text || ' '}</span>;
+    return (
+      <span className="agent-file-change-block__diff-plain">{text || ' '}</span>
+    );
   }
 
   return (
@@ -140,10 +142,14 @@ export default function AgentFileChangeBlock({
   const statsLabel = diffResult ? (
     <span className="agent-file-change-block__stats">
       {diffResult.additions > 0 ? (
-        <span className="agent-file-change-block__stat-add">+{diffResult.additions}</span>
+        <span className="agent-file-change-block__stat-add">
+          +{diffResult.additions}
+        </span>
       ) : null}
       {diffResult.deletions > 0 ? (
-        <span className="agent-file-change-block__stat-del">-{diffResult.deletions}</span>
+        <span className="agent-file-change-block__stat-del">
+          -{diffResult.deletions}
+        </span>
       ) : null}
       {diffResult.additions === 0 && diffResult.deletions === 0 ? (
         <span className="agent-file-change-block__stat-add">+0</span>
@@ -153,7 +159,9 @@ export default function AgentFileChangeBlock({
 
   const canExpandDiff = useMemo(() => {
     if (!collapsed || !diffResult) return false;
-    return collapsed.hasMore || diffResult.lines.length > collapsed.lines.length;
+    return (
+      collapsed.hasMore || diffResult.lines.length > collapsed.lines.length
+    );
   }, [collapsed, diffResult]);
 
   const safeRelativePath = relativePath ?? '';
@@ -172,7 +180,10 @@ export default function AgentFileChangeBlock({
         onClick={handleOpenInEditor}
       >
         <FileTypeIcon path={safeRelativePath} size={14} />
-        <span className="agent-file-change-block__name" title={safeRelativePath}>
+        <span
+          className="agent-file-change-block__name"
+          title={safeRelativePath}
+        >
           {fileName}
         </span>
         {statsLabel}
@@ -205,7 +216,10 @@ export default function AgentFileChangeBlock({
               contentClassName="agent-file-change-block__diff"
               observeKey={diffResult.lines.length}
             >
-              <DiffLines lines={diffResult.lines} relativePath={safeRelativePath} />
+              <DiffLines
+                lines={diffResult.lines}
+                relativePath={safeRelativePath}
+              />
             </OverlayVerticalScrollArea>
             {canExpandDiff ? (
               <button

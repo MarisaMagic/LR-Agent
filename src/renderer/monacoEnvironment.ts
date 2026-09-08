@@ -39,8 +39,9 @@ function buildWorkerUrl(label: string): string {
         window.location.pathname.length,
     );
     if (result.substring(0, currentOrigin.length) !== currentOrigin) {
-      const resolved =
-        /^(\/\/)/.test(result) ? window.location.protocol + result : result;
+      const resolved = /^(\/\/)/.test(result)
+        ? window.location.protocol + result
+        : result;
       const js = `/*${label}*/importScripts("${resolved}");`;
       const blob = new Blob([js], { type: 'application/javascript' });
       return URL.createObjectURL(blob);

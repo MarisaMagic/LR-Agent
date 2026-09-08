@@ -1,5 +1,9 @@
 import type { LlmProviderConfig } from '../../../shared/agentTypes';
-import type { AnnotationProject, AnnotationType, ImageAnnotationType } from '../../types/annotation';
+import type {
+  AnnotationProject,
+  AnnotationType,
+  ImageAnnotationType,
+} from '../../types/annotation';
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
 import { pickDefaultPreAnnotModel } from '../../utils/preAnnotModelFilter';
 
@@ -83,7 +87,11 @@ function preAnnotReadinessReason(
     }
     return null;
   }
-  const model = pickDefaultPreAnnotModel(annotationType, models, keypointTemplateId ?? undefined);
+  const model = pickDefaultPreAnnotModel(
+    annotationType,
+    models,
+    keypointTemplateId ?? undefined,
+  );
   if (!model) {
     return `${annotationType} 快捷推理需配置可用的预训练模型`;
   }
@@ -122,7 +130,9 @@ export function evaluateQuickInferenceReadiness(
   }
   if (
     input.project &&
-    PREANNOT_REQUIRED_TYPES.has(input.project.annotationType as ImageAnnotationType)
+    PREANNOT_REQUIRED_TYPES.has(
+      input.project.annotationType as ImageAnnotationType,
+    )
   ) {
     const modelReason = preAnnotReadinessReason(
       input.project.annotationType as ImageAnnotationType,

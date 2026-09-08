@@ -1,5 +1,5 @@
-import type { AnnotationType } from '../../types/annotation';
 import type { EChartsOption } from 'echarts';
+import type { AnnotationType } from '../../types/annotation';
 
 export type QualityScope = 'full_project' | 'current_folder';
 

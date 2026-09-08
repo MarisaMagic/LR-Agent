@@ -27,7 +27,11 @@ function toolCallBlock(name: string): MessageBlock {
   };
 }
 
-function pipelineBlock(overrides: Partial<Extract<MessageBlock, { type: 'annotation_pipeline' }>> = {}): MessageBlock {
+function pipelineBlock(
+  overrides: Partial<
+    Extract<MessageBlock, { type: 'annotation_pipeline' }>
+  > = {},
+): MessageBlock {
   return {
     type: 'annotation_pipeline',
     collapsed: true,
@@ -39,7 +43,10 @@ function pipelineBlock(overrides: Partial<Extract<MessageBlock, { type: 'annotat
   };
 }
 
-function proposalBlock(): Extract<MessageBlock, { type: 'annotation_proposal' }> {
+function proposalBlock(): Extract<
+  MessageBlock,
+  { type: 'annotation_proposal' }
+> {
   const proposal = {
     id: 'p1',
     projectId: 'proj-1',

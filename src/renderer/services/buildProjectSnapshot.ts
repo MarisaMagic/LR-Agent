@@ -1,5 +1,8 @@
 import type { AnnotationProjectSnapshot } from '../../shared/annotationAgentTypes';
-import type { AnnotationProject, ImageAnnotationType } from '../types/annotation';
+import type {
+  AnnotationProject,
+  ImageAnnotationType,
+} from '../types/annotation';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import { getEligiblePreAnnotModels } from '../utils/preAnnotModelFilter';
 import { getAnnotationTypeLabel } from '../types/annotation';
@@ -13,9 +16,7 @@ export function buildAnnotationProjectSnapshot(
 ): AnnotationProjectSnapshot {
   const wsSnap = getAnnotationWorkspaceAgentSnapshot();
   const keypointTemplateId =
-    options?.keypointTemplateId ??
-    wsSnap.keypointTemplateId ??
-    undefined;
+    options?.keypointTemplateId ?? wsSnap.keypointTemplateId ?? undefined;
 
   let eligible = detectionModels.filter((m) => m.enabled);
   if (isGeometryAnnotationType(project.annotationType)) {

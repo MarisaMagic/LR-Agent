@@ -19,8 +19,7 @@ export function getEligiblePreAnnotModels(
     case 'rotated_bbox':
       return enabled.filter(
         (m) =>
-          m.modelType === 'object_detection' &&
-          inferDetectionMode(m) === 'obb',
+          m.modelType === 'object_detection' && inferDetectionMode(m) === 'obb',
       );
     case 'polygon':
       return enabled.filter((m) => m.modelType === 'image_segmentation');
@@ -60,10 +59,7 @@ export function loadSavedPreAnnotModelId(projectId: string): string | null {
   }
 }
 
-export function savePreAnnotModelId(
-  projectId: string,
-  modelId: string,
-): void {
+export function savePreAnnotModelId(projectId: string, modelId: string): void {
   try {
     localStorage.setItem(`${STORAGE_PREFIX}${projectId}`, modelId);
   } catch {

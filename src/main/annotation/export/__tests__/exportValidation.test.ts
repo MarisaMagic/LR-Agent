@@ -15,7 +15,9 @@ describe('exportValidation', () => {
 
   it('formats unknown label warning', () => {
     expect(unknownLabelWarning(0)).toBeUndefined();
-    expect(unknownLabelWarning(3)).toBe('有 3 条标注使用了未知 labelId，已跳过');
+    expect(unknownLabelWarning(3)).toBe(
+      '有 3 条标注使用了未知 labelId，已跳过',
+    );
   });
 
   it('formats missing media warning', () => {

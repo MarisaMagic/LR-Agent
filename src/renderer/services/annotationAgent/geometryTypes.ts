@@ -34,10 +34,7 @@ export interface PosePayload {
 }
 
 export type GeometryPayload =
-  | NormBox
-  | RotatedBboxPayload
-  | PolygonPayload
-  | PosePayload;
+  NormBox | RotatedBboxPayload | PolygonPayload | PosePayload;
 
 export interface GeometryInstance {
   instance_index: number;
@@ -103,9 +100,7 @@ export function pointsToAabb(
   return { x: minX, y: minY, width, height };
 }
 
-export function instancesToMapBoxes(
-  instances: GeometryInstance[],
-): Array<{
+export function instancesToMapBoxes(instances: GeometryInstance[]): Array<{
   box_index: number;
   x: number;
   y: number;

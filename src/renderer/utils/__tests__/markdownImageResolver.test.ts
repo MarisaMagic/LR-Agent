@@ -19,10 +19,7 @@ describe('markdownImageResolver', () => {
 
   it('resolveMarkdownImageAbsolutePath keeps absolute paths', () => {
     expect(
-      resolveMarkdownImageAbsolutePath(
-        'D:/project/docs',
-        'D:/assets/logo.png',
-      ),
+      resolveMarkdownImageAbsolutePath('D:/project/docs', 'D:/assets/logo.png'),
     ).toBe('D:/assets/logo.png');
   });
 

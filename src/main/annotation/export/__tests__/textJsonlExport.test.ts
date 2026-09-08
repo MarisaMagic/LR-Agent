@@ -44,13 +44,7 @@ describe('exportTextJsonl', () => {
       },
     ];
     const resolver = new LabelResolver([{ id: 'l1', name: 'zh' }]);
-    await exportTextJsonl(
-      projectDir,
-      outputDir,
-      'instruction',
-      docs,
-      resolver,
-    );
+    await exportTextJsonl(projectDir, outputDir, 'instruction', docs, resolver);
     const content = await fs.readFile(
       path.join(outputDir, 'instruction.jsonl'),
       'utf8',
@@ -71,9 +65,7 @@ describe('exportTextJsonl', () => {
         kind: 'text',
         relativePath: 'sample.txt',
         filePath: 'sample.txt',
-        annotations: [
-          { kind: 'span_ner', start: 0, end: 5, labelId: 'l1' },
-        ],
+        annotations: [{ kind: 'span_ner', start: 0, end: 5, labelId: 'l1' }],
       },
     ];
     const resolver = new LabelResolver([{ id: 'l1', name: 'ORG' }]);

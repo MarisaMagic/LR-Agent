@@ -14,13 +14,12 @@ window.electron?.env
   .catch(() => undefined);
 
 if (process.env.NODE_ENV === 'development') {
-  const SUPPRESSED_MESSAGES = new Set([
-    'Canceled',
-    'canceled',
-  ]);
+  const SUPPRESSED_MESSAGES = new Set(['Canceled', 'canceled']);
 
   const shouldSuppressDevOverlay = (value: unknown): boolean => {
-    if (isResizeObserverLoopError(typeof value === 'string' ? value : undefined)) {
+    if (
+      isResizeObserverLoopError(typeof value === 'string' ? value : undefined)
+    ) {
       return true;
     }
     if (typeof value !== 'string') return false;
@@ -76,7 +75,7 @@ if (process.env.NODE_ENV === 'development') {
   );
 
   window.addEventListener('unhandledrejection', (event) => {
-    const reason = event.reason;
+    const { reason } = event;
     const message =
       reason instanceof Error
         ? reason.message
