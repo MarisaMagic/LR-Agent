@@ -18,7 +18,7 @@
 **方式 A — Conda（Windows 上较稳）**
 
 ```bash
-conda create -n lr-agent-inference python=3.11 -y
+conda create -n lr-agent-inference python=3.12 -y
 conda activate lr-agent-inference
 pip install -r requirements-gpu.txt
 ```

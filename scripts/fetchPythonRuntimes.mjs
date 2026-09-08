@@ -1,7 +1,7 @@
 /**
  * 下载 python-build-standalone 嵌入式运行时（Windows x64，install_only）。
  *
- * 供 Electron 打包使用：解包到 assets/python-runtime/{py312,py311}，
+ * 供 Electron 打包使用：解包到 assets/python-runtime/py312，
  * 随 extraResources 分发到 resources/python-runtime/。运行时二进制不提交
  * git（见 .gitignore），本脚本入库，`npm run package` 前会自动执行。
  *
@@ -12,10 +12,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const TARGETS = [
-  { version: '3.12', dir: 'py312' },
-  { version: '3.11', dir: 'py311' },
-];
+const TARGETS = [{ version: '3.12', dir: 'py312' }];
 const ASSET_PATTERN = (version) =>
   new RegExp(
     '^cpython-' +

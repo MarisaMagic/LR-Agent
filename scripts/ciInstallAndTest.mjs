@@ -5,7 +5,7 @@
  *   SAM2_GIT_URL / SAM2_ARCHIVE_URL / TORCH_CPU_INDEX / VERIFY_IMPORTS
  *
  * 用法: node scripts/ciInstallAndTest.mjs
- * 前置: 已执行 npm run fetch-python-runtimes（assets/python-runtime/{py312,py311}）
+ * 前置: 已执行 npm run fetch-python-runtimes（assets/python-runtime/py312）
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -106,7 +106,7 @@ function installLocalAgent() {
 }
 
 function installInference() {
-  const runtimePython = ensureRuntime('py311');
+  const runtimePython = ensureRuntime('py312');
   const venvDir = path.join(venvRoot, 'inference');
   const python = createVenv(runtimePython, venvDir, 'inference');
   const requirements = path.join(

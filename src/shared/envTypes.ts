@@ -65,7 +65,7 @@ export type InferenceVariant = 'gpu' | 'cpu';
 /** 「手动指定 Python 解释器」路径的真实校验结果（执行 --version 得到） */
 export interface PythonValidationResult {
   state: 'empty' | 'valid' | 'invalid';
-  /** 有效时的版本号，如 '3.11.9'；无效或未设置时无此字段 */
+  /** 有效时的版本号，如 '3.12.10'；无效或未设置时无此字段 */
   version?: string;
   /** 无效时的中文原因，如「路径不存在」 */
   reason?: string;

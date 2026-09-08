@@ -1,7 +1,7 @@
 /**
  * 嵌入式 Python 运行时与 venv 管理。
  *
- * 运行时资产随安装包分发（resources/python-runtime/{py312,py311}，由
+ * 运行时资产随安装包分发（resources/python-runtime/py312，由
  * scripts/fetchPythonRuntimes.mjs 准备），首启复制到
  * <userData>/runtimes/（resources 目录可能只读），再为其上的
  * local-agent / inference 创建 venv；依赖安装结果通过
@@ -14,9 +14,9 @@ import fs from 'fs-extra';
 import { app } from 'electron';
 import type { InstallTarget } from '../../shared/envTypes';
 
-export const TARGET_PYTHON_VERSION: Record<InstallTarget, 'py312' | 'py311'> = {
+export const TARGET_PYTHON_VERSION: Record<InstallTarget, 'py312'> = {
   'local-agent': 'py312',
-  inference: 'py311',
+  inference: 'py312',
 };
 
 export interface InstallMarker {
@@ -29,20 +29,20 @@ export function getRuntimesDir(): string {
   return path.join(app.getPath('userData'), 'runtimes');
 }
 
-function runtimeAssetDir(version: 'py312' | 'py311'): string {
+function runtimeAssetDir(version: 'py312'): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'python-runtime', version);
   }
   return path.resolve(app.getAppPath(), 'assets', 'python-runtime', version);
 }
 
-function runtimeUserDir(version: 'py312' | 'py311'): string {
+function runtimeUserDir(version: 'py312'): string {
   return path.join(getRuntimesDir(), version);
 }
 
 /** 嵌入式运行时解释器在 userData 下的路径（python-build-standalone 布局） */
 export function getEmbeddedRuntimePythonPath(
-  version: 'py312' | 'py311',
+  version: 'py312',
 ): string {
   return process.platform === 'win32'
     ? path.join(runtimeUserDir(version), 'python.exe')
@@ -51,7 +51,7 @@ export function getEmbeddedRuntimePythonPath(
 
 /** 首次使用时把运行时从 resources 复制到 userData；无资产（开发机未 fetch）返回 null */
 export async function ensureRuntimeExtracted(
-  version: 'py312' | 'py311',
+  version: 'py312',
 ): Promise<string | null> {
   const userDir = runtimeUserDir(version);
   const pythonPath = getEmbeddedRuntimePythonPath(version);
@@ -71,7 +71,7 @@ export async function ensureRuntimeExtracted(
 }
 
 /** 嵌入式运行时是否已被复制到 userData */
-export function isRuntimeExtracted(version: 'py312' | 'py311'): boolean {
+export function isRuntimeExtracted(version: 'py312'): boolean {
   return fs.existsSync(getEmbeddedRuntimePythonPath(version));
 }
 
