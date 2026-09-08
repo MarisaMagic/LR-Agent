@@ -669,6 +669,8 @@ const electronHandler = {
         ipcRenderer.invoke('db:providers:setDefault', id),
       getDefault: (): Promise<unknown> =>
         ipcRenderer.invoke('db:providers:getDefault'),
+      probeVision: (id: string): Promise<unknown> =>
+        ipcRenderer.invoke('db:providers:probeVision', id),
     },
   },
 };

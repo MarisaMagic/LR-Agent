@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron';
+import { probeAndPersistProviderVision } from '../llm/probeProviderVision';
 import * as sessionRepo from './sessionRepository';
 import * as messageRepo from './messageRepository';
 import * as providerRepo from './providerRepository';
@@ -251,5 +252,12 @@ export function registerDbHandlers(): void {
 
   ipcMain.handle('db:providers:getDefault', () => {
     return providerRepo.getDefaultProvider();
+  });
+
+  ipcMain.handle('db:providers:probeVision', (_event, id: unknown) => {
+    if (typeof id !== 'string' || id.length === 0) {
+      throw new Error('provider_not_found');
+    }
+    return probeAndPersistProviderVision(id);
   });
 }

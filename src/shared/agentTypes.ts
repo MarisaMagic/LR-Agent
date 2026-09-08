@@ -22,7 +22,7 @@ export interface LlmProviderConfig {
   model: string;
   enabled: boolean;
   isDefault: boolean;
-  /** API 视觉探针结果（64×64 图 + 图文请求） */
+  /** 主进程 API 视觉探针结果（图文 chat/completions，HTTP 2xx 视为多模态） */
   supportsVision: boolean;
   visionProbedAt: number | null;
   visionProbeDetail: string;
