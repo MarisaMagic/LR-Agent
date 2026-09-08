@@ -4,14 +4,11 @@
 MCP Server 地址由客户端通过 client_context.mcp_server_url 字段传入。
 
 工具发现流程：
-  1. 用 SSEConnection 连接 MCP Server
+  1. 用 Streamable HTTP 连接 MCP Server（/mcp）
   2. 调用 load_mcp_tools() 获取所有工具
   3. 按 ToolCapability 去重后返回 list[StructuredTool]（不与内置工具能力冲突）
 
 已知 MCP 工具（前端 server.ts 暴露）：
-  - yolo_detect           本地 YOLO 推理
-  - write_workspace_file  写工作区文本文件
-  - list_project_images   枚举项目图片
   - memory_read           读取记忆 topic 文件
   - memory_write          写入记忆 topic 文件
   - read_agent_skill      读取全局 Agent Skill 的 SKILL.md 正文（走默认 SYNC runner，
@@ -26,7 +23,6 @@ from langchain_core.tools import StructuredTool
 
 from app.agent.tools.tool_registry_meta import (
     CANONICAL_CAPABILITIES,
-    TOOL_CAPABILITY_MAP,
     ToolCapability,
 )
 
@@ -34,13 +30,12 @@ logger = logging.getLogger(__name__)
 
 
 def _infer_mcp_capability(tool_name: str) -> ToolCapability | None:
-    """从 MCP 工具名称推断其能力类型。"""
-    if tool_name in ("write_workspace_file",):
-        return ToolCapability.WRITE_FILE
-    if tool_name in ("yolo_detect",):
-        return ToolCapability.AUTO_ANNOTATE
-    if tool_name in ("list_project_images",):
-        return ToolCapability.QUERY_CONTEXT
+    """从 MCP 工具名称推断其能力类型。
+
+    当前 Electron MCP 工具（memory_* / read_agent_skill）与内置能力不冲突，返回 None。
+    若将来再暴露与 canonical 重叠的名字，在此登记以免双轨注入。
+    """
+    _ = tool_name
     return None
 
 
@@ -62,13 +57,16 @@ async def load_mcp_tools_from_server(
         logger.warning("langchain-mcp-adapters 未安装，跳过 MCP 工具加载")
         return []
 
-    sse_url = mcp_server_url.rstrip("/") + "/sse"
+    mcp_url = mcp_server_url.rstrip("/") + "/mcp"
     try:
         client = MultiServerMCPClient(
             {
                 "lr-agent-local": {
-                    "url": sse_url,
-                    "transport": "sse",
+                    "url": mcp_url,
+                    "transport": "streamable_http",
+                    "timeout": 60,
+                    "sse_read_timeout": 300,
+                    "terminate_on_close": True,
                 }
             }
         )
