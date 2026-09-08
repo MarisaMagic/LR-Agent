@@ -22,6 +22,11 @@ release/app/dist
 release/build
 .erb/dll
 
+# 打包/CI 产物与第三方源码，不走前端 eslint
+assets/python-runtime/
+vendor/
+.ci-venvs/
+
 .idea
 npm-debug.log.*
 *.css.d.ts

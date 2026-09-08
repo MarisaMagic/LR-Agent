@@ -8,7 +8,9 @@ import webpackPaths from './webpack.paths';
 import { dependencies as externals } from '../../release/app/package.json';
 
 const configuration: webpack.Configuration = {
-  externals: [...Object.keys(externals || {}).filter(name => name !== 'fabric')],
+  externals: [
+    ...Object.keys(externals || {}).filter((name) => name !== 'fabric'),
+  ],
 
   stats: 'errors-only',
 
