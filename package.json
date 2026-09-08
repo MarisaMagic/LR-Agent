@@ -81,7 +81,13 @@
       "^@vscode-elements/react-elements$": "<rootDir>/.erb/mocks/vscodeElementsMock.tsx",
       "^react-markdown$": "<rootDir>/.erb/mocks/reactMarkdownMock.tsx",
       "^remark-gfm$": "<rootDir>/.erb/mocks/remarkGfmMock.js",
-      "^mammoth$": "<rootDir>/.erb/mocks/mammothMock.js"
+      "^mammoth$": "<rootDir>/.erb/mocks/mammothMock.js",
+      "^monaco-editor/esm/vs/editor/editor.api$": "<rootDir>/.erb/mocks/monacoEditorMock.js",
+      "^echarts$": "<rootDir>/.erb/mocks/echartsMock.js",
+      "^echarts/core$": "<rootDir>/.erb/mocks/echartsMock.js",
+      "^echarts/charts$": "<rootDir>/.erb/mocks/echartsMock.js",
+      "^echarts/components$": "<rootDir>/.erb/mocks/echartsMock.js",
+      "^echarts/renderers$": "<rootDir>/.erb/mocks/echartsMock.js"
     },
     "setupFiles": [
       "./.erb/scripts/check-build-exists.ts",

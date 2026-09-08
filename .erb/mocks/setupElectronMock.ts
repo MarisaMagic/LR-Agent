@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 jest.mock('remark-math', () => ({
   __esModule: true,
   default: () => undefined,
@@ -8,7 +10,22 @@ jest.mock('rehype-katex', () => ({
   default: () => undefined,
 }));
 
+if (typeof globalThis.crypto?.randomUUID !== 'function') {
+  try {
+    Object.defineProperty(globalThis.crypto, 'randomUUID', {
+      configurable: true,
+      value: randomUUID,
+    });
+  } catch {
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: { randomUUID },
+    });
+  }
+}
+
 Object.defineProperty(window, 'matchMedia', {
+  configurable: true,
   writable: true,
   value: jest.fn().mockImplementation((query: string) => ({
     matches: false,
@@ -23,6 +40,7 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 Object.defineProperty(window, 'electron', {
+  configurable: true,
   writable: true,
   value: {
     platform: 'win32',
@@ -52,6 +70,7 @@ Object.defineProperty(window, 'electron', {
       readFileBuffer: jest.fn(),
       getFileStats: jest.fn(),
       openPath: jest.fn(),
+      onChanged: jest.fn(() => jest.fn()),
     },
     auth: {
       getRefreshToken: jest.fn().mockResolvedValue(null),
@@ -60,6 +79,8 @@ Object.defineProperty(window, 'electron', {
       getSessionCache: jest.fn().mockResolvedValue(null),
       setSessionCache: jest.fn().mockResolvedValue(undefined),
       clearSessionCache: jest.fn().mockResolvedValue(undefined),
+      getPendingResetToken: jest.fn().mockResolvedValue(null),
+      onResetPasswordDeepLink: jest.fn(() => jest.fn()),
     },
     annotation: {
       getProjects: jest.fn().mockResolvedValue([]),
@@ -90,6 +111,24 @@ Object.defineProperty(window, 'electron', {
     },
     workspace: {
       writeTextFile: jest.fn().mockResolvedValue({ success: true }),
+      readTextFile: jest.fn().mockResolvedValue({ success: true, content: '' }),
+    },
+    env: {
+      getStatus: jest.fn().mockResolvedValue(null),
+      getSettings: jest.fn().mockResolvedValue(null),
+      setSettings: jest.fn().mockResolvedValue(undefined),
+    },
+    localAgent: {
+      getBaseUrl: jest.fn().mockResolvedValue(null),
+      onStatus: jest.fn(() => jest.fn()),
+    },
+    pretrainedModels: {
+      getAll: jest.fn().mockResolvedValue([]),
+      saveAll: jest.fn().mockResolvedValue(undefined),
+    },
+    dialog: {
+      confirm: jest.fn().mockResolvedValue(true),
+      openFile: jest.fn().mockResolvedValue(null),
     },
   },
 });
