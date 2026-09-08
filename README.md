@@ -29,13 +29,13 @@ pip install -r vendor/local-agent/requirements.txt
 
 ### inference（预标注，可选）
 
-源码在同级目录 `LR-Agent-inference`。有 NVIDIA 显卡用 GPU 清单，否则用 CPU。
+源码在 `vendor/inference`。有 NVIDIA 显卡用 GPU 清单，否则用 CPU。
 
 ```bash
 conda create -n lr-agent-inference python=3.11 -y
 conda activate lr-agent-inference
-pip install -r ../LR-Agent-inference/requirements-gpu.txt
-# 或：pip install -r ../LR-Agent-inference/requirements-cpu.txt
+pip install -r vendor/inference/requirements-gpu.txt
+# 或：pip install -r vendor/inference/requirements-cpu.txt
 ```
 
 ## 账号后端（可选）

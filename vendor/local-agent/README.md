@@ -10,7 +10,7 @@
 
 - **LR-Agent-local（本服务）**：Assist 工具循环 SSE、标注 / 质量报告 LLM 编排
 - **LR-Agent-backend（云端）**：仅用户认证与资料管理（auth / users）
-- **LR-Agent-inference**：本地预训练模型推理（YOLO / SAM2 / Keypoint）
+- **LR-Agent-inference（`vendor/inference`）**：本地预训练模型推理（YOLO / SAM2 / Keypoint）
 
 API Key 由前端在请求体中直传（BYOK），仅用于本次 LLM 调用，不落库、不经云端。
 

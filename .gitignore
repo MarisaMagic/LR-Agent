@@ -73,9 +73,13 @@ ehthumbs.db
 *.local
 *.pem
 
-# Python (vendor/local-agent)
+# Python (vendor/local-agent, vendor/inference)
 __pycache__/
 .pytest_cache/
 
 # 嵌入式 Python 运行时（scripts/fetchPythonRuntimes.mjs 产物，打包前自动下载）
 assets/python-runtime/
+
+# CI 后续安装冒烟（scripts/ciInstallAndTest.mjs）
+.ci-venvs/
+.ci-pip-cache/

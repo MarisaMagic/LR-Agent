@@ -38,9 +38,18 @@ if (!isWin32) {
   process.exit(1);
 }
 
+function githubHeaders(url) {
+  const headers = { 'User-Agent': 'lr-agent-fetch-python-runtimes' };
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (token && new URL(url).hostname === 'api.github.com') {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 async function fetchJson(url) {
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'lr-agent-fetch-python-runtimes' },
+    headers: githubHeaders(url),
   });
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} for ${url}`);
@@ -51,7 +60,7 @@ async function fetchJson(url) {
 async function downloadTo(asset, destPath) {
   console.log(`下载 ${asset.name} ...`);
   const res = await fetch(asset.browser_download_url, {
-    headers: { 'User-Agent': 'lr-agent-fetch-python-runtimes' },
+    headers: githubHeaders(asset.browser_download_url),
   });
   if (!res.ok) {
     throw new Error(`下载失败: HTTP ${res.status} — ${asset.name}`);

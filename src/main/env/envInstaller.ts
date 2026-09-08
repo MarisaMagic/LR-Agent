@@ -74,7 +74,7 @@ function rootOf(target: InstallTarget): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'inference');
   }
-  return path.resolve(app.getAppPath(), '..', 'LR-Agent-inference');
+  return path.resolve(app.getAppPath(), 'vendor', 'inference');
 }
 
 async function requirementsPathOf(

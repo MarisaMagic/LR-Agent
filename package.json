@@ -291,7 +291,7 @@
         ]
       },
       {
-        "from": "../LR-Agent-inference",
+        "from": "vendor/inference",
         "to": "inference",
         "filter": [
           "**/*",
