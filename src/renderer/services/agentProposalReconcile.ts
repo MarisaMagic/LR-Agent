@@ -109,7 +109,9 @@ export async function reconcileAppliedAnnotationProposals(options: {
             break;
           }
           const existingIds = new Set(
-            doc.annotations.map((a) => a.id).filter((id): id is string => Boolean(id)),
+            doc.annotations
+              .map((a) => a.id)
+              .filter((id): id is string => Boolean(id)),
           );
           const proposalAnnotationIds = (change.annotations ?? [])
             .map((a) => a.id)

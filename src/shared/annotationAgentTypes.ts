@@ -3,10 +3,7 @@ import type {
   LabelDefinition,
   Modality,
 } from '../renderer/types/annotation';
-import type {
-  AnnotationInstance,
-  BboxAnnotation,
-} from '../renderer/types/annotationDocument';
+import type { AnnotationInstance } from '../renderer/types/annotationDocument';
 
 export interface ImageCandidate {
   relativePath: string;

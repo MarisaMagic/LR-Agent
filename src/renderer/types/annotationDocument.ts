@@ -562,17 +562,12 @@ export function parseFileAnnotationDocument(
   const sourceUnknown = raw.source;
   let source: AnnotationSourceMeta | undefined;
   if (isRecord(sourceUnknown)) {
-    const width = sourceUnknown.width;
-    const height = sourceUnknown.height;
+    const { width, height, mtimeMs, size } = sourceUnknown;
     source = {
       width: typeof width === 'number' ? width : 1,
       height: typeof height === 'number' ? height : 1,
-      ...(typeof sourceUnknown.mtimeMs === 'number' && {
-        mtimeMs: sourceUnknown.mtimeMs,
-      }),
-      ...(typeof sourceUnknown.size === 'number' && {
-        size: sourceUnknown.size,
-      }),
+      ...(typeof mtimeMs === 'number' && { mtimeMs }),
+      ...(typeof size === 'number' && { size }),
     };
   }
 
