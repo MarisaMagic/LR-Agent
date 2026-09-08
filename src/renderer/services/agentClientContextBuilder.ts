@@ -21,8 +21,10 @@ export function buildClientContextPayload(options: {
   mcpServerUrl?: string | null;
   /** 项目级指令（.lragent/INSTRUCTIONS.md 内容） */
   projectInstructions?: string | null;
-  /** Auto Memory 索引（MEMORY.md 截断内容） */
+  /** 工作区记忆索引（MEMORY.md 截断内容） */
   memoryIndex?: string | null;
+  /** 当前标注任务是否启用工作区记忆 */
+  workspaceMemoryEnabled?: boolean;
   /** 全局 Agent Skills catalog（~/.agents/skills 扫描结果） */
   skillsCatalog?: AgentSkillEntry[] | null;
 }): ClientContextPayload {
@@ -65,7 +67,10 @@ export function buildClientContextPayload(options: {
       : (options.selectedAnnotationIds ?? []),
     mcpServerUrl: options.mcpServerUrl ?? null,
     projectInstructions: options.projectInstructions ?? null,
-    memoryIndex: options.memoryIndex ?? null,
+    memoryIndex: isEditorMode ? null : (options.memoryIndex ?? null),
+    workspaceMemoryEnabled: isEditorMode
+      ? false
+      : Boolean(options.workspaceMemoryEnabled),
     skillsCatalog: options.skillsCatalog ?? null,
   };
 

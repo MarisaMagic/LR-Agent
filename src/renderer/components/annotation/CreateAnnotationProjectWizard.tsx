@@ -14,6 +14,7 @@ import {
 import { findProjectByDirectory } from '../../services/annotationProjectStore';
 import { useAnnotation } from '../../context/AnnotationContext';
 import LabelEditor, { normalizeLabels } from './LabelEditor';
+import WorkspaceMemoryToggle from './WorkspaceMemoryToggle';
 import { buildDefaultKeypointLabels } from '../../types/keypointTemplate';
 import './CreateAnnotationProjectWizard.css';
 
@@ -47,6 +48,7 @@ export default function CreateAnnotationProjectWizard({
     getDefaultAnnotationType('image'),
   );
   const [labels, setLabels] = useState<LabelDefinition[]>([]);
+  const [workspaceMemoryEnabled, setWorkspaceMemoryEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -70,6 +72,7 @@ export default function CreateAnnotationProjectWizard({
     setModality('image');
     setAnnotationType(getDefaultAnnotationType('image'));
     setLabels([]);
+    setWorkspaceMemoryEnabled(false);
     setError(null);
     setSubmitting(false);
   }, [open]);
@@ -149,6 +152,7 @@ export default function CreateAnnotationProjectWizard({
       annotationType,
       labels: requiresLabels ? normalizeLabels(labels) : [],
       description: description.trim() || undefined,
+      workspaceMemoryEnabled,
     };
 
     try {
@@ -257,6 +261,12 @@ export default function CreateAnnotationProjectWizard({
               placeholder="可选，描述任务目标或注意事项"
             />
           </div>
+
+          <WorkspaceMemoryToggle
+            id="project-workspace-memory"
+            checked={workspaceMemoryEnabled}
+            onChange={setWorkspaceMemoryEnabled}
+          />
         </div>
       )}
 

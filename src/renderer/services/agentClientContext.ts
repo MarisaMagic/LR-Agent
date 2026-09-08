@@ -33,6 +33,7 @@ export function buildApiClientContext(
     mcp_server_url: clientContext.mcpServerUrl ?? null,
     project_instructions: clientContext.projectInstructions ?? null,
     memory_index: clientContext.memoryIndex ?? null,
+    workspace_memory_enabled: Boolean(clientContext.workspaceMemoryEnabled),
     skills_catalog: (clientContext.skillsCatalog ?? []).map(
       ({ name, description }) => ({ name, description }),
     ),

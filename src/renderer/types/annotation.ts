@@ -32,6 +32,8 @@ export interface AnnotationProject {
   annotationType: AnnotationType;
   labels: LabelDefinition[];
   description?: string;
+  /** 工作区记忆：Agent 可读写本任务进度 / 已标文件等 Markdown */
+  workspaceMemoryEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
   lastOpenedAt?: string;
@@ -44,12 +46,14 @@ export interface CreateAnnotationProjectInput {
   annotationType: AnnotationType;
   labels: LabelDefinition[];
   description?: string;
+  workspaceMemoryEnabled?: boolean;
 }
 
 export interface UpdateAnnotationProjectInput {
   name: string;
   description?: string;
   labels: LabelDefinition[];
+  workspaceMemoryEnabled?: boolean;
 }
 
 export interface AnnotationTypeOption {

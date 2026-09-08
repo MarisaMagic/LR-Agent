@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from langchain_core.messages import ToolMessage
+
 
 def build_tool_result(
     *,
@@ -24,6 +26,29 @@ def build_tool_result(
     }
     payload.update(extra)
     return json.dumps(payload, ensure_ascii=False)
+
+
+def stringify_tool_output(result: Any) -> str:
+    """把 StructuredTool / MCP ainvoke 的返回值收成 ToolMessage 字符串。"""
+    if isinstance(result, ToolMessage):
+        result = result.content
+    if isinstance(result, tuple) and result:
+        result = result[0]
+    if result is None:
+        return ""
+    if isinstance(result, str):
+        return result
+    if isinstance(result, list):
+        texts: list[str] = []
+        for item in result:
+            if isinstance(item, str):
+                texts.append(item)
+            elif isinstance(item, dict) and item.get("type") == "text":
+                texts.append(str(item.get("text") or ""))
+            else:
+                texts.append(str(item))
+        return "\n".join(part for part in texts if part)
+    return str(result)
 
 
 def format_tool_result_for_display(result_text: str) -> str:

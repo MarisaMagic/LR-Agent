@@ -9,6 +9,7 @@ interface AnnotationProjectMenuPortalProps {
   onExitComplete?: () => void;
   onOpen: () => void;
   onEdit: () => void;
+  onWorkspaceMemory: () => void;
   onExport: () => void;
   onShowInFolder: () => void;
   onDelete: () => void;
@@ -21,6 +22,7 @@ export default function AnnotationProjectMenuPortal({
   onExitComplete,
   onOpen,
   onEdit,
+  onWorkspaceMemory,
   onExport,
   onShowInFolder,
   onDelete,
@@ -41,6 +43,10 @@ export default function AnnotationProjectMenuPortal({
       <button type="button" role="menuitem" onClick={onEdit}>
         <VscodeIcon name="edit" size={14} />
         编辑设置
+      </button>
+      <button type="button" role="menuitem" onClick={onWorkspaceMemory}>
+        <VscodeIcon name="thinking" size={14} />
+        工作区记忆
       </button>
       <button type="button" role="menuitem" onClick={onExport}>
         <VscodeIcon name="export" size={14} />

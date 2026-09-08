@@ -16,12 +16,7 @@ import {
 import VscodeClickableToolbarButton from '../VscodeClickableButton';
 import { useAgentChat } from '../../context/AgentChatContext';
 import { useAnnotation } from '../../context/AnnotationContext';
-import { useApp } from '../../context/AppContext';
 import { useWorkMode } from '../../context/WorkModeContext';
-import {
-  computeMemoryScopeKey,
-  openMemoryDir,
-} from '../../services/agentMemory';
 import AgentHistoryPopover, {
   computeHistoryPopoverPosition,
 } from './AgentHistoryPopover';
@@ -47,9 +42,10 @@ export default function AgentSessionTabs() {
     setHistoryOpen,
     isSessionStreaming,
   } = useAgentChat();
-  const { rootPath } = useApp();
-  const { activeProject } = useAnnotation();
+  const { activeProject, openWorkspaceMemory } = useAnnotation();
   const { workMode } = useWorkMode();
+  const showWorkspaceMemory =
+    workMode === 'annotation' && Boolean(activeProject);
   const reducedMotion = useReducedMotion();
   const isLayoutResizing = useLayoutResizing();
   const enableTabLayout = !reducedMotion && !isLayoutResizing;
@@ -250,12 +246,8 @@ export default function AgentSessionTabs() {
   };
 
   const openMemory = () => {
-    const scopeKey = computeMemoryScopeKey({
-      annotationProjectId:
-        workMode === 'annotation' ? (activeProject?.id ?? null) : null,
-      workspaceRoot: rootPath,
-    });
-    void openMemoryDir(scopeKey);
+    if (!activeProject) return;
+    openWorkspaceMemory(activeProject);
   };
 
   const scrollerClassName = [
@@ -362,17 +354,22 @@ export default function AgentSessionTabs() {
         <VscodeClickableToolbarButton
           icon="add"
           label="新建 Agent 会话"
+          title="新建 Agent 会话"
           onClick={() => createSession()}
         />
-        <VscodeClickableToolbarButton
-          icon="book"
-          label="查看记忆"
-          onClick={openMemory}
-        />
+        {showWorkspaceMemory ? (
+          <VscodeClickableToolbarButton
+            icon="thinking"
+            label="查看记忆"
+            title="查看工作区记忆"
+            onClick={openMemory}
+          />
+        ) : null}
         <div ref={historyAnchorRef} className="agent-history-anchor">
           <VscodeClickableToolbarButton
             icon="history"
             label="历史对话"
+            title="历史对话"
             onClick={toggleHistory}
           />
           {historyPosition && (

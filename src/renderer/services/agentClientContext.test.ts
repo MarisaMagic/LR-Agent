@@ -30,12 +30,16 @@ describe('buildClientContextPayload', () => {
       agentMode: 'annotation',
       workMode: 'editor',
       detectionModels: [],
+      workspaceMemoryEnabled: true,
+      memoryIndex: '- leftover',
     });
 
     expect(payload.workMode).toBe('editor');
     expect(payload.agentMode).toBe('chat');
     expect(payload.annotationProjectSnapshot).toBeUndefined();
     expect(payload.activeAnnotationProjectId).toBeNull();
+    expect(payload.workspaceMemoryEnabled).toBe(false);
+    expect(payload.memoryIndex).toBeNull();
   });
 
   it('includes annotation snapshot in annotation work mode', () => {
@@ -50,5 +54,22 @@ describe('buildClientContextPayload', () => {
 
     expect(payload.annotationProjectSnapshot?.projectId).toBe('proj-1');
     expect(payload.activeAnnotationProjectId).toBe('proj-1');
+    expect(payload.workspaceMemoryEnabled).toBe(false);
+  });
+
+  it('forwards workspace memory flag when enabled', () => {
+    const payload = buildClientContextPayload({
+      rootPath: '/tmp/project',
+      activeFilePath: '/tmp/project/a.jpg',
+      activeProject: sampleProject,
+      agentMode: 'annotation',
+      workMode: 'annotation',
+      detectionModels: [],
+      workspaceMemoryEnabled: true,
+      memoryIndex: '- [进度](topics/progress.md)',
+    });
+
+    expect(payload.workspaceMemoryEnabled).toBe(true);
+    expect(payload.memoryIndex).toBe('- [进度](topics/progress.md)');
   });
 });

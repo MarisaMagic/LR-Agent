@@ -2,7 +2,7 @@
  * Electron 本地 MCP Server
  *
  * 在 Electron 主进程中启动 Streamable HTTP MCP 服务器（单端点 /mcp），暴露本地能力：
- *   - memory_read / memory_write
+ *   - memory_read / memory_write / memory_create（工作区记忆，需任务开关激活）
  *   - read_agent_skill
  *
  * 后端 Agent 通过 langchain-mcp-adapters（streamable_http）连接此服务器。
@@ -18,7 +18,9 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import {
+  createMemoryTopic,
   getActiveMemoryScope,
+  isWorkspaceMemoryActive,
   listMemoryTopics,
   readMemoryTopic,
   writeMemoryTopic,
@@ -87,6 +89,27 @@ function sessionIdFromRequest(req: IncomingMessage): string | undefined {
   return undefined;
 }
 
+function mcpJson(payload: Record<string, unknown>) {
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify(payload) }],
+  };
+}
+
+function requireActiveWorkspaceMemory():
+  | { ok: true; scopeKey: string }
+  | { ok: false; result: ReturnType<typeof mcpJson> } {
+  if (!isWorkspaceMemoryActive()) {
+    return {
+      ok: false,
+      result: mcpJson({
+        ok: false,
+        error: 'workspace_memory_inactive',
+      }),
+    };
+  }
+  return { ok: true, scopeKey: getActiveMemoryScope() };
+}
+
 function createMcpServer(): McpServer {
   const mcpServer = new McpServer({
     name: 'lr-agent-local',
@@ -95,49 +118,29 @@ function createMcpServer(): McpServer {
 
   mcpServer.tool(
     'memory_read',
-    'Read a saved memory topic file (full content). Memory topic files are listed in the saved-memory index in the system prompt. Pass the topic filename such as "annotation-preferences.md".',
+    'Read a workspace-memory topic file (full content) for the current annotation task. Topics are listed in the workspace-memory index in the system prompt. Pass the topic filename such as "progress.md" or "annotated-files.md".',
     {
       topic_file: z
         .string()
-        .describe('Memory topic filename, e.g. "annotation-preferences.md"'),
+        .describe('Workspace memory topic filename, e.g. "progress.md"'),
     },
     async ({ topic_file }) => {
       try {
-        const scopeKey = getActiveMemoryScope();
-        const content = await readMemoryTopic(scopeKey, topic_file);
+        const active = requireActiveWorkspaceMemory();
+        if (!active.ok) return active.result;
+        const content = await readMemoryTopic(active.scopeKey, topic_file);
         if (content === null) {
-          const topics = await listMemoryTopics(scopeKey);
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: JSON.stringify({
-                  ok: false,
-                  error: 'topic_not_found',
-                  available_topics: topics,
-                }),
-              },
-            ],
-          };
+          const topics = await listMemoryTopics(active.scopeKey);
+          return mcpJson({
+            ok: false,
+            error: 'topic_not_found',
+            available_topics: topics,
+          });
         }
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({ ok: true, content }),
-            },
-          ],
-        };
+        return mcpJson({ ok: true, content });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({ ok: false, error: msg }),
-            },
-          ],
-        };
+        return mcpJson({ ok: false, error: msg });
       }
     },
   );
@@ -194,12 +197,12 @@ function createMcpServer(): McpServer {
 
   mcpServer.tool(
     'memory_write',
-    'Save a memory topic file for future sessions and update the memory index. Use when the user explicitly asks to remember something, or corrects your approach with a lasting preference/constraint. Keep content concise markdown.',
+    'Overwrite an existing workspace-memory topic for the current annotation task and update the memory index. Use after finishing annotation work this turn to update progress and annotated/skipped files. File must already exist; use memory_create for a new topic. Keep content concise markdown.',
     {
       topic_file: z
         .string()
         .describe(
-          'Memory topic filename, e.g. "annotation-preferences.md" (letters/digits/dash/underscore, must end with .md)',
+          'Existing topic filename, e.g. "progress.md" (letters/digits/dash/underscore, must end with .md)',
         ),
       content: z
         .string()
@@ -209,36 +212,66 @@ function createMcpServer(): McpServer {
       index_line: z
         .string()
         .describe(
-          'One-line index entry describing this topic, e.g. "- [标注偏好](topics/annotation-preferences.md)：用户偏好紧贴目标的小框"',
+          'One-line index entry describing this topic, e.g. "- [进度](topics/progress.md)：已标 12/40"',
         ),
     },
     async ({ topic_file, content, index_line }) => {
       try {
-        const scopeKey = getActiveMemoryScope();
+        const active = requireActiveWorkspaceMemory();
+        if (!active.ok) return active.result;
         await writeMemoryTopic({
-          scopeKey,
+          scopeKey: active.scopeKey,
           topicFile: topic_file,
           content,
           indexLine: index_line,
         });
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({ ok: true, topic_file, scope: scopeKey }),
-            },
-          ],
-        };
+        return mcpJson({
+          ok: true,
+          topic_file,
+          scope: active.scopeKey,
+        });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({ ok: false, error: msg }),
-            },
-          ],
-        };
+        return mcpJson({ ok: false, error: msg });
+      }
+    },
+  );
+
+  mcpServer.tool(
+    'memory_create',
+    'Create a new workspace-memory topic markdown file for the current annotation task and append an index line. Fails if the file already exists (use memory_write to update). Suggested names: progress.md, annotated-files.md.',
+    {
+      topic_file: z
+        .string()
+        .describe(
+          'New topic filename, e.g. "progress.md" (letters/digits/dash/underscore, must end with .md)',
+        ),
+      content: z.string().describe('Full markdown content of the new topic file'),
+      index_line: z
+        .string()
+        .describe(
+          'One-line index entry describing this topic, e.g. "- [已标文件](topics/annotated-files.md)：列出已标与跳过文件"',
+        ),
+    },
+    async ({ topic_file, content, index_line }) => {
+      try {
+        const active = requireActiveWorkspaceMemory();
+        if (!active.ok) return active.result;
+        await createMemoryTopic({
+          scopeKey: active.scopeKey,
+          topicFile: topic_file,
+          content,
+          indexLine: index_line,
+        });
+        return mcpJson({
+          ok: true,
+          created: true,
+          topic_file,
+          scope: active.scopeKey,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return mcpJson({ ok: false, error: msg });
       }
     },
   );

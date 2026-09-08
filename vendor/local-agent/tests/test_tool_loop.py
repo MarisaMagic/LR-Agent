@@ -106,3 +106,122 @@ class TestToolLoopExecuteRound:
             loop.execute_round(gather, "hello", [], interceptor)
         )
         assert len(events) == 0
+
+    async def test_execute_round_runs_coroutine_only_tool(self):
+        """MCP 风格工具只有 coroutine：执行层必须 await，不能报未知工具。"""
+        import json
+
+        from langchain_core.tools import StructuredTool
+
+        from app.agent.tools.registry import tool_fn_map
+
+        async def memory_create(
+            topic_file: str, content: str, index_line: str
+        ) -> str:
+            return json.dumps(
+                {"ok": True, "created": True, "topic_file": topic_file},
+                ensure_ascii=False,
+            )
+
+        tool = StructuredTool(
+            name="memory_create",
+            description="create topic",
+            coroutine=memory_create,
+            args_schema={
+                "type": "object",
+                "properties": {
+                    "topic_file": {"type": "string"},
+                    "content": {"type": "string"},
+                    "index_line": {"type": "string"},
+                },
+            },
+        )
+        fn_map = tool_fn_map([tool])
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(llm, [tool], fn_map, None, _never_cancel, "test")
+        gather = self._make_gathered(
+            tool_calls=[
+                {
+                    "id": "c1",
+                    "name": "memory_create",
+                    "args": {
+                        "topic_file": "annotated-files.md",
+                        "content": "# x",
+                        "index_line": "- [已标文件](topics/annotated-files.md)",
+                    },
+                }
+            ]
+        )
+        interceptor = ProposalStreamInterceptor()
+        events = await _collect_events(
+            loop.execute_round(gather, "", [], interceptor)
+        )
+        results = [e for e in events if e.type == "tool_result"]
+        assert len(results) == 1
+        assert "未知工具" not in (results[0].result or "")
+        payload = json.loads(results[0].result or "{}")
+        assert payload.get("ok") is True
+        assert payload.get("topic_file") == "annotated-files.md"
+
+    async def test_execute_round_unwraps_mcp_content_and_artifact(self):
+        import json
+
+        from langchain_core.tools import StructuredTool
+
+        from app.agent.tools.registry import tool_fn_map
+
+        async def memory_create(
+            topic_file: str, content: str, index_line: str
+        ):
+            payload = json.dumps(
+                {"ok": True, "created": True, "topic_file": topic_file},
+                ensure_ascii=False,
+            )
+            return (
+                [{"type": "text", "text": payload}],
+                {"structured_content": None},
+            )
+
+        tool = StructuredTool(
+            name="memory_create",
+            description="create topic",
+            coroutine=memory_create,
+            args_schema={
+                "type": "object",
+                "properties": {
+                    "topic_file": {"type": "string"},
+                    "content": {"type": "string"},
+                    "index_line": {"type": "string"},
+                },
+            },
+            response_format="content_and_artifact",
+        )
+        loop = ToolLoopRunner(
+            MockChatOpenAI([]),
+            [tool],
+            tool_fn_map([tool]),
+            None,
+            _never_cancel,
+            "test",
+        )
+        gather = self._make_gathered(
+            tool_calls=[
+                {
+                    "id": "c1",
+                    "name": "memory_create",
+                    "args": {
+                        "topic_file": "annotated-files.md",
+                        "content": "# x",
+                        "index_line": "- idx",
+                    },
+                }
+            ]
+        )
+        events = await _collect_events(
+            loop.execute_round(gather, "", [], ProposalStreamInterceptor())
+        )
+        results = [e for e in events if e.type == "tool_result"]
+        assert len(results) == 1
+        payload = json.loads(results[0].result or "{}")
+        assert payload.get("ok") is True
+        assert payload.get("topic_file") == "annotated-files.md"

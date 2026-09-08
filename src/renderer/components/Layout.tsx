@@ -32,6 +32,7 @@ import AnnotationProjectPanel from './annotation/AnnotationProjectPanel';
 import CreateAnnotationProjectWizard from './annotation/CreateAnnotationProjectWizard';
 import EditAnnotationProjectModal from './annotation/EditAnnotationProjectModal';
 import ExportAnnotationWizard from './annotation/ExportAnnotationWizard';
+import WorkspaceMemoryPanel from './annotation/WorkspaceMemoryPanel';
 import RightPanelToolbar from './RightPanelToolbar';
 import { useAnnotation } from '../context/AnnotationContext';
 import { useWorkMode, type WorkMode } from '../context/WorkModeContext';
@@ -85,6 +86,8 @@ export default function Layout() {
     closeEditProject,
     exportingProject,
     closeExportProject,
+    memoryProject,
+    closeWorkspaceMemory,
     activeProject,
   } = useAnnotation();
   const { workMode } = useWorkMode();
@@ -532,6 +535,13 @@ export default function Layout() {
         <EditAnnotationProjectModal
           project={editingProject}
           onClose={closeEditProject}
+        />
+      )}
+
+      {memoryProject && (
+        <WorkspaceMemoryPanel
+          project={memoryProject}
+          onClose={closeWorkspaceMemory}
         />
       )}
 

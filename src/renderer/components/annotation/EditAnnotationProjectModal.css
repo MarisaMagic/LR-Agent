@@ -128,6 +128,27 @@
   border-color: var(--vscode-focusBorder, #007fd4);
 }
 
+.edit-annotation-project-memory-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  border-radius: 6px;
+  background: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-foreground, #cccccc);
+  font-size: var(--lr-ui-font-caption);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.edit-annotation-project-memory-link:hover {
+  border-color: var(--vscode-focusBorder, #007fd4);
+  background: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
 .edit-annotation-project-actions {
   display: flex;
   justify-content: flex-end;

@@ -35,12 +35,15 @@ interface AnnotationContextValue {
   createWizardOpen: boolean;
   editingProject: AnnotationProject | null;
   exportingProject: AnnotationProject | null;
+  memoryProject: AnnotationProject | null;
   openCreateWizard: () => void;
   closeCreateWizard: () => void;
   openEditProject: (project: AnnotationProject) => void;
   closeEditProject: () => void;
   openExportProject: (project: AnnotationProject) => void;
   closeExportProject: () => void;
+  openWorkspaceMemory: (project: AnnotationProject) => void;
+  closeWorkspaceMemory: () => void;
   refreshProjects: () => Promise<void>;
   createProject: (
     input: CreateAnnotationProjectInput,
@@ -48,6 +51,7 @@ interface AnnotationContextValue {
   updateProject: (
     projectId: string,
     input: UpdateAnnotationProjectInput,
+    options?: { silent?: boolean },
   ) => Promise<AnnotationProject>;
   openProject: (projectId: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
@@ -71,6 +75,8 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
     useState<AnnotationProject | null>(null);
   const [exportingProject, setExportingProject] =
     useState<AnnotationProject | null>(null);
+  const [memoryProject, setMemoryProject] =
+    useState<AnnotationProject | null>(null);
 
   const refreshProjects = useCallback(async () => {
     const list = await loadAnnotationProjects();
@@ -78,6 +84,10 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
     setActiveProject((current) => {
       if (!current) return null;
       return list.find((item) => item.id === current.id) ?? null;
+    });
+    setMemoryProject((current) => {
+      if (!current) return null;
+      return list.find((item) => item.id === current.id) ?? current;
     });
   }, []);
 
@@ -142,6 +152,14 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
     setExportingProject(null);
   }, []);
 
+  const openWorkspaceMemory = useCallback((project: AnnotationProject) => {
+    setMemoryProject(project);
+  }, []);
+
+  const closeWorkspaceMemory = useCallback(() => {
+    setMemoryProject(null);
+  }, []);
+
   const createProject = useCallback(
     async (input: CreateAnnotationProjectInput) => {
       const valid = await validateProjectDirectory(input.directoryPath);
@@ -157,7 +175,11 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
   );
 
   const updateProject = useCallback(
-    async (projectId: string, input: UpdateAnnotationProjectInput) => {
+    async (
+      projectId: string,
+      input: UpdateAnnotationProjectInput,
+      options?: { silent?: boolean },
+    ) => {
       if (!input.name.trim()) {
         throw new Error('任务名称不能为空');
       }
@@ -174,7 +196,12 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
       setEditingProject((current) =>
         current?.id === projectId ? updated : current,
       );
-      showToast(`已更新标注任务「${updated.name}」`, { type: 'success' });
+      setMemoryProject((current) =>
+        current?.id === projectId ? updated : current,
+      );
+      if (!options?.silent) {
+        showToast(`已更新标注任务「${updated.name}」`, { type: 'success' });
+      }
       return updated;
     },
     [refreshProjects, showToast],
@@ -229,11 +256,14 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
         setWorkModeExternal('editor', { silent: true });
         localStorage.removeItem(STORAGE_KEYS.lastAnnotationProjectId);
       }
+      if (memoryProject?.id === projectId) {
+        setMemoryProject(null);
+      }
 
       await refreshProjects();
       showToast(`已删除标注任务「${removed.name}」`, { type: 'success' });
     },
-    [activeProject, refreshProjects, showToast],
+    [activeProject, memoryProject, refreshProjects, showToast],
   );
 
   const clearActiveProject = useCallback(() => {
@@ -265,12 +295,15 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
       createWizardOpen,
       editingProject,
       exportingProject,
+      memoryProject,
       openCreateWizard,
       closeCreateWizard,
       openEditProject,
       closeEditProject,
       openExportProject,
       closeExportProject,
+      openWorkspaceMemory,
+      closeWorkspaceMemory,
       refreshProjects,
       createProject,
       updateProject,
@@ -286,12 +319,15 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
       createWizardOpen,
       editingProject,
       exportingProject,
+      memoryProject,
       openCreateWizard,
       closeCreateWizard,
       openEditProject,
       closeEditProject,
       openExportProject,
       closeExportProject,
+      openWorkspaceMemory,
+      closeWorkspaceMemory,
       refreshProjects,
       createProject,
       updateProject,

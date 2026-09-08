@@ -5,6 +5,7 @@
   2. execute_round: 解析 tool_calls → 执行 SYNC / 发射 ASYNC pending
 """
 
+import inspect
 import json
 from collections.abc import AsyncIterator
 
@@ -17,7 +18,10 @@ from app.agent.chat_message_builder import build_multimodal_user_message
 from app.agent.stream_adapter import events_from_chunk
 from app.agent.tool_dispatcher import resolve_round_tool_calls, split_resolved_calls
 from app.agent.tool_invocation import ResolvedToolCall
-from app.agent.tools.tool_result import format_tool_result_for_display
+from app.agent.tools.tool_result import (
+    format_tool_result_for_display,
+    stringify_tool_output,
+)
 from app.agent.tools.workspace_file_reader import (
     VISION_TOOL_NAME,
     WRITE_TOOL_NAME,
@@ -79,7 +83,10 @@ async def _stream_tool_execution(
                 ensure_ascii=False,
             )
         else:
-            result_text = str(fn(**args))
+            raw = fn(**args)
+            if inspect.isawaitable(raw):
+                raw = await raw
+            result_text = stringify_tool_output(raw)
     except Exception as exc:
         result_text = json.dumps(
             {"ok": False, "tool": name, "status": "error", "summary": f"工具执行失败: {exc}"},

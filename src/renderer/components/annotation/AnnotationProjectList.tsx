@@ -24,6 +24,7 @@ interface AnnotationProjectListProps {
   onOpen: (projectId: string) => void;
   onDelete: (project: AnnotationProject) => void;
   onEdit: (project: AnnotationProject) => void;
+  onWorkspaceMemory: (project: AnnotationProject) => void;
   onExport: (project: AnnotationProject) => void;
   onShowInFolder: (project: AnnotationProject) => void;
 }
@@ -42,6 +43,7 @@ export default function AnnotationProjectList({
   onOpen,
   onDelete,
   onEdit,
+  onWorkspaceMemory,
   onExport,
   onShowInFolder,
 }: AnnotationProjectListProps) {
@@ -222,6 +224,10 @@ export default function AnnotationProjectList({
           onEdit={() => {
             closeMenu();
             onEdit(menuProject);
+          }}
+          onWorkspaceMemory={() => {
+            closeMenu();
+            onWorkspaceMemory(menuProject);
           }}
           onExport={() => {
             closeMenu();

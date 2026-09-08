@@ -345,6 +345,26 @@ def _build_all_tools(
     return tools
 
 
+def _async_structured_caller(tool: StructuredTool) -> Callable[..., Any]:
+    """MCP 等仅有 coroutine 的工具：经 ainvoke 执行，保留 content_and_artifact 处理。"""
+
+    async def _call(**kwargs: Any) -> Any:
+        return await tool.ainvoke(kwargs)
+
+    _call.__name__ = tool.name
+    return _call
+
+
 def tool_fn_map(tools: list[StructuredTool]) -> dict[str, Callable[..., Any]]:
-    """将 StructuredTool 列表转为 name → func 映射，供 assist_service 本地执行。"""
-    return {tool.name: tool.func for tool in tools if tool.func is not None}
+    """将 StructuredTool 列表转为 name → 可调用映射，供 assist_service 本地执行。
+
+    本地工具走 sync ``func``；langchain-mcp-adapters 转换的工具只有 ``coroutine``，
+    仍需纳入映射，否则 bind_tools 可见、执行时变成「未知工具」。
+    """
+    mapping: dict[str, Callable[..., Any]] = {}
+    for tool in tools:
+        if tool.func is not None:
+            mapping[tool.name] = tool.func
+        elif tool.coroutine is not None:
+            mapping[tool.name] = _async_structured_caller(tool)
+    return mapping

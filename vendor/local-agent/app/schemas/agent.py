@@ -56,6 +56,7 @@ class ClientContextInput(BaseModel):
     mcp_server_url: str | None = None
     project_instructions: str | None = None
     memory_index: str | None = None
+    workspace_memory_enabled: bool = False
     skills_catalog: list[SkillCatalogEntryInput] = Field(default_factory=list)
 
 

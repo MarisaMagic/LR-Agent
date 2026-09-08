@@ -21,7 +21,10 @@ from app.agent.context_snapshot import (
     build_assist_system_prompt,
     format_runtime_identity_block,
 )
-from app.agent.tools.mcp_client import load_mcp_tools_from_server
+from app.agent.tools.mcp_client import (
+    load_mcp_tools_from_server,
+    should_expose_mcp_tool,
+)
 from app.agent.tools.registry import build_tools_by_name_set
 from app.agent.tools.tool_registry_meta import CANONICAL_CAPABILITIES
 from app.core.deps import SettingsDep
@@ -159,9 +162,18 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                         existing_capabilities=CANONICAL_CAPABILITIES,
                     )
                     if mcp_tools:
+                        memory_on = bool(
+                            client_ctx and client_ctx.workspace_memory_enabled
+                        )
                         existing = {t.name for t in tools}
                         tools = tools + [
-                            t for t in mcp_tools if t.name not in existing
+                            t
+                            for t in mcp_tools
+                            if t.name not in existing
+                            and should_expose_mcp_tool(
+                                t.name,
+                                workspace_memory_enabled=memory_on,
+                            )
                         ]
                 except Exception:
                     logger.warning(

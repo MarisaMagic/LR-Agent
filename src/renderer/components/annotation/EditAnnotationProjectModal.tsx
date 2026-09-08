@@ -22,7 +22,8 @@ export default function EditAnnotationProjectModal({
   project,
   onClose,
 }: EditAnnotationProjectModalProps) {
-  const { updateProject } = useAnnotation();
+  const { updateProject, openWorkspaceMemory, closeEditProject } =
+    useAnnotation();
 
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? '');
@@ -150,6 +151,21 @@ export default function EditAnnotationProjectModal({
             />
           </label>
         </div>
+
+        <button
+          type="button"
+          className="edit-annotation-project-memory-link"
+          onClick={() => {
+            closeEditProject();
+            openWorkspaceMemory(project);
+          }}
+        >
+          <VscodeIcon name="thinking" size={14} />
+          <span>
+            管理工作区记忆
+            {project.workspaceMemoryEnabled ? '（已开启）' : '（未开启）'}
+          </span>
+        </button>
 
         <LabelEditor
           labels={labels}

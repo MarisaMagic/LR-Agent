@@ -269,8 +269,10 @@ export interface ClientContextPayload {
   mcpServerUrl?: string | null;
   /** 项目级指令（.lragent/INSTRUCTIONS.md 内容，注入 system prompt） */
   projectInstructions?: string | null;
-  /** Auto Memory 索引（MEMORY.md 截断内容，注入 system prompt） */
+  /** 工作区记忆索引（MEMORY.md 截断内容，注入 system prompt） */
   memoryIndex?: string | null;
+  /** 当前标注任务是否启用工作区记忆（空目录也要暴露创建工具） */
+  workspaceMemoryEnabled?: boolean;
   /** 全局 Agent Skills catalog（~/.agents/skills 扫描结果，注入 system prompt） */
   skillsCatalog?: AgentSkillEntry[] | null;
   annotationProjectSnapshot?: {

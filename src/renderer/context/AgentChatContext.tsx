@@ -85,6 +85,7 @@ import { loadProjectInstructions } from '../services/projectInstructions';
 import {
   computeMemoryScopeKey,
   loadMemoryIndex,
+  setWorkspaceMemoryActive,
 } from '../services/agentMemory';
 import { loadSkillsCatalog } from '../services/agentSkills';
 import { buildTurnContextFromState } from '../services/turnContext';
@@ -1395,13 +1396,19 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       const projectInstructions =
         await loadProjectInstructions(instructionsDir);
 
-      // Auto Memory：读取当前作用域索引（同时设置活动记忆作用域，供 MCP memory 工具使用）
-      const memoryScopeKey = computeMemoryScopeKey({
-        annotationProjectId:
-          workMode === 'annotation' ? (activeProject?.id ?? null) : null,
-        workspaceRoot: rootPath,
-      });
-      const memoryIndex = await loadMemoryIndex(memoryScopeKey);
+      // 工作区记忆：仅标注模式且任务开关打开时注入索引并激活 MCP memory 工具
+      const workspaceMemoryEnabled =
+        workMode === 'annotation' &&
+        Boolean(activeProject?.workspaceMemoryEnabled);
+      let memoryIndex: string | null = null;
+      const memoryScopeKey = workspaceMemoryEnabled
+        ? computeMemoryScopeKey(activeProject?.id)
+        : null;
+      if (memoryScopeKey) {
+        memoryIndex = await loadMemoryIndex(memoryScopeKey);
+      } else {
+        await setWorkspaceMemoryActive(false);
+      }
 
       // 全局 Skills catalog：扫描 ~/.agents/skills，注入 system prompt（失败返回空数组不阻塞）
       const skillsCatalog = await loadSkillsCatalog();
@@ -1416,6 +1423,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         mcpServerUrl,
         projectInstructions,
         memoryIndex,
+        workspaceMemoryEnabled,
         skillsCatalog,
       });
 
@@ -1577,6 +1585,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       rootPath,
       showToast,
       updateMessage,
+      workMode,
     ],
   );
 

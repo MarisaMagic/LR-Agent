@@ -528,9 +528,11 @@ const electronHandler = {
     /** 读取目录下 .lragent/INSTRUCTIONS.md（项目级指令），不存在时返回 null */
     readInstructions: (directoryPath: string): Promise<string | null> =>
       ipcRenderer.invoke('agent:memory:readInstructions', directoryPath),
-    /** 读取 MEMORY.md 索引（截断后），同时设置活动记忆作用域 */
+    /** 读取 MEMORY.md 索引（截断后），同时激活工作区记忆作用域 */
     readIndex: (scopeKey: string): Promise<string | null> =>
       ipcRenderer.invoke('agent:memory:readIndex', scopeKey),
+    setActive: (enabled: boolean, scopeKey?: string): Promise<void> =>
+      ipcRenderer.invoke('agent:memory:setActive', enabled, scopeKey),
     readTopic: (scopeKey: string, topicFile: string): Promise<string | null> =>
       ipcRenderer.invoke('agent:memory:readTopic', scopeKey, topicFile),
     listTopics: (scopeKey: string): Promise<string[]> =>
@@ -542,9 +544,29 @@ const electronHandler = {
       indexLine?: string;
     }): Promise<{ topicPath: string }> =>
       ipcRenderer.invoke('agent:memory:writeTopic', options),
+    createTopic: (options: {
+      scopeKey: string;
+      topicFile: string;
+      content: string;
+      indexLine?: string;
+    }): Promise<{ topicPath: string }> =>
+      ipcRenderer.invoke('agent:memory:createTopic', options),
     /** 打开记忆目录（文件管理器） */
     openDir: (scopeKey: string): Promise<string> =>
       ipcRenderer.invoke('agent:memory:openDir', scopeKey),
+    listEntries: (scopeKey: string): Promise<unknown> =>
+      ipcRenderer.invoke('agent:memory:listEntries', scopeKey),
+    openFile: (
+      scopeKey: string,
+      relativePath: string,
+      target?: 'explorer' | 'vscode',
+    ): Promise<string> =>
+      ipcRenderer.invoke(
+        'agent:memory:openFile',
+        scopeKey,
+        relativePath,
+        target,
+      ),
   },
   skills: {
     /** 扫描全局 skills 目录（~/.agents/skills），返回 catalog（name + description） */

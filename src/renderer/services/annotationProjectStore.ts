@@ -57,6 +57,7 @@ export async function createAnnotationProject(
     annotationType: input.annotationType,
     labels: input.labels,
     description: input.description?.trim() || undefined,
+    workspaceMemoryEnabled: Boolean(input.workspaceMemoryEnabled),
     createdAt: now,
     updatedAt: now,
     lastOpenedAt: now,
@@ -113,6 +114,10 @@ export async function updateAnnotationProject(
     name: input.name.trim(),
     description: input.description?.trim() || undefined,
     labels: input.labels,
+    workspaceMemoryEnabled:
+      input.workspaceMemoryEnabled === undefined
+        ? projects[index].workspaceMemoryEnabled
+        : Boolean(input.workspaceMemoryEnabled),
     updatedAt: new Date().toISOString(),
   };
   projects[index] = updated;

@@ -9,8 +9,9 @@ MCP Server 地址由客户端通过 client_context.mcp_server_url 字段传入�
   3. 按 ToolCapability 去重后返回 list[StructuredTool]（不与内置工具能力冲突）
 
 已知 MCP 工具（前端 server.ts 暴露）：
-  - memory_read           读取记忆 topic 文件
-  - memory_write          写入记忆 topic 文件
+  - memory_read           读取工作区记忆 topic 文件（需任务开关）
+  - memory_write          覆盖已有工作区记忆 topic（需任务开关）
+  - memory_create         新建工作区记忆 topic（需任务开关）
   - read_agent_skill      读取全局 Agent Skill 的 SKILL.md 正文（走默认 SYNC runner，
                           与 canonical 工具无能力冲突，_infer_mcp_capability 返回 None）
 """
@@ -27,6 +28,17 @@ from app.agent.tools.tool_registry_meta import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def should_expose_mcp_tool(
+    tool_name: str,
+    *,
+    workspace_memory_enabled: bool,
+) -> bool:
+    """工作区记忆关闭时不向 Agent 暴露 memory_*，保留 read_agent_skill。"""
+    if tool_name.startswith("memory_"):
+        return workspace_memory_enabled
+    return True
 
 
 def _infer_mcp_capability(tool_name: str) -> ToolCapability | None:

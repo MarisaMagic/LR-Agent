@@ -179,13 +179,25 @@ def build_assist_system_prompt(
     instructions = (client_context.project_instructions or "").strip() if client_context else ""
     if instructions:
         base = f"{base}\n\n【项目指令】\n{instructions}"
-    memory_index = (client_context.memory_index or "").strip() if client_context else ""
-    if memory_index:
+    memory_enabled = bool(
+        client_context and client_context.workspace_memory_enabled
+    )
+    if memory_enabled:
+        memory_index = (
+            (client_context.memory_index or "").strip() if client_context else ""
+        )
+        index_block = (
+            memory_index
+            if memory_index
+            else "（尚无工作区记忆文件。完成后用 memory_create 建立 progress.md、annotated-files.md 等。）"
+        )
         base = (
-            f"{base}\n\n【已保存的记忆】\n{memory_index}\n"
-            "（以上为跨会话记忆索引；需要细节时用 memory_read 读取对应 topic 文件。"
-            "当用户明确要求「记住」某事，或纠正了你的做法且该纠正具有长期价值时，"
-            "用 memory_write 保存简洁的 markdown 记忆并附索引行。项目指令优先级高于记忆。）"
+            f"{base}\n\n【工作区记忆】\n{index_block}\n"
+            "这是本标注任务的工作区记忆，可有多个 Markdown 文件。"
+            "需要细节时用 memory_read；新建专题用 memory_create；更新已有文件用 memory_write。"
+            "本轮标注或流水线结束后，必须更新完成情况与已标/跳过文件"
+            "（建议 topics/progress.md、topics/annotated-files.md）。"
+            "项目指令优先级高于记忆。"
         )
     skills = (client_context.skills_catalog or []) if client_context else []
     skills_block = format_skills_catalog_block(skills)
