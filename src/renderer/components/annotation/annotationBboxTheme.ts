@@ -23,7 +23,7 @@ export const BBOX_THEME = {
   labelTextFill: '#ffffff',
   labelTextStroke: 'rgba(0,0,0,0.45)',
   labelTextStrokeWidth: 0.4,
-  labelFontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' as const,
+  labelFontFamily: 'Inter, "Noto Sans SC", sans-serif' as const,
   labelEmptyText: '—',
 
   /** Legacy SVG label chip */

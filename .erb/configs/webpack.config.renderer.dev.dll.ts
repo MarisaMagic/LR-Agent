@@ -16,6 +16,8 @@ checkNodeEnv('development');
 const dllExcludedDependencies = new Set([
   '@vscode/codicons',
   '@modelcontextprotocol/sdk',
+  '@fontsource/inter',
+  '@fontsource/noto-sans-sc',
 ]);
 
 const dist = webpackPaths.dllPath;

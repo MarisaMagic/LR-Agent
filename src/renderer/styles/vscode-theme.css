@@ -3,16 +3,7 @@
  * @see https://code.visualstudio.com/api/references/theme-color
  */
 
-/* Latin → Segoe UI; CJK → Noto Sans SC (思源黑体同源，随应用打包) */
-@font-face {
-  font-family: 'LR-Agent UI';
-  src: local('Segoe UI');
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
-    U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F,
-    U+2190-21FF, U+2200-22FF, U+FEFF, U+FFFD;
-}
-
+/* Latin → Inter; CJK → Noto Sans SC (思源黑体同源，随应用打包) */
 :root {
   --lr-accent: #888888;
   --lr-accent-hover: #aaaaaa;
@@ -22,7 +13,7 @@
   --lr-tab-active-border-top: var(--lr-accent-blue);
 
   --vscode-font-family:
-    'LR-Agent UI', 'Noto Sans SC', 'Source Han Sans SC', '思源黑体', sans-serif;
+    Inter, 'Noto Sans SC', 'Source Han Sans SC', '思源黑体', sans-serif;
   --lr-ui-font-size: 15px;
   --vscode-font-size: var(--lr-ui-font-size);
   --lr-ui-font-large: calc(var(--lr-ui-font-size) * 1.067);
@@ -285,6 +276,14 @@ body {
   color: var(--vscode-foreground);
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
+}
+
+/* Chromium 表单控件不继承 body 字体，显式指定 UI 栈 */
+button,
+input,
+textarea,
+select {
+  font-family: var(--vscode-font-family);
 }
 
 /* VS Code Web Components 默认回退到系统 sans-serif（Windows 常为雅黑） */

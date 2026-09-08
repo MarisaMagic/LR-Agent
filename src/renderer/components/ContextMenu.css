@@ -26,7 +26,7 @@
   border: none;
   background: transparent;
   color: var(--vscode-menu-foreground, #cccccc);
-  font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-family: var(--vscode-font-family);
   font-size: var(--lr-ui-font-caption);
   cursor: pointer;
   white-space: nowrap;
