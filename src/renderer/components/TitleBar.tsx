@@ -199,27 +199,22 @@ export default function TitleBar() {
     {
       label: '了解更多',
       action: () =>
-        window.electron.window.openExternal('https://electronjs.org'),
+        window.electron.window.openExternal(
+          'https://github.com/MarisaMagic/LR-Agent',
+        ),
     },
     {
       label: '文档',
       action: () =>
         window.electron.window.openExternal(
-          'https://github.com/electron/electron/tree/main/docs#readme',
-        ),
-    },
-    {
-      label: '社区讨论',
-      action: () =>
-        window.electron.window.openExternal(
-          'https://www.electronjs.org/community',
+          'https://github.com/MarisaMagic/LR-Agent#readme',
         ),
     },
     {
       label: '搜索问题',
       action: () =>
         window.electron.window.openExternal(
-          'https://github.com/electron/electron/issues',
+          'https://github.com/MarisaMagic/LR-Agent/issues',
         ),
     },
   ];

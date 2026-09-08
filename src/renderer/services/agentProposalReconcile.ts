@@ -1,4 +1,5 @@
 import type { AnnotationProject } from '../types/annotation';
+import { parseFileAnnotationDocument } from '../types/annotationDocument';
 import type { ChatMessage, MessageBlock } from '../../shared/agentTypes';
 import { isFileProposalBlock } from '../../shared/agentTypes';
 import { patchAgentMessageBlockRemote } from './agentChatApi';
@@ -102,8 +103,13 @@ export async function reconcileAppliedAnnotationProposals(options: {
             allApplied = false;
             break;
           }
+          const doc = parseFileAnnotationDocument(raw);
+          if (!doc) {
+            allApplied = false;
+            break;
+          }
           const existingIds = new Set(
-            (raw.annotations ?? []).map((a: { id: string }) => a.id),
+            doc.annotations.map((a) => a.id).filter((id): id is string => Boolean(id)),
           );
           const proposalAnnotationIds = (change.annotations ?? [])
             .map((a) => a.id)

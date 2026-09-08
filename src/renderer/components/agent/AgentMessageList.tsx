@@ -12,8 +12,8 @@ function isSelectionInside(containerEl: HTMLElement): boolean {
   if (!sel || sel.isCollapsed) return false;
   const { anchorNode, focusNode } = sel;
   return (
-    (anchorNode && containerEl.contains(anchorNode)) ||
-    (focusNode && containerEl.contains(focusNode))
+    Boolean(anchorNode && containerEl.contains(anchorNode)) ||
+    Boolean(focusNode && containerEl.contains(focusNode))
   );
 }
 

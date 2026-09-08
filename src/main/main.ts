@@ -220,7 +220,9 @@ const DEFAULT_IGNORE_DIRS = new Set([
 
 // ── 文件系统监听器（chokidar） ──
 
-let workspaceWatcher: chokidar.FSWatcher | null = null;
+type WorkspaceWatcher = ReturnType<typeof chokidar.watch>;
+
+let workspaceWatcher: WorkspaceWatcher | null = null;
 
 function stopWatchingWorkspace(): void {
   if (workspaceWatcher) {
@@ -675,6 +677,7 @@ const createWindow = async () => {
 
   mainWindow = new BrowserWindow({
     show: false,
+    title: 'LR-Agent',
     width: 1400,
     height: 900,
     minWidth: WINDOW_MIN_WIDTH,

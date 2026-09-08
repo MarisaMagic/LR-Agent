@@ -7,7 +7,7 @@ import type {
 import type {
   ClassificationAnnotation,
   AnnotationInstance,
-} from '../../../../types/annotationDocument';
+} from '../../../types/annotationDocument';
 import { callLlmApi } from './llmUtil';
 import { readImageBase64 } from '../fusionSubImageTools';
 

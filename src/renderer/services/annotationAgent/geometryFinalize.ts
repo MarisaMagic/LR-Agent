@@ -18,7 +18,7 @@ function labelIdForInstance(
   instanceIndex: number,
   mappings: MappingRow[],
   validLabelIds: Set<string>,
-  presetLabelId?: string | null,
+  presetLabelId: string | null,
   allowUnlabeled: boolean,
 ): string | null {
   const mapped = mappings.find((m) => m.box_index === instanceIndex);
@@ -46,7 +46,7 @@ export function buildAnnotationsFromGeometry(
       inst.instance_index,
       mappings,
       validLabelIds,
-      preset,
+      preset ?? null,
       allowUnlabeled,
     );
     if (!labelId && !allowUnlabeled) continue;

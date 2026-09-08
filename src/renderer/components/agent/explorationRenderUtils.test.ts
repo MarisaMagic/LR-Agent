@@ -1,4 +1,4 @@
-import type { MessageBlock } from '../../shared/agentTypes';
+import type { MessageBlock } from '../../../shared/agentTypes';
 import { buildAssistantRenderSegments } from './explorationRenderUtils';
 
 function toolCall(

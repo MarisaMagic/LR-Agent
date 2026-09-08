@@ -5,10 +5,6 @@ import {
   type AgentChatPersistedState,
 } from '../../shared/agentTypes';
 import {
-  fetchAgentSessionsPage,
-  loadRemoteAgentChatStateForProject,
-} from './agentChatApi';
-import {
   createEmptyProjectUi,
   mergeSessionFromRemote,
   sessionBelongsToProject,
@@ -17,23 +13,6 @@ import {
   getProjectUi,
   setProjectUi,
 } from './agentChatStore';
-
-export async function fetchProjectAgentSessions(
-  annotationProjectId: string,
-): Promise<{
-  sessions: Record<string, AgentSession>;
-  sessionOrder: string[];
-  sessionsNextCursor: string | null;
-  sessionsHasMore: boolean;
-}> {
-  const remote = await loadRemoteAgentChatStateForProject(annotationProjectId);
-  return {
-    sessions: remote.sessions,
-    sessionOrder: remote.sessionOrder,
-    sessionsNextCursor: remote.sessionsNextCursor,
-    sessionsHasMore: remote.sessionsHasMore,
-  };
-}
 
 export function mergeProjectSessionsIntoState(
   current: AgentChatPersistedState,

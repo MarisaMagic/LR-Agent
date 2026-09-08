@@ -19,6 +19,73 @@ export interface MutationOperationSpec {
   new_label_name?: string | null;
 }
 
+const MUTATION_KINDS = new Set(['patch_label', 'delete']);
+const TARGET_BY = new Set([
+  'id',
+  'label_name',
+  'index',
+  'spatial',
+  'selected',
+  'all',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseMutationTarget(raw: unknown): MutationTargetSpec | null {
+  if (!isRecord(raw) || typeof raw.by !== 'string' || !TARGET_BY.has(raw.by)) {
+    return null;
+  }
+  const by = raw.by as MutationTargetSpec['by'];
+  const target: MutationTargetSpec = { by };
+  if (typeof raw.id === 'string' && raw.id.trim()) target.id = raw.id;
+  if (typeof raw.label_name === 'string' && raw.label_name.trim()) {
+    target.label_name = raw.label_name;
+  }
+  if (typeof raw.index === 'number' && Number.isFinite(raw.index)) {
+    target.index = raw.index;
+  }
+  if (typeof raw.hint === 'string' && raw.hint.trim()) target.hint = raw.hint;
+
+  if (by === 'id' && !target.id) return null;
+  if (by === 'index' && target.index == null) return null;
+  if (by === 'label_name' && !target.label_name) return null;
+  if (by === 'spatial' && !target.hint) return null;
+  return target;
+}
+
+export function parseMutationOperation(
+  raw: unknown,
+): MutationOperationSpec | null {
+  if (!isRecord(raw)) return null;
+  if (typeof raw.relative_path !== 'string' || !raw.relative_path.trim()) {
+    return null;
+  }
+  if (
+    typeof raw.mutation_kind !== 'string' ||
+    !MUTATION_KINDS.has(raw.mutation_kind)
+  ) {
+    return null;
+  }
+  if (!Array.isArray(raw.targets)) return null;
+
+  const targets = raw.targets
+    .map(parseMutationTarget)
+    .filter((t): t is MutationTargetSpec => t != null);
+  if (targets.length !== raw.targets.length) return null;
+
+  const spec: MutationOperationSpec = {
+    relative_path: raw.relative_path,
+    mutation_kind: raw.mutation_kind as MutationOperationSpec['mutation_kind'],
+    targets,
+  };
+  if (raw.new_label_name === null || typeof raw.new_label_name === 'string') {
+    spec.new_label_name = raw.new_label_name;
+  }
+  return spec;
+}
+
 export interface ResolveTargetsResult {
   ids: string[];
   errors: string[];

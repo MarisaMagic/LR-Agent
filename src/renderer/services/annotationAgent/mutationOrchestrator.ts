@@ -11,8 +11,8 @@ import { logAnnotationDebug } from './annotationAgentDebug';
 import {
   labelIdByName,
   readBboxesForPath,
+  parseMutationOperation,
   resolveMutationTargets,
-  type MutationOperationSpec,
 } from './mutationTargetResolver';
 
 export type MutationProgressEvent =
@@ -93,8 +93,16 @@ export async function* runAnnotationMutationJob(options: {
 
   if (options.isCancelled?.()) return;
 
-  const operations = (prepareResult.operations ??
-    []) as MutationOperationSpec[];
+  const rawOperations = prepareResult.operations ?? [];
+  const operations = rawOperations
+    .map(parseMutationOperation)
+    .filter((op): op is NonNullable<typeof op> => op != null);
+  if (operations.length < rawOperations.length) {
+    logAnnotationDebug('prepare', '忽略非法 mutation operations', {
+      rawCount: rawOperations.length,
+      parsedCount: operations.length,
+    });
+  }
   if (operations.length === 0 && !prepareResult.selected_paths?.length) {
     yield progress('prepare', '未识别变更目标', 'error');
     yield {

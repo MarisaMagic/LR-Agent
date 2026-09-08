@@ -9,6 +9,7 @@ import mammoth from 'mammoth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import type { Channels } from '../../main/preload';
 import { useApp } from '../context/AppContext';
 import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
 import { basename, dirname, getExtension } from '../types/file';
@@ -67,8 +68,8 @@ function isSelectionInsideViewer(containerEl: HTMLElement): boolean {
   if (!sel || sel.isCollapsed) return false;
   const { anchorNode, focusNode } = sel;
   return (
-    (anchorNode && containerEl.contains(anchorNode)) ||
-    (focusNode && containerEl.contains(focusNode))
+    Boolean(anchorNode && containerEl.contains(anchorNode)) ||
+    Boolean(focusNode && containerEl.contains(focusNode))
   );
 }
 
@@ -336,7 +337,7 @@ export default function FileViewer({
   // ── Edit 菜单 IPC ──
   useEffect(() => {
     const unsubs: (() => void)[] = [];
-    const actions: Record<string, () => void> = {
+    const actions: Partial<Record<Channels, () => void>> = {
       'edit:undo': () => document.execCommand('undo'),
       'edit:redo': () => document.execCommand('redo'),
       'edit:cut': () => document.execCommand('cut'),
@@ -348,7 +349,9 @@ export default function FileViewer({
       },
     };
 
-    for (const [channel, fn] of Object.entries(actions)) {
+    for (const channel of Object.keys(actions) as Channels[]) {
+      const fn = actions[channel];
+      if (!fn) continue;
       const unsub = window.electron.ipcRenderer.on(channel, () => {
         // 聚焦主区域
         viewerRef.current?.focus();

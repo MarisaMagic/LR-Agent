@@ -119,6 +119,9 @@ export function logAnnotationDebugMapDetail(
     labelCandidates: LabelCandidateRef[];
     userRequest?: string;
     intentSummary?: string;
+    judge_feedback?: string;
+    attempt?: number;
+    partial_remap?: number[];
   },
 ): void {
   const { mapResult, labelCandidates } = options;
@@ -142,6 +145,9 @@ export function logAnnotationDebugMapDetail(
     hint: mapResult.hint || undefined,
     user_request: options.userRequest?.trim() || undefined,
     intent_summary: options.intentSummary?.trim() || undefined,
+    judge_feedback: options.judge_feedback,
+    attempt: options.attempt,
+    partial_remap: options.partial_remap,
     mappings: mappingRows,
   });
 }
@@ -159,6 +165,7 @@ export function logAnnotationDebugImageResult(
     mapHint?: string;
     autoFinalized?: boolean;
     mappings?: MapMappingRow[];
+    geometryType?: string;
   },
 ): void {
   logAnnotationDebug(result.ok ? 'image-ok' : 'image-skip', relativePath, {
@@ -171,6 +178,7 @@ export function logAnnotationDebugImageResult(
     method: result.method,
     mapHint: result.mapHint,
     autoFinalized: result.autoFinalized,
+    geometryType: result.geometryType,
     mappings: result.mappings?.length ? result.mappings : undefined,
   });
 }

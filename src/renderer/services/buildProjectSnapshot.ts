@@ -25,8 +25,6 @@ export function buildAnnotationProjectSnapshot(
       detectionModels,
       project.annotationType === 'keypoint' ? keypointTemplateId : undefined,
     );
-  } else if (project.annotationType === 'bbox') {
-    eligible = getEligiblePreAnnotModels('bbox', detectionModels);
   }
 
   return {

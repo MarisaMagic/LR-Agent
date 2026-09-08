@@ -535,6 +535,7 @@ export async function startAnnotationBatchJobRunner(options: {
   const job: RunningJob = {
     controller,
     listeners: new Set(),
+    state: JobState.Registered,
   };
   runningJobs.set(options.jobId, job);
   attachPendingListeners(options.jobId, job);
@@ -586,6 +587,7 @@ export async function startAnnotationMutationJobRunner(options: {
   const job: RunningJob = {
     controller,
     listeners: new Set(),
+    state: JobState.Registered,
   };
   runningJobs.set(options.jobId, job);
   attachPendingListeners(options.jobId, job);

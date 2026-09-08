@@ -1538,8 +1538,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           truncateFromMessageId,
           clientContext,
           clientToolContext,
-          getSessionMessages: () =>
-            stateRef.current.messagesBySession[sessionId] ?? {},
         });
       } catch (err) {
         updateMessage(sessionId, assistantMessageId, (message) => ({

@@ -107,13 +107,17 @@ function getDb() {
         db: {
           sessions: {
             list: (opts: unknown) => Promise<DbSessionListResult>;
-            get: (id: string) => Promise<DbSessionRow | undefined>;
+            get: (
+              id: string,
+              userId: string,
+            ) => Promise<DbSessionRow | undefined>;
             create: (s: unknown) => Promise<DbSessionRow>;
             update: (
               id: string,
+              userId: string,
               p: unknown,
             ) => Promise<DbSessionRow | undefined>;
-            softDelete: (id: string) => Promise<void>;
+            softDelete: (id: string, userId: string) => Promise<void>;
             getMessageIds: (id: string) => Promise<string[]>;
             getMessageCount: (id: string) => Promise<number>;
             getLastMessagePreview: (id: string) => Promise<string | null>;

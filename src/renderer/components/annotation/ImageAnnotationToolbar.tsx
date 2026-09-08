@@ -45,7 +45,7 @@ export default function ImageAnnotationToolbar({
     const el = toolbarRef.current;
     if (!el) return;
 
-    const layout = el.closest('.layout');
+    const layout = el.closest<HTMLElement>('.layout');
     if (!layout) return;
 
     const syncHeight = () => {

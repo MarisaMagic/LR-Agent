@@ -562,13 +562,11 @@ export function parseFileAnnotationDocument(
   const sourceUnknown = raw.source;
   let source: AnnotationSourceMeta | undefined;
   if (isRecord(sourceUnknown)) {
-    const hasImageSource =
-      typeof sourceUnknown.width === 'number' &&
-      typeof sourceUnknown.height === 'number';
+    const width = sourceUnknown.width;
+    const height = sourceUnknown.height;
     source = {
-      ...(hasImageSource
-        ? { width: sourceUnknown.width, height: sourceUnknown.height }
-        : { width: 1, height: 1 }),
+      width: typeof width === 'number' ? width : 1,
+      height: typeof height === 'number' ? height : 1,
       ...(typeof sourceUnknown.mtimeMs === 'number' && {
         mtimeMs: sourceUnknown.mtimeMs,
       }),

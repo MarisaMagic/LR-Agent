@@ -316,12 +316,18 @@ function buildLabelBalance(snapshot: AnnotationQualitySnapshot): {
     });
   }
 
+  const radarLabelValue = (value: unknown): number => {
+    if (typeof value === 'number') return value;
+    if (Array.isArray(value) && typeof value[0] === 'number') return value[0];
+    return 0;
+  };
+
   const radarOption: EChartsOption = {
     title: { show: false },
     radar: {
       center: ['50%', '54%'],
       radius: '58%',
-      nameGap: 8,
+      axisNameGap: 8,
       indicator: dimensions.map((d) => ({ name: d.name, max: 1 })),
     },
     series: [
@@ -333,8 +339,8 @@ function buildLabelBalance(snapshot: AnnotationQualitySnapshot): {
             name: '质量维度',
             label: {
               show: true,
-              formatter: (params: { value: number }) =>
-                `${(params.value * 100).toFixed(0)}`,
+              formatter: (params) =>
+                `${(radarLabelValue(params.value) * 100).toFixed(0)}`,
               fontSize: 10,
             },
           },
