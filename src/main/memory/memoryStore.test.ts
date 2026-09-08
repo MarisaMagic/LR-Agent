@@ -3,6 +3,12 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 
+import {
+  createMemoryTopic,
+  listMemoryEntries,
+  resolveOpenableMemoryFile,
+} from './memoryStore';
+
 let userDataDir: string;
 
 jest.mock('electron', () => ({
@@ -10,12 +16,6 @@ jest.mock('electron', () => ({
     getPath: jest.fn(() => userDataDir),
   },
 }));
-
-import {
-  createMemoryTopic,
-  listMemoryEntries,
-  resolveOpenableMemoryFile,
-} from './memoryStore';
 
 beforeEach(() => {
   userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-store-'));

@@ -107,7 +107,9 @@ export function computeMemoryScopeKey(
  * 读取当前作用域的 MEMORY.md 索引（主进程已截断）。
  * 同时会把该作用域设为活动工作区记忆（MCP memory 工具使用）。
  */
-export async function loadMemoryIndex(scopeKey: string): Promise<string | null> {
+export async function loadMemoryIndex(
+  scopeKey: string,
+): Promise<string | null> {
   const bridge = getBridge();
   if (!bridge?.readIndex) return null;
   try {

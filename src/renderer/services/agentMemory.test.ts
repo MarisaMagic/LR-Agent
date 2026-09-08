@@ -47,8 +47,8 @@ describe('memoryOpenErrorMessage', () => {
         ),
       ),
     ).toBe('无法用 VS Code 打开');
-    expect(
-      memoryOpenErrorMessage(new Error('memory_file_not_found')),
-    ).toBe('记忆文件不存在，请先让 Agent 写入或点刷新');
+    expect(memoryOpenErrorMessage(new Error('memory_file_not_found'))).toBe(
+      '记忆文件不存在，请先让 Agent 写入或点刷新',
+    );
   });
 });

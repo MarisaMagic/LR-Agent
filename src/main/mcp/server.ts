@@ -246,7 +246,9 @@ function createMcpServer(): McpServer {
         .describe(
           'New topic filename, e.g. "progress.md" (letters/digits/dash/underscore, must end with .md)',
         ),
-      content: z.string().describe('Full markdown content of the new topic file'),
+      content: z
+        .string()
+        .describe('Full markdown content of the new topic file'),
       index_line: z
         .string()
         .describe(

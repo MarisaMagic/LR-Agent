@@ -24,8 +24,7 @@ export function listVsCodeExecutableCandidates(
   homedir: string = os.homedir(),
 ): string[] {
   if (platform === 'win32') {
-    const localApp =
-      env.LOCALAPPDATA || path.join(homedir, 'AppData', 'Local');
+    const localApp = env.LOCALAPPDATA || path.join(homedir, 'AppData', 'Local');
     const programFiles = env.PROGRAMFILES || 'C:\\Program Files';
     const programFilesX86 =
       env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
@@ -87,7 +86,9 @@ export async function resolveWindowsCodeLaunchPath(
   if (await fs.pathExists(withExe)) {
     return withExe;
   }
-  const siblingExe = path.normalize(path.join(path.dirname(found), '..', 'Code.exe'));
+  const siblingExe = path.normalize(
+    path.join(path.dirname(found), '..', 'Code.exe'),
+  );
   if (await fs.pathExists(siblingExe)) {
     return siblingExe;
   }
@@ -158,9 +159,7 @@ async function resolveVsCodeFromWhich(
       .map((line) => line.trim())
       .find(Boolean);
     if (!first) return null;
-    return platform === 'win32'
-      ? resolveWindowsCodeLaunchPath(first)
-      : first;
+    return platform === 'win32' ? resolveWindowsCodeLaunchPath(first) : first;
   } catch {
     return null;
   }

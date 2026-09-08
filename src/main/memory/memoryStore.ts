@@ -160,7 +160,10 @@ function excerptFromIndex(indexContent: string, topicFile: string): string {
   const marker = `topics/${topicFile}`;
   const line = indexContent.split('\n').find((item) => item.includes(marker));
   if (!line) return '';
-  return line.replace(/^[-*]\s+/, '').trim().slice(0, 160);
+  return line
+    .replace(/^[-*]\s+/, '')
+    .trim()
+    .slice(0, 160);
 }
 
 /** 列出索引与 topic，供工作区记忆面板展示 */
@@ -291,9 +294,7 @@ export async function writeMemoryTopic(options: {
 }): Promise<{ topicPath: string }> {
   const topicPath = resolveTopicPath(options.scopeKey, options.topicFile);
   if (!(await topicExists(topicPath))) {
-    throw new Error(
-      `topic_not_found: ${options.topicFile}; use memory_create`,
-    );
+    throw new Error(`topic_not_found: ${options.topicFile}; use memory_create`);
   }
   await fs.writeFile(topicPath, options.content, 'utf-8');
   await updateMemoryIndex(

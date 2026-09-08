@@ -33,9 +33,8 @@ export default function WorkspaceMemoryPanel({
   const [loading, setLoading] = useState(true);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
-  const [openTarget, setOpenTarget] = useState<MemoryOpenTarget>(
-    getMemoryOpenTarget,
-  );
+  const [openTarget, setOpenTarget] =
+    useState<MemoryOpenTarget>(getMemoryOpenTarget);
 
   const scopeKey = computeMemoryScopeKey(project.id);
   const enabled = Boolean(project.workspaceMemoryEnabled);
@@ -146,8 +145,7 @@ export default function WorkspaceMemoryPanel({
             <VscodeIcon name="thinking" size={22} />
             <p>尚未生成记忆文件</p>
             <span>
-              打开开关后，Agent 完成本轮标注会写入进度、已标文件等
-              Markdown
+              打开开关后，Agent 完成本轮标注会写入进度、已标文件等 Markdown
             </span>
           </div>
         ) : (
@@ -158,9 +156,13 @@ export default function WorkspaceMemoryPanel({
                   <VscodeIcon name="thinking" size={16} />
                 </div>
                 <div className="workspace-memory-card-body">
-                  <div className="workspace-memory-card-title">{entry.title}</div>
+                  <div className="workspace-memory-card-title">
+                    {entry.title}
+                  </div>
                   {entry.excerpt ? (
-                    <p className="workspace-memory-card-excerpt">{entry.excerpt}</p>
+                    <p className="workspace-memory-card-excerpt">
+                      {entry.excerpt}
+                    </p>
                   ) : null}
                   <div className="workspace-memory-card-path">
                     {entry.relativePath}

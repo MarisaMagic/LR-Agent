@@ -73,7 +73,7 @@ export default function WorkspaceMemoryOpenSplit({
             <button
               key={item.id}
               type="button"
-              role="menuitem"
+              role="menuitemradio"
               aria-checked={item.id === selectedTarget}
               onClick={() => {
                 onSelectTarget(item.id);

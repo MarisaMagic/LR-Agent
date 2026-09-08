@@ -3,19 +3,19 @@ import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from '@jest/globals';
 
-jest.mock('electron', () => ({
-  shell: {
-    showItemInFolder: jest.fn(),
-    openExternal: jest.fn(),
-  },
-}));
-
 import {
   isMemoryOpenTarget,
   listVsCodeExecutableCandidates,
   resolveWindowsCodeLaunchPath,
   toVsCodeFileUri,
 } from './openMemoryTarget';
+
+jest.mock('electron', () => ({
+  shell: {
+    showItemInFolder: jest.fn(),
+    openExternal: jest.fn(),
+  },
+}));
 
 describe('isMemoryOpenTarget', () => {
   it('accepts explorer and vscode', () => {

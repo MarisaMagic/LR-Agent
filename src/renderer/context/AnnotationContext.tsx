@@ -75,8 +75,9 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
     useState<AnnotationProject | null>(null);
   const [exportingProject, setExportingProject] =
     useState<AnnotationProject | null>(null);
-  const [memoryProject, setMemoryProject] =
-    useState<AnnotationProject | null>(null);
+  const [memoryProject, setMemoryProject] = useState<AnnotationProject | null>(
+    null,
+  );
 
   const refreshProjects = useCallback(async () => {
     const list = await loadAnnotationProjects();
