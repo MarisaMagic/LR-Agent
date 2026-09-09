@@ -21,10 +21,13 @@ class ToolCapability(str, Enum):
     READ_IMAGE_VISION = "read_image_vision"
     READ_ANNOTATION_JSON = "read_annotation_json"
     WRITE_FILE = "write_file"
+    STR_REPLACE_FILE = "str_replace_file"
+    DELETE_FILE = "delete_file"
     AUTO_ANNOTATE = "auto_annotate"
     MUTATE_ANNOTATION = "mutate_annotation_cap"
     QUERY_CONTEXT = "query_context"
     GREP_WORKSPACE = "grep_workspace"
+    GLOB_WORKSPACE = "glob_workspace"
     LIST_DIRECTORY = "list_directory"
 
 
@@ -32,11 +35,14 @@ class ToolCapability(str, Enum):
 TOOL_CAPABILITY_MAP: dict[str, ToolCapability] = {
     "read_workspace_file": ToolCapability.READ_TEXT_FILE,
     "grep_workspace": ToolCapability.GREP_WORKSPACE,
+    "glob_workspace": ToolCapability.GLOB_WORKSPACE,
     "list_workspace_directory": ToolCapability.LIST_DIRECTORY,
     "read_document_file": ToolCapability.READ_DOCUMENT,
     "read_image_for_vision": ToolCapability.READ_IMAGE_VISION,
     "read_file_annotation": ToolCapability.READ_ANNOTATION_JSON,
     "write_workspace_file": ToolCapability.WRITE_FILE,
+    "str_replace_workspace_file": ToolCapability.STR_REPLACE_FILE,
+    "delete_workspace_file": ToolCapability.DELETE_FILE,
     "auto_annotate": ToolCapability.AUTO_ANNOTATE,
     "mutate_annotation": ToolCapability.MUTATE_ANNOTATION,
     "get_account_summary": ToolCapability.QUERY_CONTEXT,
@@ -58,10 +64,13 @@ TOOL_RUNNERS: dict[str, ToolRunner] = {
     "read_file_annotation": ToolRunner.SYNC,
     "read_workspace_file": ToolRunner.SYNC,
     "grep_workspace": ToolRunner.SYNC,
+    "glob_workspace": ToolRunner.SYNC,
     "list_workspace_directory": ToolRunner.SYNC,
     "read_image_for_vision": ToolRunner.SYNC,
     "read_document_file": ToolRunner.SYNC,
     "write_workspace_file": ToolRunner.PROPOSAL,
+    "str_replace_workspace_file": ToolRunner.PROPOSAL,
+    "delete_workspace_file": ToolRunner.PROPOSAL,
     "auto_annotate": ToolRunner.ASYNC,
     "mutate_annotation": ToolRunner.ASYNC,
 }

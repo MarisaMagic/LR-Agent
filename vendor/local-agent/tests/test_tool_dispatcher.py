@@ -30,9 +30,19 @@ def test_resolve_skips_completed() -> None:
     api = [{"id": "t1", "name": "auto_annotate", "args": {}}]
     calls = resolve_round_tool_calls(
         api_tool_calls=api,
-        completed_tools=frozenset({"auto_annotate"}),
+        completed_tools=frozenset({"t1"}),
     )
     assert calls == []
+
+
+def test_resolve_allows_same_name_new_id() -> None:
+    api = [{"id": "t2", "name": "auto_annotate", "args": {"user_request": "再标"}}]
+    calls = resolve_round_tool_calls(
+        api_tool_calls=api,
+        completed_tools=frozenset({"t1"}),
+    )
+    assert len(calls) == 1
+    assert calls[0].tool_call_id == "t2"
 
 
 def test_split_immediate_and_async() -> None:

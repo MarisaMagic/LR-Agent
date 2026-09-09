@@ -29,6 +29,10 @@ type MemoryBridge = {
         relativePath: string,
         target?: MemoryOpenTarget,
       ) => Promise<string>;
+      syncFacts?: (options: {
+        scopeKey: string;
+        projectDir: string;
+      }) => Promise<{ annotatedFiles: number; annotationCount: number }>;
     };
   };
 };

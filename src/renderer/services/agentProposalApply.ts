@@ -4,8 +4,10 @@ import type {
   ChatMessage,
   FileProposalLikeBlock,
   MessageBlock,
+  ProposalBlockStatus,
 } from '../../shared/agentTypes';
 import { isFileProposalBlock } from '../../shared/agentTypes';
+import { isLrAgentRelativePath } from '../../shared/workspacePathGuards';
 import type { AnnotationInstance } from '../types/annotationDocument';
 import {
   applyAnnotationBatchProposal,
@@ -14,6 +16,12 @@ import {
 import { getAnnotationWorkspaceAgentSnapshot } from './annotationAgentBridge';
 import { isAgentDocumentWriteEnabled } from './agentFeatureFlags';
 import { patchAgentMessageBlockRemote } from './agentChatApi';
+import {
+  captureProposalCheckpoint,
+  discardProposalCheckpoint,
+  recordProposalCheckpointAfter,
+  type CheckpointRef,
+} from './turnCheckpoint';
 
 export type PendingProposalRef = {
   messageId: string;
@@ -31,6 +39,8 @@ export type PendingChangeItem = {
   deletions?: number;
   /** file_proposal 新内容，供 Keep All 栏异步算 diff */
   newContent?: string;
+  operation?: 'write' | 'delete' | string;
+  destructive?: boolean;
 };
 
 export function summarizeAnnotationChange(
@@ -145,6 +155,91 @@ export function buildLabelMap(labels: LabelDefinition[]): Map<string, string> {
   return map;
 }
 
+export function annotationChangeDiffStats(
+  change: AnnotationBatchProposal['changes'][number],
+): { additions: number; deletions: number } {
+  if (change.operation === 'delete') {
+    return {
+      additions: 0,
+      deletions:
+        change.deleteIds?.length || change.annotations?.length || 0,
+    };
+  }
+  if (change.operation === 'patch') {
+    return {
+      additions: change.patches?.length || 0,
+      deletions: 0,
+    };
+  }
+  return {
+    additions: change.annotations?.length || change.patches?.length || 0,
+    deletions: 0,
+  };
+}
+
+export type MessageChangeItem = {
+  id: string;
+  ref: PendingProposalRef;
+  path: string;
+  kind: PendingProposalRef['kind'];
+  status: ProposalBlockStatus;
+  summary: string;
+  operation?: string;
+  newContent?: string;
+  additions?: number;
+  deletions?: number;
+  absolutePath?: string;
+};
+
+export function collectMessageChangeItems(
+  message: ChatMessage,
+): MessageChangeItem[] {
+  if (message.role !== 'assistant') return [];
+  const items: MessageChangeItem[] = [];
+  message.blocks.forEach((block, blockIndex) => {
+    if (block.type === 'annotation_proposal') {
+      if (block.status === 'dismissed') return;
+      const ref: PendingProposalRef = {
+        messageId: message.id,
+        blockIndex,
+        kind: 'annotation',
+      };
+      block.proposal.changes.forEach((change, changeIndex) => {
+        const stats = annotationChangeDiffStats(change);
+        items.push({
+          id: `${ref.messageId}-${ref.blockIndex}-${change.relativePath}-${change.operation}-${changeIndex}`,
+          ref,
+          path: change.relativePath,
+          kind: 'annotation',
+          status: block.status,
+          summary: summarizeAnnotationChange(change),
+          operation: change.operation,
+          absolutePath: change.absolutePath,
+          additions: stats.additions,
+          deletions: stats.deletions,
+        });
+      });
+      return;
+    }
+    if (isFileProposalBlock(block)) {
+      if (block.status === 'dismissed') return;
+      items.push({
+        id: `${message.id}-${blockIndex}`,
+        ref: { messageId: message.id, blockIndex, kind: 'file' },
+        path: block.suggestedRelativePath,
+        kind: 'file',
+        status: block.status,
+        summary: block.operation === 'delete' ? '删除文件' : '写入文件',
+        operation: block.operation ?? 'write',
+        newContent: block.content,
+        additions: block.additions,
+        deletions: block.deletions,
+      });
+    }
+  });
+  return items;
+}
+
 export function collectPendingChangeItems(
   messages: ChatMessage[],
 ): PendingChangeItem[] {
@@ -158,23 +253,27 @@ export function collectPendingChangeItems(
     if (!block) continue;
 
     if (ref.kind === 'annotation' && block.type === 'annotation_proposal') {
-      for (const change of block.proposal.changes) {
+      block.proposal.changes.forEach((change, changeIndex) => {
         items.push({
-          id: `${ref.messageId}-${ref.blockIndex}-${change.relativePath}`,
+          id: `${ref.messageId}-${ref.blockIndex}-${change.relativePath}-${change.operation}-${changeIndex}`,
           ref,
           path: change.relativePath,
           summary: summarizeAnnotationChange(change),
           kind: 'annotation',
+          operation: change.operation,
+          destructive: change.operation === 'delete',
         });
-      }
+      });
     } else if (ref.kind === 'file' && isFileProposalBlock(block)) {
       items.push({
         id: `${ref.messageId}-${ref.blockIndex}`,
         ref,
         path: block.suggestedRelativePath,
-        summary: '写入文件',
+        summary: block.operation === 'delete' ? '删除文件' : '写入文件',
         kind: 'file',
         newContent: block.content,
+        operation: block.operation ?? 'write',
+        destructive: block.operation === 'delete',
       });
     }
   }
@@ -203,6 +302,32 @@ export function countPendingProposals(messages: ChatMessage[]): number {
   return collectPendingProposals(messages).length;
 }
 
+export function dismissPendingProposals(options: {
+  sessionId: string;
+  messages: ChatMessage[];
+  updateBlock: (
+    messageId: string,
+    blockIndex: number,
+    patch: { status: 'dismissed' },
+  ) => void;
+}): number {
+  const refs = collectPendingProposals(options.messages);
+  for (const ref of refs) {
+    const block = options.messages.find((msg) => msg.id === ref.messageId)
+      ?.blocks[ref.blockIndex];
+    if (!block) continue;
+    options.updateBlock(ref.messageId, ref.blockIndex, { status: 'dismissed' });
+    patchAgentMessageBlockRemote({
+      sessionId: options.sessionId,
+      messageId: ref.messageId,
+      blockType: block.type,
+      blockIndex: ref.blockIndex,
+      patch: { status: 'dismissed' },
+    }).catch(() => undefined);
+  }
+  return refs.length;
+}
+
 function annotationHasUnresolved(proposal: AnnotationBatchProposal): boolean {
   return proposal.changes.some((change) => {
     if (change.operation === 'patch') return !change.patches?.length;
@@ -218,10 +343,56 @@ function annotationHasUnresolved(proposal: AnnotationBatchProposal): boolean {
   });
 }
 
+export type ApplyCheckpointContext = CheckpointRef & {
+  workspaceRoot?: string | null;
+};
+
+async function withProposalCheckpoint<T>(
+  options: {
+    checkpoint?: ApplyCheckpointContext;
+    project: AnnotationProject | null;
+    kind: 'annotation' | 'file';
+    annotationPaths?: string[];
+    filePaths?: string[];
+  },
+  write: () => Promise<T>,
+): Promise<{ value: T; hasCheckpoint: boolean }> {
+  const { checkpoint } = options;
+  let captured = false;
+  if (checkpoint) {
+    captured = await captureProposalCheckpoint({
+      ref: checkpoint,
+      kind: options.kind,
+      project: options.project,
+      workspaceRoot: checkpoint.workspaceRoot,
+      annotationPaths: options.annotationPaths,
+      filePaths: options.filePaths,
+    });
+  }
+  try {
+    const value = await write();
+    let hasCheckpoint = false;
+    if (captured && checkpoint) {
+      hasCheckpoint = await recordProposalCheckpointAfter({
+        ref: checkpoint,
+        project: options.project,
+        workspaceRoot: checkpoint.workspaceRoot,
+      });
+    }
+    return { value, hasCheckpoint };
+  } catch (err) {
+    if (captured && checkpoint) {
+      await discardProposalCheckpoint(checkpoint);
+    }
+    throw err;
+  }
+}
+
 export async function applyAnnotationProposalWithGuards(
   project: AnnotationProject,
   proposal: AnnotationBatchProposal,
-): Promise<void> {
+  options?: { checkpoint?: ApplyCheckpointContext },
+): Promise<{ hasCheckpoint: boolean }> {
   if (annotationHasUnresolved(proposal)) {
     throw new Error('标注提案包含未解析的变更');
   }
@@ -240,31 +411,69 @@ export async function applyAnnotationProposalWithGuards(
     );
     if (!ok) throw new Error('用户取消应用');
   }
-  const result = await applyAnnotationBatchProposal(project, proposal, {
-    onFreshnessConflict: (_rel, reason) =>
-      window.confirm(`${reason}。是否仍要应用？`),
-  });
-  dispatchMutationsAppliedEvent(proposal.projectId, result.relativePaths);
+  const { hasCheckpoint } = await withProposalCheckpoint(
+    {
+      checkpoint: options?.checkpoint,
+      project,
+      kind: 'annotation',
+      annotationPaths: proposal.changes.map((change) => change.relativePath),
+    },
+    async () => {
+      const result = await applyAnnotationBatchProposal(project, proposal, {
+        onFreshnessConflict: (_rel, reason) =>
+          window.confirm(`${reason}。是否仍要应用？`),
+      });
+      dispatchMutationsAppliedEvent(proposal.projectId, result.relativePaths, {
+        force: true,
+      });
+      return result;
+    },
+  );
+  return { hasCheckpoint };
 }
 
 async function applyFileBlock(
   project: AnnotationProject | null,
   workspaceRoot: string | null,
   block: FileProposalLikeBlock,
-): Promise<void> {
+  checkpoint?: ApplyCheckpointContext,
+): Promise<{ hasCheckpoint: boolean }> {
   if (!isAgentDocumentWriteEnabled()) {
     throw new Error('文档写入功能未启用');
   }
   const root = project?.directoryPath ?? workspaceRoot;
   if (!root) throw new Error('请先打开项目或工作区目录');
-  const result = await window.electron?.workspace?.writeTextFile({
-    rootDir: root,
-    relativePath: block.suggestedRelativePath,
-    content: block.content,
-  });
-  if (!result?.success) {
-    throw new Error(result?.error ?? '保存失败');
+  if (isLrAgentRelativePath(block.suggestedRelativePath)) {
+    throw new Error('禁止写入 .lr-agent 标注库目录，请使用标注工具。');
   }
+  return withProposalCheckpoint(
+    {
+      checkpoint,
+      project,
+      kind: 'file',
+      filePaths: [block.suggestedRelativePath],
+    },
+    async () => {
+      if (block.operation === 'delete') {
+        const result = await window.electron?.workspace?.deleteTextFile?.({
+          rootDir: root,
+          relativePath: block.suggestedRelativePath,
+        });
+        if (!result?.success) {
+          throw new Error(result?.error ?? '删除失败');
+        }
+        return;
+      }
+      const result = await window.electron?.workspace?.writeTextFile({
+        rootDir: root,
+        relativePath: block.suggestedRelativePath,
+        content: block.content,
+      });
+      if (!result?.success) {
+        throw new Error(result?.error ?? '保存失败');
+      }
+    },
+  );
 }
 
 async function syncBlockStatusRemote(options: {
@@ -288,9 +497,10 @@ async function syncBlockStatusRemote(options: {
   }
 }
 
-export async function applyAllPendingProposals(options: {
+export async function applyProposalRefs(options: {
   sessionId: string;
   messages: ChatMessage[];
+  refs: PendingProposalRef[];
   project: AnnotationProject | null;
   workspaceRoot?: string | null;
   updateBlock: (
@@ -300,7 +510,7 @@ export async function applyAllPendingProposals(options: {
   ) => void;
   onSyncWarning?: (message: string) => void;
 }): Promise<{ applied: number; errors: string[] }> {
-  const refs = collectPendingProposals(options.messages);
+  const { refs } = options;
   if (refs.length === 0) return { applied: 0, errors: [] };
 
   const errors: string[] = [];
@@ -320,39 +530,61 @@ export async function applyAllPendingProposals(options: {
         ) {
           throw new Error('请先打开对应的标注项目');
         }
-        await applyAnnotationProposalWithGuards(
+        const appliedResult = await applyAnnotationProposalWithGuards(
           options.project,
           block.proposal,
+          {
+            checkpoint: {
+              sessionId: options.sessionId,
+              messageId: ref.messageId,
+              blockIndex: ref.blockIndex,
+              workspaceRoot: options.workspaceRoot,
+            },
+          },
         );
         options.updateBlock(ref.messageId, ref.blockIndex, {
           ...block,
           status: 'applied',
+          hasCheckpoint: appliedResult.hasCheckpoint,
         });
         await syncBlockStatusRemote({
           sessionId: options.sessionId,
           messageId: ref.messageId,
           blockIndex: ref.blockIndex,
           blockType: 'annotation_proposal',
-          patch: { status: 'applied' },
+          patch: {
+            status: 'applied',
+            hasCheckpoint: appliedResult.hasCheckpoint,
+          },
           onSyncWarning: options.onSyncWarning,
         });
         applied += 1;
       } else if (ref.kind === 'file' && isFileProposalBlock(block)) {
-        await applyFileBlock(
+        const appliedResult = await applyFileBlock(
           options.project,
           options.workspaceRoot ?? null,
           block,
+          {
+            sessionId: options.sessionId,
+            messageId: ref.messageId,
+            blockIndex: ref.blockIndex,
+            workspaceRoot: options.workspaceRoot,
+          },
         );
         options.updateBlock(ref.messageId, ref.blockIndex, {
           ...block,
           status: 'applied',
+          hasCheckpoint: appliedResult.hasCheckpoint,
         });
         await syncBlockStatusRemote({
           sessionId: options.sessionId,
           messageId: ref.messageId,
           blockIndex: ref.blockIndex,
           blockType: 'file_proposal',
-          patch: { status: 'applied' },
+          patch: {
+            status: 'applied',
+            hasCheckpoint: appliedResult.hasCheckpoint,
+          },
           onSyncWarning: options.onSyncWarning,
         });
         applied += 1;
@@ -363,4 +595,22 @@ export async function applyAllPendingProposals(options: {
   }
 
   return { applied, errors };
+}
+
+export async function applyAllPendingProposals(options: {
+  sessionId: string;
+  messages: ChatMessage[];
+  project: AnnotationProject | null;
+  workspaceRoot?: string | null;
+  updateBlock: (
+    messageId: string,
+    blockIndex: number,
+    patch: Partial<MessageBlock>,
+  ) => void;
+  onSyncWarning?: (message: string) => void;
+}): Promise<{ applied: number; errors: string[] }> {
+  return applyProposalRefs({
+    ...options,
+    refs: collectPendingProposals(options.messages),
+  });
 }

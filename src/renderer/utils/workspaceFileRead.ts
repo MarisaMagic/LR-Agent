@@ -28,12 +28,20 @@ export async function computeFileProposalDiffStats(options: {
   workspaceRoot: string | null;
   relativePath: string;
   newContent: string;
+  operation?: 'write' | 'delete';
 }): Promise<{ additions: number; deletions: number }> {
   const { content: oldContent, exists } = await readWorkspaceTextFile({
     project: options.project,
     workspaceRoot: options.workspaceRoot,
     relativePath: options.relativePath,
   });
+  if (options.operation === 'delete') {
+    if (!exists) return { additions: 0, deletions: 0 };
+    const lineCount = oldContent
+      ? oldContent.replace(/\n$/, '').split('\n').length
+      : 0;
+    return { additions: 0, deletions: lineCount };
+  }
   if (!exists) {
     const lineCount = options.newContent
       ? options.newContent.replace(/\n$/, '').split('\n').length

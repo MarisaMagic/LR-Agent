@@ -24,6 +24,7 @@ def test_enabled_with_empty_index_still_injects_block() -> None:
     assert "【工作区记忆】" in prompt
     assert "尚无工作区记忆文件" in prompt
     assert "memory_create" in prompt
+    assert "必须更新" not in prompt
     assert "已保存的记忆" not in prompt
     assert "长期价值" not in prompt
 
@@ -40,6 +41,8 @@ def test_enabled_with_index_injects_index() -> None:
     assert "topics/progress.md" in prompt
     assert "memory_write" in prompt
     assert "memory_read" in prompt
+    assert "必须更新" not in prompt
+    assert "用户规范" in prompt
 
 
 def test_disabled_skips_memory_block_even_if_index_present() -> None:

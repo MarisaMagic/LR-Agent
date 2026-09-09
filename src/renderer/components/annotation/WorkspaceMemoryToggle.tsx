@@ -37,7 +37,7 @@ export default function WorkspaceMemoryToggle({
         </label>
       </div>
       <p id={hintId} className="workspace-memory-toggle-hint">
-        打开后，Agent 完成本轮标注会更新进度、已标文件等 Markdown
+        打开后，确认标注或保存时系统会更新进度与已标文件；Agent 可另记标注偏好
       </p>
     </div>
   );

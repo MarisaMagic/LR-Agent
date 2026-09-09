@@ -9,7 +9,7 @@
 
 import json
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
@@ -30,9 +30,15 @@ from app.agent.tools.workspace_file_reader import (
     read_document_file,
     read_image_for_vision_tool,
     read_workspace_text_file,
+    str_replace_workspace_file_tool,
+    delete_workspace_file_tool,
     write_workspace_file_tool,
 )
-from app.agent.tools.workspace_search import grep_workspace, list_workspace_directory
+from app.agent.tools.workspace_search import (
+    glob_workspace,
+    grep_workspace,
+    list_workspace_directory,
+)
 from app.core.config import Settings
 from app.models.user import User
 from app.schemas.agent import ClientContextInput
@@ -50,18 +56,57 @@ ANNOTATION_TOOL_NAMES: frozenset[str] = frozenset(
 # Pydantic args_schema for client tools — forces LLM to include user_request as a required param
 class AutoAnnotateArgs(BaseModel):
     user_request: str = Field(min_length=1, description="必须原样传递用户的原始请求")
+    paths: list[str] = Field(
+        default_factory=list,
+        description=(
+            "要标注的相对路径，取自 list_workspace_directory 的 relativePath。"
+            "目录用 / 后缀（如 data/）。用户指定了文件或文件夹时必须填写。"
+        ),
+    )
+    all_files: bool = Field(
+        default=False,
+        description=(
+            "仅当用户明确要求标注整个项目/全部文件时设为 true。"
+            "禁止在未确认时默认为 true。"
+        ),
+    )
+    write_mode: Literal["append", "replace_matching"] = Field(
+        default="append",
+        description=(
+            "append：追加新标注；replace_matching：替换同类型已有标注。"
+            "用户说重写/重新标注/每文件只留一条时用 replace_matching，否则 append。"
+        ),
+    )
     scope_hint: str | None = Field(
         default=None,
-        description=(
-            "标注文件范围，从 list_workspace_directory 返回的 relativePath 中选取。"
-            "单个文件填相对路径；多个用逗号分隔；整个目录填目录名加 /；"
-            "不填则对项目内全部文件执行标注。"
-        ),
+        description="兼容旧参数：逗号分隔的相对路径。优先使用 paths。未命中时不会回退到全部文件。",
     )
 
 
 class MutateAnnotationArgs(BaseModel):
     user_request: str = Field(min_length=1, description="必须原样传递用户的原始请求")
+    paths: list[str] | None = Field(
+        default=None,
+        description="要修改的文件相对路径。有明确文件时必须填写。",
+    )
+    annotation_ids: list[str] | None = Field(
+        default=None,
+        description="画布选中或用户指定的标注 id。",
+    )
+
+
+class StrReplaceArgs(BaseModel):
+    relative_path: str = Field(min_length=1, description="要修改的相对路径")
+    old_string: str = Field(min_length=1, description="文件中必须唯一出现的原文片段")
+    new_string: str = Field(description="替换后的文本")
+    replace_all: bool = Field(
+        default=False,
+        description="为 true 时替换全部出现；默认要求 old_string 只出现一次",
+    )
+
+
+class DeleteWorkspaceFileArgs(BaseModel):
+    relative_path: str = Field(min_length=1, description="要删除的相对路径")
 
 
 def _client_tool_stub(tool_name: str) -> StructuredTool:
@@ -190,6 +235,14 @@ def _build_all_tools(
             settings=settings,
         )
 
+    def glob_tool(glob_pattern: str, relative_dir: str = "") -> str:
+        return glob_workspace(
+            client_context,
+            glob_pattern,
+            relative_dir=relative_dir,
+            settings=settings,
+        )
+
     def read_image_for_vision(relative_path: str = "") -> str:
         return read_image_for_vision_tool(
             client_context,
@@ -202,6 +255,23 @@ def _build_all_tools(
 
     def write_file(relative_path: str, content: str) -> str:
         return write_workspace_file_tool(client_context, relative_path, content)
+
+    def str_replace_file(
+        relative_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> str:
+        return str_replace_workspace_file_tool(
+            client_context,
+            relative_path,
+            old_string,
+            new_string,
+            replace_all=replace_all,
+        )
+
+    def delete_file(relative_path: str) -> str:
+        return delete_workspace_file_tool(client_context, relative_path)
 
     # Phase 1 工具集（只读 + 写文件提案）
     tools = [
@@ -229,8 +299,8 @@ def _build_all_tools(
             func=read_file_annotation,
             name="read_file_annotation",
             description=(
-                "读取项目中某张图片的已有标注 JSON（相对路径，如 data/2.jpg）。"
-                "用于回答「标了谁」「有哪些框」等查询。"
+                "读取项目中某文件的已有标注（相对路径，如 data/2.jpg）。"
+                "只读查询，不要用写文件工具回写。"
             ),
         ),
         StructuredTool.from_function(
@@ -240,7 +310,8 @@ def _build_all_tools(
                 "读取工作区或项目内的文本/代码文件内容（如 .py .ts .md .json .yaml .txt）。"
                 "relative_path 为空时使用当前打开文件。"
                 "可选 start_line / end_line（1-indexed，含首尾）读取指定行范围。"
-                "找代码时建议先用 grep_workspace 定位，再读本工具读具体行。"
+                "返回内容带行号前缀（如 `    12|code`）。"
+                "找代码时建议先用 grep_workspace 或 glob_workspace 定位，再读本工具读具体行。"
             ),
         ),
         StructuredTool.from_function(
@@ -251,6 +322,15 @@ def _build_all_tools(
                 "找定义、引用、符号时优先使用；命中后再对具体文件调用 read_workspace_file。"
                 "pattern 为正则；path 为相对目录或文件（空=整个工作区）；"
                 "glob_pattern 可选如 *.py、*.ts。"
+            ),
+        ),
+        StructuredTool.from_function(
+            func=glob_tool,
+            name="glob_workspace",
+            description=(
+                "按 glob 递归列出工作区文件（如 **/*.py、src/**/*.ts）。"
+                "relative_dir 为空时从工作区根开始。跳过 .git / node_modules / .lr-agent。"
+                "找文件路径时优先于反复 list_workspace_directory。"
             ),
         ),
         StructuredTool.from_function(
@@ -267,7 +347,7 @@ def _build_all_tools(
             description=(
                 "加载图片并在调用成功后由系统注入附图，供你直接根据像素回答"
                 "（场景、物体、人数、文字 OCR、外观等）。relative_path 为空时使用当前打开的图片。"
-                "需视觉探针通过；查已有标注 JSON 请用 read_file_annotation，勿用本工具代替。"
+                "需视觉探针通过；查已有标注请用 read_file_annotation，勿用本工具代替。"
             ),
         ),
         StructuredTool.from_function(
@@ -282,35 +362,39 @@ def _build_all_tools(
             func=write_file,
             name="write_workspace_file",
             description=(
-                "在工作区内创建或覆写文本/代码文件。"
-                "支持 .md .txt .json .yaml .py .cpp .ts 等格式；父目录不存在时会自动创建。"
-                "调用后生成 file_proposal，用户点击 Keep All 后才实际写盘。"
-                "relative_path 示例：reports/summary.md、src/dijkstra.cpp。"
-                "content 为完整文件内容。"
-                "未成功调用本工具前，禁止在回复中声称文件已写入。"
+                "在工作区内创建或覆写文本/代码文件（如 .md .py .ts）。"
+                "生成提案，用户 Keep All 后才落盘。"
+                "只用于工作区文档与代码，不能用来保存标注。"
+                "删文件请用 delete_workspace_file，不要写入空内容。"
             ),
+        ),
+        StructuredTool.from_function(
+            func=str_replace_file,
+            name="str_replace_workspace_file",
+            description=(
+                "对已有文本/代码文件做精确片段替换。"
+                "old_string 必须在文件中唯一出现，除非 replace_all=true。"
+                "改局部代码时优先用本工具。不能用来改标注。"
+            ),
+            args_schema=StrReplaceArgs,
+        ),
+        StructuredTool.from_function(
+            func=delete_file,
+            name="delete_workspace_file",
+            description=(
+                "删除工作区内的文本/代码文件，生成删除提案。"
+                "用户确认 Keep All 后才从磁盘移除。不能删除标注。"
+            ),
+            args_schema=DeleteWorkspaceFileArgs,
         ),
         # ── 客户端工具（schema 存根，实现体在前端 Electron 进程）────────────
         StructuredTool.from_function(
             func=_client_tool_stub("auto_annotate"),
             name="auto_annotate",
             description=(
-                "【客户端工具】对当前标注项目执行自动标注。"
-                "支持全部标注类型：矩形框目标检测（bbox）、图片描述（caption）、"
-                "图片分类（classification）、指令数据（instruction）、"
-                "思维链（cot）、多轮对话（conversation）、偏好数据（preference）。"
-                "前端将根据项目类型自动选择检测流水线或 LLM 生成流水线。"
-                "user_request：必须原样传递用户的原始请求。"
-                "scope_hint：指定要标注的文件或子目录。"
-                "值取自 list_workspace_directory 返回的 relativePath："
-                "单文件填相对路径，多文件用逗号分隔，目录加 / 后缀。"
-                "不填 scope_hint 时：图片类扫描项目内全部图片，"
-                "文本类（instruction/cot/conversation/preference）扫描全部 .txt/.md/.json/.jsonl 源文件；"
-                "scope_hint 未命中时会回退到全部候选文件。"
-                "调用前建议先用 list_workspace_directory 浏览文件结构，"
-                "图片类项目可用 read_image_for_vision 预览，"
-                "文本类项目可用 read_workspace_file 读取原文。"
-                "必须发起真实 tool call，正文伪代码无效。"
+                "新增或重写当前项目的自动标注（检测、预标注、生成 caption 等）。"
+                "改已有框/标签请用 mutate_annotation。"
+                "user_request 须原样传递用户请求；指定范围填 paths，全部文件才 all_files=true。"
             ),
             args_schema=AutoAnnotateArgs,
         ),
@@ -318,10 +402,8 @@ def _build_all_tools(
             func=_client_tool_stub("mutate_annotation"),
             name="mutate_annotation",
             description=(
-                "【客户端工具】修改或删除项目中已有的标注（改标签、删框、批量纠错）。"
-                "不包含新增标注；如需新增请使用 auto_annotate。"
-                "user_request：用户原始请求（如「把所有 dog 标签改为 puppy」）。"
-                "调用后前端生成变更提案，用户确认后执行写入。"
+                "修改或删除已有标注（改标签、删框、改 caption 等）。"
+                "不含新增；新增请用 auto_annotate。"
             ),
             args_schema=MutateAnnotationArgs,
         ),

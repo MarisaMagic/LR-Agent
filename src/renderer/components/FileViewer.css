@@ -21,6 +21,16 @@
   border-bottom-color: rgba(9, 105, 218, 0.18);
 }
 
+.agent-preview-banner--delete {
+  background: rgba(248, 81, 73, 0.12);
+  border-bottom-color: rgba(248, 81, 73, 0.28);
+}
+
+[data-theme='light'] .agent-preview-banner--delete {
+  background: rgba(207, 34, 46, 0.08);
+  border-bottom-color: rgba(207, 34, 46, 0.18);
+}
+
 .file-header {
   box-sizing: border-box;
   height: var(--file-header-height, var(--lr-agent-tab-bar-height, 40px));

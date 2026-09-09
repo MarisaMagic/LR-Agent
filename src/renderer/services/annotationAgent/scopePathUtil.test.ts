@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 import {
-  applyScopeWithFallback,
   filterPathsByScopeHint,
-  resolveScopeHintPaths,
+  resolveAnnotationScope,
+  resolveAnnotationScopePaths,
   type InputPathEntry,
 } from './scopePathUtil';
 
@@ -39,40 +39,65 @@ describe('filterPathsByScopeHint', () => {
   });
 });
 
-describe('applyScopeWithFallback', () => {
-  it('falls back to all paths when scope_hint misses', () => {
-    const result = applyScopeWithFallback(samplePaths, 'nonexistent', 100);
-    expect(result).toEqual(samplePaths);
+describe('resolveAnnotationScope', () => {
+  it('errors when neither paths nor all_files', () => {
+    const result = resolveAnnotationScope(samplePaths, {}, 100);
+    expect(result.paths).toEqual([]);
+    expect(result.error).toContain('paths');
   });
 
-  it('respects maxFiles cap without scope_hint', () => {
-    const result = applyScopeWithFallback(samplePaths, undefined, 2);
-    expect(result).toHaveLength(2);
+  it('does not fall back to all paths when tokens miss', () => {
+    const result = resolveAnnotationScope(
+      samplePaths,
+      { scopeHint: 'nonexistent' },
+      100,
+    );
+    expect(result.paths).toEqual([]);
+    expect(result.error).toContain('未命中');
+  });
+
+  it('uses all_files to take the catalog cap', () => {
+    const result = resolveAnnotationScope(
+      samplePaths,
+      { allFiles: true },
+      2,
+    );
+    expect(result.paths).toHaveLength(2);
+    expect(result.error).toBeUndefined();
+  });
+
+  it('filters explicit paths', () => {
+    const result = resolveAnnotationScope(
+      samplePaths,
+      { paths: ['data/'] },
+      100,
+    );
+    expect(result.paths.map((p) => p.relativePath)).toEqual(['data/algebra.txt']);
   });
 });
 
-describe('resolveScopeHintPaths', () => {
+describe('resolveAnnotationScopePaths', () => {
   it('resolves exact paths via resolver when not in catalog', async () => {
-    const resolved = await resolveScopeHintPaths(
+    const resolved = await resolveAnnotationScopePaths(
       samplePaths,
-      'extra/new.txt',
-      '/p',
+      { paths: ['extra/new.txt'] },
       100,
       async (relativePath) =>
         relativePath === 'extra/new.txt'
           ? { relativePath, absolutePath: '/p/extra/new.txt' }
           : null,
     );
-    expect(resolved.map((p) => p.relativePath)).toEqual(['extra/new.txt']);
+    expect(resolved.paths.map((p) => p.relativePath)).toEqual(['extra/new.txt']);
+    expect(resolved.error).toBeUndefined();
   });
 
-  it('falls back when filtered and resolver find nothing', async () => {
-    const result = await resolveScopeHintPaths(
+  it('errors when filtered and resolver find nothing', async () => {
+    const result = await resolveAnnotationScopePaths(
       samplePaths,
-      'missing-file',
-      '/p',
+      { scopeHint: 'missing-file' },
       100,
     );
-    expect(result).toEqual(samplePaths);
+    expect(result.paths).toEqual([]);
+    expect(result.error).toContain('未命中');
   });
 });

@@ -1,7 +1,11 @@
 import type { AnnotationProject } from '../types/annotation';
-import { parseFileAnnotationDocument } from '../types/annotationDocument';
+import {
+  parseFileAnnotationDocument,
+  type FileAnnotationDocument,
+} from '../types/annotationDocument';
 import type { ChatMessage, MessageBlock } from '../../shared/agentTypes';
 import { isFileProposalBlock } from '../../shared/agentTypes';
+import type { AnnotationBatchChange } from '../../shared/annotationAgentTypes';
 import { patchAgentMessageBlockRemote } from './agentChatApi';
 
 function resolveWorkspaceRoot(
@@ -65,7 +69,43 @@ export async function reconcileAppliedFileProposals(options: {
   return reconciled;
 }
 
-/** 若磁盘标注文件已包含提案中的所有标注（按 id 匹配），自动标为 applied 并持久化。 */
+/** 磁盘文档是否已经体现该 change（用于 reconcile，不写盘）。 */
+export function isAnnotationChangeAppliedOnDisk(
+  change: AnnotationBatchChange,
+  doc: FileAnnotationDocument | null,
+): boolean {
+  if (change.operation === 'delete') {
+    const ids = change.deleteIds ?? [];
+    if (ids.length === 0) return false;
+    // 文件不存在：pending 框可能从未写盘，不能当成已删除。
+    if (!doc) return false;
+    const existingIds = new Set(doc.annotations.map((ann) => ann.id));
+    return ids.every((id) => !existingIds.has(id));
+  }
+
+  if (!doc) return false;
+  const byId = new Map(doc.annotations.map((ann) => [ann.id, ann]));
+
+  if (change.operation === 'patch') {
+    const patches = change.patches ?? [];
+    if (patches.length === 0) return false;
+    return patches.every((patch) => {
+      const ann = byId.get(patch.id);
+      if (!ann) return false;
+      if (patch.labelId !== undefined && ann.labelId !== patch.labelId) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  const proposalIds = (change.annotations ?? [])
+    .map((ann) => ann.id)
+    .filter((id): id is string => Boolean(id));
+  if (proposalIds.length === 0) return false;
+  return proposalIds.every((id) => byId.has(id));
+}
+
 export async function reconcileAppliedAnnotationProposals(options: {
   sessionId: string;
   messages: Record<string, ChatMessage>;
@@ -99,24 +139,8 @@ export async function reconcileAppliedAnnotationProposals(options: {
             projectDir,
             change.relativePath,
           );
-          if (!raw) {
-            allApplied = false;
-            break;
-          }
-          const doc = parseFileAnnotationDocument(raw);
-          if (!doc) {
-            allApplied = false;
-            break;
-          }
-          const existingIds = new Set(
-            doc.annotations
-              .map((a) => a.id)
-              .filter((id): id is string => Boolean(id)),
-          );
-          const proposalAnnotationIds = (change.annotations ?? [])
-            .map((a) => a.id)
-            .filter((id: unknown): id is string => typeof id === 'string');
-          if (proposalAnnotationIds.some((id) => !existingIds.has(id))) {
+          const doc = raw ? parseFileAnnotationDocument(raw) : null;
+          if (!isAnnotationChangeAppliedOnDisk(change, doc)) {
             allApplied = false;
             break;
           }

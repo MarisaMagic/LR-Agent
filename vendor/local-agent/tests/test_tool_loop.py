@@ -91,6 +91,24 @@ class TestToolLoopStreamChunks:
         reasoning_events = [e for e in events if e.type == "reasoning_delta"]
         assert len(reasoning_events) >= 1
 
+    async def test_stream_chunks_does_not_emit_placeholder_reasoning(self):
+        llm = MockChatOpenAI([
+            MockChunk(
+                content="",
+                tool_call_chunks=[{"name": "read_workspace_file", "args": ""}],
+            )
+        ])
+        loop = ToolLoopRunner(llm, [], {}, None, _never_cancel, "test")
+        interceptor = ProposalStreamInterceptor()
+
+        events = await _collect_events(loop.stream_chunks([], interceptor))
+        reasoning_events = [e for e in events if e.type == "reasoning_delta"]
+        assert reasoning_events == []
+        assert all(
+            "正在分析需求" not in (e.content or "")
+            for e in events
+        )
+
 
 class TestToolLoopExecuteRound:
     def _make_gathered(self, tool_calls=None, content=""):
@@ -225,3 +243,32 @@ class TestToolLoopExecuteRound:
         payload = json.loads(results[0].result or "{}")
         assert payload.get("ok") is True
         assert payload.get("topic_file") == "annotated-files.md"
+
+    async def test_execute_round_already_completed_appends_stub_and_continues(self):
+        import json
+
+        from app.agent.assist.tool_loop import TOOL_CALLS_ALREADY_COMPLETED
+
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(llm, [], {}, None, _never_cancel, "test")
+        loop.mark_completed({"a1"})
+        gather = self._make_gathered(
+            tool_calls=[
+                {
+                    "id": "a1",
+                    "name": "auto_annotate",
+                    "args": {"user_request": "标注"},
+                }
+            ],
+            content="现在执行自动标注。",
+        )
+        messages: list = []
+        events = await _collect_events(
+            loop.execute_round(gather, "", messages, ProposalStreamInterceptor())
+        )
+        assert [e.type for e in events] == [TOOL_CALLS_ALREADY_COMPLETED]
+        assert not any(e.type == "tool_start" for e in events)
+        assert len(messages) == 2
+        payload = json.loads(messages[1].content)
+        assert payload["status"] == "already_completed"
+        assert payload["tool"] == "auto_annotate"

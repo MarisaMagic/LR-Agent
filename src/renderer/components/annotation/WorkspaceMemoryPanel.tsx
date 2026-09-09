@@ -13,6 +13,7 @@ import {
   type MemoryEntry,
   type MemoryOpenTarget,
 } from '../../services/agentMemory';
+import { syncWorkspaceFactMemory } from '../../services/workspaceFactMemory';
 import type { AnnotationProject } from '../../types/annotation';
 import WorkspaceMemoryOpenSplit from './WorkspaceMemoryOpenSplit';
 import WorkspaceMemoryToggle from './WorkspaceMemoryToggle';
@@ -47,11 +48,14 @@ export default function WorkspaceMemoryPanel({
     }
     setLoading(true);
     try {
+      if (enabled) {
+        await syncWorkspaceFactMemory(project);
+      }
       setEntries(await listMemoryEntries(scopeKey));
     } finally {
       setLoading(false);
     }
-  }, [scopeKey]);
+  }, [enabled, project, scopeKey]);
 
   useEffect(() => {
     void refreshEntries();
@@ -145,7 +149,8 @@ export default function WorkspaceMemoryPanel({
             <VscodeIcon name="thinking" size={22} />
             <p>尚未生成记忆文件</p>
             <span>
-              打开开关后，Agent 完成本轮标注会写入进度、已标文件等 Markdown
+              打开开关后，确认标注或保存时系统会更新进度与已标文件；Agent
+              可另记偏好
             </span>
           </div>
         ) : (

@@ -15,7 +15,7 @@ export type OpenAnnotationPreviewParams = {
   relativePath: string;
   absolutePath: string;
   annotationId: string;
-  status: 'pending' | 'applied' | 'dismissed';
+  status: 'pending' | 'applied' | 'dismissed' | 'undone';
   proposal: AnnotationBatchProposal;
   proposalAnchorId?: string;
 };

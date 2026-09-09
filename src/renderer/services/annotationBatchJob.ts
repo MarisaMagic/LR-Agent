@@ -30,6 +30,9 @@ export async function startAnnotationBatchJob(options: {
   providerModel?: string;
   providerSupportsVision?: boolean;
   scopeHint?: string;
+  scopePaths?: string[];
+  allFiles?: boolean;
+  writeMode?: 'append' | 'replace_matching';
 }): Promise<AnnotationBatchJobResult> {
   const emit = (event: StreamEvent): void => {
     options.onEvent(event);
@@ -60,6 +63,9 @@ export async function startAnnotationBatchJob(options: {
       providerModel: options.providerModel ?? '',
       providerSupportsVision: options.providerSupportsVision ?? false,
       scopeHint: options.scopeHint,
+      scopePaths: options.scopePaths,
+      allFiles: options.allFiles,
+      writeMode: options.writeMode,
     })) {
       if (isCancelled()) break;
       mapAndEmit(event, emit);

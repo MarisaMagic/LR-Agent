@@ -17,6 +17,62 @@
   opacity: 0.85;
 }
 
+.agent-annotation-change-block-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-annotation-change-block__chevron,
+.agent-annotation-change-block__name {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.agent-annotation-change-block__chevron {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.agent-annotation-change-block__verb {
+  flex-shrink: 0;
+  color: var(--agent-surface-muted-text);
+}
+
+.agent-annotation-change-block__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--vscode-font-family);
+}
+
+.agent-annotation-change-block__name:hover {
+  text-decoration: underline;
+}
+
+.agent-annotation-change-block__stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--lr-ui-font-caption);
+  font-weight: 500;
+}
+
+.agent-annotation-change-block__stat-add {
+  color: #3fb950;
+}
+
+.agent-annotation-change-block__stat-del {
+  color: #f85149;
+}
+
 .agent-annotation-change-block__header {
   display: flex;
   align-items: center;
@@ -29,17 +85,9 @@
   text-align: left;
 }
 
-.agent-annotation-change-block__title {
-  flex: 1;
-  font-weight: 500;
-}
-
-.agent-annotation-change-block__badge {
-  flex-shrink: 0;
-  padding: 0 6px;
-  border-radius: 4px;
-  background: rgba(63, 185, 80, 0.15);
-  color: #3fb950;
+.agent-annotation-change-block__file-summary {
+  padding: 0 0 4px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
   font-size: var(--lr-ui-font-caption);
 }
 
@@ -53,11 +101,14 @@
   overflow: hidden;
 }
 
-.agent-annotation-change-block__list,
-.agent-annotation-change-block__list-scroll-host {
+.agent-annotation-change-block__list {
   list-style: none;
   margin: 0;
   padding: 4px 8px 8px;
+}
+
+.agent-annotation-change-block__list-scroll-host {
+  min-width: 0;
 }
 
 .agent-annotation-change-block__item-row {
@@ -140,11 +191,14 @@
   font-size: var(--lr-ui-font-caption);
 }
 
+.agent-annotation-change-block__summary--delete {
+  color: #f85149;
+}
+
 /* Preview area */
 .agent-annotation-change-block__preview-area {
-  margin: 0 8px 4px 8px;
-  padding: 4px 0;
-  border-top: 1px solid var(--agent-change-block-body-border);
+  margin: 0;
+  padding: 4px 0 0;
 }
 
 .agent-annotation-change-block__preview-empty {

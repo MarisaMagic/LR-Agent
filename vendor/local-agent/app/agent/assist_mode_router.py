@@ -19,10 +19,13 @@ class AssistMode(str, Enum):
 LIGHT_TOOL_SET: frozenset[str] = frozenset({
     "read_workspace_file",
     "grep_workspace",
+    "glob_workspace",
     "list_workspace_directory",
     "read_document_file",
     "read_image_for_vision",
     "write_workspace_file",
+    "str_replace_workspace_file",
+    "delete_workspace_file",
     "get_account_summary",
     "get_lr_agent_help",
     "describe_client_context",
@@ -33,10 +36,13 @@ LIGHT_TOOL_SET: frozenset[str] = frozenset({
 FULL_TOOL_SET: frozenset[str] = frozenset({
     "read_workspace_file",
     "grep_workspace",
+    "glob_workspace",
     "list_workspace_directory",
     "read_document_file",
     "read_image_for_vision",
     "write_workspace_file",
+    "str_replace_workspace_file",
+    "delete_workspace_file",
     "auto_annotate",
     "mutate_annotation",
     "get_account_summary",
@@ -45,3 +51,33 @@ FULL_TOOL_SET: frozenset[str] = frozenset({
     "describe_annotation_project",
     "read_file_annotation",
 })
+
+WRITE_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "auto_annotate",
+        "mutate_annotation",
+        "write_workspace_file",
+        "str_replace_workspace_file",
+        "delete_workspace_file",
+    }
+)
+
+# Ask 模式：有项目快照也只读，禁止标注写入与工作区写文件
+ASK_TOOL_SET: frozenset[str] = FULL_TOOL_SET - WRITE_TOOL_NAMES
+
+
+def resolve_assist_tool_set(
+    *,
+    has_project_snapshot: bool,
+    agent_mode: str | None,
+    is_editor: bool,
+    has_workspace: bool,
+) -> frozenset[str]:
+    """有项目快照时：仅 agent_mode=annotation 给写工具，缺失/Ask 一律只读。"""
+    if has_project_snapshot:
+        if agent_mode != "annotation":
+            return ASK_TOOL_SET
+        return FULL_TOOL_SET
+    if is_editor or has_workspace:
+        return LIGHT_TOOL_SET
+    return frozenset()

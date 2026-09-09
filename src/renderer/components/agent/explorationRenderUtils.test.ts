@@ -65,4 +65,34 @@ describe('buildAssistantRenderSegments', () => {
     expect(segments[0].kind).toBe('block');
     expect(segments[1].kind).toBe('exploration');
   });
+
+  it('walks a custom index order for work-history slices', () => {
+    const blocks: MessageBlock[] = [
+      toolCall('t1', 'grep_workspace', { pattern: 'A' }),
+      { type: 'text', content: 'answer' },
+      toolCall('t2', 'read_workspace_file', { relative_path: 'b.ts' }),
+    ];
+
+    const segments = buildAssistantRenderSegments(blocks, [0, 2]);
+    expect(segments).toHaveLength(1);
+    expect(segments[0].kind).toBe('exploration');
+    if (segments[0].kind === 'exploration') {
+      expect(segments[0].tools).toHaveLength(2);
+    }
+  });
+
+  it('keeps write tools and file proposals as separate visible blocks', () => {
+    const blocks: MessageBlock[] = [
+      toolCall('t1', 'write_workspace_file', { relative_path: 'a.md' }),
+      {
+        type: 'file_proposal',
+        title: 'a.md',
+        content: 'x',
+        suggestedRelativePath: 'a.md',
+        status: 'pending',
+      },
+    ];
+    const segments = buildAssistantRenderSegments(blocks);
+    expect(segments.map((segment) => segment.kind)).toEqual(['block', 'block']);
+  });
 });

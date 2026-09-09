@@ -3,16 +3,36 @@ export interface InputPathEntry {
   absolutePath: string;
 }
 
+export type AnnotationScopeRequest = {
+  paths?: string[];
+  allFiles?: boolean;
+  /** @deprecated comma-separated relative paths; prefer `paths` */
+  scopeHint?: string;
+};
+
+export type AnnotationScopeResult = {
+  paths: InputPathEntry[];
+  error?: string;
+};
+
 export function scopeTokens(scopeHint?: string): string[] {
   if (!scopeHint) return [];
   return scopeHint
     .split(',')
-    .map((s) => s.trim().toLowerCase())
+    .map((s) => s.trim())
     .filter(Boolean);
 }
 
 function normalizeRelativePath(relativePath: string): string {
   return relativePath.split(/[/\\]/).filter(Boolean).join('/');
+}
+
+export function collectScopeTokens(request: AnnotationScopeRequest): string[] {
+  const fromPaths = (request.paths ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (fromPaths.length > 0) return fromPaths;
+  return scopeTokens(request.scopeHint);
 }
 
 export function filterPathsByScopeHint(
@@ -21,9 +41,10 @@ export function filterPathsByScopeHint(
 ): InputPathEntry[] {
   const tokens = scopeTokens(scopeHint);
   if (tokens.length === 0) return allPaths;
+  const lowered = tokens.map((t) => t.toLowerCase());
   return allPaths.filter((p) => {
     const relLower = p.relativePath.toLowerCase();
-    return tokens.some((t) => {
+    return lowered.some((t) => {
       if (relLower.includes(t)) return true;
       if (t.endsWith('/') && relLower.startsWith(t)) return true;
       return false;
@@ -31,37 +52,49 @@ export function filterPathsByScopeHint(
   });
 }
 
-export function applyScopeWithFallback(
+export function resolveAnnotationScope(
   allPaths: InputPathEntry[],
-  scopeHint: string | undefined,
+  request: AnnotationScopeRequest,
   maxFiles: number,
-): InputPathEntry[] {
-  const filtered = filterPathsByScopeHint(allPaths, scopeHint);
-  const tokens = scopeTokens(scopeHint);
-  if (tokens.length === 0) {
-    return allPaths.slice(0, maxFiles);
+): AnnotationScopeResult {
+  const tokens = collectScopeTokens(request);
+  if (tokens.length > 0) {
+    const filtered = filterPathsByScopeHint(allPaths, tokens.join(','));
+    if (filtered.length === 0) {
+      return {
+        paths: [],
+        error: `未命中任何文件：${tokens.join(', ')}。请用 list_workspace_directory 核对 relativePath，或将 all_files 设为 true。`,
+      };
+    }
+    return { paths: filtered.slice(0, maxFiles) };
   }
-  if (filtered.length === 0 && allPaths.length > 0) {
-    return allPaths.slice(0, maxFiles);
+  if (request.allFiles) {
+    if (allPaths.length === 0) {
+      return { paths: [], error: '项目内没有可标注文件。' };
+    }
+    return { paths: allPaths.slice(0, maxFiles) };
   }
-  return filtered.slice(0, maxFiles);
+  return {
+    paths: [],
+    error:
+      '请提供 paths（相对路径或目录前缀），或将 all_files 设为 true（仅当用户明确要求全部文件）。',
+  };
 }
 
-export async function resolveScopeHintPaths(
+export async function resolveAnnotationScopePaths(
   allPaths: InputPathEntry[],
-  scopeHint: string | undefined,
-  projectDir: string,
+  request: AnnotationScopeRequest,
   maxFiles: number,
   resolveRelativeFile?: (
     relativePath: string,
   ) => Promise<InputPathEntry | null>,
-): Promise<InputPathEntry[]> {
-  const tokens = scopeTokens(scopeHint);
+): Promise<AnnotationScopeResult> {
+  const tokens = collectScopeTokens(request);
   if (tokens.length === 0) {
-    return allPaths.slice(0, maxFiles);
+    return resolveAnnotationScope(allPaths, request, maxFiles);
   }
 
-  let filtered = filterPathsByScopeHint(allPaths, scopeHint);
+  let filtered = filterPathsByScopeHint(allPaths, tokens.join(','));
   const known = new Set(filtered.map((p) => p.relativePath.toLowerCase()));
 
   if (resolveRelativeFile) {
@@ -76,9 +109,11 @@ export async function resolveScopeHintPaths(
     }
   }
 
-  if (filtered.length === 0 && allPaths.length > 0) {
-    filtered = allPaths;
+  if (filtered.length === 0) {
+    return {
+      paths: [],
+      error: `未命中任何文件：${tokens.join(', ')}。请用 list_workspace_directory 核对 relativePath，或将 all_files 设为 true。`,
+    };
   }
-
-  return filtered.slice(0, maxFiles);
+  return { paths: filtered.slice(0, maxFiles) };
 }

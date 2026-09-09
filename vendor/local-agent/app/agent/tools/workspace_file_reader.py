@@ -24,6 +24,11 @@ from app.schemas.agent import ClientContextInput
 
 VISION_TOOL_NAME = "read_image_for_vision"
 WRITE_TOOL_NAME = "write_workspace_file"
+STR_REPLACE_TOOL_NAME = "str_replace_workspace_file"
+DELETE_TOOL_NAME = "delete_workspace_file"
+FILE_PROPOSAL_TOOLS = frozenset(
+    {WRITE_TOOL_NAME, STR_REPLACE_TOOL_NAME, DELETE_TOOL_NAME}
+)
 # 工具结果 JSON 中的内部字段，assist_service 据此注入多模态消息
 VISION_PATH_MARKER = "__vision_image_path__"
 # 工具结果 JSON 中的内部字段，assist_service 据此发出 file_proposal SSE 事件
@@ -100,8 +105,6 @@ def read_workspace_text_file(
     else:
         range_label = ""
 
-    text = "\n".join(lines)
-
     rel_hint = resolved.name
     header = f"文件：{rel_hint}\n大小：{size} 字节\n"
     if line_range_applied:
@@ -109,7 +112,12 @@ def read_workspace_text_file(
     if truncated:
         header += f"（内容已截断，最多 {max_bytes} 字节 / {max_lines} 行）\n"
     header += "---\n"
-    return header + text
+    start_idx = s if line_range_applied else 1
+    numbered = [
+        f"{start_idx + offset:6d}|{line}"
+        for offset, line in enumerate(lines)
+    ]
+    return header + "\n".join(numbered)
 
 
 def read_image_for_vision_tool(
@@ -248,6 +256,22 @@ def format_vision_tool_result_for_display(result_text: str) -> str:
     return json.dumps(display, ensure_ascii=False, indent=2)
 
 
+def _relative_display_path(
+    client_context: ClientContextInput | None,
+    resolved: Path,
+    fallback: str,
+) -> str:
+    from app.agent.tools.workspace_path import allowed_roots
+
+    rel_display = fallback.strip()
+    for root in allowed_roots(client_context):
+        try:
+            return str(resolved.relative_to(root)).replace("\\", "/")
+        except ValueError:
+            continue
+    return rel_display
+
+
 def write_workspace_file_tool(
     client_context: ClientContextInput | None,
     relative_path: str,
@@ -266,15 +290,7 @@ def write_workspace_file_tool(
             summary=f"无法写入文件：{err}",
         )
 
-    from app.agent.tools.workspace_path import allowed_roots
-    rel_display = relative_path.strip()
-    roots = allowed_roots(client_context)
-    for root in roots:
-        try:
-            rel_display = str(resolved.relative_to(root)).replace("\\", "/")
-            break
-        except ValueError:
-            continue
+    rel_display = _relative_display_path(client_context, resolved, relative_path)
 
     suffix = resolved.suffix.lower()
     if not is_allowed_text_extension(suffix):
@@ -306,6 +322,160 @@ def write_workspace_file_tool(
             "relative_path": rel_display,
             "title": title,
             "content": content,
+            "operation": "write",
+        },
+    )
+
+
+def str_replace_workspace_file_tool(
+    client_context: ClientContextInput | None,
+    relative_path: str,
+    old_string: str,
+    new_string: str,
+    replace_all: bool = False,
+) -> str:
+    """在已有文本文件中做精确替换，生成完整新内容的 file_proposal。"""
+    resolved, err = resolve_workspace_file(client_context, relative_path)
+    if resolved is None:
+        return build_tool_result(
+            ok=False,
+            tool=STR_REPLACE_TOOL_NAME,
+            status="error",
+            summary=f"无法读取文件：{err}",
+        )
+
+    suffix = resolved.suffix.lower()
+    if not is_allowed_text_extension(suffix):
+        return build_tool_result(
+            ok=False,
+            tool=STR_REPLACE_TOOL_NAME,
+            status="error",
+            summary=f"不支持后缀 {suffix!r}，请使用 UTF-8 文本或代码文件。",
+        )
+
+    if not old_string:
+        return build_tool_result(
+            ok=False,
+            tool=STR_REPLACE_TOOL_NAME,
+            status="error",
+            summary="old_string 不能为空。",
+        )
+
+    try:
+        original = resolved.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        try:
+            original = resolved.read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            return build_tool_result(
+                ok=False,
+                tool=STR_REPLACE_TOOL_NAME,
+                status="error",
+                summary="文件不是 UTF-8 文本。",
+            )
+    except OSError as exc:
+        return build_tool_result(
+            ok=False,
+            tool=STR_REPLACE_TOOL_NAME,
+            status="error",
+            summary=f"读取失败：{exc}",
+        )
+
+    count = original.count(old_string)
+    if count == 0:
+        return build_tool_result(
+            ok=False,
+            tool=STR_REPLACE_TOOL_NAME,
+            status="error",
+            summary="未找到 old_string，请先用 read_workspace_file 核对原文。",
+        )
+    if count > 1 and not replace_all:
+        return build_tool_result(
+            ok=False,
+            tool=STR_REPLACE_TOOL_NAME,
+            status="error",
+            summary=f"old_string 出现 {count} 次。请提供更唯一的片段，或设 replace_all=true。",
+        )
+
+    content = original.replace(old_string, new_string) if replace_all else original.replace(
+        old_string, new_string, 1
+    )
+    rel_display = _relative_display_path(client_context, resolved, relative_path)
+    title = resolved.stem.replace("-", " ").replace("_", " ").title()
+    summary = (
+        f"已生成补丁提案：{rel_display}（替换 {count if replace_all else 1} 处）。"
+        "文件尚未写入磁盘；用户确认（Keep All）后才会落盘。"
+    )
+    return build_tool_result(
+        ok=True,
+        tool=STR_REPLACE_TOOL_NAME,
+        status="proposal_ready",
+        summary=summary,
+        file_written=False,
+        proposal_pending=True,
+        **{
+            DOC_PROPOSAL_MARKER: True,
+            "relative_path": rel_display,
+            "title": title,
+            "content": content,
+            "operation": "write",
+        },
+    )
+
+
+def delete_workspace_file_tool(
+    client_context: ClientContextInput | None,
+    relative_path: str,
+) -> str:
+    """准备删除文本文件的提案；用户确认后才删盘。"""
+    resolved, err = resolve_workspace_file(client_context, relative_path)
+    if resolved is None:
+        return build_tool_result(
+            ok=False,
+            tool=DELETE_TOOL_NAME,
+            status="error",
+            summary=f"无法删除文件：{err}",
+        )
+
+    write_resolved, write_err = resolve_workspace_write_path(
+        client_context, relative_path
+    )
+    if write_resolved is None:
+        return build_tool_result(
+            ok=False,
+            tool=DELETE_TOOL_NAME,
+            status="error",
+            summary=f"无法删除文件：{write_err}",
+        )
+
+    suffix = resolved.suffix.lower()
+    if not is_allowed_text_extension(suffix):
+        return build_tool_result(
+            ok=False,
+            tool=DELETE_TOOL_NAME,
+            status="error",
+            summary=f"不支持删除后缀 {suffix!r}。",
+        )
+
+    rel_display = _relative_display_path(client_context, resolved, relative_path)
+    title = f"删除 {resolved.name}"
+    summary = (
+        f"已生成删除提案：{rel_display}。"
+        "文件尚未删除；用户确认（Keep All）后才会从磁盘移除。"
+    )
+    return build_tool_result(
+        ok=True,
+        tool=DELETE_TOOL_NAME,
+        status="proposal_ready",
+        summary=summary,
+        file_written=False,
+        proposal_pending=True,
+        **{
+            DOC_PROPOSAL_MARKER: True,
+            "relative_path": rel_display,
+            "title": title,
+            "content": "",
+            "operation": "delete",
         },
     )
 
@@ -313,11 +483,8 @@ def write_workspace_file_tool(
 def extract_doc_proposal_from_tool_result(
     tool_name: str, result_text: str
 ) -> dict | None:
-    """从 write_workspace_file 工具结果中提取文档提案数据。
-
-    返回 {"relative_path": ..., "title": ..., "content": ...} 或 None。
-    """
-    if tool_name != WRITE_TOOL_NAME:
+    """从写/补丁/删除工具结果中提取文档提案数据。"""
+    if tool_name not in FILE_PROPOSAL_TOOLS:
         return None
     try:
         data = json.loads(result_text)
@@ -325,10 +492,14 @@ def extract_doc_proposal_from_tool_result(
         return None
     if not isinstance(data, dict) or not data.get(DOC_PROPOSAL_MARKER):
         return None
+    operation = str(data.get("operation") or "write")
+    if operation not in ("write", "delete"):
+        operation = "write"
     return {
         "relative_path": str(data.get("relative_path") or "document.md"),
         "title": str(data.get("title") or "文档"),
         "content": str(data.get("content") or ""),
+        "operation": operation,
     }
 
 

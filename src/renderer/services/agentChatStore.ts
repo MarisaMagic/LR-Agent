@@ -5,6 +5,7 @@ import type {
   ChatMessage,
   MessageBlock,
   ProjectAgentUiState,
+  ProposalBlockStatus,
   StreamEvent,
 } from '../../shared/agentTypes';
 import {
@@ -12,6 +13,8 @@ import {
   normalizeHistoricalBlocks,
   WORKSPACE_AGENT_UI_KEY,
 } from '../../shared/agentTypes';
+import { isLrAgentRelativePath } from '../../shared/workspacePathGuards';
+import type { AnnotationBatchProposal } from '../../shared/annotationAgentTypes';
 import { normalizePipelineKindsInBlocks } from './annotationAgent/pipelineKinds';
 import {
   upsertPipelineSteps,
@@ -183,34 +186,12 @@ export function finalizeAnnotationPipelineBlock(
 }
 
 /**
- * 将标注卡片组（batch pipeline + annotation_proposal）移动至消息尾部，
- * 把卡片之后的 text/reasoning/tool_call 块移动到卡片之前，保持叙述→卡片的自然顺序。
- * 组内保持 [pipeline, proposal] 结构与各块相对顺序。
+ * 历史兼容：不再把标注卡挪到消息尾，保持工具 → 提案 → 后续叙述的时间顺序。
  */
 export function normalizeAnnotationCardOrder(
   blocks: MessageBlock[],
 ): MessageBlock[] {
-  const cardIdx = findAnnotationCardIndex(blocks);
-  if (cardIdx < 0) return blocks;
-
-  // 收集卡片组：从首个卡片块起，连续收集 batch pipeline 与 annotation_proposal
-  const cardBlocks: MessageBlock[] = [];
-  let i = cardIdx;
-  for (; i < blocks.length; i += 1) {
-    const b = blocks[i];
-    const isBatchPipeline =
-      b.type === 'annotation_pipeline' &&
-      (b.pipelineKind ?? 'batch') === 'batch';
-    if (isBatchPipeline || b.type === 'annotation_proposal') {
-      cardBlocks.push(b);
-    } else {
-      break;
-    }
-  }
-
-  const before = blocks.slice(0, cardIdx);
-  const after = blocks.slice(i);
-  return [...before, ...after, ...cardBlocks];
+  return blocks;
 }
 
 /** 历史会话加载时修正残留的 streaming / pipeline running 状态。 */
@@ -245,12 +226,12 @@ export function normalizeHistoricalAssistantMessage(
       block.steps.some((step) => step.status === 'running'),
   );
   if (!needsPipelineFix) {
-    return {
+    return ensureFinishedAt({
       ...next,
       blocks: normalizeAnnotationCardOrder(
         normalizePipelineKindsInBlocks(next.blocks),
       ),
-    };
+    });
   }
 
   const terminalStatus = next.status === 'error' ? 'error' : 'done';
@@ -263,12 +244,24 @@ export function normalizeHistoricalAssistantMessage(
     ),
   };
 
-  return {
+  return ensureFinishedAt({
     ...next,
     blocks: normalizeAnnotationCardOrder(
       normalizePipelineKindsInBlocks(next.blocks),
     ),
-  };
+  });
+}
+
+function ensureFinishedAt(message: ChatMessage): ChatMessage {
+  if (message.finishedAt != null) return message;
+  if (
+    message.status !== 'done' &&
+    message.status !== 'stopped' &&
+    message.status !== 'error'
+  ) {
+    return message;
+  }
+  return { ...message, finishedAt: message.updatedAt };
 }
 
 export function normalizeHistoricalMessages(
@@ -281,18 +274,31 @@ export function normalizeHistoricalMessages(
   return next;
 }
 
+function inferAnnotationProposalKind(
+  proposal: AnnotationBatchProposal,
+): 'batch' | 'mutation' {
+  const mutationOps = new Set(['delete', 'patch']);
+  if (
+    proposal.changes.length > 0 &&
+    proposal.changes.every((change) => mutationOps.has(change.operation))
+  ) {
+    return 'mutation';
+  }
+  return 'batch';
+}
+
 /**
  * 定位标注卡片组（batch pipeline / annotation_proposal）首个块的索引，无则 -1。
  * 标注卡片应作为消息尾部展示；晚到的叙述/工具块需插入到该组之前。
  */
 function findAnnotationCardIndex(blocks: MessageBlock[]): number {
   const pipelineIdx = blocks.findIndex(
-    (b) =>
-      b.type === 'annotation_pipeline' &&
-      (b.pipelineKind ?? 'batch') === 'batch',
+    (b) => b.type === 'annotation_pipeline',
   );
-  if (pipelineIdx >= 0) return pipelineIdx;
-  return blocks.findIndex((b) => b.type === 'annotation_proposal');
+  const proposalIdx = blocks.findIndex((b) => b.type === 'annotation_proposal');
+  if (pipelineIdx < 0) return proposalIdx;
+  if (proposalIdx < 0) return pipelineIdx;
+  return Math.min(pipelineIdx, proposalIdx);
 }
 
 function applyAnnotationProgressToBlocks(
@@ -413,6 +419,75 @@ export function resolveFileProposalTitle(
   return typeof title === 'string' && title.trim() ? title : fallback;
 }
 
+function normalizeProposalRelPath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/^\.\//, '');
+}
+
+function toolCallRelativePath(
+  block: Extract<MessageBlock, { type: 'tool_call' }>,
+): string {
+  try {
+    const parsed = JSON.parse(block.arguments) as Record<string, unknown>;
+    const path = parsed.relative_path ?? parsed.relativePath ?? parsed.path;
+    return typeof path === 'string' ? normalizeProposalRelPath(path) : '';
+  } catch {
+    return '';
+  }
+}
+
+function messageHasMatchingDeleteTool(
+  blocks: MessageBlock[],
+  relativePath: string,
+): boolean {
+  const target = normalizeProposalRelPath(relativePath);
+  if (!target) return false;
+  return blocks.some((block) => {
+    if (block.type !== 'tool_call' || block.name !== 'delete_workspace_file') {
+      return false;
+    }
+    return toolCallRelativePath(block) === target;
+  });
+}
+
+function preserveDeleteOperation(
+  resolved: 'write' | 'delete',
+  existing: MessageBlock | undefined,
+): 'write' | 'delete' {
+  if (resolved === 'delete') return 'delete';
+  if (
+    existing &&
+    isFileProposalBlock(existing) &&
+    existing.operation === 'delete'
+  ) {
+    return 'delete';
+  }
+  return 'write';
+}
+
+export function resolveFileProposalOperation(
+  event: Record<string, unknown>,
+  blocks: MessageBlock[] = [],
+): 'write' | 'delete' {
+  const raw = event.operation ?? event.mode;
+  if (raw === 'delete') return 'delete';
+
+  const path = resolveFileProposalPath(event);
+  if (path && messageHasMatchingDeleteTool(blocks, path)) {
+    return 'delete';
+  }
+
+  const content = typeof event.content === 'string' ? event.content : '';
+  const title = resolveFileProposalTitle(event, '');
+  if (
+    !content.trim() &&
+    (/删除/.test(title) || /^\s*deleted?(\s|$)/i.test(title))
+  ) {
+    return 'delete';
+  }
+
+  return 'write';
+}
+
 export function applyStreamEventToBlocks(
   blocks: MessageBlock[],
   event: StreamEvent,
@@ -420,19 +495,6 @@ export function applyStreamEventToBlocks(
   const next = [...blocks];
 
   if (event.type === 'text_delta') {
-    const cardIdx = findAnnotationCardIndex(next);
-    if (cardIdx >= 0) {
-      const prev = next[cardIdx - 1];
-      if (prev?.type === 'text') {
-        next[cardIdx - 1] = {
-          ...prev,
-          content: prev.content + event.content,
-        };
-        return next;
-      }
-      next.splice(cardIdx, 0, { type: 'text', content: event.content });
-      return next;
-    }
     const last = next[next.length - 1];
     if (last?.type === 'text') {
       next[next.length - 1] = {
@@ -446,28 +508,19 @@ export function applyStreamEventToBlocks(
   }
 
   if (event.type === 'reasoning_delta') {
-    const idx = next.findIndex((block) => block.type === 'reasoning');
-    if (idx >= 0) {
-      const block = next[idx];
-      if (block.type === 'reasoning') {
-        next[idx] = {
-          ...block,
-          content: block.content + event.content,
-        };
-      }
+    const last = next[next.length - 1];
+    if (last?.type === 'reasoning') {
+      next[next.length - 1] = {
+        ...last,
+        content: last.content + event.content,
+      };
       return next;
     }
-    const block = {
-      type: 'reasoning' as const,
+    next.push({
+      type: 'reasoning',
       content: event.content,
       collapsed: false,
-    };
-    const cardIdx = findAnnotationCardIndex(next);
-    if (cardIdx >= 0) {
-      next.splice(cardIdx, 0, block);
-      return next;
-    }
-    next.push(block);
+    });
     return next;
   }
 
@@ -511,11 +564,6 @@ export function applyStreamEventToBlocks(
       status: 'running',
       collapsed: true,
     };
-    const cardIdx = findAnnotationCardIndex(next);
-    if (cardIdx >= 0) {
-      next.splice(cardIdx, 0, toolBlock);
-      return next;
-    }
     next.push(toolBlock);
     return next;
   }
@@ -559,51 +607,61 @@ export function applyStreamEventToBlocks(
         };
       }
     }
-    const block = {
+    const incoming = {
       type: 'annotation_proposal' as const,
       proposal: event.proposal,
       status: 'pending' as const,
     };
-    const withoutProposal: MessageBlock[] = next.filter(
-      (b) => b.type !== 'annotation_proposal',
+    const existingIdx = next.findIndex(
+      (b) =>
+        b.type === 'annotation_proposal' && b.proposal.id === event.proposal.id,
     );
-    const existing = next.find((b) => b.type === 'annotation_proposal');
-    const status =
-      existing?.type === 'annotation_proposal' ? existing.status : block.status;
-    const nextBlock = { ...block, status };
-    // 紧贴 batch pipeline 之后插入，确保 [pipeline, proposal] 成组落在消息尾部
-    const pipelineIdx = withoutProposal.findIndex(
+    if (existingIdx >= 0) {
+      const existing = next[existingIdx];
+      const status =
+        existing.type === 'annotation_proposal' ? existing.status : incoming.status;
+      next[existingIdx] = { ...incoming, status };
+      return next;
+    }
+    const kind = inferAnnotationProposalKind(event.proposal);
+    const pipelineIdx = next.findIndex(
       (b) =>
         b.type === 'annotation_pipeline' &&
-        (b.pipelineKind ?? 'batch') === 'batch',
+        (b.pipelineKind ?? 'batch') === kind,
     );
     if (pipelineIdx >= 0) {
-      withoutProposal.splice(pipelineIdx + 1, 0, nextBlock);
+      next.splice(pipelineIdx + 1, 0, incoming);
     } else {
-      withoutProposal.push(nextBlock);
+      next.push(incoming);
     }
-    return withoutProposal;
+    return next;
   }
 
   if (event.type === 'file_proposal_start') {
     const raw = event as Record<string, unknown>;
+    const suggestedRelativePath = resolveFileProposalPath(raw);
+    if (isLrAgentRelativePath(suggestedRelativePath)) {
+      return next;
+    }
+    const existingIdx = next.findIndex(
+      (b) =>
+        (b.type === 'file_proposal' || b.type === 'document_proposal') &&
+        b.suggestedRelativePath === suggestedRelativePath,
+    );
+    const existing = existingIdx >= 0 ? next[existingIdx] : undefined;
     const block = {
       type: 'file_proposal' as const,
       title: resolveFileProposalTitle(raw),
       content: '',
-      suggestedRelativePath: resolveFileProposalPath(raw),
-      status: 'pending' as 'pending' | 'applied' | 'dismissed',
+      suggestedRelativePath,
+      status: 'pending' as ProposalBlockStatus,
+      operation: preserveDeleteOperation(
+        resolveFileProposalOperation(raw, next),
+        existing,
+      ),
     };
-    // 按 suggestedRelativePath 去重：同一路径的创建块只保留一个
-    const path = block.suggestedRelativePath;
-    const existingIdx = next.findIndex(
-      (b) =>
-        (b.type === 'file_proposal' || b.type === 'document_proposal') &&
-        b.suggestedRelativePath === path,
-    );
     if (existingIdx >= 0) {
-      const existing = next[existingIdx];
-      if (isFileProposalBlock(existing) && existing.status !== 'pending') {
+      if (existing && isFileProposalBlock(existing) && existing.status !== 'pending') {
         block.status = existing.status;
       }
       next[existingIdx] = block;
@@ -615,6 +673,9 @@ export function applyStreamEventToBlocks(
 
   if (event.type === 'file_proposal_delta') {
     const deltaPath = resolveFileProposalPath(event as Record<string, unknown>);
+    if (deltaPath && isLrAgentRelativePath(deltaPath)) {
+      return next;
+    }
     for (let i = 0; i < next.length; i += 1) {
       const candidate = next[i];
       if (!isFileProposalBlock(candidate)) continue;
@@ -647,14 +708,9 @@ export function applyStreamEventToBlocks(
     }
     const raw = event as Record<string, unknown>;
     let path = resolveFileProposalPath(raw);
-    const block = {
-      type: 'file_proposal' as const,
-      title: resolveFileProposalTitle(raw),
-      content: event.content ?? '',
-      suggestedRelativePath: path,
-      status: (event.status ?? 'pending') as
-        'pending' | 'applied' | 'dismissed',
-    };
+    if (path && isLrAgentRelativePath(path)) {
+      return next;
+    }
     let existingIdx = -1;
     if (path) {
       existingIdx = next.findIndex(
@@ -668,13 +724,23 @@ export function applyStreamEventToBlocks(
         if (!isFileProposalBlock(candidate)) continue;
         existingIdx = i;
         path = candidate.suggestedRelativePath;
-        block.suggestedRelativePath = path;
         break;
       }
     }
+    const existing = existingIdx >= 0 ? next[existingIdx] : undefined;
+    const block = {
+      type: 'file_proposal' as const,
+      title: resolveFileProposalTitle(raw),
+      content: event.content ?? '',
+      suggestedRelativePath: path,
+      status: (event.status ?? 'pending') as ProposalBlockStatus,
+      operation: preserveDeleteOperation(
+        resolveFileProposalOperation(raw, next),
+        existing,
+      ),
+    };
     if (existingIdx >= 0) {
-      const existing = next[existingIdx];
-      if (isFileProposalBlock(existing) && existing.status !== 'pending') {
+      if (existing && isFileProposalBlock(existing) && existing.status !== 'pending') {
         block.status = existing.status;
       }
       next[existingIdx] = block;

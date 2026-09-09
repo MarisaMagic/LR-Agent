@@ -14,6 +14,7 @@
 import { app } from 'electron';
 import fs from 'fs-extra';
 import path from 'path';
+import { readAnnotationIndex } from '../annotation/annotationDataStore';
 
 /** 索引注入上限：前 200 行 / 25KB */
 const INDEX_MAX_LINES = 200;
@@ -24,6 +25,23 @@ const TOPIC_MAX_CHARS = 64_000;
 const SCOPE_KEY_PATTERN = /^projects\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const TOPIC_FILE_PATTERN =
   /^[A-Za-z0-9\u4e00-\u9fa5][A-Za-z0-9\u4e00-\u9fa5._-]*\.md$/;
+
+export const SYSTEM_FACT_TOPIC_FILES = [
+  'progress.md',
+  'annotated-files.md',
+] as const;
+
+export const SYSTEM_FACT_TOPIC_READONLY = 'system_fact_topic_readonly';
+
+export function isSystemFactTopic(topicFile: string): boolean {
+  return (SYSTEM_FACT_TOPIC_FILES as readonly string[]).includes(topicFile);
+}
+
+export function assertAgentWritableTopic(topicFile: string): void {
+  if (isSystemFactTopic(topicFile)) {
+    throw new Error(SYSTEM_FACT_TOPIC_READONLY);
+  }
+}
 
 /** 当前活动记忆作用域（renderer 发消息时设置，MCP 工具使用） */
 let activeScopeKey = '';
@@ -326,6 +344,134 @@ export async function createMemoryTopic(options: {
     options.indexLine,
   );
   return { topicPath };
+}
+
+/** 覆盖或新建 topic（系统事实同步使用）。 */
+export async function upsertMemoryTopic(options: {
+  scopeKey: string;
+  topicFile: string;
+  content: string;
+  indexLine?: string;
+}): Promise<{ topicPath: string }> {
+  const topicPath = resolveTopicPath(options.scopeKey, options.topicFile);
+  await fs.ensureDir(path.dirname(topicPath));
+  await fs.writeFile(topicPath, options.content, 'utf-8');
+  await updateMemoryIndex(
+    options.scopeKey,
+    options.topicFile,
+    options.indexLine,
+  );
+  return { topicPath };
+}
+
+function formatFactSyncTime(now: Date): string {
+  return now.toISOString();
+}
+
+export function buildWorkspaceFactMarkdown(options: {
+  annotated: Array<{ relativePath: string; annotationCount: number }>;
+  emptied: Array<{ relativePath: string; annotationCount: number }>;
+  syncedAt: Date;
+}): {
+  progressContent: string;
+  progressIndexLine: string;
+  filesContent: string;
+  filesIndexLine: string;
+} {
+  const annotatedCount = options.annotated.length;
+  const annotationTotal =
+    options.annotated.reduce((sum, item) => sum + item.annotationCount, 0) +
+    options.emptied.reduce((sum, item) => sum + item.annotationCount, 0);
+  const synced = formatFactSyncTime(options.syncedAt);
+  const banner = `> 由系统根据标注索引生成，请勿手改计数。上次同步：${synced}`;
+
+  const hasAny = annotatedCount > 0 || options.emptied.length > 0;
+  const progressBody = hasAny
+    ? `- 已标文件：${annotatedCount}\n- 标注条数：${annotationTotal}`
+    : '尚无已落盘标注。';
+  const progressContent = `# 进度\n${banner}\n\n${progressBody}\n`;
+  const progressIndexLine = hasAny
+    ? `- [进度](topics/progress.md)：已标 ${annotatedCount} 个文件，共 ${annotationTotal} 条`
+    : '- [进度](topics/progress.md)：尚无已落盘标注';
+
+  const annotatedLines =
+    options.annotated.length > 0
+      ? options.annotated
+          .map((item) => `- ${item.relativePath} (${item.annotationCount})`)
+          .join('\n')
+      : '- （无）';
+  const emptiedSection =
+    options.emptied.length > 0
+      ? `\n## 已清空\n${options.emptied
+          .map((item) => `- ${item.relativePath} (${item.annotationCount})`)
+          .join('\n')}\n`
+      : '';
+  const filesContent = `# 已标文件\n${banner}\n\n## 已标\n${annotatedLines}\n${emptiedSection}`;
+  const filesIndexLine = hasAny
+    ? `- [已标文件](topics/annotated-files.md)：${annotatedCount} 个文件`
+    : '- [已标文件](topics/annotated-files.md)：尚无已落盘标注';
+
+  return {
+    progressContent,
+    progressIndexLine,
+    filesContent,
+    filesIndexLine,
+  };
+}
+
+/**
+ * 根据项目 annotations/index.json 重写系统事实 topic。
+ * 不要求 MCP 记忆已激活。
+ */
+export async function syncWorkspaceFactTopics(options: {
+  scopeKey: string;
+  projectDir: string;
+}): Promise<{ annotatedFiles: number; annotationCount: number }> {
+  if (!SCOPE_KEY_PATTERN.test(options.scopeKey)) {
+    throw new Error(`invalid_memory_scope: ${options.scopeKey}`);
+  }
+
+  const index = await readAnnotationIndex(options.projectDir);
+  const annotated: Array<{ relativePath: string; annotationCount: number }> =
+    [];
+  const emptied: Array<{ relativePath: string; annotationCount: number }> = [];
+  if (index) {
+    const entries = Object.values(index.files).sort((a, b) =>
+      a.relativePath.localeCompare(b.relativePath),
+    );
+    for (const entry of entries) {
+      const item = {
+        relativePath: entry.relativePath,
+        annotationCount: entry.annotationCount,
+      };
+      if (entry.annotationCount > 0) annotated.push(item);
+      else emptied.push(item);
+    }
+  }
+
+  const markdown = buildWorkspaceFactMarkdown({
+    annotated,
+    emptied,
+    syncedAt: new Date(),
+  });
+  await upsertMemoryTopic({
+    scopeKey: options.scopeKey,
+    topicFile: 'progress.md',
+    content: markdown.progressContent,
+    indexLine: markdown.progressIndexLine,
+  });
+  await upsertMemoryTopic({
+    scopeKey: options.scopeKey,
+    topicFile: 'annotated-files.md',
+    content: markdown.filesContent,
+    indexLine: markdown.filesIndexLine,
+  });
+  return {
+    annotatedFiles: annotated.length,
+    annotationCount:
+      annotated.reduce((sum, item) => sum + item.annotationCount, 0) +
+      emptied.reduce((sum, item) => sum + item.annotationCount, 0),
+  };
 }
 
 /** 确保 scope 目录存在并返回绝对路径（供 UI 打开目录） */

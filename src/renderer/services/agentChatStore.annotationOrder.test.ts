@@ -43,22 +43,30 @@ function pipelineBlock(
   };
 }
 
-function proposalBlock(): Extract<
-  MessageBlock,
-  { type: 'annotation_proposal' }
-> {
+function proposalBlock(
+  id = 'p1',
+  operation: 'append' | 'delete' = 'append',
+): Extract<MessageBlock, { type: 'annotation_proposal' }> {
+  const change =
+    operation === 'delete'
+      ? {
+          relativePath: 'data/8.jpg',
+          absolutePath: 'C:/proj/data/8.jpg',
+          operation: 'delete' as const,
+          deleteIds: ['unlabeled-1'],
+          annotations: [],
+        }
+      : {
+          relativePath: '测试文本.txt',
+          absolutePath: 'C:/proj/测试文本.txt',
+          operation: 'append' as const,
+          annotations: [],
+        };
   const proposal = {
-    id: 'p1',
+    id,
     projectId: 'proj-1',
-    summary: '批量标注',
-    changes: [
-      {
-        relativePath: '测试文本.txt',
-        absolutePath: 'C:/proj/测试文本.txt',
-        operation: 'append' as const,
-        annotations: [],
-      },
-    ],
+    summary: operation === 'delete' ? '删除无标签框' : '批量标注',
+    changes: [change],
     stats: {
       kind: 'generic' as const,
       processed: 1,
@@ -71,19 +79,19 @@ function proposalBlock(): Extract<
 }
 
 describe('applyStreamEventToBlocks annotation card ordering', () => {
-  it('places late text_delta before an existing annotation_proposal', () => {
+  it('appends late text_delta after an existing annotation_proposal', () => {
     let blocks: MessageBlock[] = [proposalBlock()];
     blocks = applyStreamEventToBlocks(blocks, {
       type: 'text_delta',
       content: '让我先查看项目结构。',
     });
-    expect(blocks.map((b) => b.type)).toEqual(['text', 'annotation_proposal']);
-    const text = blocks[0];
+    expect(blocks.map((b) => b.type)).toEqual(['annotation_proposal', 'text']);
+    const text = blocks[1];
     if (text.type !== 'text') throw new Error('expected text');
     expect(text.content).toContain('让我先查看');
   });
 
-  it('merges consecutive late text_delta into one text block before the card', () => {
+  it('merges consecutive late text_delta into one trailing text block', () => {
     let blocks: MessageBlock[] = [pipelineBlock(), proposalBlock()];
     blocks = applyStreamEventToBlocks(blocks, {
       type: 'text_delta',
@@ -94,16 +102,16 @@ describe('applyStreamEventToBlocks annotation card ordering', () => {
       content: '第二句。',
     });
     expect(blocks.map((b) => b.type)).toEqual([
-      'text',
       'annotation_pipeline',
       'annotation_proposal',
+      'text',
     ]);
-    const text = blocks[0];
+    const text = blocks[2];
     if (text.type !== 'text') throw new Error('expected text');
     expect(text.content).toBe('第一句。第二句。');
   });
 
-  it('inserts new tool_call before the card, and tool_result updates in place', () => {
+  it('appends new tool_call after the card, and tool_result updates in place', () => {
     let blocks: MessageBlock[] = [pipelineBlock(), proposalBlock()];
     blocks = applyStreamEventToBlocks(blocks, {
       type: 'tool_start',
@@ -112,9 +120,9 @@ describe('applyStreamEventToBlocks annotation card ordering', () => {
       arguments: '{}',
     });
     expect(blocks.map((b) => b.type)).toEqual([
-      'tool_call',
       'annotation_pipeline',
       'annotation_proposal',
+      'tool_call',
     ]);
     blocks = applyStreamEventToBlocks(blocks, {
       type: 'tool_result',
@@ -122,25 +130,25 @@ describe('applyStreamEventToBlocks annotation card ordering', () => {
       result: 'Explored 1 file',
     });
     expect(blocks.map((b) => b.type)).toEqual([
-      'tool_call',
       'annotation_pipeline',
       'annotation_proposal',
+      'tool_call',
     ]);
-    const tool = blocks[0];
+    const tool = blocks[2];
     if (tool.type !== 'tool_call') throw new Error('expected tool_call');
     expect(tool.result).toContain('Explored');
   });
 
-  it('inserts new reasoning block before the card', () => {
+  it('appends new reasoning block after the card', () => {
     let blocks: MessageBlock[] = [pipelineBlock(), proposalBlock()];
     blocks = applyStreamEventToBlocks(blocks, {
       type: 'reasoning_delta',
       content: '已思考',
     });
     expect(blocks.map((b) => b.type)).toEqual([
-      'reasoning',
       'annotation_pipeline',
       'annotation_proposal',
+      'reasoning',
     ]);
   });
 
@@ -166,6 +174,73 @@ describe('applyStreamEventToBlocks annotation card ordering', () => {
     expect(blocks.map((b) => b.type)).toEqual(['text', 'annotation_proposal']);
   });
 
+  it('keeps two annotation proposals with different ids', () => {
+    let blocks: MessageBlock[] = [
+      textBlock('开头叙述'),
+      pipelineBlock(),
+      proposalBlock('batch-1', 'append'),
+      pipelineBlock({ pipelineKind: 'mutation' }),
+    ];
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'annotation_proposal',
+      proposal: proposalBlock('mut-1', 'delete').proposal,
+    });
+    const proposals = blocks.filter(
+      (b): b is Extract<MessageBlock, { type: 'annotation_proposal' }> =>
+        b.type === 'annotation_proposal',
+    );
+    expect(proposals.map((b) => b.proposal.id)).toEqual(['batch-1', 'mut-1']);
+    expect(blocks.map((b) => b.type)).toEqual([
+      'text',
+      'annotation_pipeline',
+      'annotation_proposal',
+      'annotation_pipeline',
+      'annotation_proposal',
+    ]);
+  });
+
+  it('upserts annotation_proposal with the same id and keeps status', () => {
+    let blocks: MessageBlock[] = [proposalBlock('p1', 'append')];
+    const existing = blocks[0] as Extract<
+      MessageBlock,
+      { type: 'annotation_proposal' }
+    >;
+    existing.status = 'applied';
+    const updated = proposalBlock('p1', 'append').proposal;
+    updated.summary = '更新后的摘要';
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'annotation_proposal',
+      proposal: updated,
+    });
+    const proposals = blocks.filter((b) => b.type === 'annotation_proposal');
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]).toMatchObject({
+      type: 'annotation_proposal',
+      status: 'applied',
+      proposal: { id: 'p1', summary: '更新后的摘要' },
+    });
+  });
+
+  it('places mutation proposal after the mutation pipeline', () => {
+    let blocks: MessageBlock[] = [
+      pipelineBlock(),
+      proposalBlock('batch-1', 'append'),
+      pipelineBlock({ pipelineKind: 'mutation' }),
+    ];
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'annotation_proposal',
+      proposal: proposalBlock('mut-1', 'delete').proposal,
+    });
+    expect(
+      blocks.map((b) => (b as { pipelineKind?: string }).pipelineKind ?? b.type),
+    ).toEqual(['batch', 'annotation_proposal', 'mutation', 'annotation_proposal']);
+    const last = blocks[blocks.length - 1];
+    expect(last.type).toBe('annotation_proposal');
+    if (last.type === 'annotation_proposal') {
+      expect(last.proposal.id).toBe('mut-1');
+    }
+  });
+
   it('keeps original behavior (append) when no card exists', () => {
     let blocks: MessageBlock[] = [reasoningBlock('思考')];
     blocks = applyStreamEventToBlocks(blocks, {
@@ -177,7 +252,7 @@ describe('applyStreamEventToBlocks annotation card ordering', () => {
 });
 
 describe('normalizeAnnotationCardOrder', () => {
-  it('moves card blocks to the tail while preserving group structure', () => {
+  it('keeps chronological order instead of moving cards to the tail', () => {
     const blocks: MessageBlock[] = [
       toolCallBlock('list_workspace_directory'),
       pipelineBlock(),
@@ -189,11 +264,11 @@ describe('normalizeAnnotationCardOrder', () => {
     const out = normalizeAnnotationCardOrder(blocks);
     expect(out.map((b) => b.type)).toEqual([
       'tool_call',
+      'annotation_pipeline',
+      'annotation_proposal',
       'text',
       'tool_call',
       'text',
-      'annotation_pipeline',
-      'annotation_proposal',
     ]);
   });
 
@@ -204,7 +279,7 @@ describe('normalizeAnnotationCardOrder', () => {
 });
 
 describe('normalizeHistoricalAssistantMessage', () => {
-  it('reorders a persisted assistant message with card after narrative', () => {
+  it('keeps a persisted assistant message in chronological order', () => {
     const message = {
       id: 'm1',
       sessionId: 's1',
@@ -222,9 +297,10 @@ describe('normalizeHistoricalAssistantMessage', () => {
     };
     const out = normalizeHistoricalAssistantMessage(message);
     expect(out.blocks.map((b) => b.type)).toEqual([
-      'text',
       'annotation_pipeline',
       'annotation_proposal',
+      'text',
     ]);
+    expect(out.finishedAt).toBe(2);
   });
 });

@@ -6,19 +6,19 @@ import './AgentReasoningBlock.css';
 interface AgentReasoningBlockProps {
   block: Extract<MessageBlock, { type: 'reasoning' }>;
   streaming?: boolean;
+  label?: string;
   onToggle: () => void;
 }
 
 export default function AgentReasoningBlock({
   block,
   streaming = false,
+  label: labelOverride,
   onToggle,
 }: AgentReasoningBlockProps) {
-  const label = streaming
-    ? '思考中…'
-    : block.content.trim()
-      ? '已思考'
-      : '思考过程';
+  const label =
+    labelOverride ??
+    (streaming ? 'Thinking…' : block.content.trim() ? 'Thought' : 'Thought');
 
   return (
     <div className="agent-reasoning-block">

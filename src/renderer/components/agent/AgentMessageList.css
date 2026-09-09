@@ -4,7 +4,7 @@
 }
 
 .agent-message-list {
-  padding: 12px 36px;
+  padding: 12px 36px min(28vh, 240px);
 }
 
 .agent-message-list-loading {

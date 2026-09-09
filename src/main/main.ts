@@ -34,6 +34,7 @@ import {
 import { initializeDatabase, closeDatabase } from './db/database';
 import { registerDbHandlers } from './db/handlers';
 import { registerMemoryHandlers } from './memory/handlers';
+import { registerCheckpointHandlers } from './checkpoint/handlers';
 import { registerSkillHandlers } from './skills/handlers';
 import registerEnvHandlers from './env/envHandlers';
 import {
@@ -783,6 +784,7 @@ app
     registerQualityReportHandlers();
     registerDbHandlers();
     registerMemoryHandlers();
+    registerCheckpointHandlers();
     registerSkillHandlers();
     registerEnvHandlers();
     // 启动本地 MCP Server（异步，失败不阻断窗口创建）

@@ -2,16 +2,43 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-bottom: 20px;
 }
 
 .agent-message-item--user {
   align-items: stretch;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  isolation: isolate;
+  overflow: visible;
+  margin-left: -36px;
+  margin-right: calc(
+    -36px + var(--agent-overlay-scrollbar-size, 6px) +
+      var(--agent-overlay-scrollbar-inset, 3px) * 2
+  );
+  padding: 12px 36px 8px;
+  background: var(--lr-agent-panel-background);
+}
+
+.agent-message-item--user::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 16px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--lr-agent-panel-background),
+    transparent
+  );
 }
 
 .agent-message-item--assistant {
   align-items: stretch;
   position: relative;
+  margin-bottom: 20px;
 }
 
 /* ── User bubble (Cursor-style) ── */
@@ -116,10 +143,12 @@
 }
 
 .agent-assistant-actions {
-  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
-.agent-assistant-menu-trigger {
+.agent-assistant-action {
   width: 28px;
   height: 28px;
   display: inline-flex;
@@ -133,57 +162,18 @@
   border-radius: 6px;
 }
 
-.agent-assistant-menu-trigger vscode-icon {
+.agent-assistant-action vscode-icon {
   color: inherit;
 }
 
-.agent-assistant-menu-trigger:hover {
+.agent-assistant-action:hover:not(:disabled) {
   color: var(--vscode-foreground, #cccccc);
   background: rgba(128, 128, 128, 0.15);
 }
 
-.agent-assistant-menu {
-  position: absolute;
-  right: 0;
-  bottom: 100%;
-  margin-bottom: 4px;
-  min-width: 140px;
-  padding: 4px;
-  border-radius: 8px;
-  border: 1px solid var(--vscode-panel-border, #3c3c3c);
-  background: var(--vscode-menu-background, #252526);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-  z-index: 20;
-  transform-origin: bottom right;
-  will-change: transform, opacity;
-}
-
-.agent-assistant-menu button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--vscode-menu-foreground, #cccccc);
-  font-size: var(--agent-font-small);
-  text-align: left;
-  cursor: pointer;
-}
-
-.agent-assistant-menu button:hover:not(:disabled) {
-  background: var(--vscode-list-hoverBackground, #2a2d2e);
-}
-
-.agent-assistant-menu button:disabled {
+.agent-assistant-action:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-.agent-assistant-menu vscode-icon {
-  display: flex;
 }
 
 .agent-message-meta {

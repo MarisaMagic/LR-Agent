@@ -85,6 +85,19 @@ def _build_async_tool_arguments(
         scope = parsed_args.get("scope_hint")
         if isinstance(scope, str) and scope.strip():
             args["scope_hint"] = scope.strip()
+        if isinstance(parsed_args.get("all_files"), bool):
+            args["all_files"] = parsed_args["all_files"]
+        write_mode = parsed_args.get("write_mode")
+        if write_mode in ("append", "replace_matching"):
+            args["write_mode"] = write_mode
+        paths = parsed_args.get("paths")
+        if isinstance(paths, list):
+            args["paths"] = [str(p).strip() for p in paths if str(p).strip()]
+        annotation_ids = parsed_args.get("annotation_ids")
+        if isinstance(annotation_ids, list):
+            args["annotation_ids"] = [
+                str(i).strip() for i in annotation_ids if str(i).strip()
+            ]
     return args
 
 
@@ -185,9 +198,13 @@ def normalize_api_tool_calls(
     calls: list[ResolvedToolCall] = []
     for call in api_tool_calls or []:
         name = str(call.get("name") or "").strip()
-        if not name or name in completed:
+        if not name:
             continue
-        tool_id = str(call.get("id") or f"tool-{uuid.uuid4().hex[:12]}")
+        tool_id = str(call.get("id") or "").strip()
+        if tool_id and tool_id in completed:
+            continue
+        if not tool_id:
+            tool_id = f"tool-{uuid.uuid4().hex[:12]}"
         args = call.get("args") or {}
         if not isinstance(args, dict):
             try:

@@ -5,22 +5,31 @@ from app.schemas.agent import AnnotationProjectSnapshotInput, ClientContextInput
 
 # 精简后的 prompt 常量 —— 规则由代码层承担，不靠模型理解
 VISION_HINT = """- 看图描述：按需调用 read_image_for_vision。
-- 查已有标注 JSON：read_file_annotation。"""
+- 查已有标注：read_file_annotation。"""
 
-# 不同标注类型的工具使用指导
-ANNOTATION_TOOL_GUIDE = {
-    "bbox": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。",
-    "caption": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。",
-    "classification": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。",
-    "polygon": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。需配置检测模型与 SAM2 分割模型。",
-    "keypoint": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。需先选择骨架模板并配置关键点模型。",
-    "rotated_bbox": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。需配置 OBB 检测模型。",
-    "span_ner": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。",
-    "text_classification": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。",
-    "instruction": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。",
-    "preference": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。",
-    "conversation": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。",
-    "cot": "【标注工具】使用 auto_annotate 执行自动标注。scope_hint 从目录浏览结果中取 relativePath 值。",
+_ANNOTATION_SCOPE_HINT = (
+    "【标注工具】paths 填 list_workspace_directory 的 relativePath；全部文件才设 all_files=true。"
+)
+_ANNOTATION_KNOWN_TYPES: frozenset[str] = frozenset(
+    {
+        "bbox",
+        "caption",
+        "classification",
+        "polygon",
+        "keypoint",
+        "rotated_bbox",
+        "span_ner",
+        "text_classification",
+        "instruction",
+        "preference",
+        "conversation",
+        "cot",
+    }
+)
+_ANNOTATION_TYPE_EXTRAS: dict[str, str] = {
+    "polygon": "需配置检测模型与 SAM2 分割模型。",
+    "keypoint": "需先选择骨架模板并配置关键点模型。",
+    "rotated_bbox": "需配置 OBB 检测模型。",
 }
 
 # 不需要展示检测模型列表的标注类型
@@ -28,12 +37,14 @@ _DETECTION_MODEL_TYPES: frozenset[str] = frozenset({"bbox", "polygon", "keypoint
 
 WORKSPACE_ASSIST_TASK = """【任务】在 LR-Agent 内回答用户问题，按需使用工具完成读/写/分析操作。
 {vision_hint}
-- 用自然、简洁的中文回复。"""
+- 用自然、简洁的中文回复。
+- 调用工具前先用一两句中文说明下一步要做什么。"""
 
-ASSISTANT_TASK_BASE = """【任务】在 LR-Agent 内完成问答、标注、分析、写文件等任务。
-按需使用工具；系统自动管理文件写入确认与工具调度。
+ASSISTANT_TASK_BASE = """【任务】在 LR-Agent 内完成问答、标注、分析、写文件。
+- 新增/重写标注用 auto_annotate；改已有标注用 mutate_annotation。不要用写文件工具保存标注。
+- 写文件工具只用于工作区文档与代码。
 {vision_hint}
-- 用自然、简洁的中文回复。"""
+- 用简洁中文回复；调用工具前用一两句说明下一步。"""
 
 # 向后兼容保留旧常量引用（如有外部引用）
 WRITE_TOOL_GUIDE = ""
@@ -95,10 +106,11 @@ def format_snapshot_for_prompt(snapshot: AnnotationProjectSnapshotInput) -> str:
         lines.append("可用检测模型（object_detection）:")
         lines.extend(model_lines or ["- （未配置或未传入）"])
 
-    # 追加工具使用指导
-    tool_guide = ANNOTATION_TOOL_GUIDE.get(annotation_type)
-    if tool_guide:
-        lines.append(tool_guide)
+    if annotation_type in _ANNOTATION_KNOWN_TYPES:
+        extra = _ANNOTATION_TYPE_EXTRAS.get(annotation_type)
+        lines.append(
+            f"{_ANNOTATION_SCOPE_HINT} {extra}" if extra else _ANNOTATION_SCOPE_HINT
+        )
 
     return "\n".join(lines)
 
@@ -189,18 +201,22 @@ def build_assist_system_prompt(
         index_block = (
             memory_index
             if memory_index
-            else "（尚无工作区记忆文件。完成后用 memory_create 建立 progress.md、annotated-files.md 等。）"
+            else "（尚无工作区记忆文件。进度与已标文件将在用户确认或保存标注后由系统生成。）"
         )
         base = (
             f"{base}\n\n【工作区记忆】\n{index_block}\n"
             "这是本标注任务的工作区记忆，可有多个 Markdown 文件。"
-            "需要细节时用 memory_read；新建专题用 memory_create；更新已有文件用 memory_write。"
-            "本轮标注或流水线结束后，必须更新完成情况与已标/跳过文件"
-            "（建议 topics/progress.md、topics/annotated-files.md）。"
+            "progress.md 与 annotated-files.md 由系统在用户确认或标注落盘后更新；"
+            "需要细节时用 memory_read，不要凭印象改计数。"
+            "memory_create / memory_write 只用于用户规范、标注偏好与纠正"
+            "（如 conventions.md、preferences.md）；不要把未确认提案写成已完成。"
             "项目指令优先级高于记忆。"
         )
     skills = (client_context.skills_catalog or []) if client_context else []
     skills_block = format_skills_catalog_block(skills)
     if skills_block:
         base = f"{base}\n\n{skills_block}"
+    ledger = (client_context.proposal_ledger or "").strip() if client_context else ""
+    if ledger:
+        base = f"{base}\n\n{ledger}"
     return base

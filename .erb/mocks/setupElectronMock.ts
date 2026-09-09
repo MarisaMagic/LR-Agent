@@ -112,6 +112,7 @@ Object.defineProperty(window, 'electron', {
     workspace: {
       writeTextFile: jest.fn().mockResolvedValue({ success: true }),
       readTextFile: jest.fn().mockResolvedValue({ success: true, content: '' }),
+      deleteTextFile: jest.fn().mockResolvedValue({ success: true }),
     },
     env: {
       getStatus: jest.fn().mockResolvedValue(null),
@@ -125,6 +126,22 @@ Object.defineProperty(window, 'electron', {
     pretrainedModels: {
       getAll: jest.fn().mockResolvedValue([]),
       saveAll: jest.fn().mockResolvedValue(undefined),
+    },
+    memory: {
+      readIndex: jest.fn().mockResolvedValue(null),
+      setActive: jest.fn().mockResolvedValue(undefined),
+      listEntries: jest.fn().mockResolvedValue([]),
+      syncFacts: jest.fn().mockResolvedValue({
+        annotatedFiles: 0,
+        annotationCount: 0,
+      }),
+    },
+    checkpoint: {
+      capture: jest.fn().mockResolvedValue({}),
+      recordAfter: jest.fn().mockResolvedValue({}),
+      restore: jest.fn().mockResolvedValue({ ok: true, restoredPaths: [] }),
+      discard: jest.fn().mockResolvedValue(undefined),
+      has: jest.fn().mockResolvedValue(false),
     },
     dialog: {
       confirm: jest.fn().mockResolvedValue(true),

@@ -1,5 +1,4 @@
 import type { MessageBlock } from '../../types/agent';
-import { shouldHideToolCallInChat } from './agentAssistantRenderUtils';
 import {
   buildExplorationSummary,
   isExplorationTool,
@@ -22,33 +21,36 @@ export type AssistantRenderSegment =
 
 function isVisibleExplorationTool(
   block: MessageBlock,
-  blocks: MessageBlock[],
 ): block is ToolCallBlock {
-  return (
-    block.type === 'tool_call' &&
-    isExplorationTool(block.name) &&
-    !shouldHideToolCallInChat(block, blocks)
-  );
+  return block.type === 'tool_call' && isExplorationTool(block.name);
 }
 
 export function buildAssistantRenderSegments(
   blocks: MessageBlock[],
+  indexOrder?: number[],
 ): AssistantRenderSegment[] {
+  const order = indexOrder ?? blocks.map((_, index) => index);
   const segments: AssistantRenderSegment[] = [];
-  let index = 0;
+  let cursor = 0;
 
-  while (index < blocks.length) {
+  while (cursor < order.length) {
+    const index = order[cursor];
     const block = blocks[index];
+    if (!block) {
+      cursor += 1;
+      continue;
+    }
 
-    if (isVisibleExplorationTool(block, blocks)) {
+    if (isVisibleExplorationTool(block)) {
       const group: ToolCallBlock[] = [];
-      while (index < blocks.length) {
-        const current = blocks[index];
-        if (!isVisibleExplorationTool(current, blocks)) {
+      while (cursor < order.length) {
+        const currentIndex = order[cursor];
+        const current = blocks[currentIndex];
+        if (!current || !isVisibleExplorationTool(current)) {
           break;
         }
         group.push(current);
-        index += 1;
+        cursor += 1;
       }
       segments.push({
         kind: 'exploration',
@@ -60,7 +62,7 @@ export function buildAssistantRenderSegments(
     }
 
     segments.push({ kind: 'block', block, index });
-    index += 1;
+    cursor += 1;
   }
 
   return segments;

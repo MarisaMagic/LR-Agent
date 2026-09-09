@@ -2,7 +2,11 @@ import type { MessageBlock } from '../../types/agent';
 import { isFileProposalBlock } from '../../../shared/agentTypes';
 
 /** 与后端 tool_registry_meta 中 PROPOSAL runner 对齐 */
-export const PROPOSAL_TOOL_NAMES = new Set(['write_workspace_file']);
+export const PROPOSAL_TOOL_NAMES = new Set([
+  'write_workspace_file',
+  'str_replace_workspace_file',
+  'delete_workspace_file',
+]);
 
 /** 会生成 pipeline / proposal 的客户端工具 */
 export const CLIENT_PIPELINE_TOOL_NAMES = new Set([
@@ -23,30 +27,11 @@ function normalizeForCompare(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/** 提案类 tool_call 在消息流中隐藏（详情由 Keep All 栏承接）。 */
+/** 工具调用一律展示；提案卡与工具行并存。 */
 export function shouldHideToolCallInChat(
-  block: Extract<MessageBlock, { type: 'tool_call' }>,
-  blocks: MessageBlock[],
+  _block: Extract<MessageBlock, { type: 'tool_call' }>,
+  _blocks: MessageBlock[],
 ): boolean {
-  if (PROPOSAL_TOOL_NAMES.has(block.name)) {
-    return findFileProposalBlock(blocks) != null;
-  }
-
-  if (!CLIENT_PIPELINE_TOOL_NAMES.has(block.name)) {
-    return false;
-  }
-
-  if (block.name === 'auto_annotate' || block.name === 'mutate_annotation') {
-    return (
-      blocks.some((b) => b.type === 'annotation_proposal') ||
-      blocks.some(
-        (b) =>
-          b.type === 'annotation_pipeline' &&
-          (b.pipelineKind ?? 'batch') === 'batch',
-      )
-    );
-  }
-
   return false;
 }
 

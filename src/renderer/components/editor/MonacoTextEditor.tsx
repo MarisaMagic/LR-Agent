@@ -24,6 +24,8 @@ interface MonacoTextEditorProps {
   tabId: string;
   /** Used only on first open when no cached model exists in the document store. */
   bootstrapContent?: string;
+  /** When set, force this content into the model (Agent 提案预览，可覆盖已缓存磁盘内容). */
+  previewContent?: string;
   dirty?: boolean;
   readOnly?: boolean;
   visible?: boolean;
@@ -34,6 +36,7 @@ export default function MonacoTextEditor({
   filePath,
   tabId,
   bootstrapContent,
+  previewContent,
   dirty = false,
   readOnly = false,
   visible = true,
@@ -41,12 +44,15 @@ export default function MonacoTextEditor({
 }: MonacoTextEditorProps) {
   const { effectiveTheme } = useTheme();
   const [loading, setLoading] = useState(false);
+  const [diskEpoch, setDiskEpoch] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const currentPathRef = useRef('');
   const currentTabIdRef = useRef(tabId);
   const onDirtyChangeRef = useRef(onDirtyChange);
   const bootstrapContentRef = useRef(bootstrapContent);
+  const previewContentRef = useRef(previewContent);
+  const diskEpochRef = useRef(0);
   const disposablesRef = useRef<monaco.IDisposable[]>([]);
   const loadGenerationRef = useRef(0);
   const readOnlyRef = useRef(readOnly);
@@ -55,6 +61,7 @@ export default function MonacoTextEditor({
   currentTabIdRef.current = tabId;
   onDirtyChangeRef.current = onDirtyChange;
   bootstrapContentRef.current = bootstrapContent;
+  previewContentRef.current = previewContent;
   readOnlyRef.current = readOnly;
   themeRef.current = effectiveTheme;
 
@@ -89,6 +96,10 @@ export default function MonacoTextEditor({
         const currentTabId = currentTabIdRef.current;
         const model = editorInstance.getModel();
         if (!path || !currentTabId || !model) return;
+        if (readOnlyRef.current) {
+          onDirtyChangeRef.current(currentTabId, false);
+          return;
+        }
 
         const next = model.getValue();
         const saved = getSavedText(path);
@@ -125,6 +136,28 @@ export default function MonacoTextEditor({
   }, [effectiveTheme]);
 
   useEffect(() => {
+    const onChanged = (event: Event) => {
+      const paths = (event as CustomEvent<{ paths?: string[] }>).detail?.paths;
+      if (!filePath || !Array.isArray(paths) || paths.length === 0) return;
+      const matched = paths.some((relative) => {
+        const normalized = relative.replace(/\\/g, '/').toLowerCase();
+        return filePath.replace(/\\/g, '/').toLowerCase().endsWith(normalized);
+      });
+      if (matched) setDiskEpoch((value) => value + 1);
+    };
+    window.addEventListener(
+      'lr-agent:workspace-text-files-changed',
+      onChanged,
+    );
+    return () => {
+      window.removeEventListener(
+        'lr-agent:workspace-text-files-changed',
+        onChanged,
+      );
+    };
+  }, [filePath]);
+
+  useEffect(() => {
     if (!visible || !filePath) {
       setLoading(false);
       return undefined;
@@ -136,6 +169,9 @@ export default function MonacoTextEditor({
     setLoading(true);
 
     const isStale = () => cancelled || generation !== loadGenerationRef.current;
+    const previewText = previewContentRef.current;
+    const forceReload =
+      previewText !== undefined || diskEpoch !== diskEpochRef.current;
 
     const run = async () => {
       const editorInstance = await ensureEditor();
@@ -145,6 +181,7 @@ export default function MonacoTextEditor({
       const existingModel = getDocumentModel(filePath);
 
       if (
+        !forceReload &&
         existingModel &&
         editorInstance.getModel() === existingModel &&
         previousPath === filePath
@@ -154,7 +191,9 @@ export default function MonacoTextEditor({
       }
 
       let text: string | undefined;
-      if (hasDocument(filePath)) {
+      if (previewText !== undefined) {
+        text = previewText;
+      } else if (!forceReload && hasDocument(filePath)) {
         text = existingModel?.getValue();
       } else {
         text = bootstrapContentRef.current;
@@ -168,7 +207,12 @@ export default function MonacoTextEditor({
       if (isStale()) return;
 
       attachDocumentToEditor(editorInstance, filePath, model, previousPath);
+      if (previewText !== undefined) {
+        markDocumentSaved(filePath, text);
+        onDirtyChangeRef.current(currentTabIdRef.current, false);
+      }
       currentPathRef.current = filePath;
+      diskEpochRef.current = diskEpoch;
       scheduleEditorLayout(editorInstance);
       setLoading(false);
     };
@@ -183,7 +227,7 @@ export default function MonacoTextEditor({
     return () => {
       cancelled = true;
     };
-  }, [ensureEditor, filePath, visible]);
+  }, [diskEpoch, ensureEditor, filePath, previewContent, visible]);
 
   useEffect(() => {
     if (!visible || !editorRef.current) return;

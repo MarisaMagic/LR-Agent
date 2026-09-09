@@ -18,6 +18,22 @@
   --agent-surface-focus-outline: rgba(255, 255, 255, 0.35);
 }
 
+.agent-edit-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.agent-edit-stats__add {
+  color: #3fb950;
+}
+
+.agent-edit-stats__del {
+  color: #f85149;
+}
+
 [data-theme='light'] {
   --agent-change-block-border: 1px solid rgba(0, 0, 0, 0.1);
   --agent-change-block-bg: rgba(0, 0, 0, 0.02);
@@ -38,6 +54,10 @@
 
 .agent-change-block__body-wrap {
   position: relative;
+}
+
+.agent-change-block__body-wrap--expandable {
+  padding-bottom: 36px;
 }
 
 /* 折叠预览：底部渐变 + 透明 expand 浮层 */

@@ -88,6 +88,7 @@ def test_read_workspace_text(client_context: ClientContextInput, settings: Setti
     content = read_workspace_text_file(client_context, "notes.md", settings=settings)
     assert "Title" in content
     assert content.startswith("文件：")
+    assert "     1|# Title" in content
 
 
 def test_read_workspace_line_range(client_context: ClientContextInput, settings: Settings) -> None:
@@ -100,6 +101,7 @@ def test_read_workspace_line_range(client_context: ClientContextInput, settings:
     )
     assert "行范围：L2-L3" in content
     assert "print('hello')" in content
+    assert "     2|" in content
     assert "class Foo" not in content
 
 
@@ -159,3 +161,62 @@ def test_read_document_docx(
     ctx = ClientContextInput(workspace_root=str(workspace))
     text = read_document_file(ctx, "readme.docx", settings=settings)
     assert "Hello DOCX" in text
+
+
+def test_write_path_rejects_lr_agent_dir(client_context: ClientContextInput) -> None:
+    from app.agent.tools.workspace_path import resolve_workspace_write_path
+
+    resolved, err = resolve_workspace_write_path(
+        client_context,
+        ".lr-agent/annotations/files/abc.json",
+    )
+    assert resolved is None
+    assert "auto_annotate" in err
+    assert "mutate_annotation" in err
+
+
+def test_write_path_allows_normal_file(client_context: ClientContextInput) -> None:
+    from app.agent.tools.workspace_path import resolve_workspace_write_path
+
+    resolved, err = resolve_workspace_write_path(client_context, "reports/summary.md")
+    assert err == ""
+    assert resolved is not None
+    assert resolved.name == "summary.md"
+
+
+def test_str_replace_unique_match(client_context: ClientContextInput) -> None:
+    from app.agent.tools.workspace_file_reader import str_replace_workspace_file_tool
+    import json
+
+    raw = str_replace_workspace_file_tool(
+        client_context,
+        "src/main.py",
+        "print('hello')",
+        "print('hi')",
+    )
+    data = json.loads(raw)
+    assert data["ok"] is True
+    assert "print('hi')" in data["content"]
+    assert data["operation"] == "write"
+
+
+def test_str_replace_requires_unique_match(client_context: ClientContextInput, workspace) -> None:
+    from app.agent.tools.workspace_file_reader import str_replace_workspace_file_tool
+    import json
+
+    (workspace / "dup.txt").write_text("foo\nfoo\n", encoding="utf-8")
+    raw = str_replace_workspace_file_tool(client_context, "dup.txt", "foo", "bar")
+    data = json.loads(raw)
+    assert data["ok"] is False
+    assert "出现" in data["summary"]
+
+
+def test_delete_workspace_file_proposal(client_context: ClientContextInput) -> None:
+    from app.agent.tools.workspace_file_reader import delete_workspace_file_tool
+    import json
+
+    raw = delete_workspace_file_tool(client_context, "notes.md")
+    data = json.loads(raw)
+    assert data["ok"] is True
+    assert data["operation"] == "delete"
+    assert data["relative_path"].endswith("notes.md")

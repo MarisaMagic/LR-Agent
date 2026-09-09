@@ -95,6 +95,12 @@ function mapDbMessage(row: DbMessageRow): ChatMessage {
     error: row.error ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    finishedAt:
+      row.status === 'done' ||
+      row.status === 'stopped' ||
+      row.status === 'error'
+        ? row.updated_at
+        : undefined,
   };
 }
 

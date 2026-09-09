@@ -1,77 +1,10 @@
 @import './AgentChangeBlock.shared.css';
 
-.agent-file-change-block {
-  margin: 8px 0;
-  border: var(--agent-change-block-border);
-  border-radius: var(--agent-change-block-radius);
-  background: var(--agent-change-block-bg);
-  overflow: hidden;
-  font-size: var(--agent-change-block-font-size);
+.agent-file-change-block__body {
   --agent-change-block-fade-to: var(
     --vscode-editor-background,
     rgba(0, 0, 0, 0.15)
   );
-}
-
-.agent-file-change-block--applied {
-  opacity: 0.85;
-}
-
-.agent-file-change-block__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 32px;
-  padding: 4px 8px;
-  border: none;
-  background: var(--agent-change-block-header-bg);
-  color: var(--vscode-foreground, #cccccc);
-  cursor: pointer;
-  text-align: left;
-}
-
-.agent-file-change-block__header:hover {
-  background: var(--agent-change-block-header-hover);
-}
-
-.agent-file-change-block__name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--vscode-font-family);
-}
-
-.agent-file-change-block__stats {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  font-size: var(--lr-ui-font-caption);
-  font-weight: 500;
-}
-
-.agent-file-change-block__stat-add {
-  color: #3fb950;
-}
-
-.agent-file-change-block__stat-del {
-  color: #f85149;
-}
-
-.agent-file-change-block__badge {
-  flex-shrink: 0;
-  padding: 0 6px;
-  border-radius: 4px;
-  background: rgba(63, 185, 80, 0.15);
-  color: #3fb950;
-  font-size: var(--lr-ui-font-caption);
-}
-
-.agent-file-change-block__body {
-  border-top: var(--agent-change-block-body-border);
 }
 
 .agent-file-change-block__diff-wrap--full .agent-file-change-block__diff,
@@ -114,8 +47,16 @@
 .agent-file-change-block__diff-prefix {
   flex-shrink: 0;
   width: 16px;
-  opacity: 0.7;
+  opacity: 0.85;
   user-select: none;
+}
+
+.agent-file-change-block__diff-line--added .agent-file-change-block__diff-prefix {
+  color: #3fb950;
+}
+
+.agent-file-change-block__diff-line--removed .agent-file-change-block__diff-prefix {
+  color: #f85149;
 }
 
 .agent-file-change-block__diff-code {
@@ -143,7 +84,6 @@
   word-break: break-word;
 }
 
-/* highlight.js 主题会给 .hljs 加强制 block 背景；diff 行内仅保留 token 颜色 */
 .agent-file-change-block__diff-code.hljs,
 .agent-file-change-block__diff .hljs {
   display: inline !important;
@@ -152,7 +92,16 @@
   overflow: visible;
 }
 
-.agent-file-change-block__loading {
-  padding: 8px 12px;
-  color: var(--agent-surface-muted-text);
+.agent-file-change-block__loading,
+.agent-file-change-block__delete-note {
+  padding: 4px 0;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font-size: var(--agent-font-small);
+}
+
+.agent-file-diff-view--fill {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
 }

@@ -137,8 +137,21 @@ export function validateMutations(
       if (patch.labelId != null && !validLabelIds.has(patch.labelId)) {
         errors.push(`${change.relativePath}: 未知标签 id ${patch.labelId}`);
       }
-      if (patch.labelId == null && patch.note == null) {
+      if (!patchHasPayload(patch)) {
         errors.push(`${change.relativePath}: patch ${patch.id} 无有效字段`);
+      }
+      errors.push(
+        ...validatePatchGeometry(patch).map(
+          (msg) => `${change.relativePath}: ${msg}`,
+        ),
+      );
+      const existing = (doc?.annotations ?? []).find((a) => a.id === patch.id);
+      if (existing) {
+        errors.push(
+          ...validatePatchForKind(existing, patch).map(
+            (msg) => `${change.relativePath}: ${msg}`,
+          ),
+        );
       }
     }
   }
@@ -161,16 +174,149 @@ export function validateMutations(
   return { valid: errors.length === 0, errors };
 }
 
+function isNormCoord(n: number | undefined): boolean {
+  return n === undefined || (Number.isFinite(n) && n >= 0 && n <= 1);
+}
+
+function isNormSize(n: number | undefined): boolean {
+  return n === undefined || (Number.isFinite(n) && n > 0 && n <= 1);
+}
+
+export function patchHasPayload(patch: AnnotationPatch): boolean {
+  return (
+    patch.labelId !== undefined ||
+    patch.note !== undefined ||
+    patch.x !== undefined ||
+    patch.y !== undefined ||
+    patch.width !== undefined ||
+    patch.height !== undefined ||
+    (patch.points != null && patch.points.length >= 3) ||
+    patch.text !== undefined ||
+    patch.granularity !== undefined ||
+    patch.language !== undefined ||
+    patch.steps !== undefined ||
+    patch.answer !== undefined ||
+    patch.instruction !== undefined
+  );
+}
+
+function validatePatchGeometry(patch: AnnotationPatch): string[] {
+  const errors: string[] = [];
+  if (!isNormCoord(patch.x) || !isNormCoord(patch.y)) {
+    errors.push(`patch ${patch.id} 坐标必须在 0–1`);
+  }
+  if (!isNormSize(patch.width) || !isNormSize(patch.height)) {
+    errors.push(`patch ${patch.id} 宽高必须在 (0, 1]`);
+  }
+  if (patch.points) {
+    if (patch.points.length < 3) {
+      errors.push(`patch ${patch.id} 多边形至少 3 个点`);
+    }
+    if (
+      patch.points.some((p) => !isNormCoord(p.x) || !isNormCoord(p.y))
+    ) {
+      errors.push(`patch ${patch.id} 多边形顶点必须在 0–1`);
+    }
+  }
+  return errors;
+}
+
+function validatePatchForKind(
+  ann: AnnotationInstance,
+  patch: AnnotationPatch,
+): string[] {
+  const errors: string[] = [];
+  const hasCaption =
+    patch.text !== undefined ||
+    patch.granularity !== undefined ||
+    patch.language !== undefined;
+  const hasCot =
+    patch.steps !== undefined ||
+    patch.answer !== undefined ||
+    patch.instruction !== undefined;
+
+  if (patch.points && ann.kind !== 'polygon') {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入多边形点`);
+  }
+  if (
+    (patch.x !== undefined ||
+      patch.y !== undefined ||
+      patch.width !== undefined ||
+      patch.height !== undefined) &&
+    ann.kind !== 'bbox'
+  ) {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入 bbox 几何`);
+  }
+  if (hasCaption && ann.kind !== 'caption') {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入 caption 字段`);
+  }
+  if (hasCot && ann.kind !== 'cot') {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入 CoT 字段`);
+  }
+  if (patch.steps && patch.steps.length < 2) {
+    errors.push(`patch ${patch.id} CoT 至少 2 步`);
+  }
+  return errors;
+}
+
 function applyPatchToAnnotation(
   ann: AnnotationInstance,
   patch: AnnotationPatch,
 ): AnnotationInstance {
   if (ann.id !== patch.id) return ann;
   const now = new Date().toISOString();
+  const labelId = patch.labelId !== undefined ? patch.labelId : ann.labelId;
+  const note = patch.note !== undefined ? patch.note : ann.note;
+
+  if (ann.kind === 'bbox') {
+    return {
+      ...ann,
+      labelId,
+      note,
+      updatedAt: now,
+      x: patch.x ?? ann.x,
+      y: patch.y ?? ann.y,
+      width: patch.width ?? ann.width,
+      height: patch.height ?? ann.height,
+    };
+  }
+  if (ann.kind === 'polygon') {
+    return {
+      ...ann,
+      labelId,
+      note,
+      updatedAt: now,
+      points:
+        patch.points && patch.points.length >= 3 ? patch.points : ann.points,
+    };
+  }
+  if (ann.kind === 'caption') {
+    return {
+      ...ann,
+      labelId,
+      note,
+      updatedAt: now,
+      text: patch.text ?? ann.text,
+      granularity: patch.granularity ?? ann.granularity,
+      language: patch.language ?? ann.language,
+    };
+  }
+  if (ann.kind === 'cot') {
+    return {
+      ...ann,
+      labelId,
+      note,
+      updatedAt: now,
+      steps: patch.steps ?? ann.steps,
+      answer: patch.answer ?? ann.answer,
+      instruction:
+        patch.instruction !== undefined ? patch.instruction : ann.instruction,
+    };
+  }
   return {
     ...ann,
-    ...(patch.labelId !== undefined ? { labelId: patch.labelId } : {}),
-    ...(patch.note !== undefined ? { note: patch.note } : {}),
+    labelId,
+    note,
     updatedAt: now,
   };
 }
@@ -256,6 +402,39 @@ export function mergeProposalChangesIntoDoc(
   return doc;
 }
 
+function groupChangesByPath(
+  changes: AnnotationBatchChange[],
+): Map<string, AnnotationBatchChange[]> {
+  const groups = new Map<string, AnnotationBatchChange[]>();
+  for (const change of changes) {
+    const list = groups.get(change.relativePath) ?? [];
+    list.push(change);
+    groups.set(change.relativePath, list);
+  }
+  return groups;
+}
+
+/** Validate and fold changes for one file in memory; throw before any write. */
+export function foldValidatedChangesIntoDoc(
+  parsed: FileAnnotationDocument | null,
+  changes: AnnotationBatchChange[],
+  project: AnnotationProject,
+  hint: SourceFreshnessHint = {},
+): FileAnnotationDocument {
+  let doc = parsed;
+  for (const change of changes) {
+    const validation = validateMutations(doc, change, project.labels);
+    if (!validation.valid) {
+      throw new Error(validation.errors.join('；'));
+    }
+    doc = applyChangeToDoc(doc, change, project, hint);
+  }
+  if (!doc) {
+    throw new Error('foldValidatedChangesIntoDoc: no document produced');
+  }
+  return doc;
+}
+
 export async function applyMutations(
   project: AnnotationProject,
   changes: AnnotationBatchChange[],
@@ -271,56 +450,55 @@ export async function applyMutations(
   let appliedDeletes = 0;
   const relativePaths: string[] = [];
 
-  for (const change of changes) {
+  for (const group of groupChangesByPath(changes).values()) {
+    const first = group[0];
+    if (!first) continue;
     const raw = await window.electron?.annotation?.readFileAnnotationDoc(
       projectDir,
-      change.relativePath,
+      first.relativePath,
     );
     const parsed = raw ? parseFileAnnotationDocument(raw) : null;
-    const fullValidation = validateMutations(parsed, change, project.labels);
-    if (!fullValidation.valid) {
-      throw new Error(fullValidation.errors.join('；'));
-    }
-
-    const hint = await statsForPath(change.absolutePath);
+    const hint = await statsForPath(first.absolutePath);
     if (!options?.skipFreshnessCheck && parsed?.source) {
       const freshness = checkSourceFreshness(parsed.source, hint);
       if (!freshness.fresh) {
         const proceed = options?.onFreshnessConflict?.(
-          change.relativePath,
+          first.relativePath,
           freshness.reason ?? '文件已变更',
         );
         if (!proceed) {
           throw new Error(
             freshness.reason ??
-              `${change.relativePath}: 源文件已变更，已取消应用`,
+              `${first.relativePath}: 源文件已变更，已取消应用`,
           );
         }
       }
     }
 
-    const doc = applyChangeToDoc(parsed, change, project, hint);
+    const doc = foldValidatedChangesIntoDoc(parsed, group, project, hint);
 
     await window.electron?.annotation?.writeFileAnnotationDoc(
       projectDir,
-      change.relativePath,
+      first.relativePath,
       doc,
       hint,
     );
 
     appliedFiles += 1;
-    relativePaths.push(change.relativePath);
+    relativePaths.push(first.relativePath);
 
-    if (
-      change.operation === 'append' ||
-      change.operation === 'replace' ||
-      change.operation === 'replace_bboxes'
-    ) {
-      appliedBoxes += change.annotations?.length ?? 0;
-    } else if (change.operation === 'patch') {
-      appliedPatches += change.patches?.length ?? 0;
-    } else if (change.operation === 'delete') {
-      appliedDeletes += change.deleteIds?.length ?? 0;
+    for (const change of group) {
+      if (
+        change.operation === 'append' ||
+        change.operation === 'replace' ||
+        change.operation === 'replace_bboxes'
+      ) {
+        appliedBoxes += change.annotations?.length ?? 0;
+      } else if (change.operation === 'patch') {
+        appliedPatches += change.patches?.length ?? 0;
+      } else if (change.operation === 'delete') {
+        appliedDeletes += change.deleteIds?.length ?? 0;
+      }
     }
   }
 
@@ -347,16 +525,22 @@ export async function applyAnnotationBatchProposal(
 export function dispatchMutationsAppliedEvent(
   projectId: string,
   relativePaths: string[],
+  options?: { force?: boolean },
 ): void {
+  const detail = {
+    projectId,
+    relativePaths,
+    force: Boolean(options?.force),
+  };
   window.dispatchEvent(
     new CustomEvent('lr-agent:annotation-mutations-applied', {
-      detail: { projectId, relativePaths },
+      detail,
     }),
   );
   // Backward compat for existing listeners
   window.dispatchEvent(
     new CustomEvent('lr-agent:annotation-batch-applied', {
-      detail: { projectId, relativePaths },
+      detail,
     }),
   );
 }

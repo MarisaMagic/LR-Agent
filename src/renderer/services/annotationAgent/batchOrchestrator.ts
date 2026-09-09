@@ -10,7 +10,11 @@ import { ANNOTATION_BATCH_MAX_FILES } from '../../../shared/annotationAgentTypes
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
 import { getRelativeProjectPath } from '../../utils/projectPaths';
 import type { AnnotationInstance } from '../../types/annotationDocument';
-import { resolveScopeHintPaths, type InputPathEntry } from './scopePathUtil';
+import { resolveAnnotationScopePaths, type InputPathEntry } from './scopePathUtil';
+import {
+  attachRewriteDeletes,
+  inferAnnotationWritePolicy,
+} from './annotationWritePolicy';
 import { runGeometryPipeline } from './geometryBatchPipeline';
 import {
   isGeometryAnnotationType,
@@ -63,6 +67,9 @@ export async function* runAnnotationBatchJob(options: {
   providerModel?: string;
   providerSupportsVision?: boolean;
   scopeHint?: string;
+  scopePaths?: string[];
+  allFiles?: boolean;
+  writeMode?: 'append' | 'replace_matching';
 }): AsyncGenerator<AnnotationProgressEvent> {
   const { project } = options;
   const isCancelled = () =>
@@ -126,13 +133,27 @@ const TEXT_SOURCE_ANNOTATION_TYPES: Set<string> = new Set([
 
 async function resolveScopePathsForProject(
   allPaths: InputPathEntry[],
-  scopeHint: string | undefined,
+  options: {
+    scopeHint?: string;
+    scopePaths?: string[];
+    allFiles?: boolean;
+    preselectedPaths?: string[];
+  },
   projectDir: string,
-): Promise<InputPathEntry[]> {
-  return resolveScopeHintPaths(
+): Promise<{ paths: InputPathEntry[]; error?: string }> {
+  const preselected = (options.preselectedPaths ?? []).filter(Boolean);
+  return resolveAnnotationScopePaths(
     allPaths,
-    scopeHint,
-    projectDir,
+    {
+      paths:
+        options.scopePaths && options.scopePaths.length > 0
+          ? options.scopePaths
+          : preselected.length > 0
+            ? preselected
+            : undefined,
+      allFiles: options.allFiles,
+      scopeHint: options.scopeHint,
+    },
     ANNOTATION_BATCH_MAX_FILES,
     async (relativePath) =>
       window.electron?.annotationAgent?.resolveRelativeFile?.(
@@ -155,6 +176,10 @@ async function* runGeneratePipeline(
     providerSupportsVision?: boolean;
     abortSignal?: AbortSignal;
     scopeHint?: string;
+    scopePaths?: string[];
+    allFiles?: boolean;
+    writeMode?: 'append' | 'replace_matching';
+    preselectedPaths?: string[];
   },
   isCancelled: () => boolean,
   annotationType: GenerateType,
@@ -182,11 +207,16 @@ async function* runGeneratePipeline(
     );
   }
 
-  inputPaths = await resolveScopePathsForProject(
+  const scoped = await resolveScopePathsForProject(
     inputPaths,
-    options.scopeHint,
+    options,
     project.directoryPath,
   );
+  if (scoped.error) {
+    yield { type: 'error', message: scoped.error };
+    return;
+  }
+  inputPaths = scoped.paths;
 
   if (isCancelled()) return;
 
@@ -394,11 +424,22 @@ async function* runGeneratePipeline(
     cancelled: isCancelled(),
   };
 
+  const writePolicy = inferAnnotationWritePolicy(
+    userRequest,
+    annotationType,
+    options.writeMode ?? 'append',
+  );
+  const proposalChanges = await attachRewriteDeletes(
+    succeeded,
+    project.directoryPath,
+    writePolicy,
+  );
+
   const proposal: AnnotationBatchProposal = {
     id: createAgentId('proposal'),
     projectId: project.projectId,
     summary: `批量${annotationTypeLabel}标注生成：${succeeded.length} 项，共 ${totalAnnotations} 条`,
-    changes: succeeded,
+    changes: proposalChanges,
     stats,
     createdAt: Date.now(),
   };

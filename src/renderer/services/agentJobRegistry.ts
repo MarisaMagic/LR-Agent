@@ -7,7 +7,10 @@ import type {
   ClientToolResult,
   StreamEvent,
 } from '../../shared/agentTypes';
-import type { AnnotationProjectSnapshot } from '../../shared/annotationAgentTypes';
+import type {
+  AnnotationBatchChange,
+  AnnotationProjectSnapshot,
+} from '../../shared/annotationAgentTypes';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import { mockChatStream } from './agentStreamMock';
 import { streamChatDirectly } from './localChatClient';
@@ -18,6 +21,10 @@ import {
 import { startAnnotationBatchJob } from './annotationBatchJob';
 import { startAnnotationMutationJob } from './annotationMutationBatchJob';
 import { createDebugLogger } from './agentDebugLogger';
+import {
+  TurnToolHistoryAccumulator,
+  mergeResumeMessages,
+} from './turnToolHistory';
 
 export type JobEventListener = (event: StreamEvent) => void;
 
@@ -89,6 +96,8 @@ export interface ClientToolContext {
   currentFileAbsolutePath: string | null;
   /** 对话上下文 transcript，透传给 batch/mutation prepare API */
   conversationTranscript?: string;
+  /** 当前会话未 Keep All 的标注提案 changes，供 mutate 叠到磁盘工作集 */
+  pendingAnnotationChanges?: AnnotationBatchChange[];
 }
 
 /**
@@ -107,6 +116,32 @@ type ClientToolResultPayload = {
 
 function formatClientToolResult(payload: ClientToolResultPayload): string {
   return JSON.stringify(payload);
+}
+
+export function formatAnnotationToolResult(options: {
+  status: 'completed' | 'error' | 'skipped';
+  tool: 'auto_annotate' | 'mutate_annotation';
+  userRequest: string;
+  summary: string;
+  hasProposal: boolean;
+}): string {
+  const pendingNote = options.hasProposal
+    ? '已生成待确认提案（未写盘）。'
+    : options.tool === 'mutate_annotation'
+      ? '未生成提案，不要对用户说已删除或已修改。'
+      : '未生成提案，不要对用户说已标注完成。';
+  const summary = options.hasProposal
+    ? `${pendingNote}${options.summary}`
+    : `${options.summary} ${pendingNote}`;
+  return formatClientToolResult({
+    status: options.status,
+    tool: options.tool,
+    user_request: options.userRequest,
+    summary: summary.trim(),
+    message: summary.trim(),
+    file_written: false,
+    proposal_pending: options.hasProposal,
+  });
 }
 
 /** 直连 LLM 时后端无法注入摘要，把摘要拼入 systemPrompt */
@@ -128,6 +163,23 @@ function pendingToolCallsFromEvent(
     return (e.toolCalls ?? e.client_tool_calls) as ClientToolCall[] | null;
   }
   return null;
+}
+
+function parseStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function parseWriteMode(value: unknown): 'append' | 'replace_matching' {
+  return value === 'replace_matching' ? 'replace_matching' : 'append';
 }
 
 const ANNOTATION_CLIENT_TOOLS = new Set(['auto_annotate', 'mutate_annotation']);
@@ -168,6 +220,19 @@ async function runClientTool(
     });
   }
 
+  if (
+    clientContext?.agentMode !== 'annotation' &&
+    ANNOTATION_CLIENT_TOOLS.has(toolCall.name)
+  ) {
+    return formatClientToolResult({
+      status: 'error',
+      tool: toolCall.name,
+      user_request: userRequest,
+      summary: 'Ask 模式下不可写入标注',
+      message: 'annotation_tools_disabled_in_ask_mode',
+    });
+  }
+
   if (toolCall.name === 'auto_annotate') {
     if (!ctx) {
       return formatClientToolResult({
@@ -178,9 +243,16 @@ async function runClientTool(
         message: '未绑定标注项目，无法执行自动标注',
       });
     }
-    const scopeHint =
-      (toolCall.arguments as { scope_hint?: string }).scope_hint?.trim() ||
-      undefined;
+    const args = toolCall.arguments as {
+      scope_hint?: string;
+      paths?: unknown;
+      all_files?: unknown;
+      write_mode?: unknown;
+    };
+    const scopePaths = parseStringList(args.paths);
+    const scopeHint = args.scope_hint?.trim() || undefined;
+    const allFiles = args.all_files === true;
+    const writeMode = parseWriteMode(args.write_mode);
     const controller = new AbortController();
     signal.addEventListener('abort', () => controller.abort());
     const onEvent = (event: StreamEvent): void => {
@@ -203,24 +275,25 @@ async function runClientTool(
         providerModel,
         providerSupportsVision,
         scopeHint,
+        scopePaths,
+        allFiles,
+        writeMode,
       });
-      return formatClientToolResult({
+      return formatAnnotationToolResult({
         status:
           batchResult.status === 'completed' ? 'completed' : batchResult.status,
         tool: 'auto_annotate',
-        user_request: userRequest,
+        userRequest,
         summary: batchResult.summary,
-        message: batchResult.summary,
-        file_written: false,
+        hasProposal: batchResult.hasProposal,
       });
     } catch {
-      return formatClientToolResult({
+      return formatAnnotationToolResult({
         status: 'error',
         tool: 'auto_annotate',
-        user_request: userRequest,
+        userRequest,
         summary: '自动标注流水线执行失败',
-        message: '自动标注流水线执行失败',
-        file_written: false,
+        hasProposal: false,
       });
     }
   }
@@ -235,10 +308,14 @@ async function runClientTool(
         message: '未绑定标注项目，无法执行标注变更',
       });
     }
+    const mutateArgs = toolCall.arguments as {
+      paths?: unknown;
+      annotation_ids?: unknown;
+    };
     const controller = new AbortController();
     signal.addEventListener('abort', () => controller.abort());
     try {
-      await startAnnotationMutationJob({
+      const mutateResult = await startAnnotationMutationJob({
         jobId,
         providerId,
         userRequest,
@@ -248,16 +325,32 @@ async function runClientTool(
         currentFileAbsolutePath: ctx.currentFileAbsolutePath,
         signal: controller.signal,
         onEvent: emit,
+        paths: parseStringList(mutateArgs.paths),
+        annotationIds: parseStringList(mutateArgs.annotation_ids),
+        pendingAnnotationChanges: ctx.pendingAnnotationChanges,
+        providerApiKey,
+        providerBaseUrl,
+        providerModel,
+      });
+      return formatAnnotationToolResult({
+        status:
+          mutateResult.status === 'completed'
+            ? 'completed'
+            : mutateResult.status,
+        tool: 'mutate_annotation',
+        userRequest,
+        summary: mutateResult.summary,
+        hasProposal: mutateResult.hasProposal,
       });
     } catch {
-      // already emitted
+      return formatAnnotationToolResult({
+        status: 'error',
+        tool: 'mutate_annotation',
+        userRequest,
+        summary: '标注变更流水线执行失败',
+        hasProposal: false,
+      });
     }
-    return formatClientToolResult({
-      status: 'completed',
-      tool: 'mutate_annotation',
-      user_request: userRequest,
-      summary: '标注变更流水线已完成，提案已发送给用户确认。',
-    });
   }
 
   return formatClientToolResult({
@@ -313,16 +406,19 @@ export async function startChatJob(options: {
   const debugLogger = createDebugLogger(options.jobId);
   debugLogger.logJobState(JobState.Registered);
 
-  // Log send context once at entry
-  const msgsForSend = buildBackendMessages(
+  const priorMessages = buildBackendMessages(
     options.messageIds,
     options.sessionMessages,
+    { excludeMessageIds: new Set([options.assistantMessageId]) },
   );
+  const turnHistory = new TurnToolHistoryAccumulator();
+
+  // Log send context once at entry
   debugLogger.logSendContext({
     jobId: options.jobId,
     providerId: options.providerId,
     sessionId: options.session.id,
-    messages: msgsForSend,
+    messages: priorMessages,
     userContent: options.userContent,
     clientContext: options.clientContext,
     clientToolResults: undefined,
@@ -340,6 +436,11 @@ export async function startChatJob(options: {
       debugLogger.logJobState(JobState.Resuming);
     }
 
+    const resumeMessages =
+      accumulatedResults.length > 0
+        ? mergeResumeMessages(priorMessages, turnHistory.snapshot())
+        : priorMessages;
+
     const stream = useDirect
       ? streamChatDirectly(
           {
@@ -350,10 +451,7 @@ export async function startChatJob(options: {
             sessionId: options.session.id,
             userMessageId: options.userMessageId,
             assistantMessageId: options.assistantMessageId,
-            messages: buildBackendMessages(
-              options.messageIds,
-              options.sessionMessages,
-            ),
+            messages: priorMessages,
             userContent: options.userContent,
             systemPrompt: composeDirectSystemPrompt(
               options.systemPrompt,
@@ -369,10 +467,7 @@ export async function startChatJob(options: {
               sessionId: options.session.id,
               userMessageId: options.userMessageId,
               assistantMessageId: options.assistantMessageId,
-              messages: buildBackendMessages(
-                options.messageIds,
-                options.sessionMessages,
-              ),
+              messages: resumeMessages,
               context: {
                 summary: options.session.contextSummary,
                 summaryUpToMessageId: options.session.summaryUpToMessageId,
@@ -401,6 +496,7 @@ export async function startChatJob(options: {
     let accumulatedText = '';
 
     for await (const event of stream) {
+      turnHistory.apply(event);
       emitJobEvent(options.jobId, event);
       options.onPersistEvent?.(event);
 
@@ -580,6 +676,9 @@ export async function startAnnotationMutationJobRunner(options: {
   project: AnnotationProjectSnapshot;
   currentFileAbsolutePath: string | null;
   onPersistEvent?: (event: StreamEvent) => void;
+  providerApiKey?: string;
+  providerBaseUrl?: string;
+  providerModel?: string;
 }): Promise<void> {
   if (runningJobs.has(options.jobId)) return;
 
@@ -603,6 +702,9 @@ export async function startAnnotationMutationJobRunner(options: {
       signal: controller.signal,
       onEvent: (event) => emitJobEvent(options.jobId, event),
       onPersistEvent: options.onPersistEvent,
+      providerApiKey: options.providerApiKey ?? '',
+      providerBaseUrl: options.providerBaseUrl ?? '',
+      providerModel: options.providerModel ?? '',
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {

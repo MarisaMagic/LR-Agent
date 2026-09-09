@@ -1,5 +1,7 @@
 import {
+  applyChangeToDoc,
   checkSourceFreshness,
+  foldValidatedChangesIntoDoc,
   mergeProposalChangesIntoDoc,
   validateMutations,
 } from './annotationMutationApply';
@@ -194,5 +196,256 @@ describe('mergeProposalChangesIntoDoc', () => {
     expect(merged.filePath).toBe('data/new.jpg');
     expect(merged.annotations).toHaveLength(1);
     expect(merged.annotations[0]?.id).toBe('n1');
+  });
+});
+
+describe('applyChangeToDoc patch and rewrite', () => {
+  it('patches bbox geometry', () => {
+    const next = applyChangeToDoc(
+      doc,
+      {
+        relativePath: 'data/1.jpg',
+        absolutePath: '/tmp/data/1.jpg',
+        operation: 'patch',
+        patches: [{ id: 'a1', x: 0.2, y: 0.2, width: 0.1, height: 0.1 }],
+      },
+      project,
+    );
+    const box = next.annotations[0];
+    expect(box && box.kind === 'bbox' && box.x).toBe(0.2);
+    expect(box && box.kind === 'bbox' && box.width).toBe(0.1);
+  });
+
+  it('patches caption text', () => {
+    const captionDoc: FileAnnotationDocument = {
+      ...doc,
+      annotationType: 'caption',
+      annotations: [
+        {
+          id: 'c1',
+          kind: 'caption',
+          labelId: null,
+          text: '金发小女孩',
+          granularity: 'brief',
+          language: 'zh',
+          createdAt: '2020-01-01T00:00:00.000Z',
+          updatedAt: '2020-01-01T00:00:00.000Z',
+        },
+      ],
+    };
+    const next = applyChangeToDoc(
+      captionDoc,
+      {
+        relativePath: 'data/1.jpg',
+        absolutePath: '/tmp/data/1.jpg',
+        operation: 'patch',
+        patches: [{ id: 'c1', text: '金发红框眼镜少女' }],
+      },
+      { ...project, annotationType: 'caption' },
+    );
+    const cap = next.annotations[0];
+    expect(cap && cap.kind === 'caption' && cap.text).toBe('金发红框眼镜少女');
+  });
+
+  it('patches cot steps and answer', () => {
+    const cotDoc: FileAnnotationDocument = {
+      ...doc,
+      modality: 'text',
+      annotationType: 'cot',
+      annotations: [
+        {
+          id: 't1',
+          kind: 'cot',
+          labelId: null,
+          steps: [
+            { description: '旧1', conclusion: 'c1' },
+            { description: '旧2', conclusion: 'c2' },
+          ],
+          answer: '旧答案',
+          createdAt: '2020-01-01T00:00:00.000Z',
+          updatedAt: '2020-01-01T00:00:00.000Z',
+        },
+      ],
+    };
+    const next = applyChangeToDoc(
+      cotDoc,
+      {
+        relativePath: 'math.md',
+        absolutePath: '/tmp/math.md',
+        operation: 'patch',
+        patches: [
+          {
+            id: 't1',
+            steps: [
+              { description: '设未知数', conclusion: '鸡x兔y' },
+              { description: '列方程', conclusion: 'x+y=35' },
+              { description: '求解', conclusion: 'x=23,y=12' },
+            ],
+            answer: '鸡 23 兔 12',
+          },
+        ],
+      },
+      { ...project, modality: 'text', annotationType: 'cot' },
+    );
+    const cot = next.annotations[0];
+    expect(cot && cot.kind === 'cot' && cot.steps).toHaveLength(3);
+    expect(cot && cot.kind === 'cot' && cot.answer).toBe('鸡 23 兔 12');
+  });
+
+  it('delete then append rewrites matching items', () => {
+    const captionDoc: FileAnnotationDocument = {
+      ...doc,
+      annotationType: 'caption',
+      annotations: [
+        {
+          id: 'old-brief',
+          kind: 'caption',
+          labelId: null,
+          text: '金发小女孩',
+          granularity: 'brief',
+          createdAt: '2020-01-01T00:00:00.000Z',
+          updatedAt: '2020-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'keep-detailed',
+          kind: 'caption',
+          labelId: null,
+          text: '详细描述',
+          granularity: 'detailed',
+          createdAt: '2020-01-01T00:00:00.000Z',
+          updatedAt: '2020-01-01T00:00:00.000Z',
+        },
+      ],
+    };
+    const merged = mergeProposalChangesIntoDoc(
+      captionDoc,
+      [
+        {
+          relativePath: 'data/1.jpg',
+          absolutePath: '/tmp/data/1.jpg',
+          operation: 'delete',
+          deleteIds: ['old-brief'],
+        },
+        {
+          relativePath: 'data/1.jpg',
+          absolutePath: '/tmp/data/1.jpg',
+          operation: 'append',
+          annotations: [
+            {
+              id: 'new-brief',
+              kind: 'caption',
+              labelId: null,
+              text: '金发红框眼镜',
+              granularity: 'brief',
+              createdAt: '2020-01-01T00:00:00.000Z',
+              updatedAt: '2020-01-01T00:00:00.000Z',
+            },
+          ],
+        },
+      ],
+      { ...project, annotationType: 'caption' },
+    );
+    expect(merged.annotations.map((a) => a.id).sort()).toEqual([
+      'keep-detailed',
+      'new-brief',
+    ]);
+  });
+
+  it('rejects bbox geometry outside 0-1', () => {
+    const result = validateMutations(
+      doc,
+      {
+        relativePath: 'data/1.jpg',
+        absolutePath: '/tmp/data/1.jpg',
+        operation: 'patch',
+        patches: [{ id: 'a1', x: 1.5 }],
+      },
+      labels,
+    );
+    expect(result.valid).toBe(false);
+  });
+});
+
+describe('foldValidatedChangesIntoDoc', () => {
+  it('validates delete+append in memory and keeps remaining items', () => {
+    const captionDoc: FileAnnotationDocument = {
+      ...doc,
+      annotationType: 'caption',
+      annotations: [
+        {
+          id: 'old-brief',
+          kind: 'caption',
+          labelId: null,
+          text: '旧',
+          granularity: 'brief',
+          createdAt: '2020-01-01T00:00:00.000Z',
+          updatedAt: '2020-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'keep-detailed',
+          kind: 'caption',
+          labelId: null,
+          text: '详',
+          granularity: 'detailed',
+          createdAt: '2020-01-01T00:00:00.000Z',
+          updatedAt: '2020-01-01T00:00:00.000Z',
+        },
+      ],
+    };
+    const folded = foldValidatedChangesIntoDoc(
+      captionDoc,
+      [
+        {
+          relativePath: 'data/1.jpg',
+          absolutePath: '/tmp/data/1.jpg',
+          operation: 'delete',
+          deleteIds: ['old-brief'],
+        },
+        {
+          relativePath: 'data/1.jpg',
+          absolutePath: '/tmp/data/1.jpg',
+          operation: 'append',
+          annotations: [
+            {
+              id: 'new-brief',
+              kind: 'caption',
+              labelId: null,
+              text: '新',
+              granularity: 'brief',
+              createdAt: '2020-01-01T00:00:00.000Z',
+              updatedAt: '2020-01-01T00:00:00.000Z',
+            },
+          ],
+        },
+      ],
+      { ...project, annotationType: 'caption' },
+    );
+    expect(folded.annotations.map((a) => a.id).sort()).toEqual([
+      'keep-detailed',
+      'new-brief',
+    ]);
+  });
+
+  it('throws before producing a write when later change is invalid', () => {
+    expect(() =>
+      foldValidatedChangesIntoDoc(
+        doc,
+        [
+          {
+            relativePath: 'data/1.jpg',
+            absolutePath: '/tmp/data/1.jpg',
+            operation: 'delete',
+            deleteIds: ['a1'],
+          },
+          {
+            relativePath: 'data/1.jpg',
+            absolutePath: '/tmp/data/1.jpg',
+            operation: 'patch',
+            patches: [{ id: 'a1', labelId: 'l1' }],
+          },
+        ],
+        project,
+      ),
+    ).toThrow(/未找到标注 id a1/);
   });
 });

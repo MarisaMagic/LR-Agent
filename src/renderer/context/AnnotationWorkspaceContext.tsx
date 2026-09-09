@@ -47,12 +47,14 @@ import {
   writeFileAnnotationDoc,
 } from '../services/annotationDataService';
 import { mergeProposalChangesIntoDoc } from '../services/annotationMutationApply';
+import { decideCanvasAfterExternalApply } from '../services/annotationCanvasSync';
 import type {
   AnnotationBatchChange,
   AnnotationBatchProposal,
 } from '../../shared/annotationAgentTypes';
 import { buildFileChangesFromProposal } from '../components/agent/agentAnnotationPreview';
 import { updateAnnotationWorkspaceAgentSnapshot } from '../services/annotationAgentBridge';
+import { syncWorkspaceFactMemory } from '../services/workspaceFactMemory';
 import {
   bumpLabelUsage,
   loadLabelUsage,
@@ -642,6 +644,11 @@ export function AnnotationWorkspaceProvider({
 
   annotationsRef.current = annotations;
   dirtyRef.current = dirty;
+  updateAnnotationWorkspaceAgentSnapshot({
+    workspaceDirty: dirty,
+    workspaceRelativePath: relativeFilePath,
+    workspaceProjectId: activeProject?.id ?? null,
+  });
   loadedMetaRef.current = loadedDocMeta;
   selectedIdRef.current = selectedAnnotationId;
   agentPreviewSessionRef.current = agentPreviewSession;
@@ -783,6 +790,7 @@ export function AnnotationWorkspaceProvider({
   });
 
   const saveTimerRef = useRef<number | undefined>(undefined);
+  const factMemorySyncTimerRef = useRef<number | undefined>(undefined);
   const labelUsageSaveTimerRef = useRef<number | undefined>(undefined);
   const labelUsageRef = useRef(labelUsage);
   labelUsageRef.current = labelUsage;
@@ -825,6 +833,13 @@ export function AnnotationWorkspaceProvider({
         await writeFileAnnotationDoc(dir, relPath, doc, hint ?? undefined);
         setLoadedDocMeta(meta);
         setDirty(false);
+        const projectForFacts = activeProjectRef.current;
+        if (factMemorySyncTimerRef.current) {
+          window.clearTimeout(factMemorySyncTimerRef.current);
+        }
+        factMemorySyncTimerRef.current = window.setTimeout(() => {
+          void syncWorkspaceFactMemory(projectForFacts);
+        }, 400);
       } finally {
         setSaving(false);
       }
@@ -1343,6 +1358,7 @@ export function AnnotationWorkspaceProvider({
       const { detail } = event as CustomEvent<{
         projectId?: string;
         relativePaths?: string[];
+        force?: boolean;
       }>;
       const proj = activeProjectRef.current;
       if (!proj || detail?.projectId !== proj.id) return;
@@ -1354,14 +1370,25 @@ export function AnnotationWorkspaceProvider({
       ) {
         return;
       }
-      if (dirtyRef.current) {
-        return;
-      }
+      const force = Boolean(detail?.force);
       void readFileAnnotationDoc(proj.directoryPath, rel)
         .then((raw) => {
           const parsed = raw ? parseFileAnnotationDocument(raw) : null;
-          if (!parsed) return;
-          const { annotations: ann, ...meta } = parsed;
+          const decision = decideCanvasAfterExternalApply({
+            parsed,
+            dirty: dirtyRef.current,
+            force,
+          });
+          if (decision.action === 'skip') return;
+          if (decision.action === 'clear') {
+            setLoadedDocMeta(emptyDocMeta(proj, rel, null));
+            setAnnotations([]);
+            setDirty(false);
+            clearHistory();
+            clearAgentPreview();
+            return;
+          }
+          const { annotations: ann, ...meta } = parsed!;
           setLoadedDocMeta(meta);
           setAnnotations(ann);
           setDirty(false);

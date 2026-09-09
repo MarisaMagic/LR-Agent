@@ -2,16 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { VscodeButton, VscodeIcon } from '@vscode-elements/react-elements';
 import { useAgentChat } from '../../context/AgentChatContext';
 import { useAnnotation } from '../../context/AnnotationContext';
+import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import { useApp } from '../../context/AppContext';
 import FileTypeIcon from '../FileTypeIcon';
 import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import { basename } from '../../types/file';
-import {
-  collectPendingChangeItems,
-  collectPendingProposals,
-} from '../../services/agentProposalApply';
-import { scrollToProposalAnchor } from '../../utils/fileDiffStats';
+import { collectPendingChangeItems } from '../../services/agentProposalApply';
 import { computeFileProposalDiffStats } from '../../utils/workspaceFileRead';
+import { useOpenAgentChange } from './useOpenAgentChange';
 import './AgentKeepAllBar.css';
 
 type ItemStats = Record<string, { additions?: number; deletions?: number }>;
@@ -21,21 +19,30 @@ export default function AgentKeepAllBar() {
     pendingProposalCount,
     applyAllPendingChanges,
     applyingAllPending,
+    dismissAllPendingChanges,
+    dismissingAllPending,
     isSessionStreaming,
     activeSessionId,
     preparingContext,
     getSessionMessages,
   } = useAgentChat();
   const { activeProject } = useAnnotation();
+  const { clearAgentPreview } = useAnnotationWorkspace();
   const { rootPath } = useApp();
+  const { openChangeItem } = useOpenAgentChange();
 
   const [expanded, setExpanded] = useState(false);
   const [itemStats, setItemStats] = useState<ItemStats>({});
 
+  const messages = useMemo(
+    () => (activeSessionId ? getSessionMessages(activeSessionId) : []),
+    [activeSessionId, getSessionMessages],
+  );
+
   const changeItems = useMemo(() => {
     if (!activeSessionId || pendingProposalCount <= 0) return [];
-    return collectPendingChangeItems(getSessionMessages(activeSessionId));
-  }, [activeSessionId, pendingProposalCount, getSessionMessages]);
+    return collectPendingChangeItems(messages);
+  }, [activeSessionId, messages, pendingProposalCount]);
 
   const changeItemsKey = useMemo(
     () => changeItems.map((item) => item.id).join(','),
@@ -54,12 +61,13 @@ export default function AgentKeepAllBar() {
       const next: ItemStats = {};
       await Promise.all(
         changeItems.map(async (item) => {
-          if (item.kind === 'file' && item.newContent != null) {
+          if (item.kind === 'file') {
             const stats = await computeFileProposalDiffStats({
               project: activeProject ?? null,
               workspaceRoot: rootPath,
               relativePath: item.path,
-              newContent: item.newContent,
+              newContent: item.newContent ?? '',
+              operation: item.operation === 'delete' ? 'delete' : 'write',
             });
             next[item.id] = stats;
           }
@@ -79,24 +87,15 @@ export default function AgentKeepAllBar() {
 
   const busy =
     applyingAllPending ||
+    dismissingAllPending ||
     (activeSessionId != null && isSessionStreaming(activeSessionId)) ||
     preparingContext;
 
   const fileCount = changeItems.length;
   const headerLabel = fileCount === 1 ? '1 个文件' : `${fileCount} 个文件`;
 
-  const handleReview = () => {
-    setExpanded(true);
-    if (!activeSessionId) return;
-    const refs = collectPendingProposals(getSessionMessages(activeSessionId));
-    const first = refs[0];
-    if (first) {
-      scrollToProposalAnchor(first.messageId, first.blockIndex);
-    }
-  };
-
-  const handleItemClick = (messageId: string, blockIndex: number) => {
-    scrollToProposalAnchor(messageId, blockIndex);
+  const handleItemClick = (item: (typeof changeItems)[number]) => {
+    openChangeItem(item, messages);
   };
 
   return (
@@ -117,12 +116,18 @@ export default function AgentKeepAllBar() {
         <div className="agent-keep-all-bar__actions">
           <VscodeButton
             secondary
-            icon="go-to-file"
+            icon="discard"
             type="button"
             disabled={busy}
-            onClick={handleReview}
+            onClick={() => {
+              dismissAllPendingChanges()
+                .then(() => {
+                  clearAgentPreview();
+                })
+                .catch(() => undefined);
+            }}
           >
-            查看
+            {dismissingAllPending ? '撤销中…' : 'Undo'}
           </VscodeButton>
           <VscodeButton
             icon="check"
@@ -132,7 +137,7 @@ export default function AgentKeepAllBar() {
               applyAllPendingChanges().catch(() => undefined);
             }}
           >
-            {applyingAllPending ? '应用中…' : '全部保留'}
+            {applyingAllPending ? '应用中…' : 'Keep All'}
           </VscodeButton>
         </div>
       </div>
@@ -147,7 +152,7 @@ export default function AgentKeepAllBar() {
                     type="button"
                     className="agent-keep-all-bar__item"
                     onClick={() => {
-                      handleItemClick(item.ref.messageId, item.ref.blockIndex);
+                      handleItemClick(item);
                     }}
                   >
                     {item.kind === 'file' || item.kind === 'annotation' ? (
@@ -175,7 +180,13 @@ export default function AgentKeepAllBar() {
                         </span>
                       ) : null}
                       {item.kind !== 'file' || stats == null ? (
-                        <span className="agent-keep-all-bar__summary">
+                        <span
+                          className={`agent-keep-all-bar__summary${
+                            item.destructive
+                              ? ' agent-keep-all-bar__summary--delete'
+                              : ''
+                          }`}
+                        >
                           {item.summary}
                         </span>
                       ) : null}

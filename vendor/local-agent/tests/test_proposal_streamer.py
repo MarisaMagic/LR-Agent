@@ -76,3 +76,14 @@ class TestProposalStreamInterceptor:
         interceptor.on_chunk(chunk)
         paths = interceptor.collected_paths()
         assert "a.md" in paths
+
+    def test_lr_agent_path_does_not_emit_proposal(self):
+        interceptor = ProposalStreamInterceptor()
+        chunk = self._make_chunk(
+            0,
+            "write_workspace_file",
+            '{"relative_path": ".lr-agent/annotations/files/a.json", "content": "{}"}',
+        )
+        events = interceptor.on_chunk(chunk)
+        assert events == []
+        assert interceptor.collected_paths() == set()

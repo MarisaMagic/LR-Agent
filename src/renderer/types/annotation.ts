@@ -32,7 +32,7 @@ export interface AnnotationProject {
   annotationType: AnnotationType;
   labels: LabelDefinition[];
   description?: string;
-  /** 工作区记忆：Agent 可读写本任务进度 / 已标文件等 Markdown */
+  /** 工作区记忆：系统同步进度 / 已标文件；Agent 可另记偏好 */
   workspaceMemoryEnabled?: boolean;
   createdAt: string;
   updatedAt: string;

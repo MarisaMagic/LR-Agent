@@ -16,11 +16,24 @@ class JobState(str, Enum):
     CANCELLED = "cancelled"
 
 
+class ChatToolCallInput(BaseModel):
+    """OpenAI 兼容的 assistant tool_call，用于 resume 还原本轮工具对话。"""
+
+    id: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=128)
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
 class ChatMessageInput(BaseModel):
-    role: Literal["user", "assistant", "system"]
-    content: str
+    role: Literal["user", "assistant", "system", "tool"]
+    content: str = ""
     message_id: str | None = None
     interaction_mode: Literal["chat", "annotation"] | None = None
+    tool_calls: list[ChatToolCallInput] | None = None
+    tool_call_id: str | None = Field(
+        default=None,
+        description="role=tool 时对应的 tool_call id。",
+    )
 
 
 class AnnotationProjectSnapshotInput(BaseModel):
@@ -58,6 +71,7 @@ class ClientContextInput(BaseModel):
     memory_index: str | None = None
     workspace_memory_enabled: bool = False
     skills_catalog: list[SkillCatalogEntryInput] = Field(default_factory=list)
+    proposal_ledger: str | None = None
 
 
 class ClientToolResult(BaseModel):
@@ -161,6 +175,13 @@ class StreamEventPayload(BaseModel):
                 data["title"] = self.detail
         if self.mode is not None:
             data["mode"] = self.mode
+            if self.type in (
+                "file_proposal_start",
+                "file_proposal_delta",
+                "file_proposal",
+                "document_proposal",
+            ):
+                data["operation"] = self.mode
         if self.domain is not None:
             data["domain"] = self.domain
         if self.target is not None:

@@ -127,6 +127,21 @@ def test_list_directory_rejects_traversal(client_context: ClientContextInput, se
     assert ".." in result or "未找到" in result
 
 
+def test_glob_workspace_py_files(client_context: ClientContextInput, settings: Settings) -> None:
+    from app.agent.tools.workspace_search import glob_workspace
+
+    result = glob_workspace(client_context, "**/*.py", settings=settings)
+    assert "src/main.py" in result
+    assert "utils.ts" not in result
+
+
+def test_glob_requires_pattern(client_context: ClientContextInput, settings: Settings) -> None:
+    from app.agent.tools.workspace_search import glob_workspace
+
+    result = glob_workspace(client_context, "", settings=settings)
+    assert "glob_pattern" in result
+
+
 def test_resolve_workspace_directory_empty_path(
     client_context: ClientContextInput,
     workspace: Path,

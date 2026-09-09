@@ -10,10 +10,12 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from app.agent.annotation.debug_log import log_annotation_agent
-from app.agent.annotation.json_utils import extract_json_object
 from app.agent.annotation.llm_invoke import invoke_json_model
 
-MUTATION_PREPARE_SYSTEM = """你是 LR-Agent 标注变更准备助手。用户希望修改或删除已有标注（非新增检测框）。
+MUTATION_PREPARE_SYSTEM = """你是 LR-Agent 标注变更准备助手。用户希望修改或删除已有标注（非新增）。
+
+支持全部标注类型：bbox、polygon、caption、cot、text_classification、classification。
+用户说「不要新增框/不要新增标注」时，只能改或删已有项，不要改用 auto_annotate。
 
 输出 JSON（一次完成）：
 {
@@ -22,43 +24,99 @@ MUTATION_PREPARE_SYSTEM = """你是 LR-Agent 标注变更准备助手。用户�
   "operations": [
     {
       "relative_path": "data/7.jpg",
-      "mutation_kind": "patch_label|delete",
+      "mutation_kind": "patch_label|patch_geometry|patch_content|delete",
       "targets": [
         {"by": "all"},
         {"by": "id", "id": "uuid"},
         {"by": "label_name", "label_name": "person"},
         {"by": "index", "index": 1},
-        {"by": "spatial", "hint": "leftmost"}
+        {"by": "spatial", "hint": "leftmost"},
+        {"by": "selected"},
+        {"by": "unlabeled"},
+        {"by": "granularity", "granularity": "brief"},
+        {"by": "language", "language": "en"},
+        {"by": "longest"},
+        {"by": "shortest"},
+        {"by": "duplicate_label"}
       ],
-      "new_label_name": "worker"
+      "new_label_name": "worker",
+      "x": 0.1, "y": 0.2, "width": 0.15, "height": 0.18,
+      "points": [{"x": 0.1, "y": 0.2}],
+      "text": "新的 caption",
+      "granularity": "brief",
+      "language": "zh",
+      "steps": [{"description": "...", "conclusion": "..."}],
+      "answer": "...",
+      "instruction": "...",
+      "note": "..."
     }
   ]
 }
 
 规则：
-- mutation_kind=patch_label 时必须给出 new_label_name（项目标签名之一）
-- mutation_kind=delete 时不需要 new_label_name
+- patch_label：改已有标签（含多边形/分类空 labelId 补标）。必须给出 new_label_name（项目标签名之一）
+- patch_geometry：收框或改多边形顶点。bbox 填 x/y/width/height（0–1）；polygon 仅在用户明确给出新轮廓时填 points（至少 3 点）。飘出的多边形优先 delete
+- patch_content：改 caption 正文或 CoT（steps 至少 2 步 + answer 整表替换）
+- delete：删除目标；清空某文件全部标注时 targets=[{"by":"all"}]；去重分类用 {"by":"duplicate_label"}
 - selected_paths 必须为候选列表中的 relative_path
-- targets 描述如何定位框；优先使用 id；无 id 时用 label_name/index/spatial
-- 用户要求删除/清空某张图的全部标注时：mutation_kind=delete，targets=[{"by":"all"}]
-- 用户说「这个框」「当前选中」时，在 targets 中加入 {"by":"selected"}
+- 优先使用摘要里的 id；无 id 时用 label_name/index/spatial/unlabeled/granularity
+- 用户说「这个框」「当前选中」时加入 {"by":"selected"}
 - 勿编造不在候选中的路径
 """
 
 
+class MutationPointSchema(BaseModel):
+    x: float
+    y: float
+
+
+class MutationCotStepSchema(BaseModel):
+    description: str
+    conclusion: str
+
+
 class MutationTargetSchema(BaseModel):
-    by: Literal["id", "label_name", "index", "spatial", "selected", "all"] = "id"
+    by: Literal[
+        "id",
+        "label_name",
+        "index",
+        "spatial",
+        "selected",
+        "all",
+        "unlabeled",
+        "granularity",
+        "language",
+        "longest",
+        "shortest",
+        "duplicate_label",
+    ] = "id"
     id: str | None = None
     label_name: str | None = None
     index: int | None = None
     hint: str | None = None
+    granularity: str | None = None
+    language: str | None = None
 
 
 class MutationOperationSchema(BaseModel):
     relative_path: str = Field(min_length=1)
-    mutation_kind: Literal["patch_label", "delete"] = "patch_label"
+    mutation_kind: Literal[
+        "patch_label", "patch_geometry", "patch_content", "delete"
+    ] = "patch_label"
     targets: list[MutationTargetSchema] = Field(default_factory=list)
     new_label_name: str | None = None
+    x: float | None = None
+    y: float | None = None
+    width: float | None = None
+    height: float | None = None
+    points: list[MutationPointSchema] | None = None
+    text: str | None = None
+    granularity: str | None = None
+    language: str | None = None
+    steps: list[MutationCotStepSchema] | None = None
+    answer: str | None = None
+    instruction: str | None = None
+    note: str | None = None
 
 
 class MutationPrepareLlmResult(BaseModel):
@@ -101,7 +159,7 @@ async def prepare_mutation_annotation(
 ) -> MutationPrepareResult:
     if not candidates:
         return MutationPrepareResult(
-            intent_summary="无图片候选",
+            intent_summary="无文件候选",
             resolved_user_request=user_request,
         )
 
@@ -126,7 +184,7 @@ async def prepare_mutation_annotation(
         f"current_relative_path: {current_relative_path or '（无）'}\n"
         f"selected_annotation_ids: {selected_ids}\n"
         f"项目标签: {labels}\n"
-        f"候选图片: {catalog}\n"
+        f"候选文件: {catalog}\n"
     )
 
     parsed = await invoke_json_model(

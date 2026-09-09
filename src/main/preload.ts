@@ -432,6 +432,11 @@ const electronHandler = {
       filePath?: string;
       error?: string;
     }> => ipcRenderer.invoke('workspace:readTextFile', payload),
+    deleteTextFile: (payload: {
+      rootDir: string;
+      relativePath: string;
+    }): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('workspace:deleteTextFile', payload),
     createFile: (
       dirPath: string,
       fileName: string,
@@ -567,6 +572,55 @@ const electronHandler = {
         relativePath,
         target,
       ),
+    /** 按标注索引重写进度/已标文件（不要求 MCP 记忆已激活） */
+    syncFacts: (options: {
+      scopeKey: string;
+      projectDir: string;
+    }): Promise<{ annotatedFiles: number; annotationCount: number }> =>
+      ipcRenderer.invoke('agent:memory:syncFacts', options),
+  },
+  checkpoint: {
+    capture: (payload: {
+      sessionId: string;
+      messageId: string;
+      blockIndex: number;
+      kind: 'annotation' | 'file';
+      projectDir?: string;
+      workspaceRoot?: string;
+      annotationPaths?: string[];
+      filePaths?: string[];
+    }): Promise<unknown> =>
+      ipcRenderer.invoke('agent:checkpoint:capture', payload),
+    recordAfter: (payload: {
+      sessionId: string;
+      messageId: string;
+      blockIndex: number;
+      projectDir?: string;
+      workspaceRoot?: string;
+    }): Promise<unknown> =>
+      ipcRenderer.invoke('agent:checkpoint:recordAfter', payload),
+    restore: (payload: {
+      sessionId: string;
+      messageId: string;
+      blockIndex: number;
+      projectDir?: string;
+      workspaceRoot?: string;
+    }): Promise<{
+      ok: boolean;
+      restoredPaths?: string[];
+      error?: string;
+      dirtyPaths?: string[];
+    }> => ipcRenderer.invoke('agent:checkpoint:restore', payload),
+    discard: (payload: {
+      sessionId: string;
+      messageId: string;
+      blockIndex: number;
+    }): Promise<void> => ipcRenderer.invoke('agent:checkpoint:discard', payload),
+    has: (payload: {
+      sessionId: string;
+      messageId: string;
+      blockIndex: number;
+    }): Promise<boolean> => ipcRenderer.invoke('agent:checkpoint:has', payload),
   },
   skills: {
     /** 扫描全局 skills 目录（~/.agents/skills），返回 catalog（name + description） */

@@ -2,6 +2,11 @@ import fs from 'fs-extra';
 import path from 'path';
 import { isBlockedTextExtension } from '../../shared/workspaceTextExtensions';
 
+function isLrAgentRelativePath(relativePath: string): boolean {
+  const parts = relativePath.replace(/\\/g, '/').split('/').filter(Boolean);
+  return parts.includes('.lr-agent');
+}
+
 function resolveScopedTextPath(
   rootDir: string,
   relativePath: string,
@@ -10,6 +15,9 @@ function resolveScopedTextPath(
   const rel = relativePath.replace(/\\/g, '/').replace(/^\/+/, '');
   if (rel.includes('..')) {
     return { error: 'path_traversal_forbidden' };
+  }
+  if (isLrAgentRelativePath(rel)) {
+    return { error: 'lr_agent_dir_forbidden' };
   }
   const ext = path.extname(rel).toLowerCase();
   if (ext && isBlockedTextExtension(ext)) {
@@ -72,6 +80,25 @@ export async function readScopedTextFile(
     return {
       success: false,
       error: err instanceof Error ? err.message : 'read_failed',
+    };
+  }
+}
+
+export async function deleteScopedTextFile(
+  rootDir: string,
+  relativePath: string,
+): Promise<{ success: boolean; error?: string }> {
+  const resolved = resolveScopedTextPath(rootDir, relativePath);
+  if ('error' in resolved) {
+    return { success: false, error: resolved.error };
+  }
+  try {
+    await fs.remove(resolved.absolutePath);
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'delete_failed',
     };
   }
 }

@@ -9,13 +9,25 @@ import type {
 } from '../../shared/agentTypes';
 import { DEFAULT_CHAT_CONTEXT_CONFIG as defaultContextConfig } from '../../shared/agentTypes';
 import { buildApiClientContext } from './agentClientContext';
+import type { TurnHistoryMessage } from './turnToolHistory';
+
+export type BackendChatMessage = {
+  role: string;
+  content: string;
+  tool_calls?: Array<{
+    id: string;
+    name: string;
+    args: Record<string, unknown>;
+  }>;
+  tool_call_id?: string;
+};
 
 export interface BackendChatRequest {
   providerId: string;
   sessionId: string;
   userMessageId: string;
   assistantMessageId: string;
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<BackendChatMessage | TurnHistoryMessage>;
   context: {
     summary?: string;
     summaryUpToMessageId?: string;
@@ -35,27 +47,140 @@ export interface BackendChatRequest {
   systemPrompt?: string;
 }
 
+const HISTORY_TOOL_NAMES = new Set([
+  'auto_annotate',
+  'mutate_annotation',
+  'write_workspace_file',
+  'str_replace_workspace_file',
+  'delete_workspace_file',
+]);
+const MAX_ASSISTANT_TOOL_TURNS = 6;
+
+function parseToolArgs(raw: string): Record<string, unknown> {
+  if (!raw.trim()) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // display-summarized args are not JSON
+  }
+  return {};
+}
+
+function compactToolResult(result: string | undefined): string {
+  if (!result?.trim()) {
+    return JSON.stringify({ status: 'unknown' });
+  }
+  try {
+    const parsed = JSON.parse(result) as Record<string, unknown>;
+    return JSON.stringify({
+      status: parsed.status,
+      summary: parsed.summary,
+      proposal_pending: parsed.proposal_pending,
+      file_written: parsed.file_written,
+    });
+  } catch {
+    return result.length > 400 ? `${result.slice(0, 400)}…` : result;
+  }
+}
+
+function assistantText(message: ChatMessage): string {
+  return message.blocks
+    .filter(
+      (block): block is Extract<typeof block, { type: 'text' }> =>
+        block.type === 'text',
+    )
+    .map((block) => block.content)
+    .join('\n')
+    .trim();
+}
+
 export function buildBackendMessages(
   messageIds: string[],
   sessionMessages: Record<string, ChatMessage>,
-): Array<{ role: string; content: string }> {
-  return messageIds
+  options?: { excludeMessageIds?: ReadonlySet<string> },
+): BackendChatMessage[] {
+  const exclude = options?.excludeMessageIds;
+  const ordered = messageIds
     .map((id) => sessionMessages[id])
     .filter((message): message is ChatMessage => Boolean(message))
+    .filter((message) => !exclude?.has(message.id))
     .filter(
       (message) => message.role === 'user' || message.role === 'assistant',
-    )
-    .map((message) => {
-      const text = message.blocks
-        .filter(
-          (block): block is Extract<typeof block, { type: 'text' }> =>
-            block.type === 'text',
+    );
+
+  const assistantIndexes = ordered
+    .map((message, index) => (message.role === 'assistant' ? index : -1))
+    .filter((index) => index >= 0);
+  const toolRestoreFrom =
+    assistantIndexes.length > MAX_ASSISTANT_TOOL_TURNS
+      ? assistantIndexes[assistantIndexes.length - MAX_ASSISTANT_TOOL_TURNS]
+      : 0;
+
+  const out: BackendChatMessage[] = [];
+  ordered.forEach((message, index) => {
+    if (message.role === 'user') {
+      const text = assistantText(message);
+      if (text) out.push({ role: 'user', content: text });
+      return;
+    }
+
+    const text = assistantText(message);
+    const restoreTools = index >= toolRestoreFrom;
+    const toolBlocks = restoreTools
+      ? message.blocks.filter(
+          (
+            block,
+          ): block is Extract<typeof block, { type: 'tool_call' }> =>
+            block.type === 'tool_call' &&
+            Boolean(block.id) &&
+            HISTORY_TOOL_NAMES.has(block.name),
         )
-        .map((block) => block.content)
-        .join('\n');
-      return { role: message.role, content: text };
-    })
-    .filter((message) => message.content.trim());
+      : [];
+
+    if (toolBlocks.length === 0) {
+      if (text) out.push({ role: 'assistant', content: text });
+      return;
+    }
+
+    out.push({
+      role: 'assistant',
+      content: text,
+      tool_calls: toolBlocks.map((block) => ({
+        id: block.id,
+        name: block.name,
+        args: parseToolArgs(block.arguments),
+      })),
+    });
+    for (const block of toolBlocks) {
+      out.push({
+        role: 'tool',
+        content: compactToolResult(block.result),
+        tool_call_id: block.id,
+      });
+    }
+  });
+  return out;
+}
+
+export function serializeBackendMessages(
+  messages: Array<BackendChatMessage | TurnHistoryMessage>,
+): Array<Record<string, unknown>> {
+  return messages.map((message) => {
+    const payload: Record<string, unknown> = {
+      role: message.role,
+      content: message.content,
+    };
+    if (message.role === 'assistant' && 'tool_calls' in message && message.tool_calls?.length) {
+      payload.tool_calls = message.tool_calls;
+    }
+    if (message.role === 'tool' && 'tool_call_id' in message && message.tool_call_id) {
+      payload.tool_call_id = message.tool_call_id;
+    }
+    return payload;
+  });
 }
 
 export function sessionContextPayload(
@@ -102,10 +227,7 @@ export async function* streamChatViaBackend(
     api_key: request.apiKey,
     base_url: request.baseUrl,
     model: request.model,
-    messages: request.messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
+    messages: serializeBackendMessages(request.messages),
     user_content: request.userContent,
     client_job_id: request.clientJobId,
   };

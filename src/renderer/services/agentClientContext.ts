@@ -37,5 +37,6 @@ export function buildApiClientContext(
     skills_catalog: (clientContext.skillsCatalog ?? []).map(
       ({ name, description }) => ({ name, description }),
     ),
+    proposal_ledger: clientContext.proposalLedger ?? null,
   };
 }

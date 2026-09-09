@@ -7,6 +7,7 @@
 from collections.abc import AsyncIterator
 
 from app.schemas.agent import StreamEventPayload
+from app.agent.tools.workspace_path import is_lr_agent_relative
 
 WRITE_TOOL_NAME = "write_workspace_file"
 
@@ -86,14 +87,20 @@ class ProposalStreamInterceptor:
                     if rel_path and rel_closed:
                         state["title_sent"] = True
                         state["rel_path"] = rel_path
-                        events.append(
-                            StreamEventPayload(
-                                type="file_proposal_start",
-                                summary=rel_path,
-                                image_path=rel_path,
-                                detail="0",
+                        if is_lr_agent_relative(rel_path):
+                            state["suppressed"] = True
+                        else:
+                            events.append(
+                                StreamEventPayload(
+                                    type="file_proposal_start",
+                                    summary=rel_path,
+                                    image_path=rel_path,
+                                    detail="0",
+                                )
                             )
-                        )
+
+                if state.get("suppressed"):
+                    continue
 
                 content, _ = _extract_json_string(state["args_buf"], "content")
                 if content is not None and len(content) > state["content_sent_len"]:
@@ -115,6 +122,6 @@ class ProposalStreamInterceptor:
         for state in self.fp_states.values():
             args_buf = state.get("args_buf", "")
             rel_path, rel_closed = _extract_json_string(args_buf, "relative_path")
-            if rel_path and rel_closed and state.get("title_sent"):
+            if rel_path and rel_closed and state.get("title_sent") and not state.get("suppressed"):
                 streamed.add(rel_path)
         return streamed

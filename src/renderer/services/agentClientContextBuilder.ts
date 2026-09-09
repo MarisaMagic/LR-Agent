@@ -27,6 +27,8 @@ export function buildClientContextPayload(options: {
   workspaceMemoryEnabled?: boolean;
   /** 全局 Agent Skills catalog（~/.agents/skills 扫描结果） */
   skillsCatalog?: AgentSkillEntry[] | null;
+  /** 未 Keep All 的提案台账 */
+  proposalLedger?: string | null;
 }): ClientContextPayload {
   const activeRelativePath =
     options.activeProject && options.activeFilePath
@@ -72,6 +74,7 @@ export function buildClientContextPayload(options: {
       ? false
       : Boolean(options.workspaceMemoryEnabled),
     skillsCatalog: options.skillsCatalog ?? null,
+    proposalLedger: options.proposalLedger ?? null,
   };
 
   const wsSnap = getAnnotationWorkspaceAgentSnapshot();

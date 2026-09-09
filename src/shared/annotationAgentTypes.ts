@@ -3,7 +3,11 @@ import type {
   LabelDefinition,
   Modality,
 } from '../renderer/types/annotation';
-import type { AnnotationInstance } from '../renderer/types/annotationDocument';
+import type {
+  AnnotationInstance,
+  CaptionGranularity,
+  CotStep,
+} from '../renderer/types/annotationDocument';
 
 export interface ImageCandidate {
   relativePath: string;
@@ -69,6 +73,21 @@ export interface AnnotationPatch {
   id: string;
   labelId?: string;
   note?: string;
+  /** bbox geometry (normalized 0–1) */
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  /** polygon vertices (normalized 0–1) */
+  points?: { x: number; y: number }[];
+  /** caption */
+  text?: string;
+  granularity?: CaptionGranularity;
+  language?: string;
+  /** cot */
+  steps?: CotStep[];
+  answer?: string;
+  instruction?: string;
 }
 
 export interface AnnotationBatchChange {

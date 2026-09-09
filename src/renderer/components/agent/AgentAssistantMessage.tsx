@@ -1,22 +1,30 @@
 import { VscodeIcon } from '@vscode-elements/react-elements';
-import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { getFloatingMenuMotionProps } from '../../motion/PopoverMotion';
-import type { ChatMessage } from '../../types/agent';
+import { useCallback, useEffect, useState } from 'react';
+import type { ChatMessage, MessageBlock } from '../../types/agent';
 import { isFileProposalBlock } from '../../../shared/agentTypes';
 import { useAgentChat } from '../../context/AgentChatContext';
 import AgentMarkdown from './AgentMarkdown';
 import AgentReasoningBlock from './AgentReasoningBlock';
 import AgentToolCallBlock from './AgentToolCallBlock';
 import AgentExplorationBlock from './AgentExplorationBlock';
-import { buildAssistantRenderSegments } from './explorationRenderUtils';
+import AgentWorkHistory from './AgentWorkHistory';
+import {
+  buildAssistantRenderSegments,
+  type AssistantRenderSegment,
+} from './explorationRenderUtils';
+import {
+  collectThoughtContent,
+  formatThoughtLabel,
+  formatWorkedDuration,
+  splitWorkHistory,
+  workHistoryDurationMs,
+  type IndexedBlock,
+} from './workHistoryUtils';
 import AgentAnnotationPipelineBlock from './AgentAnnotationPipelineBlock';
 import AgentFileChangeBlock from './AgentFileChangeBlock';
 import AgentAnnotationChangeBlock from './AgentAnnotationChangeBlock';
-import {
-  shouldHideToolCallInChat,
-  shouldSkipRedundantProposalText,
-} from './agentAssistantRenderUtils';
+import AgentFilesChangedSummary from './AgentFilesChangedSummary';
+import { shouldSkipRedundantProposalText } from './agentAssistantRenderUtils';
 
 interface AgentAssistantMessageProps {
   message: ChatMessage;
@@ -40,10 +48,7 @@ export default function AgentAssistantMessage({
     activeSessionId,
   } = useAgentChat();
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const reducedMotion = useReducedMotion();
-  const menuMotion = getFloatingMenuMotionProps('above-anchor', reducedMotion);
+  const [thoughtCollapsed, setThoughtCollapsed] = useState(true);
 
   const isStreaming = message.status === 'streaming';
   const hasAnnotationProposal = message.blocks.some(
@@ -63,10 +68,19 @@ export default function AgentAssistantMessage({
   const streamingSession =
     activeSessionId != null && isSessionStreaming(activeSessionId);
 
-  const messageIndex = (() => {
-    if (!activeSessionId) return -1;
-    const messages = getSessionMessages(activeSessionId);
-    return messages.findIndex((item) => item.id === message.id);
+  const sessionMessages = activeSessionId
+    ? getSessionMessages(activeSessionId)
+    : [];
+  const messageIndex = sessionMessages.findIndex(
+    (item) => item.id === message.id,
+  );
+  const lastAssistantId = (() => {
+    for (let i = sessionMessages.length - 1; i >= 0; i -= 1) {
+      if (sessionMessages[i].role === 'assistant') {
+        return sessionMessages[i].id;
+      }
+    }
+    return null;
   })();
 
   const hasPriorUser = messageIndex > 0;
@@ -86,15 +100,8 @@ export default function AgentAssistantMessage({
       message.status === 'stopped');
 
   useEffect(() => {
-    if (!menuOpen) return undefined;
-    const onDocClick = (event: MouseEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [menuOpen]);
+    setThoughtCollapsed(true);
+  }, [message.id]);
 
   const handleToggle = useCallback(
     (blockIndex: number) => {
@@ -111,17 +118,31 @@ export default function AgentAssistantMessage({
     } catch {
       // ignore
     }
-    setMenuOpen(false);
   }, [message]);
 
   const handleRegenerate = useCallback(() => {
-    setMenuOpen(false);
     regenerateAssistant(message.id).catch(() => undefined);
   }, [message.id, regenerateAssistant]);
 
-  const renderSegments = buildAssistantRenderSegments(message.blocks);
+  const { history, rest } = splitWorkHistory(message.blocks);
+  const foldWorkHistory = !isStreaming && history.length > 0;
+  const liveBlocks: IndexedBlock[] = message.blocks.map((block, index) => ({
+    block,
+    index,
+  }));
+  const durationMs = workHistoryDurationMs(
+    message.createdAt,
+    message.finishedAt,
+  );
+  const workedLabel = formatWorkedDuration(durationMs);
+  const thoughtContent = collectThoughtContent(message.blocks);
+  const showThoughtFold = !isStreaming && thoughtContent.length > 0;
+  const hasToolCall = message.blocks.some(
+    (block) => block.type === 'tool_call',
+  );
+  const thoughtLabel = formatThoughtLabel(durationMs, { hasToolCall });
 
-  const renderBlock = (block: ChatMessage['blocks'][number], index: number) => {
+  const renderBlock = (block: MessageBlock, index: number) => {
     if ((block as { type: string }).type === 'mode_suggestion') {
       return null;
     }
@@ -136,9 +157,6 @@ export default function AgentAssistantMessage({
       );
     }
     if (block.type === 'tool_call') {
-      if (shouldHideToolCallInChat(block, message.blocks)) {
-        return null;
-      }
       return (
         <AgentToolCallBlock
           key={block.id}
@@ -177,7 +195,7 @@ export default function AgentAssistantMessage({
           blockIndex={index}
           relativePath={block.suggestedRelativePath}
           newContent={block.content}
-          status={block.status}
+          operation={block.operation}
         />
       );
     }
@@ -198,25 +216,53 @@ export default function AgentAssistantMessage({
     return null;
   };
 
+  const renderSegments = (items: IndexedBlock[]) => {
+    if (items.length === 0) return null;
+    const segments = buildAssistantRenderSegments(
+      message.blocks,
+      items.map((item) => item.index),
+    );
+    return segments.map((segment: AssistantRenderSegment) => {
+      if (segment.kind === 'exploration') {
+        const streamingExploration =
+          isStreaming &&
+          segment.tools.some((tool) => tool.status === 'running');
+        return (
+          <AgentExplorationBlock
+            key={segment.key}
+            tools={segment.tools}
+            summary={segment.summary}
+            streaming={streamingExploration}
+          />
+        );
+      }
+      return renderBlock(segment.block, segment.index);
+    });
+  };
+
   return (
     <div className="agent-message-item agent-message-item--assistant">
       <div className="agent-assistant-content">
-        {renderSegments.map((segment) => {
-          if (segment.kind === 'exploration') {
-            const streamingExploration =
-              isStreaming &&
-              segment.tools.some((tool) => tool.status === 'running');
-            return (
-              <AgentExplorationBlock
-                key={segment.key}
-                tools={segment.tools}
-                summary={segment.summary}
-                streaming={streamingExploration}
-              />
-            );
-          }
-          return renderBlock(segment.block, segment.index);
-        })}
+        {showThoughtFold ? (
+          <AgentReasoningBlock
+            key={`thought-${message.id}`}
+            block={{
+              type: 'reasoning',
+              content: thoughtContent,
+              collapsed: thoughtCollapsed,
+            }}
+            label={thoughtLabel}
+            onToggle={() => setThoughtCollapsed((value) => !value)}
+          />
+        ) : null}
+        {isStreaming ? (
+          renderSegments(liveBlocks)
+        ) : foldWorkHistory ? (
+          <AgentWorkHistory key={`${message.id}-work`} label={workedLabel}>
+            {renderSegments(history)}
+          </AgentWorkHistory>
+        ) : null}
+        {isStreaming ? null : renderSegments(rest)}
 
         {isStreaming && <span className="agent-stream-cursor">▍</span>}
 
@@ -231,50 +277,35 @@ export default function AgentAssistantMessage({
 
         {showActions && (
           <div className="agent-assistant-toolbar">
-            <div className="agent-assistant-actions" ref={menuRef}>
+            <div className="agent-assistant-actions">
               <button
                 type="button"
-                className="agent-assistant-menu-trigger"
-                aria-label="更多操作"
-                aria-expanded={menuOpen}
-                onClick={() => setMenuOpen((open) => !open)}
+                className="agent-assistant-action"
+                aria-label="复制"
+                title="复制"
+                disabled={!textContent.trim()}
+                onClick={() => {
+                  handleCopy().catch(() => undefined);
+                }}
               >
-                <VscodeIcon name="ellipsis" size={16} />
+                <VscodeIcon name="copy" size={18} />
               </button>
-              <AnimatePresence>
-                {menuOpen && (
-                  <m.div
-                    className="agent-assistant-menu"
-                    role="menu"
-                    style={{ transformOrigin: 'bottom right' }}
-                    {...menuMotion}
-                  >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={!textContent.trim()}
-                      onClick={() => {
-                        handleCopy().catch(() => undefined);
-                      }}
-                    >
-                      <VscodeIcon name="copy" size={14} />
-                      复制
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={!canRegenerate}
-                      onClick={handleRegenerate}
-                    >
-                      <VscodeIcon name="refresh" size={14} />
-                      重新生成
-                    </button>
-                  </m.div>
-                )}
-              </AnimatePresence>
+              <button
+                type="button"
+                className="agent-assistant-action"
+                aria-label="重新生成"
+                title="重新生成"
+                disabled={!canRegenerate}
+                onClick={handleRegenerate}
+              >
+                <VscodeIcon name="refresh" size={18} />
+              </button>
             </div>
           </div>
         )}
+        {showActions && lastAssistantId === message.id ? (
+          <AgentFilesChangedSummary message={message} />
+        ) : null}
       </div>
     </div>
   );

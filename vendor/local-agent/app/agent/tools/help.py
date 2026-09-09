@@ -10,7 +10,7 @@ LR_AGENT_HELP = """# LR-Agent 功能概览
 
 **Ask 模式**：问答、查已有标注（read_file_annotation）、搜索代码（grep_workspace）、列目录（list_workspace_directory）、读文本/代码（read_workspace_file，支持行范围）、读文档（read_document_file）、看图（read_image_for_vision）；不写入标注文件。
 **Agent 模式**：批量检测与提案；标注变更（改标签/删框）；数据分析（脚本预览后执行）；报告/文档（Markdown）。
-执行批量写入或变更标注请描述明确图片范围；查某张图已有标注在 Ask 即可。"""
+执行批量写入或变更标注请传入明确 paths（或用户明确要求全部时 all_files=true）；查某张图已有标注在 Ask 即可。"""
 
 
 def get_lr_agent_help(topic: str | None = None) -> str:
@@ -20,8 +20,9 @@ def get_lr_agent_help(topic: str | None = None) -> str:
     needle = topic.strip().lower()
     if "标注" in needle or "annotation" in needle:
         return (
-            "标注任务在左侧活动栏「标注任务」中创建；数据保存在 `.lr-agent/annotations/`。"
-            " **Ask**：分析与建议，不执行批量标注。**Agent**：描述图片范围后执行检测与提案。"
+            "标注任务在左侧活动栏「标注任务」中创建。"
+            " **Ask**：分析与建议，不执行批量标注。"
+            "**Agent**：新增/重写用 auto_annotate，改已有标注用 mutate_annotation。"
         )
     if "模型" in needle or "model" in needle:
         return "预训练模型在左侧「预训练模型」面板配置，供标注工作区推理使用。"

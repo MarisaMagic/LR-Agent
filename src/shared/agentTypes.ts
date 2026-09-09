@@ -30,6 +30,12 @@ export interface LlmProviderConfig {
   updatedAt: number;
 }
 
+export type ProposalBlockStatus =
+  | 'pending'
+  | 'applied'
+  | 'dismissed'
+  | 'undone';
+
 export type MessageBlock =
   | { type: 'text'; content: string }
   | {
@@ -49,7 +55,9 @@ export type MessageBlock =
   | {
       type: 'annotation_proposal';
       proposal: AnnotationBatchProposal;
-      status: 'pending' | 'applied' | 'dismissed';
+      status: ProposalBlockStatus;
+      /** Apply 时成功写入改前快照后为 true；无快照不显示 Undo */
+      hasCheckpoint?: boolean;
     }
   | {
       type: 'annotation_pipeline';
@@ -63,7 +71,11 @@ export type MessageBlock =
       title: string;
       content: string;
       suggestedRelativePath: string;
-      status: 'pending' | 'applied' | 'dismissed';
+      status: ProposalBlockStatus;
+      hasCheckpoint?: boolean;
+      operation?: 'write' | 'delete';
+      additions?: number;
+      deletions?: number;
     }
   | {
       /** @deprecated 历史消息兼容，加载时 normalize 为 file_proposal */
@@ -71,7 +83,11 @@ export type MessageBlock =
       title: string;
       content: string;
       suggestedRelativePath: string;
-      status: 'pending' | 'applied' | 'dismissed';
+      status: ProposalBlockStatus;
+      hasCheckpoint?: boolean;
+      operation?: 'write' | 'delete';
+      additions?: number;
+      deletions?: number;
     };
 
 export type AnnotationPipelineStepStatus =
@@ -103,6 +119,8 @@ export interface ChatMessage {
   error?: string;
   createdAt: number;
   updatedAt: number;
+  /** 本轮结束时刻（done/stopped/error）；hydrate 时用 updatedAt 回填 */
+  finishedAt?: number;
 }
 
 export interface ChatContextConfig {
@@ -199,6 +217,7 @@ export type StreamEvent =
       title: string;
       suggestedRelativePath: string;
       detail: string;
+      operation?: 'write' | 'delete';
     }
   | {
       type: 'file_proposal_delta';
@@ -211,7 +230,8 @@ export type StreamEvent =
       title: string;
       content: string;
       suggestedRelativePath: string;
-      status?: 'pending' | 'applied' | 'dismissed';
+      status?: ProposalBlockStatus;
+      operation?: 'write' | 'delete';
     }
   | {
       /** @deprecated 旧 SSE 事件 */
@@ -219,7 +239,7 @@ export type StreamEvent =
       title: string;
       content: string;
       suggestedRelativePath: string;
-      status?: 'pending' | 'applied' | 'dismissed';
+      status?: ProposalBlockStatus;
     }
   | { type: 'done' }
   | { type: 'error'; message: string }
@@ -275,6 +295,8 @@ export interface ClientContextPayload {
   workspaceMemoryEnabled?: boolean;
   /** 全局 Agent Skills catalog（~/.agents/skills 扫描结果，注入 system prompt） */
   skillsCatalog?: AgentSkillEntry[] | null;
+  /** 未 Keep All 的提案台账（短文本，注入 system prompt） */
+  proposalLedger?: string | null;
   annotationProjectSnapshot?: {
     projectId: string;
     name: string;

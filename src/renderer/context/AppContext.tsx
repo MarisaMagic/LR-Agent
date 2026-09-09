@@ -18,6 +18,7 @@ import {
   markDocumentSaved,
   syncDocumentRefCounts,
 } from '../components/editor/editorDocumentStore';
+import { clearFilePreviewIfPathChanged } from '../services/agentFilePreviewStore';
 import { getWorkModeExternal } from './workModeBridge';
 
 const STORAGE_KEYS = {
@@ -471,6 +472,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const openFileInEditor = useCallback(
     (filePath: string) => {
+      clearFilePreviewIfPathChanged(filePath);
       setEditorTabs((prev) => {
         const existing = prev.find((tab) => tab.filePath === filePath);
         if (existing) {
@@ -502,6 +504,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const previewFileInEditor = useCallback(
     (filePath: string) => {
+      clearFilePreviewIfPathChanged(filePath);
       setEditorTabs((prev) => {
         const existing = prev.find((tab) => tab.filePath === filePath);
         if (existing) {
@@ -555,6 +558,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setActiveTab = useCallback(
     (tabId: string) => {
+      const tab = editorTabsRef.current.find((item) => item.id === tabId);
+      if (tab) clearFilePreviewIfPathChanged(tab.filePath);
       setActiveTabId(tabId);
       syncActiveFilePath(editorTabsRef.current, tabId);
     },

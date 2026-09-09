@@ -1,6 +1,7 @@
 import { ipcMain, shell } from 'electron';
 import { readProjectInstructions } from './instructionsReader';
 import {
+  assertAgentWritableTopic,
   createMemoryTopic,
   ensureMemoryDir,
   getActiveMemoryScope,
@@ -11,6 +12,7 @@ import {
   readMemoryTopic,
   resolveOpenableMemoryFile,
   setWorkspaceMemoryActive,
+  syncWorkspaceFactTopics,
   writeMemoryTopic,
 } from './memoryStore';
 import {
@@ -72,6 +74,7 @@ export function registerMemoryHandlers(): void {
       },
     ) => {
       assertWritableMemoryScope(options.scopeKey);
+      assertAgentWritableTopic(options.topicFile);
       return writeMemoryTopic(options);
     },
   );
@@ -88,7 +91,21 @@ export function registerMemoryHandlers(): void {
       },
     ) => {
       assertWritableMemoryScope(options.scopeKey);
+      assertAgentWritableTopic(options.topicFile);
       return createMemoryTopic(options);
+    },
+  );
+
+  ipcMain.handle(
+    'agent:memory:syncFacts',
+    (
+      _event,
+      options: {
+        scopeKey: string;
+        projectDir: string;
+      },
+    ) => {
+      return syncWorkspaceFactTopics(options);
     },
   );
 

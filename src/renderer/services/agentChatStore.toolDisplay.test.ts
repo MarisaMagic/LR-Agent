@@ -11,6 +11,8 @@ describe('isExplorationTool', () => {
     expect(isExplorationTool('grep_workspace')).toBe(true);
     expect(isExplorationTool('read_workspace_file')).toBe(true);
     expect(isExplorationTool('write_workspace_file')).toBe(false);
+    expect(isExplorationTool('delete_workspace_file')).toBe(false);
+    expect(isExplorationTool('mutate_annotation')).toBe(false);
   });
 });
 

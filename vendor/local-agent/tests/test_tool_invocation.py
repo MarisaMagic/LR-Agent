@@ -17,9 +17,22 @@ def test_normalize_skips_completed_api_calls() -> None:
     api = [{"id": "t1", "name": "auto_annotate", "args": {}}]
     resolved = normalize_api_tool_calls(
         api_tool_calls=api,
-        completed_tools=frozenset({"auto_annotate"}),
+        completed_tools=frozenset({"t1"}),
     )
     assert resolved == []
+
+
+def test_normalize_allows_same_name_with_new_id() -> None:
+    api = [
+        {"id": "t1", "name": "auto_annotate", "args": {}},
+        {"id": "t2", "name": "auto_annotate", "args": {"user_request": "再标"}},
+    ]
+    resolved = normalize_api_tool_calls(
+        api_tool_calls=api,
+        completed_tools=frozenset({"t1"}),
+    )
+    assert len(resolved) == 1
+    assert resolved[0].tool_call_id == "t2"
 
 
 def test_normalize_empty_api_calls() -> None:

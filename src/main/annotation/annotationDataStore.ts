@@ -8,7 +8,7 @@ const FILES_DIR = 'files';
 const INDEX_FILE = 'index.json';
 
 /** Schema for annotations/index.json */
-interface AnnotationIndexFilePayload {
+export interface AnnotationIndexFilePayload {
   schemaVersion: number;
   projectId: string;
   files: Record<
@@ -71,6 +71,12 @@ export async function loadAllAnnotationDocs(
   return results;
 }
 
+export async function readAnnotationIndex(
+  projectDir: string,
+): Promise<AnnotationIndexFilePayload | null> {
+  return readIndex(projectDir);
+}
+
 async function readIndex(
   projectDir: string,
 ): Promise<AnnotationIndexFilePayload | null> {
@@ -101,6 +107,37 @@ async function writeIndex(
   const dir = annotationsRoot(projectDir);
   await fs.ensureDir(dir);
   await fs.writeJson(indexPath(projectDir), index, { spaces: 2 });
+}
+
+/** Raw UTF-8 of the per-file annotation JSON; null if missing. */
+export async function readAnnotationDocRaw(
+  projectDir: string,
+  relativePath: string,
+): Promise<string | null> {
+  const norm = normalizeRelativePath(relativePath);
+  const fileKey = computeFileKey(norm);
+  const dp = docPath(projectDir, fileKey);
+  try {
+    if (!(await fs.pathExists(dp))) return null;
+    return await fs.readFile(dp, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+/** Remove a per-file annotation JSON and drop it from the index. */
+export async function deleteAnnotationDocJson(
+  projectDir: string,
+  relativePath: string,
+): Promise<void> {
+  const norm = normalizeRelativePath(relativePath);
+  const fileKey = computeFileKey(norm);
+  const dp = docPath(projectDir, fileKey);
+  await fs.remove(dp);
+  const index = await readIndex(projectDir);
+  if (!index || !index.files[norm]) return;
+  delete index.files[norm];
+  await writeIndex(projectDir, index);
 }
 
 /** Read per-file annotation JSON; returns undefined if missing. */

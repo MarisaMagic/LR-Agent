@@ -37,6 +37,22 @@ def _should_skip_dir(name: str) -> bool:
     return name in SKIP_DIR_NAMES or name.startswith(".")
 
 
+def _rel_matches_glob(relative_path: str, glob_pattern: str) -> bool:
+    rel = relative_path.replace("\\", "/")
+    pat = (glob_pattern or "*").strip().replace("\\", "/")
+    if not pat or pat == "**/*" or pat == "*":
+        return True
+    name = rel.rsplit("/", 1)[-1]
+    if pat.startswith("**/"):
+        rest = pat[3:]
+        return (
+            fnmatch.fnmatch(rel, pat)
+            or fnmatch.fnmatch(rel, rest)
+            or fnmatch.fnmatch(name, rest)
+        )
+    return fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(name, pat)
+
+
 def _matches_glob(name: str, glob_pattern: str) -> bool:
     pattern = (glob_pattern or "*").strip()
     if pattern == "*":
@@ -207,6 +223,64 @@ def grep_workspace(
         header += f"（已扫描文件数达上限 {max_files}）\n"
     header += "---\n"
     return header + "\n".join(results)
+
+
+def glob_workspace(
+    client_context: ClientContextInput | None,
+    glob_pattern: str,
+    relative_dir: str = "",
+    *,
+    settings: Settings,
+) -> str:
+    """按 glob 递归列出工作区文件（跳过 .git / node_modules / .lr-agent）。"""
+    pattern = (glob_pattern or "").strip()
+    if not pattern:
+        return "请提供 glob_pattern（如 **/*.py、src/**/*.ts）。"
+
+    roots = allowed_roots(client_context)
+    if not roots:
+        return "未绑定工作区或项目目录，无法搜索。"
+
+    raw_dir = (relative_dir or "").strip()
+    if raw_dir:
+        resolved_dir, dir_err = resolve_workspace_directory(client_context, raw_dir)
+        if resolved_dir is None:
+            return dir_err or "目录无效。"
+        search_roots = [resolved_dir]
+    else:
+        search_roots = list(roots)
+
+    max_files = settings.agent_grep_max_files_scanned
+    files: list[Path] = []
+    truncated = False
+    for search_root in search_roots:
+        found = _iter_search_files(
+            search_root,
+            glob_pattern="*",
+            max_files=max_files,
+        )
+        for path in found:
+            rel = relative_path_from_roots(path, roots)
+            if not _rel_matches_glob(rel, pattern):
+                continue
+            files.append(path)
+            if len(files) >= max_files:
+                truncated = True
+                break
+        if truncated:
+            break
+
+    rel_dir = relative_path_from_roots(search_roots[0], roots) if search_roots else ""
+    header = f"glob：{pattern}\n范围：{rel_dir or '.'}\n"
+    if not files:
+        return header + "未找到匹配文件。\n"
+
+    header += f"条目数：{len(files)}"
+    if truncated:
+        header += f"（已截断，最多 {max_files} 条）"
+    header += "\n---\n"
+    lines = [relative_path_from_roots(path, roots) for path in files]
+    return header + "\n".join(lines)
 
 
 def list_workspace_directory(

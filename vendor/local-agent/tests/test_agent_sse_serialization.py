@@ -18,6 +18,31 @@ def test_file_proposal_sse_uses_frontend_field_names():
     assert "image_path" not in data
 
 
+def test_file_proposal_sse_includes_operation_alongside_mode():
+    event = StreamEventPayload(
+        type="file_proposal",
+        summary="删除 notes.md",
+        content="",
+        image_path="notes.md",
+        mode="delete",
+    )
+    data = event.to_sse_dict()
+    assert data["mode"] == "delete"
+    assert data["operation"] == "delete"
+
+
+def test_file_proposal_write_sse_includes_operation():
+    event = StreamEventPayload(
+        type="file_proposal",
+        summary="Readme",
+        content="# Hello",
+        image_path="docs/readme.md",
+        mode="write",
+    )
+    data = event.to_sse_dict()
+    assert data["operation"] == "write"
+
+
 def test_chat_stream_serializes_with_to_sse_dict_shape():
     event = StreamEventPayload(
         type="file_proposal_start",

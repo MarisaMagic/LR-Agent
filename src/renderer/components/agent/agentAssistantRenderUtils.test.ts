@@ -5,7 +5,7 @@ import {
 } from './agentAssistantRenderUtils';
 
 describe('shouldHideToolCallInChat', () => {
-  it('hides write_workspace_file when file_proposal exists', () => {
+  it('keeps write_workspace_file visible when file_proposal exists', () => {
     const blocks: MessageBlock[] = [
       {
         type: 'tool_call',
@@ -24,7 +24,7 @@ describe('shouldHideToolCallInChat', () => {
       },
     ];
     const tool = blocks[0] as Extract<MessageBlock, { type: 'tool_call' }>;
-    expect(shouldHideToolCallInChat(tool, blocks)).toBe(true);
+    expect(shouldHideToolCallInChat(tool, blocks)).toBe(false);
   });
 
   it('keeps unrelated sync tools visible', () => {
@@ -39,6 +39,38 @@ describe('shouldHideToolCallInChat', () => {
       },
     ];
     const tool = blocks[0] as Extract<MessageBlock, { type: 'tool_call' }>;
+    expect(shouldHideToolCallInChat(tool, blocks)).toBe(false);
+  });
+
+  it('keeps mutate_annotation visible when an annotation_proposal exists', () => {
+    const tool: Extract<MessageBlock, { type: 'tool_call' }> = {
+      type: 'tool_call',
+      id: 'tc-mut',
+      name: 'mutate_annotation',
+      arguments: '{}',
+      status: 'done',
+      collapsed: true,
+    };
+    const blocks: MessageBlock[] = [
+      tool,
+      {
+        type: 'annotation_proposal',
+        status: 'pending',
+        proposal: {
+          id: 'p1',
+          projectId: 'proj',
+          summary: '删除',
+          changes: [],
+          stats: {
+            kind: 'generic',
+            processed: 0,
+            succeeded: 0,
+            skipped: 0,
+          },
+          createdAt: 1,
+        },
+      },
+    ];
     expect(shouldHideToolCallInChat(tool, blocks)).toBe(false);
   });
 });

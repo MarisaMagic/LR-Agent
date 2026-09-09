@@ -26,7 +26,6 @@ export default function AgentMessageList() {
     loadOlderMessages,
     loadingOlderMessages,
   } = useAgentChat();
-  const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const messages = activeSessionId ? getSessionMessages(activeSessionId) : [];
   const lastMessage =
@@ -42,7 +41,12 @@ export default function AgentMessageList() {
 
   useEffect(() => {
     if (editTargetMessageId || !scrollKey) return;
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    const scroller = containerRef.current?.closest(
+      '.overlay-vertical-scroll-area__content',
+    );
+    if (scroller instanceof HTMLElement) {
+      scroller.scrollTop = scroller.scrollHeight;
+    }
   }, [scrollKey, editTargetMessageId]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -108,7 +112,6 @@ export default function AgentMessageList() {
             <AgentMessageItem key={message.id} message={message} />
           ))
         )}
-        <div ref={bottomRef} />
       </div>
       {contextMenu && (
         <ContextMenu

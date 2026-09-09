@@ -7,7 +7,7 @@ from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 
 from app.agent.assist.proposal_streamer import ProposalStreamInterceptor
-from app.agent.assist.tool_loop import ToolLoopRunner
+from app.agent.assist.tool_loop import TOOL_CALLS_ALREADY_COMPLETED, ToolLoopRunner
 from app.agent.assist.vision_bootstrap import VisionAutoLoader
 from app.agent.context_service import append_client_tool_results_to_messages
 from app.agent.stream_adapter import events_from_chunk
@@ -59,8 +59,8 @@ async def stream_assist(
 
     # ── resume：注入已完成的工具结果 ─────────────────────────────────
     if client_tool_results:
-        completed_names = {ctr.name for ctr in client_tool_results}
-        loop.mark_completed(completed_names)
+        completed_ids = {ctr.tool_call_id for ctr in client_tool_results}
+        loop.mark_completed(completed_ids)
         append_client_tool_results_to_messages(
             messages, client_tool_results, user_content=user_content
         )
@@ -78,7 +78,6 @@ async def stream_assist(
 
         gathered: AIMessage | None = None
         pending_text: list[str] = []
-        _round_had_visible_output = False
 
         # 单次 astream：同时收集 text/reasoning + 拦截 proposal + 累加 gathered
         async for chunk in llm_with_tools.astream(messages):
@@ -87,31 +86,14 @@ async def stream_assist(
 
             for event in events_from_chunk(chunk, emit_tool_chunks=False):
                 if event.type == "text_delta" and event.content:
-                    _round_had_visible_output = True
                     pending_text.append(event.content)
                     yield event
                 elif event.type == "reasoning_delta" and event.content:
-                    _round_had_visible_output = True
                     yield event
 
             # 提案流式拦截
             for proposal_event in interceptor.on_chunk(chunk):
                 yield proposal_event
-
-            # 占位推理反馈
-            if not _round_had_visible_output and chunk.tool_call_chunks:
-                first_tc_name = None
-                for _tc in chunk.tool_call_chunks:
-                    n = _tc.get("name")
-                    if n:
-                        first_tc_name = n
-                        break
-                if first_tc_name:
-                    _round_had_visible_output = True
-                    yield StreamEventPayload(
-                        type="reasoning_delta",
-                        content="正在分析需求，规划操作步骤…",
-                    )
 
             if gathered is None:
                 gathered = chunk
@@ -131,6 +113,9 @@ async def stream_assist(
             messages=messages,
             interceptor=interceptor,
         ):
+            if event.type == TOOL_CALLS_ALREADY_COMPLETED:
+                had_tool_call = True
+                continue
             had_tool_call = True
             if event.type == "tool_pending":
                 yield event

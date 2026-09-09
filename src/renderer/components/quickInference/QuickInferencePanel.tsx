@@ -15,6 +15,7 @@ import type { AnnotationBatchProposal } from '../../../shared/annotationAgentTyp
 import type { AnnotationPipelineStep } from '../../types/agent';
 import { basename } from '../../types/file';
 import { applyAnnotationProposalWithGuards } from '../../services/agentProposalApply';
+import { syncWorkspaceFactMemory } from '../../services/workspaceFactMemory';
 import { runQuickInferenceJob } from '../../services/quickInference/quickInferenceJob';
 import {
   evaluateQuickInferenceReadiness,
@@ -242,6 +243,7 @@ export default function QuickInferencePanel() {
     setApplying(true);
     try {
       await applyAnnotationProposalWithGuards(activeProject, proposal);
+      await syncWorkspaceFactMemory(activeProject);
       setPhase('applied');
       showToast('标注提案已应用', { type: 'success' });
     } catch (err) {

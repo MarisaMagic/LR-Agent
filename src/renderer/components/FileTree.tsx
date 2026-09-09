@@ -5,7 +5,6 @@ import {
   VscodeTree,
   VscodeTreeItem,
 } from '@vscode-elements/react-elements';
-import type { VscTreeSelectEvent } from '@vscode-elements/elements/dist/vscode-tree/vscode-tree.js';
 import {
   useCallback,
   useEffect,
@@ -26,6 +25,7 @@ import {
   getTreeFromItem,
   handleTreeSelect,
   isTreeItemBranch,
+  type VscTreeSelectEvent,
   syncActiveFileSelection,
   syncTreeOpenState,
 } from '../utils/tree-select';

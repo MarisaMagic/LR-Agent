@@ -11,11 +11,11 @@ from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 from app.agent import assist_service, chat_service
-from app.agent.assist_mode_router import FULL_TOOL_SET, LIGHT_TOOL_SET
+from app.agent.assist_mode_router import resolve_assist_tool_set
 from app.agent.context_service import CHAT_SYSTEM_PROMPT
 from app.agent.context_snapshot import (
     build_assist_system_prompt,
@@ -73,11 +73,31 @@ def _build_lc_messages_from_local(
         )
     for item in body.messages:
         if item.role == "user":
-            lc_messages.append(HumanMessage(content=item.content))
+            lc_messages.append(HumanMessage(content=item.content or ""))
         elif item.role == "assistant":
-            lc_messages.append(AIMessage(content=item.content))
+            tool_calls = [
+                {"id": tc.id, "name": tc.name, "args": tc.args}
+                for tc in (item.tool_calls or [])
+            ]
+            lc_messages.append(
+                AIMessage(
+                    content=item.content or "",
+                    tool_calls=tool_calls,
+                )
+                if tool_calls
+                else AIMessage(content=item.content or "")
+            )
+        elif item.role == "tool":
+            if not (item.tool_call_id or "").strip():
+                continue
+            lc_messages.append(
+                ToolMessage(
+                    content=item.content or "",
+                    tool_call_id=item.tool_call_id,
+                )
+            )
         elif item.role == "system":
-            lc_messages.append(SystemMessage(content=item.content))
+            lc_messages.append(SystemMessage(content=item.content or ""))
     return lc_messages
 
 
@@ -136,12 +156,12 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
             )
             is_editor = bool(client_ctx and client_ctx.work_mode == "editor")
 
-            if has_project_snapshot:
-                tool_set = FULL_TOOL_SET
-            elif is_editor or has_workspace:
-                tool_set = LIGHT_TOOL_SET
-            else:
-                tool_set = frozenset()
+            tool_set = resolve_assist_tool_set(
+                has_project_snapshot=has_project_snapshot,
+                agent_mode=client_ctx.agent_mode if client_ctx else None,
+                is_editor=is_editor,
+                has_workspace=has_workspace,
+            )
             tools = build_tools_by_name_set(
                 user,
                 client_ctx,
@@ -181,13 +201,6 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                         mcp_url,
                         exc_info=True,
                     )
-
-            if body.client_tool_results:
-                assist_service.append_client_tool_results_to_messages(
-                    lc_messages,
-                    body.client_tool_results,
-                    user_content=body.user_content,
-                )
 
             stream = assist_service.stream_assist(
                 llm,

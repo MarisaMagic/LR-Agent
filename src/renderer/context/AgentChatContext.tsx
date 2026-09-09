@@ -10,8 +10,13 @@ import {
 } from 'react';
 import { buildClientContextPayload } from '../services/agentClientContextBuilder';
 import {
+  buildProposalLedger,
+  collectPendingAnnotationChanges,
+} from '../services/proposalLedger';
+import {
   buildSessionTitle,
   createAgentId,
+  isFileProposalBlock,
   type AgentChatPersistedState,
   type AgentInteractionMode,
   type AgentSession,
@@ -32,6 +37,7 @@ import {
   deleteMessagesAfterLocally,
   deleteMessagesAfterIdLocally,
   cleanupStreamingLocally,
+  patchAgentMessageBlockRemote,
 } from '../services/agentChatApi';
 import {
   applyStreamEventToBlocks,
@@ -54,8 +60,26 @@ import {
 } from '../services/agentChatStore';
 import {
   applyAllPendingProposals,
+  applyProposalRefs,
+  collectPendingProposals,
   countPendingProposals,
+  dismissPendingProposals,
 } from '../services/agentProposalApply';
+import { dispatchMutationsAppliedEvent } from '../services/annotationProposalApply';
+import {
+  clearFilePreviewSession,
+  dispatchWorkspaceTextFilesChanged,
+} from '../services/agentFilePreviewStore';
+import {
+  annotationPathsFromBlock,
+  collectAppliedProposalRefs,
+  collectUndoneProposalRefs,
+  confirmDirtyWorkspaceIfNeeded,
+  formatRestoreError,
+  messageCanReapply,
+  messageCanUndo,
+  restoreAppliedCheckpoints,
+} from '../services/turnCheckpoint';
 import {
   reconcileAppliedFileProposals,
   reconcileAppliedAnnotationProposals,
@@ -87,6 +111,7 @@ import {
   loadMemoryIndex,
   setWorkspaceMemoryActive,
 } from '../services/agentMemory';
+import { syncWorkspaceFactMemory } from '../services/workspaceFactMemory';
 import { loadSkillsCatalog } from '../services/agentSkills';
 import { buildTurnContextFromState } from '../services/turnContext';
 import { useAnnotation } from './AnnotationContext';
@@ -127,6 +152,8 @@ interface AgentChatContextValue {
   beginEditMessage: (messageId: string) => void;
   cancelEdit: () => void;
   regenerateAssistant: (assistantMessageId: string) => Promise<void>;
+  undoAssistantChanges: (assistantMessageId: string) => Promise<void>;
+  reapplyAssistantChanges: (assistantMessageId: string) => Promise<void>;
   toggleBlockCollapse: (
     sessionId: string,
     messageId: string,
@@ -150,6 +177,9 @@ interface AgentChatContextValue {
   pendingProposalCount: number;
   applyAllPendingChanges: () => Promise<void>;
   applyingAllPending: boolean;
+  /** 否定尚未 Keep All 的提案（不写盘） */
+  dismissAllPendingChanges: () => Promise<void>;
+  dismissingAllPending: boolean;
   /** 当前标注项目下的会话顺序（已过滤） */
   sessionOrderForProject: string[];
   currentAnnotationProjectId: string | null;
@@ -169,7 +199,12 @@ function normalizeLoadedState(
     const cleaned: Record<string, ChatMessage> = {};
     for (const [msgId, msg] of Object.entries(messages)) {
       if (msg.status === 'streaming') {
-        cleaned[msgId] = { ...msg, status: 'stopped', updatedAt: Date.now() };
+        cleaned[msgId] = {
+          ...msg,
+          status: 'stopped',
+          updatedAt: Date.now(),
+          finishedAt: msg.finishedAt ?? Date.now(),
+        };
       } else {
         cleaned[msgId] = msg;
       }
@@ -210,6 +245,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const [loadingMoreSessions, setLoadingMoreSessions] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [applyingAllPending, setApplyingAllPending] = useState(false);
+  const [dismissingAllPending, setDismissingAllPending] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [composerDraft, setComposerDraft] = useState('');
   const [editTargetMessageId, setEditTargetMessageId] = useState<string | null>(
@@ -822,6 +858,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             ...existing,
             status: 'done',
             updatedAt: Date.now(),
+            finishedAt: existing.finishedAt ?? Date.now(),
             blocks: existing.blocks.map((block) => {
               if (block.type === 'annotation_pipeline') {
                 return finalizeAnnotationPipelineBlock(block, 'done');
@@ -878,6 +915,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             status: 'error',
             error: translateError(event.message),
             updatedAt: Date.now(),
+            finishedAt: existing.finishedAt ?? Date.now(),
             blocks: existing.blocks.map((block) =>
               block.type === 'annotation_pipeline'
                 ? {
@@ -1158,6 +1196,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           ...message,
           status: 'stopped',
           updatedAt: Date.now(),
+          finishedAt: message.finishedAt ?? Date.now(),
         }));
       }
       persist({
@@ -1219,6 +1258,65 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       if (editMessageId) {
         const editIndex = messageIds.indexOf(editMessageId);
         if (editIndex >= 0) {
+          const pendingRemoveIds = messageIds.slice(editIndex + 1);
+          const pendingRemoveMessages = pendingRemoveIds
+            .map((id) => sessionMessages[id])
+            .filter((message): message is ChatMessage => Boolean(message));
+          const appliedRefs = collectAppliedProposalRefs(
+            pendingRemoveMessages,
+            pendingRemoveIds,
+          );
+          const missingCheckpoint = appliedRefs.some((ref) => {
+            const block =
+              sessionMessages[ref.messageId]?.blocks[ref.blockIndex];
+            return (
+              !block || !('hasCheckpoint' in block) || !block.hasCheckpoint
+            );
+          });
+          if (appliedRefs.length > 0 && missingCheckpoint) {
+            showToast('无法回滚：缺少改前快照', { type: 'error' });
+            return;
+          }
+          if (appliedRefs.length > 0) {
+            const restorePaths = appliedRefs.flatMap((ref) => {
+              const block =
+                sessionMessages[ref.messageId]?.blocks[ref.blockIndex];
+              if (!block) return [];
+              if (block.type === 'annotation_proposal') {
+                return annotationPathsFromBlock(block);
+              }
+              if (isFileProposalBlock(block)) {
+                return [block.suggestedRelativePath];
+              }
+              return [];
+            });
+            if (
+              !confirmDirtyWorkspaceIfNeeded(
+                restorePaths,
+                activeProject?.id ?? null,
+              )
+            ) {
+              return;
+            }
+            const restored = await restoreAppliedCheckpoints({
+              refs: appliedRefs,
+              project: activeProject ?? null,
+              workspaceRoot: rootPath,
+              newestFirst: true,
+            });
+            if (!restored.ok) {
+              showToast(formatRestoreError(restored), { type: 'error' });
+              return;
+            }
+            await syncWorkspaceFactMemory(activeProject);
+            if (activeProject && restored.restoredPaths.length > 0) {
+              dispatchMutationsAppliedEvent(
+                activeProject.id,
+                restored.restoredPaths,
+                { force: true },
+              );
+            }
+          }
           truncateFromMessageId = editMessageId;
           const clearSummary = shouldClearSummaryOnEdit(
             session,
@@ -1405,6 +1503,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         ? computeMemoryScopeKey(activeProject?.id)
         : null;
       if (memoryScopeKey) {
+        await syncWorkspaceFactMemory(activeProject);
         memoryIndex = await loadMemoryIndex(memoryScopeKey);
       } else {
         await setWorkspaceMemoryActive(false);
@@ -1425,6 +1524,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         memoryIndex,
         workspaceMemoryEnabled,
         skillsCatalog,
+        proposalLedger: buildProposalLedger(
+          Object.values(sessionMessages).filter(
+            (message): message is ChatMessage => Boolean(message),
+          ),
+        ),
       });
 
       // Turn understanding removed — now handled locally or skipped
@@ -1510,6 +1614,12 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               detectionModels: pretrainedModels,
               currentFileAbsolutePath: activeFilePath,
               conversationTranscript,
+              pendingAnnotationChanges:
+                collectPendingAnnotationChanges(
+                  Object.values(sessionMessages).filter(
+                    (message): message is ChatMessage => Boolean(message),
+                  ),
+                ),
             }
           : null;
 
@@ -1553,6 +1663,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           status: 'error',
           error: resolveErrorMessage(err, '对话请求失败'),
           updatedAt: Date.now(),
+          finishedAt: message.finishedAt ?? Date.now(),
         }));
         const latest = stateRef.current.sessions[sessionId];
         if (latest) {
@@ -1669,6 +1780,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             ...msg,
             status: 'stopped',
             updatedAt: Date.now(),
+            finishedAt: msg.finishedAt ?? Date.now(),
           };
           markedStopped = true;
         }
@@ -1701,6 +1813,154 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       });
     },
     [agentMode, persist, sendMessage, stopGeneration],
+  );
+
+  const undoAssistantChanges = useCallback(
+    async (assistantMessageId: string) => {
+      const sessionId = stateRef.current.activeSessionId;
+      if (!sessionId) return;
+      const message =
+        stateRef.current.messagesBySession[sessionId]?.[assistantMessageId];
+      if (!message || !messageCanUndo(message)) return;
+      const refs = collectAppliedProposalRefs([message]);
+      const restorePaths = refs.flatMap((ref) => {
+        const block = message.blocks[ref.blockIndex];
+        if (!block) return [];
+        if (block.type === 'annotation_proposal') {
+          return annotationPathsFromBlock(block);
+        }
+        if (isFileProposalBlock(block)) return [block.suggestedRelativePath];
+        return [];
+      });
+      if (!confirmDirtyWorkspaceIfNeeded(restorePaths, activeProject?.id)) {
+        return;
+      }
+      const restored = await restoreAppliedCheckpoints({
+        refs,
+        project: activeProject ?? null,
+        workspaceRoot: rootPath,
+        newestFirst: true,
+      });
+      if (!restored.ok) {
+        showToast(formatRestoreError(restored), { type: 'error' });
+        return;
+      }
+      for (const ref of refs) {
+        updateMessageBlocks(sessionId, ref.messageId, (blocks) =>
+          blocks.map((block, index) =>
+            index === ref.blockIndex
+              ? ({ ...block, status: 'undone' } as MessageBlock)
+              : block,
+          ),
+        );
+        const block = message.blocks[ref.blockIndex];
+        if (!block) continue;
+        patchAgentMessageBlockRemote({
+          sessionId,
+          messageId: ref.messageId,
+          blockType: block.type,
+          blockIndex: ref.blockIndex,
+          patch: { status: 'undone' },
+        }).catch(() => undefined);
+      }
+      await syncWorkspaceFactMemory(activeProject);
+      if (activeProject && restored.restoredPaths.length > 0) {
+        dispatchMutationsAppliedEvent(activeProject.id, restored.restoredPaths, {
+          force: true,
+        });
+      }
+      dispatchWorkspaceTextFilesChanged(restorePaths);
+      clearFilePreviewSession();
+      showToast('已撤销本轮写入', { type: 'success' });
+    },
+    [activeProject, rootPath, showToast, updateMessageBlocks],
+  );
+
+  const dismissAllPendingChanges = useCallback(async () => {
+    if (dismissingAllPending) return;
+    const sessionId = stateRef.current.activeSessionId;
+    if (!sessionId) return;
+    const messagesMap = stateRef.current.messagesBySession[sessionId] ?? {};
+    const ids = resolveSessionMessageIds(
+      stateRef.current.sessions[sessionId],
+      messagesMap,
+    );
+    const messages = ids
+      .map((id) => messagesMap[id])
+      .filter((message): message is ChatMessage => Boolean(message));
+    if (countPendingProposals(messages) === 0) return;
+
+    setDismissingAllPending(true);
+    try {
+      const dismissed = dismissPendingProposals({
+        sessionId,
+        messages,
+        updateBlock: (messageId, blockIndex, patch) => {
+          updateMessageBlocks(sessionId, messageId, (blocks) =>
+            blocks.map((block, index) =>
+              index === blockIndex
+                ? ({ ...block, ...patch } as MessageBlock)
+                : block,
+            ),
+          );
+        },
+      });
+      clearFilePreviewSession();
+      if (dismissed > 0) {
+        showToast('已放弃提案', { type: 'info' });
+      }
+    } finally {
+      setDismissingAllPending(false);
+    }
+  }, [dismissingAllPending, showToast, updateMessageBlocks]);
+
+  const reapplyAssistantChanges = useCallback(
+    async (assistantMessageId: string) => {
+      const sessionId = stateRef.current.activeSessionId;
+      if (!sessionId) return;
+      const messagesMap = stateRef.current.messagesBySession[sessionId] ?? {};
+      const ids = resolveSessionMessageIds(
+        stateRef.current.sessions[sessionId],
+        messagesMap,
+      );
+      const messages = ids
+        .map((id) => messagesMap[id])
+        .filter((item): item is ChatMessage => Boolean(item));
+      const message = messagesMap[assistantMessageId];
+      if (!message || !messageCanReapply(message)) return;
+      const refs = collectUndoneProposalRefs(messages, assistantMessageId);
+      const result = await applyProposalRefs({
+        sessionId,
+        messages,
+        refs: refs.map((ref) => ({
+          messageId: ref.messageId,
+          blockIndex: ref.blockIndex,
+          kind: ref.kind,
+        })),
+        project: activeProject ?? null,
+        workspaceRoot: rootPath,
+        updateBlock: (messageId, blockIndex, patch) => {
+          updateMessageBlocks(sessionId, messageId, (blocks) =>
+            blocks.map((block, index) =>
+              index === blockIndex
+                ? ({ ...block, ...patch } as MessageBlock)
+                : block,
+            ),
+          );
+        },
+        onSyncWarning: (text) => {
+          showToast(text, { type: 'info' });
+        },
+      });
+      if (result.applied > 0) {
+        await syncWorkspaceFactMemory(activeProject);
+        showToast(`已重新应用 ${result.applied} 项变更`, { type: 'success' });
+      }
+      if (result.errors.length > 0) {
+        showToast(result.errors[0], { type: 'error' });
+      }
+    },
+    [activeProject, rootPath, showToast, updateMessageBlocks],
   );
 
   const toggleBlockCollapse = useCallback(
@@ -1769,6 +2029,17 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       .filter((message): message is ChatMessage => Boolean(message));
     if (countPendingProposals(messages) === 0) return;
 
+    const pendingRefs = collectPendingProposals(messages);
+    const pendingFilePaths = pendingRefs.flatMap((ref) => {
+      const block = messages.find((msg) => msg.id === ref.messageId)?.blocks[
+        ref.blockIndex
+      ];
+      if (block && isFileProposalBlock(block)) {
+        return [block.suggestedRelativePath];
+      }
+      return [];
+    });
+
     setApplyingAllPending(true);
     try {
       const result = await applyAllPendingProposals({
@@ -1789,6 +2060,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       });
       if (result.applied > 0) {
         showToast(`已应用 ${result.applied} 项变更`, { type: 'success' });
+        await syncWorkspaceFactMemory(activeProject);
+        clearFilePreviewSession();
+        dispatchWorkspaceTextFilesChanged(pendingFilePaths);
       }
       if (result.errors.length > 0) {
         showToast(result.errors[0], { type: 'error' });
@@ -1858,6 +2132,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       beginEditMessage,
       cancelEdit,
       regenerateAssistant,
+      undoAssistantChanges,
+      reapplyAssistantChanges,
       toggleBlockCollapse,
       updateMessageBlocks,
       setSessionProvider,
@@ -1872,6 +2148,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       pendingProposalCount,
       applyAllPendingChanges,
       applyingAllPending,
+      dismissAllPendingChanges,
+      dismissingAllPending,
     }),
     [
       state,
@@ -1898,6 +2176,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       beginEditMessage,
       cancelEdit,
       regenerateAssistant,
+      undoAssistantChanges,
+      reapplyAssistantChanges,
       toggleBlockCollapse,
       updateMessageBlocks,
       setSessionProvider,
@@ -1908,6 +2188,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       pendingProposalCount,
       applyAllPendingChanges,
       applyingAllPending,
+      dismissAllPendingChanges,
+      dismissingAllPending,
     ],
   );
 

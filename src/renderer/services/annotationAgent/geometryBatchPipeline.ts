@@ -23,7 +23,11 @@ import { getGeometryAdapter } from './geometryPipelineAdapter';
 import { runGeometrySubImageAgent } from './geometrySubImageRunner';
 import type { GeometryAnnotationType } from './geometryTypes';
 import type { FusionSubImageResult } from './fusionSubImageTypes';
-import { resolveScopeHintPaths, type InputPathEntry } from './scopePathUtil';
+import { resolveAnnotationScopePaths, type InputPathEntry } from './scopePathUtil';
+import {
+  attachRewriteDeletes,
+  inferAnnotationWritePolicy,
+} from './annotationWritePolicy';
 
 type WorkerResult = FusionSubImageResult;
 
@@ -152,13 +156,27 @@ async function* drainConcurrentPipelines(
 
 async function resolveScopePathsForProject(
   allPaths: InputPathEntry[],
-  scopeHint: string | undefined,
+  options: {
+    scopeHint?: string;
+    scopePaths?: string[];
+    allFiles?: boolean;
+    preselectedPaths?: string[];
+  },
   projectDir: string,
-): Promise<InputPathEntry[]> {
-  return resolveScopeHintPaths(
+): Promise<{ paths: InputPathEntry[]; error?: string }> {
+  const preselected = (options.preselectedPaths ?? []).filter(Boolean);
+  return resolveAnnotationScopePaths(
     allPaths,
-    scopeHint,
-    projectDir,
+    {
+      paths:
+        options.scopePaths && options.scopePaths.length > 0
+          ? options.scopePaths
+          : preselected.length > 0
+            ? preselected
+            : undefined,
+      allFiles: options.allFiles,
+      scopeHint: options.scopeHint,
+    },
     ANNOTATION_BATCH_MAX_FILES,
     async (relativePath) =>
       window.electron?.annotationAgent?.resolveRelativeFile?.(
@@ -192,6 +210,10 @@ export async function* runGeometryPipeline(
     providerSupportsVision?: boolean;
     abortSignal?: AbortSignal;
     scopeHint?: string;
+    scopePaths?: string[];
+    allFiles?: boolean;
+    writeMode?: 'append' | 'replace_matching';
+    preselectedPaths?: string[];
   },
   isCancelled: () => boolean,
   geometryType: GeometryAnnotationType,
@@ -287,13 +309,30 @@ export async function* runGeometryPipeline(
       relativePath: c.relativePath,
       absolutePath: c.absolutePath,
     }));
-    const scopedPaths = await resolveScopePathsForProject(
+    const scoped = await resolveScopePathsForProject(
       candidatePaths,
-      options.scopeHint,
+      options,
       project.directoryPath,
     );
-    const scopedByPath = new Map(scopedPaths.map((p) => [p.relativePath, p]));
+    if (scoped.error) {
+      yield { type: 'error', message: scoped.error };
+      return;
+    }
+    const scopedByPath = new Map(scoped.paths.map((p) => [p.relativePath, p]));
     images = candidates.filter((c) => scopedByPath.has(c.relativePath));
+    const seenRels = new Set(images.map((c) => c.relativePath));
+    for (const extra of scoped.paths) {
+      if (seenRels.has(extra.relativePath)) continue;
+      const parts = extra.relativePath.split('/');
+      images.push({
+        relativePath: extra.relativePath,
+        name: parts[parts.length - 1] || extra.relativePath,
+        parent: parts.slice(0, -1).join('/'),
+        absolutePath: extra.absolutePath,
+        index: images.length,
+      });
+      seenRels.add(extra.relativePath);
+    }
 
     yield progress(
       'prepare',
@@ -311,8 +350,8 @@ export async function* runGeometryPipeline(
 
   if (images.length === 0) {
     yield {
-      type: 'text',
-      content: '未选定图片。请更具体说明文件夹或文件名。',
+      type: 'error',
+      message: '未选定图片。请提供 paths 或将 all_files 设为 true。',
     };
     return;
   }
@@ -438,11 +477,22 @@ export async function* runGeometryPipeline(
     cancelled,
   };
 
+  const writePolicy = inferAnnotationWritePolicy(
+    userRequest,
+    geometryType,
+    options.writeMode ?? 'append',
+  );
+  const proposalChanges = await attachRewriteDeletes(
+    succeeded.map((r) => r.change!),
+    project.directoryPath,
+    writePolicy,
+  );
+
   const proposal: AnnotationBatchProposal = {
     id: createAgentId('proposal'),
     projectId: project.projectId,
     summary: `${typeLabel}批量标注：${succeeded.length} 张图片，共 ${totalInstances} 个实例`,
-    changes: succeeded.map((r) => r.change!),
+    changes: proposalChanges,
     stats,
     plan,
     createdAt: Date.now(),

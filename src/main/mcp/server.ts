@@ -18,6 +18,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import {
+  assertAgentWritableTopic,
   createMemoryTopic,
   getActiveMemoryScope,
   isWorkspaceMemoryActive,
@@ -118,7 +119,7 @@ function createMcpServer(): McpServer {
 
   mcpServer.tool(
     'memory_read',
-    'Read a workspace-memory topic file (full content) for the current annotation task. Topics are listed in the workspace-memory index in the system prompt. Pass the topic filename such as "progress.md" or "annotated-files.md".',
+    'Read a workspace-memory topic file (full content) for the current annotation task. Topics are listed in the workspace-memory index in the system prompt. You may read system facts such as "progress.md" or "annotated-files.md", or preference topics such as "conventions.md".',
     {
       topic_file: z
         .string()
@@ -197,12 +198,12 @@ function createMcpServer(): McpServer {
 
   mcpServer.tool(
     'memory_write',
-    'Overwrite an existing workspace-memory topic for the current annotation task and update the memory index. Use after finishing annotation work this turn to update progress and annotated/skipped files. File must already exist; use memory_create for a new topic. Keep content concise markdown.',
+    'Overwrite an existing preference/convention topic (not progress.md or annotated-files.md). Those two files are system-managed after the user confirms or saves annotations. Use for user conventions, labeling preferences, and corrections. File must already exist; use memory_create for a new topic. Keep content concise markdown.',
     {
       topic_file: z
         .string()
         .describe(
-          'Existing topic filename, e.g. "progress.md" (letters/digits/dash/underscore, must end with .md)',
+          'Existing preference topic filename, e.g. "conventions.md" (letters/digits/dash/underscore, must end with .md). Do not use progress.md or annotated-files.md.',
         ),
       content: z
         .string()
@@ -212,13 +213,14 @@ function createMcpServer(): McpServer {
       index_line: z
         .string()
         .describe(
-          'One-line index entry describing this topic, e.g. "- [进度](topics/progress.md)：已标 12/40"',
+          'One-line index entry describing this topic, e.g. "- [规范](topics/conventions.md)：框贴紧文字"',
         ),
     },
     async ({ topic_file, content, index_line }) => {
       try {
         const active = requireActiveWorkspaceMemory();
         if (!active.ok) return active.result;
+        assertAgentWritableTopic(topic_file);
         await writeMemoryTopic({
           scopeKey: active.scopeKey,
           topicFile: topic_file,
@@ -239,12 +241,12 @@ function createMcpServer(): McpServer {
 
   mcpServer.tool(
     'memory_create',
-    'Create a new workspace-memory topic markdown file for the current annotation task and append an index line. Fails if the file already exists (use memory_write to update). Suggested names: progress.md, annotated-files.md.',
+    'Create a preference/convention topic (not progress.md or annotated-files.md). Those two files are system-managed after the user confirms or saves annotations. Suggested names: conventions.md, preferences.md, feedback.md. Fails if the file already exists (use memory_write to update).',
     {
       topic_file: z
         .string()
         .describe(
-          'New topic filename, e.g. "progress.md" (letters/digits/dash/underscore, must end with .md)',
+          'New preference topic filename, e.g. "conventions.md" (letters/digits/dash/underscore, must end with .md). Do not use progress.md or annotated-files.md.',
         ),
       content: z
         .string()
@@ -252,13 +254,14 @@ function createMcpServer(): McpServer {
       index_line: z
         .string()
         .describe(
-          'One-line index entry describing this topic, e.g. "- [已标文件](topics/annotated-files.md)：列出已标与跳过文件"',
+          'One-line index entry describing this topic, e.g. "- [规范](topics/conventions.md)：框贴紧文字"',
         ),
     },
     async ({ topic_file, content, index_line }) => {
       try {
         const active = requireActiveWorkspaceMemory();
         if (!active.ok) return active.result;
+        assertAgentWritableTopic(topic_file);
         await createMemoryTopic({
           scopeKey: active.scopeKey,
           topicFile: topic_file,

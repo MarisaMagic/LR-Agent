@@ -1,9 +1,8 @@
 import { useCallback, useMemo, useState, type KeyboardEvent } from 'react';
 import { VscodeIcon } from '@vscode-elements/react-elements';
+import type { ProposalBlockStatus } from '../../../shared/agentTypes';
 import type { AnnotationBatchProposal } from '../../../shared/annotationAgentTypes';
-import type { Modality } from '../../types/annotation';
 import type { AnnotationInstance } from '../../types/annotationDocument';
-import FileTypeIcon from '../FileTypeIcon';
 import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import { basename } from '../../types/file';
 import { useAnnotation } from '../../context/AnnotationContext';
@@ -11,37 +10,24 @@ import { useApp } from '../../context/AppContext';
 import { useWorkMode } from '../../context/WorkModeContext';
 import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import {
+  annotationChangeDiffStats,
   summarizeAnnotationChange,
   formatAnnotationPreviewText,
   buildLabelMap,
 } from '../../services/agentProposalApply';
 import { proposalAnchorId } from '../../utils/fileDiffStats';
-import {
-  getOpenActionLabels,
-  resolveAnnotationOpenTarget,
-} from './agentAnnotationNavigation';
+import { getOpenActionLabels } from './agentAnnotationNavigation';
 import { requestOpenAnnotationPreview } from './agentAnnotationPreview';
+import './AgentReasoningBlock.css';
 import './AgentAnnotationChangeBlock.css';
 
-/** 折叠预览时可见的变更行数（与 file block ~9 行 diff 视觉高度对齐） */
-const INITIAL_VISIBLE_ITEMS = 4;
-const LIST_ITEM_HEIGHT_PX = 28;
-const LIST_SCROLL_MAX_ITEMS = 12;
 const PREVIEW_CARD_MAX_HEIGHT_PX = 24 * 6;
 
 interface AgentAnnotationChangeBlockProps {
   messageId: string;
   blockIndex: number;
   proposal: AnnotationBatchProposal;
-  status: 'pending' | 'applied' | 'dismissed';
-}
-
-interface ChangeListItem {
-  key: string;
-  path: string;
-  absolutePath: string;
-  summary: string;
-  annotations?: AnnotationInstance[];
+  status: ProposalBlockStatus;
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -159,102 +145,6 @@ function AnnotationPreviewCards({
   );
 }
 
-function AnnotationChangeListItems({
-  items,
-  expandedKeys,
-  modality,
-  onToggleExpand,
-  onOpenFile,
-  onOpenAnnotation,
-  labelMap,
-}: {
-  items: ChangeListItem[];
-  expandedKeys: Set<string>;
-  modality: Modality | undefined;
-  onToggleExpand: (key: string) => void;
-  onOpenFile: (relativePath: string, absolutePath: string) => void;
-  onOpenAnnotation: (
-    relativePath: string,
-    absolutePath: string,
-    annotation: AnnotationInstance,
-  ) => void;
-  labelMap: Map<string, string>;
-}) {
-  return (
-    <ul className="agent-annotation-change-block__list">
-      {items.map((item) => {
-        const isExpanded = expandedKeys.has(item.key);
-        const hasAnnotations =
-          item.annotations != null && item.annotations.length > 0;
-        const openLabels = getOpenActionLabels(modality, item.path);
-
-        return (
-          <li key={item.key}>
-            <div
-              className={`agent-annotation-change-block__item-row${
-                isExpanded
-                  ? ' agent-annotation-change-block__item-row--expanded'
-                  : ''
-              } agent-annotation-change-block__item-row--clickable`}
-            >
-              <button
-                type="button"
-                className="agent-annotation-change-block__item-chevron"
-                aria-label={isExpanded ? '折叠预览' : '展开预览'}
-                title={isExpanded ? '折叠' : '展开'}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleExpand(item.key);
-                }}
-              >
-                <VscodeIcon
-                  name={isExpanded ? 'chevron-down' : 'chevron-right'}
-                  size={14}
-                />
-              </button>
-              <button
-                type="button"
-                className="agent-annotation-change-block__item"
-                aria-label={openLabels.ariaLabel}
-                title={openLabels.ariaLabel}
-                onClick={() => onOpenFile(item.path, item.absolutePath)}
-              >
-                <FileTypeIcon path={item.path} size={14} />
-                <span
-                  className="agent-annotation-change-block__path"
-                  title={item.path}
-                >
-                  {basename(item.path)}
-                </span>
-                <span className="agent-annotation-change-block__summary">
-                  {item.summary}
-                </span>
-              </button>
-            </div>
-            {isExpanded && hasAnnotations ? (
-              <AnnotationPreviewCards
-                annotations={item.annotations!}
-                labelMap={labelMap}
-                openLabel={openLabels.button}
-                onOpenAnnotation={(annotation) =>
-                  onOpenAnnotation(item.path, item.absolutePath, annotation)
-                }
-              />
-            ) : null}
-            {isExpanded && !hasAnnotations ? (
-              <div className="agent-annotation-change-block__preview-area">
-                <div className="agent-annotation-change-block__preview-empty">
-                  无标注数据
-                </div>
-              </div>
-            ) : null}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 export default function AgentAnnotationChangeBlock({
   messageId,
   blockIndex,
@@ -266,7 +156,6 @@ export default function AgentAnnotationChangeBlock({
   const { setWorkMode } = useWorkMode();
   const {
     enterAgentPreview,
-    clearAgentPreview,
     schedulePendingAgentNavigation,
     applyImmediateAnnotationPreview,
     relativeFilePath,
@@ -274,19 +163,12 @@ export default function AgentAnnotationChangeBlock({
     selectAnnotation,
     setTool,
   } = useAnnotationWorkspace();
-  const [showFullList, setShowFullList] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const anchorId = proposalAnchorId(messageId, blockIndex);
   const modality = activeProject?.modality;
 
   const labelMap = useMemo(
     () => buildLabelMap(activeProject?.labels ?? []),
     [activeProject?.labels],
-  );
-
-  const fileCount = useMemo(
-    () => new Set(proposal.changes.map((c) => c.relativePath)).size,
-    [proposal.changes],
   );
 
   const items = useMemo(
@@ -296,13 +178,16 @@ export default function AgentAnnotationChangeBlock({
         path: change.relativePath,
         absolutePath: change.absolutePath,
         summary: summarizeAnnotationChange(change),
+        operation: change.operation,
         annotations: change.annotations,
+        ...annotationChangeDiffStats(change),
       })),
     [proposal.changes],
   );
 
-  const canExpandList = items.length > INITIAL_VISIBLE_ITEMS;
-  const listScrollable = showFullList || !canExpandList;
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const handleToggleExpand = useCallback((key: string) => {
     setExpandedItems((prev) => {
@@ -315,25 +200,6 @@ export default function AgentAnnotationChangeBlock({
       return next;
     });
   }, []);
-
-  const handleOpenInAnnotation = useCallback(
-    (relativePath: string, absolutePath: string) => {
-      const target = resolveAnnotationOpenTarget(
-        relativePath,
-        absolutePath,
-        activeProject ?? null,
-        rootPath,
-      );
-      if (!target) return;
-
-      clearAgentPreview();
-      setWorkMode('annotation', { silent: true });
-      if (target.kind === 'file') {
-        openFileInEditor(target.absolutePath);
-      }
-    },
-    [activeProject, clearAgentPreview, openFileInEditor, rootPath, setWorkMode],
-  );
 
   const handleOpenAnnotationPreview = useCallback(
     (
@@ -384,72 +250,72 @@ export default function AgentAnnotationChangeBlock({
     ],
   );
 
-  const title =
-    status === 'applied'
-      ? `已应用标注变更（${fileCount} 个文件）`
-      : `标注变更（${fileCount} 个文件）`;
-
-  const listContent = (
-    <AnnotationChangeListItems
-      items={items}
-      expandedKeys={expandedItems}
-      modality={modality}
-      onToggleExpand={handleToggleExpand}
-      onOpenFile={handleOpenInAnnotation}
-      onOpenAnnotation={handleOpenAnnotationPreview}
-      labelMap={labelMap}
-    />
-  );
-
   return (
-    <div
-      className={`agent-annotation-change-block${status === 'applied' ? ' agent-annotation-change-block--applied' : ''}`}
-      data-proposal-id={anchorId}
-    >
-      <div className="agent-annotation-change-block__header">
-        <span className="agent-annotation-change-block__title">{title}</span>
-        {status === 'applied' ? (
-          <span className="agent-annotation-change-block__badge">已应用</span>
-        ) : null}
-      </div>
-      <div
-        className={`agent-change-block__body-wrap agent-annotation-change-block__list-wrap${
-          canExpandList && !showFullList
-            ? ' agent-annotation-change-block__list-wrap--clamped'
-            : ''
-        }${canExpandList ? ' agent-change-block__body-wrap--expandable' : ''}${
-          showFullList ? ' agent-change-block__body-wrap--full' : ''
-        }`}
-      >
-        {listScrollable ? (
-          <OverlayVerticalScrollArea
-            enabled
-            maxHeight={`${LIST_ITEM_HEIGHT_PX * LIST_SCROLL_MAX_ITEMS}px`}
-            disabledContentClassName="agent-annotation-change-block__list-scroll-host"
-            contentClassName="agent-annotation-change-block__list-scroll-host"
-            observeKey={items.length}
+    <>
+      {items.map((item) => {
+        const isExpanded = expandedItems.has(item.key);
+        const isDelete = item.operation === 'delete';
+        const fileName = basename(item.path) || item.path;
+        return (
+          <div
+            key={item.key}
+            className="agent-tool-block"
+            data-proposal-id={anchorId}
           >
-            {listContent}
-          </OverlayVerticalScrollArea>
-        ) : (
-          listContent
-        )}
-        {canExpandList ? (
-          <button
-            type="button"
-            className="agent-change-block__expand"
-            aria-expanded={showFullList}
-            aria-label={showFullList ? '收起列表' : '展开全部变更文件'}
-            title={showFullList ? '收起' : '展开全部变更文件'}
-            onClick={() => setShowFullList((full) => !full)}
-          >
-            <VscodeIcon
-              name={showFullList ? 'chevron-up' : 'chevron-down'}
-              size={14}
-            />
-          </button>
-        ) : null}
-      </div>
-    </div>
+            <button
+              type="button"
+              className="agent-block-toggle"
+              aria-expanded={isExpanded}
+              onClick={() => handleToggleExpand(item.key)}
+            >
+              <VscodeIcon
+                name={isExpanded ? 'chevron-down' : 'chevron-right'}
+                size={12}
+              />
+              <span>
+                {isDelete ? 'Deleted' : 'Edited'} {fileName}
+              </span>
+              {item.additions > 0 || item.deletions > 0 ? (
+                <span className="agent-edit-stats">
+                  {item.additions > 0 ? (
+                    <span className="agent-edit-stats__add">
+                      +{item.additions}
+                    </span>
+                  ) : null}
+                  {item.deletions > 0 ? (
+                    <span className="agent-edit-stats__del">
+                      -{item.deletions}
+                    </span>
+                  ) : null}
+                </span>
+              ) : null}
+            </button>
+            {isExpanded ? (
+              <div className="agent-tool-body">
+                <div className="agent-annotation-change-block__file-summary">
+                  {item.summary}
+                </div>
+                {item.annotations && item.annotations.length > 0 ? (
+                  <AnnotationPreviewCards
+                    annotations={item.annotations}
+                    labelMap={labelMap}
+                    openLabel={
+                      getOpenActionLabels(modality, item.path).button
+                    }
+                    onOpenAnnotation={(annotation) =>
+                      handleOpenAnnotationPreview(
+                        item.path,
+                        item.absolutePath,
+                        annotation,
+                      )
+                    }
+                  />
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </>
   );
 }

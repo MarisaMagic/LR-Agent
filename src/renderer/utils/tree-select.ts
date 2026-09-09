@@ -1,5 +1,9 @@
-import type { VscTreeSelectEvent } from '@vscode-elements/elements/dist/vscode-tree/vscode-tree.js';
 import { dirname } from '../types/file';
+
+/** vscode-tree 的 vsc-tree-select：detail 可能是数组或 { selectedItems } */
+export type VscTreeSelectEvent = CustomEvent<
+  Element[] | { selectedItems?: Element[] }
+>;
 
 export function getPathFromTreeItem(item: Element): string | null {
   const pathEl = item.querySelector('[data-file-path]');

@@ -19,6 +19,26 @@ def normalize_relative_path(relative_path: str) -> str:
     return "/".join(part for part in relative_path.replace("\\", "/").split("/") if part and part != ".")
 
 
+LR_AGENT_DIR = ".lr-agent"
+LR_AGENT_WRITE_DENIED = (
+    "不能用本工具写入标注。新增/重写请调用 auto_annotate，修改请调用 mutate_annotation。"
+)
+
+
+def is_lr_agent_relative(relative_path: str) -> bool:
+    """相对路径是否落入 .lr-agent 标注库目录。"""
+    parts = [p for p in normalize_relative_path(relative_path).split("/") if p]
+    return any(part == LR_AGENT_DIR for part in parts)
+
+
+def _is_lr_agent_under_root(candidate: Path, root: Path) -> bool:
+    try:
+        rel = candidate.relative_to(root)
+    except ValueError:
+        return False
+    return any(part == LR_AGENT_DIR for part in rel.parts)
+
+
 def allowed_roots(client_context: ClientContextInput | None) -> list[Path]:
     """返回可访问的根目录列表（工作区根 + 项目目录，去重）。"""
     roots: list[Path] = []
@@ -185,12 +205,16 @@ def resolve_workspace_write_path(
             return None, f"路径无效：{exc}"
         for root in roots:
             if _is_under_root(candidate, root):
+                if _is_lr_agent_under_root(candidate, root):
+                    return None, LR_AGENT_WRITE_DENIED
                 return candidate, ""
         return None, "目标路径不在当前工作区或项目目录内。"
 
     rel = normalize_relative_path(raw)
     if ".." in rel.split("/"):
         return None, "路径不能包含 .."
+    if is_lr_agent_relative(rel):
+        return None, LR_AGENT_WRITE_DENIED
 
     for root in roots:
         candidate = (root / rel).resolve()

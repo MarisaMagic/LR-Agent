@@ -2,7 +2,7 @@
 
 .agent-keep-all-bar {
   flex-shrink: 0;
-  margin: 0 12px;
+  margin: 0 30px;
   border: 1px solid var(--agent-surface-border);
   border-radius: 8px;
   background: var(--agent-surface-bg);
@@ -161,4 +161,8 @@
   flex-shrink: 0;
   color: var(--agent-surface-muted-text);
   font-size: var(--lr-ui-font-caption);
+}
+
+.agent-keep-all-bar__summary--delete {
+  color: #f85149;
 }
