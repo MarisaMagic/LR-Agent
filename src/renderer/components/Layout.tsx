@@ -22,6 +22,7 @@ import EditorTabBar from './editor/EditorTabBar';
 import EditorFileSiblingNav from './editor/EditorFileSiblingNav';
 import EditorWorkspace from './editor/EditorWorkspace';
 import LlmProvidersPanel from './llmProviders/LlmProvidersPanel';
+import McpPanel from './mcp/McpPanel';
 import PretrainedModelsPanel from './pretrainedModels/PretrainedModelsPanel';
 import SettingsPanel from './SettingsPanel';
 import Sidebar from './Sidebar';
@@ -47,12 +48,14 @@ const LEFT_PANEL_TITLES: Record<LeftPanel, string> = {
   annotations: '标注任务',
   models: '预训练模型',
   llmProviders: '大模型配置',
+  mcp: 'MCP 工具',
   settings: '账户设置',
 };
 
 function renderLeftPanel(panel: LeftPanel, onProjectOpened: () => void) {
   if (panel === 'settings') return <SettingsPanel />;
   if (panel === 'llmProviders') return <LlmProvidersPanel />;
+  if (panel === 'mcp') return <McpPanel />;
   if (panel === 'models') return <PretrainedModelsPanel />;
   if (panel === 'annotations') {
     return <AnnotationProjectPanel onProjectOpened={onProjectOpened} />;
@@ -378,6 +381,7 @@ export default function Layout() {
         onAnnotationsClick={() => openLeftPanel('annotations')}
         onModelsClick={() => openLeftPanel('models')}
         onLlmProvidersClick={() => openLeftPanel('llmProviders')}
+        onMcpClick={() => openLeftPanel('mcp')}
         onSettingsClick={() => openLeftPanel('settings')}
       />
 

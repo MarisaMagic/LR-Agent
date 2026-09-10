@@ -31,6 +31,13 @@ export function buildApiClientContext(
         }
       : null,
     mcp_server_url: clientContext.mcpServerUrl ?? null,
+    mcp_servers: (clientContext.mcpServers ?? []).map((server) => ({
+      id: server.id,
+      url: server.url,
+      transport: server.transport,
+      headers: server.headers ?? {},
+      disabled_tools: server.disabledTools ?? [],
+    })),
     project_instructions: clientContext.projectInstructions ?? null,
     memory_index: clientContext.memoryIndex ?? null,
     workspace_memory_enabled: Boolean(clientContext.workspaceMemoryEnabled),

@@ -36,6 +36,7 @@ import { registerDbHandlers } from './db/handlers';
 import { registerMemoryHandlers } from './memory/handlers';
 import { registerCheckpointHandlers } from './checkpoint/handlers';
 import { registerSkillHandlers } from './skills/handlers';
+import { registerMcpHandlers } from './mcp/handlers';
 import registerEnvHandlers from './env/envHandlers';
 import {
   getAnnotationProjects,
@@ -786,6 +787,7 @@ app
     registerMemoryHandlers();
     registerCheckpointHandlers();
     registerSkillHandlers();
+    registerMcpHandlers();
     registerEnvHandlers();
     // 启动本地 MCP Server（异步，失败不阻断窗口创建）
     startMcpServer().catch((err) =>

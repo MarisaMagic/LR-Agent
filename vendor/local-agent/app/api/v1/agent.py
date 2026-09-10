@@ -27,14 +27,20 @@ from app.agent.context_snapshot import (
     format_runtime_identity_block,
 )
 from app.agent.tools.mcp_client import (
-    load_mcp_tools_from_server,
+    load_mcp_tools_from_servers,
+    probe_mcp_tools,
     should_expose_mcp_tool,
 )
 from app.agent.tools.registry import build_tools_by_name_set
 from app.agent.tools.tool_registry_meta import CANONICAL_CAPABILITIES
 from app.core.deps import SettingsDep
 from app.models.user import User
-from app.schemas.agent import ChatCancelRequest, ClientContextInput, LocalChatStreamRequest
+from app.schemas.agent import (
+    ChatCancelRequest,
+    ClientContextInput,
+    LocalChatStreamRequest,
+    McpProbeRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -188,10 +194,12 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                 if client_ctx
                 else ""
             )
-            if mcp_url:
+            remote_mcp = list(client_ctx.mcp_servers) if client_ctx else []
+            if mcp_url or remote_mcp:
                 try:
-                    mcp_tools = await load_mcp_tools_from_server(
-                        mcp_url,
+                    mcp_tools = await load_mcp_tools_from_servers(
+                        mcp_url or None,
+                        remote_mcp,
                         existing_capabilities=CANONICAL_CAPABILITIES,
                     )
                     if mcp_tools:
@@ -210,8 +218,7 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                         ]
                 except Exception:
                     logger.warning(
-                        "Failed to load MCP tools from %s",
-                        mcp_url,
+                        "Failed to load MCP tools",
                         exc_info=True,
                     )
 
@@ -270,3 +277,21 @@ async def cancel_chat(
     if event:
         event.set()
     return {"ok": True}
+
+
+@router.post("/mcp/probe")
+async def probe_mcp_server(body: McpProbeRequest) -> dict:
+    """连接单个 MCP Server 并列出工具名（配置页「测试连接」，不走 LLM）。"""
+    url = body.url.strip()
+    if not url.startswith(("http://", "https://")):
+        return {"ok": False, "error": "仅支持 http(s) MCP 端点"}
+    try:
+        tools = await probe_mcp_tools(
+            url,
+            transport=body.transport,
+            headers=body.headers,
+        )
+        return {"ok": True, "tools": [t.name for t in tools]}
+    except Exception as exc:
+        logger.info("MCP probe 失败：%s (%s)", url, exc)
+        return {"ok": False, "error": str(exc)}

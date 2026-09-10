@@ -124,6 +124,14 @@ export class AgentDebugLogger {
         );
       }
       if (cc.mcpServerUrl) console.log(`mcpServer: ${cc.mcpServerUrl}`);
+      // 远程 MCP 只打 id/transport：headers 含 Key，部分厂商 URL query 也带 Key
+      if (cc.mcpServers?.length) {
+        console.log(
+          `mcpRemoteServers: ${cc.mcpServers
+            .map((server) => `${server.id}(${server.transport})`)
+            .join(', ')}`,
+        );
+      }
       if (cc.agentMode) console.log(`agentMode: ${cc.agentMode}`);
       if (cc.workMode) console.log(`workMode: ${cc.workMode}`);
       console.groupEnd();

@@ -1,6 +1,5 @@
 import {
   VscodeLabel,
-  VscodeScrollable,
   VscodeToolbarContainer,
   VscodeTree,
   VscodeTreeItem,
@@ -11,7 +10,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type ComponentRef,
 } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import VscodeClickableToolbarButton from './VscodeClickableButton';
@@ -186,7 +184,7 @@ export default function FileTree() {
     openFolder();
   }, [clearActiveProject, openFolder]);
 
-  const scrollableRef = useRef<ComponentRef<typeof VscodeScrollable>>(null);
+  const scrollableRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const treeEl = scrollableRef.current?.querySelector('vscode-tree');

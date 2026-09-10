@@ -1,22 +1,16 @@
-import { VscodeScrollable } from '@vscode-elements/react-elements';
-import {
-  type ComponentRef,
-  type ReactNode,
-  type Ref,
-  type UIEventHandler,
-} from 'react';
-import { useScrollHostHeight } from '../hooks/useScrollHostHeight';
+import { type ReactNode, type Ref, type UIEventHandler } from 'react';
+import OverlayVerticalScrollArea from './OverlayVerticalScrollArea';
 
 interface VscodeScrollHostProps {
   className?: string;
   scrollableClassName?: string;
-  scrollRef?: Ref<ComponentRef<typeof VscodeScrollable>>;
-  onScroll?: UIEventHandler<HTMLElement>;
+  scrollRef?: Ref<HTMLDivElement>;
+  onScroll?: UIEventHandler<HTMLDivElement>;
   children: ReactNode;
 }
 
 /**
- * 用 ResizeObserver 为 VscodeScrollable 提供固定像素高度，保留 VS Code 悬浮滚动条样式。
+ * 侧栏滚动宿主：细悬浮滑块，仅在滚动或鼠标靠近右缘时显示。
  */
 export default function VscodeScrollHost({
   className = '',
@@ -25,21 +19,18 @@ export default function VscodeScrollHost({
   onScroll,
   children,
 }: VscodeScrollHostProps) {
-  const { hostRef, height } = useScrollHostHeight();
-
   return (
-    <div
-      ref={hostRef}
+    <OverlayVerticalScrollArea
+      fillHost
+      hoverMode="edge"
       className={`sidebar-scroll-host${className ? ` ${className}` : ''}`}
+      contentClassName={`sidebar-panel-scroll${
+        scrollableClassName ? ` ${scrollableClassName}` : ''
+      }`}
+      contentRef={scrollRef}
+      onScroll={onScroll}
     >
-      <VscodeScrollable
-        ref={scrollRef}
-        className={`sidebar-panel-scroll${scrollableClassName ? ` ${scrollableClassName}` : ''}`}
-        style={height > 0 ? { height: `${height}px` } : undefined}
-        onScroll={onScroll}
-      >
-        {children}
-      </VscodeScrollable>
-    </div>
+      {children}
+    </OverlayVerticalScrollArea>
   );
 }

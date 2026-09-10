@@ -474,6 +474,33 @@ const electronHandler = {
     /** 获取本地 MCP Server URL（如 "http://127.0.0.1:PORT"），未启动时返回 null */
     getServerUrl: (): Promise<string | null> =>
       ipcRenderer.invoke('mcp:getServerUrl'),
+    /** 读取全部远程 MCP 配置（userData/mcp.json） */
+    listConfig: (): Promise<import('../shared/mcpTypes').McpConfig> =>
+      ipcRenderer.invoke('mcp:listConfig'),
+    /** MCP 广场预设目录 */
+    listPresets: (): Promise<import('../shared/mcpTypes').McpPreset[]> =>
+      ipcRenderer.invoke('mcp:listPresets'),
+    /** 已启用且 URL 合法的远程 MCP（Assist 组 client_context 用） */
+    getEnabledServers: (): Promise<
+      import('../shared/mcpTypes').McpServerConfig[]
+    > => ipcRenderer.invoke('mcp:getEnabledServers'),
+    /** 新建/更新远程 MCP（id 缺省为新建；非法 url/协议返回 null） */
+    upsertServer: (
+      input: import('../shared/mcpTypes').McpServerInput,
+    ): Promise<import('../shared/mcpTypes').McpServerConfig | null> =>
+      ipcRenderer.invoke('mcp:upsertServer', input),
+    deleteServer: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke('mcp:deleteServer', id),
+    setEnabled: (
+      id: string,
+      enabled: boolean,
+    ): Promise<import('../shared/mcpTypes').McpServerConfig | null> =>
+      ipcRenderer.invoke('mcp:setEnabled', id, enabled),
+    setTools: (
+      id: string,
+      patch: { lastTools?: string[]; disabledTools?: string[] },
+    ): Promise<import('../shared/mcpTypes').McpServerConfig | null> =>
+      ipcRenderer.invoke('mcp:setTools', id, patch),
   },
   localAgent: {
     /** 获取本地 Agent 编排服务 base URL（如 "http://127.0.0.1:PORT/api/v1"），未启动时返回 null */

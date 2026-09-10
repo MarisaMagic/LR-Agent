@@ -4,6 +4,7 @@ import type {
   ClientContextPayload,
   ProposalStateEntry,
 } from '../../shared/agentTypes';
+import type { McpRemoteServerPayload } from '../../shared/mcpTypes';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import type { AnnotationProject } from '../types/annotation';
 import { getRelativeProjectPath } from '../utils/projectPaths';
@@ -20,6 +21,8 @@ export function buildClientContextPayload(options: {
   selectedAnnotationId?: string | null;
   selectedAnnotationIds?: string[];
   mcpServerUrl?: string | null;
+  /** 用户启用的远程 MCP Server（含 headers，禁止打日志） */
+  mcpServers?: McpRemoteServerPayload[] | null;
   /** 项目级指令（.lragent/INSTRUCTIONS.md 内容） */
   projectInstructions?: string | null;
   /** 工作区记忆索引（MEMORY.md 截断内容） */
@@ -71,6 +74,7 @@ export function buildClientContextPayload(options: {
       ? []
       : (options.selectedAnnotationIds ?? []),
     mcpServerUrl: options.mcpServerUrl ?? null,
+    mcpServers: options.mcpServers ?? null,
     projectInstructions: options.projectInstructions ?? null,
     memoryIndex: isEditorMode ? null : (options.memoryIndex ?? null),
     workspaceMemoryEnabled: isEditorMode

@@ -1,6 +1,6 @@
 /**
  * 隐藏式滚动：可滚动，不显示原生滚动条（WebKit / Firefox）。
- * 侧栏内优先使用 vscode-scrollable 的悬浮滑块；原生 overflow 区域用此类。
+ * 侧栏优先使用 OverlayVerticalScrollArea 的细悬浮滑块；原生 overflow 区域用此类。
  */
 .overlay-scroll {
   overflow: auto;

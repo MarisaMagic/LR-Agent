@@ -1,4 +1,5 @@
 import type { AnnotationBatchProposal } from './annotationAgentTypes';
+import type { McpRemoteServerPayload } from './mcpTypes';
 
 /** Agent 流水线类型：与 UI 标题、阶段标签一一对应 */
 export type PipelineKind = 'batch' | 'mutation' | 'report';
@@ -306,6 +307,8 @@ export interface ClientContextPayload {
   selectedAnnotationIds?: string[];
   /** 本地 MCP Server 地址（Electron 启动时分配，如 "http://127.0.0.1:PORT"） */
   mcpServerUrl?: string | null;
+  /** 用户启用的远程 MCP Server（userData/mcp.json；含 headers，禁止打日志） */
+  mcpServers?: McpRemoteServerPayload[] | null;
   /** 项目级指令（.lragent/INSTRUCTIONS.md 内容，注入 system prompt） */
   projectInstructions?: string | null;
   /** 工作区记忆索引（MEMORY.md 截断内容，注入 system prompt） */

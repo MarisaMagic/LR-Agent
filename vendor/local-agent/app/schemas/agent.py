@@ -66,6 +66,24 @@ class ProposalStateInput(BaseModel):
     )
 
 
+class McpServerInput(BaseModel):
+    """用户配置的远程 MCP Server（前端 userData/mcp.json 中已启用项，随 client_context 注入）。"""
+
+    id: str = Field(min_length=1, max_length=64)
+    url: str = Field(min_length=1)
+    transport: Literal["streamable_http", "sse"] = "streamable_http"
+    headers: dict[str, str] = Field(default_factory=dict)
+    disabled_tools: list[str] = Field(default_factory=list)
+
+
+class McpProbeRequest(BaseModel):
+    """测试连接单个 MCP Server（配置页使用，不走 LLM）。"""
+
+    url: str = Field(min_length=1)
+    transport: Literal["streamable_http", "sse"] = "streamable_http"
+    headers: dict[str, str] = Field(default_factory=dict)
+
+
 class ClientContextInput(BaseModel):
     workspace_root: str | None = None
     active_file_path: str | None = None
@@ -80,6 +98,7 @@ class ClientContextInput(BaseModel):
     selected_annotation_ids: list[str] = Field(default_factory=list)
     annotation_project_snapshot: AnnotationProjectSnapshotInput | None = None
     mcp_server_url: str | None = None
+    mcp_servers: list[McpServerInput] = Field(default_factory=list)
     project_instructions: str | None = None
     memory_index: str | None = None
     workspace_memory_enabled: bool = False

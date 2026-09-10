@@ -16,11 +16,15 @@ interface OverlayVerticalScrollAreaProps {
   maxHeight?: string;
   enabled?: boolean;
   reserveBottom?: number;
+  /** area：整块悬停显示滑块；edge：仅靠近右缘或滚动时显示 */
+  hoverMode?: 'area' | 'edge';
   onScroll?: UIEventHandler<HTMLDivElement>;
   contentRef?: Ref<HTMLDivElement>;
   observeKey?: unknown;
   disabledContentClassName?: string;
 }
+
+const EDGE_HOVER_PX = 14;
 
 export default function OverlayVerticalScrollArea({
   children,
@@ -30,6 +34,7 @@ export default function OverlayVerticalScrollArea({
   maxHeight,
   enabled = true,
   reserveBottom = 0,
+  hoverMode = 'area',
   onScroll,
   contentRef,
   observeKey,
@@ -72,6 +77,7 @@ export default function OverlayVerticalScrollArea({
     baseScrollerClassName,
     fillHost ? 'overlay-vertical-scroll-area--fill-host' : '',
     reserveBottom > 0 ? 'overlay-vertical-scroll-area--reserve-bottom' : '',
+    hoverMode === 'edge' ? 'overlay-vertical-scroll-area--edge' : '',
     !fillHost ? className : '',
   ]
     .filter(Boolean)
@@ -88,7 +94,16 @@ export default function OverlayVerticalScrollArea({
     <div
       className={scrollerClassName}
       style={scrollerStyle}
-      onMouseEnter={() => setHovered(true)}
+      onMouseEnter={hoverMode === 'area' ? () => setHovered(true) : undefined}
+      onMouseMove={
+        hoverMode === 'edge'
+          ? (event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              const nearEdge = rect.right - event.clientX <= EDGE_HOVER_PX;
+              setHovered(nearEdge);
+            }
+          : undefined
+      }
       onMouseLeave={() => setHovered(false)}
     >
       <div

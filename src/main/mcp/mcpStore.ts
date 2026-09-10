@@ -1,0 +1,242 @@
+/**
+ * 远程 MCP Server 配置持久化（<userData>/mcp.json）。
+ *
+ * 读路径为同步缓存（Assist 每轮组 client_context 时同步取用），写路径异步落盘。
+ * 本机 Electron MCP Server 不落此文件。
+ */
+import path from 'path';
+import { randomUUID } from 'crypto';
+import fs from 'fs-extra';
+import { app } from 'electron';
+import {
+  MCP_TRANSPORTS,
+  type McpConfig,
+  type McpServerConfig,
+  type McpServerInput,
+  type McpTransport,
+} from '../../shared/mcpTypes';
+
+export function defaultMcpConfig(): McpConfig {
+  return { mcpServers: {} };
+}
+
+export function getMcpStorePath(): string {
+  return path.join(app.getPath('userData'), 'mcp.json');
+}
+
+const ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function sanitizeTransport(value: unknown): McpTransport {
+  return MCP_TRANSPORTS.includes(value as McpTransport)
+    ? (value as McpTransport)
+    : 'streamable_http';
+}
+
+function sanitizeHeaders(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const name = key.trim();
+    if (name && typeof value === 'string' && value.trim()) {
+      out[name] = value;
+    }
+  }
+  return out;
+}
+
+function sanitizeStringList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const name = item.trim();
+    if (!name || name.length > 128 || seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+    if (out.length >= 200) break;
+  }
+  return out;
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeServer(id: string, raw: unknown): McpServerConfig | null {
+  if (!ID_PATTERN.test(id)) return null;
+  if (!raw || typeof raw !== 'object') return null;
+  const record = raw as Record<string, unknown>;
+  const url = typeof record.url === 'string' ? record.url.trim() : '';
+  if (!url || !isHttpUrl(url)) return null;
+  const now = Date.now();
+  return {
+    id,
+    name:
+      typeof record.name === 'string' && record.name.trim()
+        ? record.name.trim()
+        : id,
+    url,
+    transport: sanitizeTransport(record.transport),
+    headers: sanitizeHeaders(record.headers),
+    enabled: record.enabled !== false,
+    preset:
+      typeof record.preset === 'string' && record.preset.trim()
+        ? record.preset.trim()
+        : null,
+    disabledTools: sanitizeStringList(record.disabledTools),
+    lastTools: sanitizeStringList(record.lastTools),
+    createdAt:
+      typeof record.createdAt === 'number' && record.createdAt > 0
+        ? record.createdAt
+        : now,
+    updatedAt:
+      typeof record.updatedAt === 'number' && record.updatedAt > 0
+        ? record.updatedAt
+        : now,
+  };
+}
+
+function sanitizeConfig(raw: unknown): McpConfig {
+  if (!raw || typeof raw !== 'object') return defaultMcpConfig();
+  const serversRaw = (raw as Record<string, unknown>).mcpServers;
+  const mcpServers: Record<string, McpServerConfig> = {};
+  if (
+    serversRaw &&
+    typeof serversRaw === 'object' &&
+    !Array.isArray(serversRaw)
+  ) {
+    for (const [id, serverRaw] of Object.entries(
+      serversRaw as Record<string, unknown>,
+    )) {
+      const server = sanitizeServer(id, serverRaw);
+      if (server) mcpServers[id] = server;
+    }
+  }
+  return { mcpServers };
+}
+
+let cached: McpConfig | null = null;
+
+/** 同步读取（内存缓存优先），供组 client_context 等同步调用点使用 */
+export function getMcpConfig(): McpConfig {
+  if (cached) return cached;
+  try {
+    cached = sanitizeConfig(
+      fs.readJsonSync(getMcpStorePath(), { throws: false }),
+    );
+  } catch {
+    cached = defaultMcpConfig();
+  }
+  return cached;
+}
+
+async function writeMcpConfig(config: McpConfig): Promise<McpConfig> {
+  cached = config;
+  const storePath = getMcpStorePath();
+  await fs.ensureDir(path.dirname(storePath));
+  await fs.writeJson(storePath, config, { spaces: 2 });
+  return config;
+}
+
+export function listMcpServers(): McpServerConfig[] {
+  return Object.values(getMcpConfig().mcpServers).sort(
+    (a, b) => a.createdAt - b.createdAt,
+  );
+}
+
+/** Assist 发送时使用：仅已启用且 URL 合法的 server */
+export function getEnabledMcpServers(): McpServerConfig[] {
+  return listMcpServers().filter((server) => server.enabled && server.url);
+}
+
+function newServerId(existing: Record<string, McpServerConfig>): string {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const id = `srv_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+    if (!existing[id]) return id;
+  }
+  return `srv_${randomUUID().replace(/-/g, '')}`;
+}
+
+export async function upsertMcpServer(
+  input: McpServerInput,
+): Promise<McpServerConfig | null> {
+  const config = getMcpConfig();
+  const now = Date.now();
+  const id = input.id && ID_PATTERN.test(input.id) ? input.id : undefined;
+  const existing = id ? config.mcpServers[id] : undefined;
+  const finalId = id ?? newServerId(config.mcpServers);
+  const candidate = sanitizeServer(finalId, {
+    ...existing,
+    ...input,
+    id: finalId,
+    lastTools: input.lastTools ?? existing?.lastTools,
+    disabledTools: input.disabledTools ?? existing?.disabledTools,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  });
+  if (!candidate) return null;
+  const next: McpConfig = {
+    mcpServers: { ...config.mcpServers, [finalId]: candidate },
+  };
+  await writeMcpConfig(next);
+  return candidate;
+}
+
+export async function deleteMcpServer(id: string): Promise<boolean> {
+  const config = getMcpConfig();
+  if (!config.mcpServers[id]) return false;
+  const nextServers = { ...config.mcpServers };
+  delete nextServers[id];
+  await writeMcpConfig({ mcpServers: nextServers });
+  return true;
+}
+
+export async function setMcpServerEnabled(
+  id: string,
+  enabled: boolean,
+): Promise<McpServerConfig | null> {
+  const config = getMcpConfig();
+  const existing = config.mcpServers[id];
+  if (!existing) return null;
+  const next: McpServerConfig = { ...existing, enabled, updatedAt: Date.now() };
+  await writeMcpConfig({
+    mcpServers: { ...config.mcpServers, [id]: next },
+  });
+  return next;
+}
+
+export async function setMcpServerTools(
+  id: string,
+  patch: { lastTools?: string[]; disabledTools?: string[] },
+): Promise<McpServerConfig | null> {
+  const config = getMcpConfig();
+  const existing = config.mcpServers[id];
+  if (!existing) return null;
+  const next: McpServerConfig = {
+    ...existing,
+    lastTools:
+      patch.lastTools !== undefined
+        ? sanitizeStringList(patch.lastTools)
+        : existing.lastTools,
+    disabledTools:
+      patch.disabledTools !== undefined
+        ? sanitizeStringList(patch.disabledTools)
+        : existing.disabledTools,
+    updatedAt: Date.now(),
+  };
+  await writeMcpConfig({
+    mcpServers: { ...config.mcpServers, [id]: next },
+  });
+  return next;
+}
+
+/** 仅测试用 */
+export function resetMcpConfigCache(): void {
+  cached = null;
+}

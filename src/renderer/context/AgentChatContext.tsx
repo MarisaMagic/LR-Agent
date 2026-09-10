@@ -25,6 +25,7 @@ import {
   type ClientContextPayload,
   type MessageBlock,
 } from '../../shared/agentTypes';
+import type { McpServerConfig } from '../../shared/mcpTypes';
 import {
   deleteAgentSessionRemote,
   fetchAgentSessionDetail,
@@ -1544,16 +1545,22 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
       attachJobListener(jobId, sessionId, assistantMessageId);
       setPreparingContext(true);
-      // 异步获取本地 MCP Server URL（Electron 环境下可用）
-      const mcpServerUrl: string | null =
-        (await (
-          window as Window &
-            typeof globalThis & {
-              electron?: {
-                mcp?: { getServerUrl?: () => Promise<string | null> };
+      // 异步获取本地 MCP Server URL + 用户启用的远程 MCP（Electron 环境下可用）
+      const mcpBridge = (
+        window as Window &
+          typeof globalThis & {
+            electron?: {
+              mcp?: {
+                getServerUrl?: () => Promise<string | null>;
+                getEnabledServers?: () => Promise<McpServerConfig[] | null>;
               };
-            }
-        ).electron?.mcp?.getServerUrl?.()) ?? null;
+            };
+          }
+      ).electron?.mcp;
+      const mcpServerUrl: string | null =
+        (await mcpBridge?.getServerUrl?.()) ?? null;
+      const remoteMcpServers: McpServerConfig[] =
+        (await mcpBridge?.getEnabledServers?.().catch(() => null)) ?? [];
 
       // 项目级指令：标注模式读项目目录，编辑器模式读工作区根目录
       const instructionsDir =
@@ -1592,6 +1599,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         workMode,
         detectionModels: pretrainedModels,
         mcpServerUrl,
+        mcpServers: remoteMcpServers,
         projectInstructions,
         memoryIndex,
         workspaceMemoryEnabled,
