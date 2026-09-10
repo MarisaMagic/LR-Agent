@@ -6,6 +6,7 @@ import re
 import uuid
 from dataclasses import dataclass
 
+from app.agent.assist.task_phase import coerce_str_list
 from app.agent.tools.tool_registry_meta import LOCAL_CANONICAL_TOOL_NAMES, TOOL_RUNNERS
 
 _CLIENT_ASYNC_PATTERN = re.compile(
@@ -79,9 +80,7 @@ def _build_async_tool_arguments(
     args: dict = {"user_request": user_content.strip()}
     if parsed_args:
         if isinstance(parsed_args.get("user_request"), str) and parsed_args["user_request"].strip():
-            parsed_ur = parsed_args["user_request"].strip()
-            if len(parsed_ur) >= len(user_content.strip()) * 0.5:
-                args["user_request"] = parsed_ur
+            args["user_request"] = parsed_args["user_request"].strip()
         scope = parsed_args.get("scope_hint")
         if isinstance(scope, str) and scope.strip():
             args["scope_hint"] = scope.strip()
@@ -90,14 +89,12 @@ def _build_async_tool_arguments(
         write_mode = parsed_args.get("write_mode")
         if write_mode in ("append", "replace_matching"):
             args["write_mode"] = write_mode
-        paths = parsed_args.get("paths")
-        if isinstance(paths, list):
-            args["paths"] = [str(p).strip() for p in paths if str(p).strip()]
-        annotation_ids = parsed_args.get("annotation_ids")
-        if isinstance(annotation_ids, list):
-            args["annotation_ids"] = [
-                str(i).strip() for i in annotation_ids if str(i).strip()
-            ]
+        paths = coerce_str_list(parsed_args.get("paths"))
+        if paths:
+            args["paths"] = paths
+        annotation_ids = coerce_str_list(parsed_args.get("annotation_ids"))
+        if annotation_ids:
+            args["annotation_ids"] = annotation_ids
     return args
 
 

@@ -49,10 +49,6 @@ class Settings(BaseSettings):
     annotation_vision_map_concurrency: int = 3
     annotation_vision_map_validate: bool = True
     annotation_vision_map_max_retries: int = 1
-    annotation_judge_enabled: bool = True
-    annotation_judge_max_retries: int = 1
-    annotation_judge_reject_submit_partial: bool = True
-    annotation_judge_temperature: float = 0.0
     annotation_label_pool_preflight: Literal["off", "auto", "always"] = "auto"
     annotation_label_pool_preflight_min_extra: int = 2
 

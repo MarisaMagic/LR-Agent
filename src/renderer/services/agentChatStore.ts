@@ -4,6 +4,7 @@ import type {
   AgentSession,
   ChatMessage,
   MessageBlock,
+  PipelineKind,
   ProjectAgentUiState,
   ProposalBlockStatus,
   StreamEvent,
@@ -207,6 +208,7 @@ export function normalizeHistoricalAssistantMessage(
     message.status === 'done' ||
     message.status === 'stopped' ||
     message.status === 'error' ||
+    message.status === 'awaiting_confirmation' ||
     (hasProposal && message.status === 'streaming');
 
   if (!isTerminal) return message;
@@ -216,6 +218,15 @@ export function normalizeHistoricalAssistantMessage(
     next = {
       ...next,
       status: hasProposal ? 'done' : 'stopped',
+      updatedAt: Date.now(),
+    };
+  }
+  // 暂停待确认的 job 不跨重启存活：历史加载时落为 done
+  // （提案块状态保留，Keep All 栏仍可用，只是不再续跑）
+  if (next.status === 'awaiting_confirmation') {
+    next = {
+      ...next,
+      status: 'done',
       updatedAt: Date.now(),
     };
   }
@@ -257,7 +268,8 @@ function ensureFinishedAt(message: ChatMessage): ChatMessage {
   if (
     message.status !== 'done' &&
     message.status !== 'stopped' &&
-    message.status !== 'error'
+    message.status !== 'error' &&
+    message.status !== 'awaiting_confirmation'
   ) {
     return message;
   }
@@ -292,9 +304,7 @@ function inferAnnotationProposalKind(
  * 标注卡片应作为消息尾部展示；晚到的叙述/工具块需插入到该组之前。
  */
 function findAnnotationCardIndex(blocks: MessageBlock[]): number {
-  const pipelineIdx = blocks.findIndex(
-    (b) => b.type === 'annotation_pipeline',
-  );
+  const pipelineIdx = blocks.findIndex((b) => b.type === 'annotation_pipeline');
   const proposalIdx = blocks.findIndex((b) => b.type === 'annotation_proposal');
   if (pipelineIdx < 0) return proposalIdx;
   if (proposalIdx < 0) return pipelineIdx;
@@ -464,6 +474,32 @@ function preserveDeleteOperation(
   return 'write';
 }
 
+function isProposalLikeBlock(
+  block: MessageBlock | undefined,
+): block is Extract<
+  MessageBlock,
+  { type: 'annotation_proposal' | 'file_proposal' | 'document_proposal' }
+> {
+  return Boolean(
+    block &&
+    (block.type === 'annotation_proposal' || isFileProposalBlock(block)),
+  );
+}
+
+/** Keep All 后的 status / hasCheckpoint 不能被后续同块 SSE 冲掉。 */
+function preserveAppliedProposalMeta<
+  T extends { status: ProposalBlockStatus; hasCheckpoint?: boolean },
+>(block: T, existing: MessageBlock | undefined, alwaysKeepStatus = false): T {
+  if (!isProposalLikeBlock(existing)) return block;
+  const keepStatus = alwaysKeepStatus || existing.status !== 'pending';
+  if (!keepStatus) return block;
+  return {
+    ...block,
+    status: existing.status,
+    hasCheckpoint: existing.hasCheckpoint,
+  };
+}
+
 export function resolveFileProposalOperation(
   event: Record<string, unknown>,
   blocks: MessageBlock[] = [],
@@ -585,6 +621,36 @@ export function applyStreamEventToBlocks(
           status: 'done',
           collapsed: true,
         };
+        // 标注工具出结果（含 phase_blocked）时收掉对应 pipeline 的 running step，
+        // 避免没有 annotation_proposal 时卡片一直转圈。
+        if (
+          block.name === 'auto_annotate' ||
+          block.name === 'mutate_annotation'
+        ) {
+          const kind: PipelineKind =
+            block.name === 'mutate_annotation' ? 'mutation' : 'batch';
+          const terminal = /phase_blocked|"status"\s*:\s*"error"/.test(
+            event.result ?? '',
+          )
+            ? 'error'
+            : 'done';
+          for (let i = 0; i < next.length; i += 1) {
+            const b = next[i];
+            if (
+              b.type === 'annotation_pipeline' &&
+              (b.pipelineKind ?? 'batch') === kind
+            ) {
+              next[i] = {
+                ...b,
+                steps: b.steps.map((s) =>
+                  s.status === 'running' || s.status === 'pending'
+                    ? { ...s, status: terminal }
+                    : s,
+                ),
+              };
+            }
+          }
+        }
       }
     }
     return next;
@@ -618,9 +684,7 @@ export function applyStreamEventToBlocks(
     );
     if (existingIdx >= 0) {
       const existing = next[existingIdx];
-      const status =
-        existing.type === 'annotation_proposal' ? existing.status : incoming.status;
-      next[existingIdx] = { ...incoming, status };
+      next[existingIdx] = preserveAppliedProposalMeta(incoming, existing, true);
       return next;
     }
     const kind = inferAnnotationProposalKind(event.proposal);
@@ -649,21 +713,21 @@ export function applyStreamEventToBlocks(
         b.suggestedRelativePath === suggestedRelativePath,
     );
     const existing = existingIdx >= 0 ? next[existingIdx] : undefined;
-    const block = {
-      type: 'file_proposal' as const,
-      title: resolveFileProposalTitle(raw),
-      content: '',
-      suggestedRelativePath,
-      status: 'pending' as ProposalBlockStatus,
-      operation: preserveDeleteOperation(
-        resolveFileProposalOperation(raw, next),
-        existing,
-      ),
-    };
+    const block = preserveAppliedProposalMeta(
+      {
+        type: 'file_proposal' as const,
+        title: resolveFileProposalTitle(raw),
+        content: '',
+        suggestedRelativePath,
+        status: 'pending' as ProposalBlockStatus,
+        operation: preserveDeleteOperation(
+          resolveFileProposalOperation(raw, next),
+          existing,
+        ),
+      },
+      existing,
+    );
     if (existingIdx >= 0) {
-      if (existing && isFileProposalBlock(existing) && existing.status !== 'pending') {
-        block.status = existing.status;
-      }
       next[existingIdx] = block;
     } else {
       next.push(block);
@@ -728,21 +792,21 @@ export function applyStreamEventToBlocks(
       }
     }
     const existing = existingIdx >= 0 ? next[existingIdx] : undefined;
-    const block = {
-      type: 'file_proposal' as const,
-      title: resolveFileProposalTitle(raw),
-      content: event.content ?? '',
-      suggestedRelativePath: path,
-      status: (event.status ?? 'pending') as ProposalBlockStatus,
-      operation: preserveDeleteOperation(
-        resolveFileProposalOperation(raw, next),
-        existing,
-      ),
-    };
+    const block = preserveAppliedProposalMeta(
+      {
+        type: 'file_proposal' as const,
+        title: resolveFileProposalTitle(raw),
+        content: event.content ?? '',
+        suggestedRelativePath: path,
+        status: (event.status ?? 'pending') as ProposalBlockStatus,
+        operation: preserveDeleteOperation(
+          resolveFileProposalOperation(raw, next),
+          existing,
+        ),
+      },
+      existing,
+    );
     if (existingIdx >= 0) {
-      if (existing && isFileProposalBlock(existing) && existing.status !== 'pending') {
-        block.status = existing.status;
-      }
       next[existingIdx] = block;
     } else {
       next.push(block);

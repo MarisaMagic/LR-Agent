@@ -32,13 +32,21 @@ describe('decideCanvasAfterExternalApply', () => {
 
   it('clears when document is missing', () => {
     expect(
-      decideCanvasAfterExternalApply({ parsed: null, dirty: false, force: false }),
+      decideCanvasAfterExternalApply({
+        parsed: null,
+        dirty: false,
+        force: false,
+      }),
     ).toEqual({ action: 'clear' });
   });
 
   it('clears missing document even when dirty if forced', () => {
     expect(
-      decideCanvasAfterExternalApply({ parsed: null, dirty: true, force: true }),
+      decideCanvasAfterExternalApply({
+        parsed: null,
+        dirty: true,
+        force: true,
+      }),
     ).toEqual({ action: 'clear' });
   });
 

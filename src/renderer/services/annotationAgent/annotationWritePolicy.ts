@@ -1,5 +1,8 @@
 import type { AnnotationBatchChange } from '../../../shared/annotationAgentTypes';
-import type { AnnotationInstance, CaptionGranularity } from '../../types/annotationDocument';
+import type {
+  AnnotationInstance,
+  CaptionGranularity,
+} from '../../types/annotationDocument';
 import { readAnnotationsForPath } from './mutationTargetResolver';
 
 export type AnnotationWriteMode = 'append' | 'replace_matching';
@@ -86,9 +89,7 @@ export function selectIdsToReplace(
   const lang = policy.match?.language;
 
   if (gran) {
-    pool = pool.filter(
-      (a) => a.kind === 'caption' && a.granularity === gran,
-    );
+    pool = pool.filter((a) => a.kind === 'caption' && a.granularity === gran);
   }
   if (lang) {
     pool = pool.filter(

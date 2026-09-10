@@ -5,12 +5,18 @@ import {
   runAnnotationBatchJob,
   type AnnotationProgressEvent,
 } from './annotationAgent/batchOrchestrator';
+import {
+  buildProposalFileStats,
+  type AnnotationProposalFileStat,
+} from './annotationProposalStats';
 
 export type AnnotationBatchJobResult = {
   status: 'completed' | 'skipped' | 'error';
   summary: string;
   processedImages: number;
   hasProposal: boolean;
+  /** 提案逐文件明细（路径/增删/标签），供工具结果携带真实数字 */
+  fileStats?: AnnotationProposalFileStat[];
 };
 
 export async function startAnnotationBatchJob(options: {
@@ -74,6 +80,10 @@ export async function startAnnotationBatchJob(options: {
         // 收到有效提案即视为完成；text 事件先于 proposal 到达时曾把 status 置为 skipped，必须恢复
         outcome.status = 'completed';
         outcome.processedImages = event.proposal.stats.processed;
+        outcome.fileStats = buildProposalFileStats(
+          event.proposal.changes,
+          options.project?.labels,
+        );
         const { stats } = event.proposal;
         outcome.summary = stats.cancelled
           ? `标注已取消，已保存 ${stats.succeeded} 张的部分结果。`
@@ -97,17 +107,11 @@ export async function startAnnotationBatchJob(options: {
         break;
       }
     }
-    if (!isCancelled()) {
-      emit({ type: 'done' });
-    }
   } catch (err) {
     if (options.signal.aborted) return outcome;
     outcome.status = 'error';
     outcome.summary = err instanceof Error ? err.message : '批量标注失败';
-    emit({
-      type: 'error',
-      message: outcome.summary,
-    });
+    emitPipelineError(outcome.summary, emit);
   }
 
   if (outcome.status === 'completed' && !outcome.hasProposal) {
@@ -162,6 +166,18 @@ function mapAndEmit(
     return;
   }
   if (event.type === 'error') {
-    onEvent({ type: 'error', message: event.message });
+    emitPipelineError(event.message, onEvent);
   }
+}
+
+function emitPipelineError(
+  message: string,
+  onEvent: (event: StreamEvent) => void,
+): void {
+  onEvent({
+    type: 'annotation_progress',
+    stage: 'prepare',
+    message,
+    status: 'error',
+  });
 }

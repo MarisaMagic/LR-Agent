@@ -20,6 +20,10 @@ import {
 } from './backendChatClient';
 import { startAnnotationBatchJob } from './annotationBatchJob';
 import { startAnnotationMutationJob } from './annotationMutationBatchJob';
+import {
+  formatFileStatsText,
+  type AnnotationProposalFileStat,
+} from './annotationProposalStats';
 import { createDebugLogger } from './agentDebugLogger';
 import {
   TurnToolHistoryAccumulator,
@@ -32,6 +36,12 @@ interface RunningJob {
   controller: AbortController;
   listeners: Set<JobEventListener>;
   state: JobState;
+  /** 所属会话（AwaitingConfirm 状态下按会话查找挂起 job） */
+  sessionId?: string;
+  /** 提案待确认时暂存的客户端工具结果，Keep All/Dismiss 后续跑使用 */
+  pendingResumeResults?: ClientToolResult[];
+  /** AwaitingConfirm 状态下的续跑入口 */
+  resumeWithResults?: (results: ClientToolResult[]) => Promise<void>;
 }
 
 const runningJobs = new Map<string, RunningJob>();
@@ -112,10 +122,22 @@ type ClientToolResultPayload = {
   message?: string;
   file_written?: boolean;
   proposal_pending?: boolean;
+  /** 提案逐文件明细（路径/增删改/标签），让模型写报告时引用真实数字 */
+  files?: AnnotationProposalFileStat[];
 };
 
 function formatClientToolResult(payload: ClientToolResultPayload): string {
   return JSON.stringify(payload);
+}
+
+/** 工具结果 JSON 中是否标记了待确认提案（决定 job 是否进入 AwaitingConfirm 断点）。 */
+export function toolResultHasPendingProposal(result: string): boolean {
+  try {
+    const parsed = JSON.parse(result) as { proposal_pending?: unknown };
+    return parsed.proposal_pending === true;
+  } catch {
+    return false;
+  }
 }
 
 export function formatAnnotationToolResult(options: {
@@ -124,14 +146,18 @@ export function formatAnnotationToolResult(options: {
   userRequest: string;
   summary: string;
   hasProposal: boolean;
+  fileStats?: AnnotationProposalFileStat[];
 }): string {
   const pendingNote = options.hasProposal
     ? '已生成待确认提案（未写盘）。'
     : options.tool === 'mutate_annotation'
       ? '未生成提案，不要对用户说已删除或已修改。'
       : '未生成提案，不要对用户说已标注完成。';
+  const fileStatsText = options.fileStats?.length
+    ? ` ${formatFileStatsText(options.fileStats)}。`
+    : '';
   const summary = options.hasProposal
-    ? `${pendingNote}${options.summary}`
+    ? `${pendingNote}${options.summary}${fileStatsText}`
     : `${options.summary} ${pendingNote}`;
   return formatClientToolResult({
     status: options.status,
@@ -141,6 +167,7 @@ export function formatAnnotationToolResult(options: {
     message: summary.trim(),
     file_written: false,
     proposal_pending: options.hasProposal,
+    files: options.fileStats,
   });
 }
 
@@ -165,12 +192,23 @@ function pendingToolCallsFromEvent(
   return null;
 }
 
-function parseStringList(value: unknown): string[] {
+export function parseStringList(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.map((item) => String(item).trim()).filter(Boolean);
   }
   if (typeof value === 'string' && value.trim()) {
-    return value
+    const text = value.trim();
+    if (text.startsWith('[') || text.startsWith('{')) {
+      try {
+        const parsed: unknown = JSON.parse(text);
+        if (Array.isArray(parsed)) {
+          return parsed.map((item) => String(item).trim()).filter(Boolean);
+        }
+      } catch {
+        // fall through to comma / single-value split
+      }
+    }
+    return text
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
@@ -286,6 +324,7 @@ async function runClientTool(
         userRequest,
         summary: batchResult.summary,
         hasProposal: batchResult.hasProposal,
+        fileStats: batchResult.fileStats,
       });
     } catch {
       return formatAnnotationToolResult({
@@ -341,6 +380,7 @@ async function runClientTool(
         userRequest,
         summary: mutateResult.summary,
         hasProposal: mutateResult.hasProposal,
+        fileStats: mutateResult.fileStats,
       });
     } catch {
       return formatAnnotationToolResult({
@@ -381,6 +421,12 @@ export async function startChatJob(options: {
   /** 客户端工具执行所需上下文，有标注项目时传入 */
   clientToolContext?: ClientToolContext | null;
   onPersistEvent?: (event: StreamEvent) => void;
+  /**
+   * resume 前重建 clientContext（刷新提案台账/结构化状态）。
+   * 提案确认状态在 job 启动后才会变化，resume 时必须取最新值，
+   * 否则后端任务阶段机拿到的是过期状态。
+   */
+  refreshClientContext?: () => Promise<ClientContextPayload | null | undefined>;
 }): Promise<void> {
   if (runningJobs.has(options.jobId)) return;
 
@@ -389,6 +435,7 @@ export async function startChatJob(options: {
     controller,
     listeners: new Set(),
     state: JobState.Registered,
+    sessionId: options.session.id,
   };
   runningJobs.set(options.jobId, job);
   attachPendingListeners(options.jobId, job);
@@ -436,6 +483,18 @@ export async function startChatJob(options: {
       debugLogger.logJobState(JobState.Resuming);
     }
 
+    // resume 前刷新 clientContext：提案台账/结构化状态在 job 启动后可能已变化，
+    // 过期状态会让后端任务阶段机做出错误门禁
+    let clientContextForRequest = options.clientContext;
+    if (accumulatedResults.length > 0 && options.refreshClientContext) {
+      try {
+        clientContextForRequest =
+          (await options.refreshClientContext()) ?? options.clientContext;
+      } catch {
+        clientContextForRequest = options.clientContext;
+      }
+    }
+
     const resumeMessages =
       accumulatedResults.length > 0
         ? mergeResumeMessages(priorMessages, turnHistory.snapshot())
@@ -476,7 +535,7 @@ export async function startChatJob(options: {
               clientJobId: options.jobId,
               truncateFromMessageId: options.truncateFromMessageId,
               userContent: options.userContent,
-              clientContext: options.clientContext,
+              clientContext: clientContextForRequest,
               clientToolResults:
                 accumulatedResults.length > 0 ? accumulatedResults : undefined,
               apiKey: options.providerApiKey,
@@ -577,7 +636,17 @@ export async function startChatJob(options: {
         if (controller.signal.aborted) return;
       }
       const allResults = [...accumulatedResults, ...results];
-      // 递归 resume：携带累积的全部 client tool 结果
+      // 提案待确认 → HITL 断点：结束当前 turn，等 Keep All/Dismiss 后续跑。
+      // 避免提案未落盘时自动 resume，模型读到磁盘旧态而自我审查、重复标注。
+      if (results.some((r) => toolResultHasPendingProposal(r.result))) {
+        job.state = JobState.AwaitingConfirm;
+        job.pendingResumeResults = allResults;
+        debugLogger.logJobState(JobState.AwaitingConfirm);
+        debugLogger.logTextOutput(accumulatedText);
+        emitJobEvent(options.jobId, { type: 'awaiting_confirmation' });
+        return;
+      }
+      // 无待确认提案：携带累积的全部 client tool 结果立即 resume
       await runLoop(allResults);
       return;
     }
@@ -587,26 +656,77 @@ export async function startChatJob(options: {
     }
   };
 
-  try {
-    await runLoop();
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      return;
+  const executeJob = async (
+    initialResults: ClientToolResult[] = [],
+  ): Promise<void> => {
+    try {
+      await runLoop(initialResults);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
+      const errorMsg = err instanceof Error ? err.message : '流式请求失败';
+      console.log(
+        `%c[LR-Agent]%c ❌ startChatJob error %c${errorMsg}`,
+        'color: #ff9800; font-weight:bold;',
+        '',
+        'color: #f44336; font-weight:bold;',
+      );
+      emitJobEvent(options.jobId, {
+        type: 'error',
+        message: errorMsg,
+      });
+    } finally {
+      // AwaitingConfirm：保留 job 注册与监听器，等待 Keep All/Dismiss 续跑
+      if (job.state !== JobState.AwaitingConfirm) {
+        runningJobs.delete(options.jobId);
+        pendingListeners.delete(options.jobId);
+      }
     }
-    const errorMsg = err instanceof Error ? err.message : '流式请求失败';
-    console.log(
-      `%c[LR-Agent]%c ❌ startChatJob error %c${errorMsg}`,
-      'color: #ff9800; font-weight:bold;',
-      '',
-      'color: #f44336; font-weight:bold;',
-    );
-    emitJobEvent(options.jobId, {
-      type: 'error',
-      message: errorMsg,
-    });
-  } finally {
-    runningJobs.delete(options.jobId);
-    pendingListeners.delete(options.jobId);
+  };
+
+  job.resumeWithResults = async (results: ClientToolResult[]) => {
+    if (job.state !== JobState.AwaitingConfirm) return;
+    if (controller.signal.aborted) return;
+    job.pendingResumeResults = undefined;
+    await executeJob(results);
+  };
+
+  await executeJob();
+}
+
+/**
+ * 提案确认/关闭后续跑挂起的 job（AwaitingConfirm → 异步 executeJob）。
+ * 立即返回 jobId（续跑在后台进行）；无挂起 job 返回 null。
+ */
+export function resumeAwaitingConfirmation(sessionId: string): string | null {
+  for (const [jobId, job] of runningJobs) {
+    if (
+      job.sessionId === sessionId &&
+      job.state === JobState.AwaitingConfirm &&
+      job.pendingResumeResults &&
+      job.resumeWithResults
+    ) {
+      const results = job.pendingResumeResults;
+      void job.resumeWithResults(results);
+      return jobId;
+    }
+  }
+  return null;
+}
+
+/**
+ * 丢弃会话中挂起的 AwaitingConfirm job（用户发送新消息时调用，
+ * 避免过期提案结果泄漏到后续任务）。
+ */
+export function discardAwaitingConfirmation(sessionId: string): void {
+  for (const [jobId, job] of runningJobs) {
+    if (job.sessionId === sessionId && job.state === JobState.AwaitingConfirm) {
+      job.pendingResumeResults = undefined;
+      job.controller.abort();
+      runningJobs.delete(jobId);
+      pendingListeners.delete(jobId);
+    }
   }
 }
 

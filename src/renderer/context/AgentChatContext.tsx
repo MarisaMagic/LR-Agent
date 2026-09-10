@@ -11,6 +11,7 @@ import {
 import { buildClientContextPayload } from '../services/agentClientContextBuilder';
 import {
   buildProposalLedger,
+  buildProposalStates,
   collectPendingAnnotationChanges,
 } from '../services/proposalLedger';
 import {
@@ -75,6 +76,7 @@ import {
   collectAppliedProposalRefs,
   collectUndoneProposalRefs,
   confirmDirtyWorkspaceIfNeeded,
+  decideEditRollback,
   formatRestoreError,
   messageCanReapply,
   messageCanUndo,
@@ -93,7 +95,9 @@ import { shouldApplyBootstrapResult } from '../services/agentChatBootstrap';
 import { buildAnnotationProjectSnapshot } from '../services/buildProjectSnapshot';
 import { useAuth } from './AuthContext';
 import {
+  discardAwaitingConfirmation,
   isJobRunning,
+  resumeAwaitingConfirmation,
   startChatJob,
   stopJob,
   subscribeJobEvents,
@@ -846,7 +850,14 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const attachJobListener = useCallback(
     (jobId: string, sessionId: string, messageId: string) => {
       return subscribeJobEvents(jobId, (event) => {
-        if (event.type === 'done') {
+        // awaiting_confirmation：提案待用户确认（HITL 断点），turn 暂停而非完成。
+        // 消息置为 awaiting_confirmation（不显示 Files Changed/工具栏），
+        // job 保留在注册表中，Keep All/Dismiss 后在同一 messageId 上续跑。
+        if (event.type === 'done' || event.type === 'awaiting_confirmation') {
+          const isAwaitingConfirm = event.type === 'awaiting_confirmation';
+          const nextStatus = isAwaitingConfirm
+            ? ('awaiting_confirmation' as const)
+            : ('done' as const);
           const latest = stateRef.current;
           const sessionMessages = {
             ...(latest.messagesBySession[sessionId] ?? {}),
@@ -856,7 +867,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
           sessionMessages[messageId] = {
             ...existing,
-            status: 'done',
+            status: nextStatus,
             updatedAt: Date.now(),
             finishedAt: existing.finishedAt ?? Date.now(),
             blocks: existing.blocks.map((block) => {
@@ -894,7 +905,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           if (finalMsg) {
             updateMessageLocally(messageId, {
               blocksJson: JSON.stringify(finalMsg.blocks),
-              status: 'done',
+              status: nextStatus,
             }).catch((err) =>
               console.error('[DB] Failed to update message:', err),
             );
@@ -1214,6 +1225,53 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     [persist, updateMessage],
   );
 
+  /**
+   * 兜底：把会话中停在 awaiting_confirmation 的 assistant 消息落为 done。
+   * 用于 Keep All/Dismiss 时已无挂起 job 可续跑（如应用重启后），
+   * 或用户直接发新消息丢弃断点的场景，避免 Files Changed 永远不显示。
+   */
+  const finalizeAwaitingConfirmationMessages = useCallback(
+    (sessionId: string) => {
+      const latest = stateRef.current;
+      const messagesMap = latest.messagesBySession[sessionId] ?? {};
+      const ids = resolveSessionMessageIds(
+        latest.sessions[sessionId],
+        messagesMap,
+      );
+      const staleIds = ids.filter((id) => {
+        const msg = messagesMap[id];
+        return (
+          msg?.role === 'assistant' && msg.status === 'awaiting_confirmation'
+        );
+      });
+      if (staleIds.length === 0) return;
+      const now = Date.now();
+      const nextMessages = { ...messagesMap };
+      for (const id of staleIds) {
+        const msg = nextMessages[id];
+        nextMessages[id] = {
+          ...msg,
+          status: 'done',
+          updatedAt: now,
+          finishedAt: msg.finishedAt ?? now,
+        };
+      }
+      persist({
+        ...latest,
+        messagesBySession: {
+          ...latest.messagesBySession,
+          [sessionId]: nextMessages,
+        },
+      });
+      for (const id of staleIds) {
+        updateMessageLocally(id, { status: 'done' }).catch((err) =>
+          console.error('[DB] Failed to finalize awaiting message:', err),
+        );
+      }
+    },
+    [persist],
+  );
+
   const sendMessage = useCallback(
     async (content: string, options?: { editMessageId?: string }) => {
       const trimmed = content.trim();
@@ -1266,19 +1324,17 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             pendingRemoveMessages,
             pendingRemoveIds,
           );
-          const missingCheckpoint = appliedRefs.some((ref) => {
-            const block =
-              sessionMessages[ref.messageId]?.blocks[ref.blockIndex];
-            return (
-              !block || !('hasCheckpoint' in block) || !block.hasCheckpoint
-            );
+          const rollback = await decideEditRollback({
+            refs: appliedRefs,
+            getBlock: (ref) =>
+              sessionMessages[ref.messageId]?.blocks[ref.blockIndex],
           });
-          if (appliedRefs.length > 0 && missingCheckpoint) {
-            showToast('无法回滚：缺少改前快照', { type: 'error' });
+          if (rollback.action === 'abort') {
             return;
           }
-          if (appliedRefs.length > 0) {
-            const restorePaths = appliedRefs.flatMap((ref) => {
+          let skippedRollback = rollback.skipped > 0;
+          if (rollback.restorable.length > 0) {
+            const restorePaths = rollback.restorable.flatMap((ref) => {
               const block =
                 sessionMessages[ref.messageId]?.blocks[ref.blockIndex];
               if (!block) return [];
@@ -1299,14 +1355,18 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               return;
             }
             const restored = await restoreAppliedCheckpoints({
-              refs: appliedRefs,
+              refs: rollback.restorable,
               project: activeProject ?? null,
               workspaceRoot: rootPath,
               newestFirst: true,
+              continueOnSkippable: true,
             });
             if (!restored.ok) {
               showToast(formatRestoreError(restored), { type: 'error' });
               return;
+            }
+            if ((restored.skipped ?? 0) > 0) {
+              skippedRollback = true;
             }
             await syncWorkspaceFactMemory(activeProject);
             if (activeProject && restored.restoredPaths.length > 0) {
@@ -1316,6 +1376,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
                 { force: true },
               );
             }
+          }
+          if (skippedRollback) {
+            showToast('已跳过无法回滚的改动，磁盘内容将保留', {
+              type: 'info',
+            });
           }
           truncateFromMessageId = editMessageId;
           const clearSummary = shouldClearSummaryOnEdit(
@@ -1365,6 +1430,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         sessionMessages[userMessageId] = userMessage;
         messageIds.push(userMessageId);
       }
+
+      // 确认将发出新任务后再丢掉 HITL 断点，避免用户取消回滚确认后 job 已被销毁
+      discardAwaitingConfirmation(sessionId);
+      finalizeAwaitingConfirmationMessages(sessionId);
 
       const userMessageIdForJob = resolveUserMessageIdForJob({
         editMessageId,
@@ -1512,6 +1581,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       // 全局 Skills catalog：扫描 ~/.agents/skills，注入 system prompt（失败返回空数组不阻塞）
       const skillsCatalog = await loadSkillsCatalog();
 
+      const sessionMessagesForLedger = Object.values(sessionMessages).filter(
+        (message): message is ChatMessage => Boolean(message),
+      );
       const clientContext = buildClientContextPayload({
         rootPath,
         activeFilePath,
@@ -1524,11 +1596,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         memoryIndex,
         workspaceMemoryEnabled,
         skillsCatalog,
-        proposalLedger: buildProposalLedger(
-          Object.values(sessionMessages).filter(
-            (message): message is ChatMessage => Boolean(message),
-          ),
-        ),
+        proposalLedger: buildProposalLedger(sessionMessagesForLedger),
+        proposalStates: buildProposalStates(sessionMessagesForLedger),
       });
 
       // Turn understanding removed — now handled locally or skipped
@@ -1614,12 +1683,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               detectionModels: pretrainedModels,
               currentFileAbsolutePath: activeFilePath,
               conversationTranscript,
-              pendingAnnotationChanges:
-                collectPendingAnnotationChanges(
-                  Object.values(sessionMessages).filter(
-                    (message): message is ChatMessage => Boolean(message),
-                  ),
+              pendingAnnotationChanges: collectPendingAnnotationChanges(
+                Object.values(sessionMessages).filter(
+                  (message): message is ChatMessage => Boolean(message),
                 ),
+              ),
             }
           : null;
 
@@ -1656,6 +1724,23 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           truncateFromMessageId,
           clientContext,
           clientToolContext,
+          // resume 前重建台账/结构化状态：提案确认状态在 job 启动后才会变化
+          refreshClientContext: async () => {
+            const latest = stateRef.current;
+            const latestMap = latest.messagesBySession[sessionId] ?? {};
+            const latestIds = resolveSessionMessageIds(
+              latest.sessions[sessionId],
+              latestMap,
+            );
+            const latestMessages = latestIds
+              .map((id) => latestMap[id])
+              .filter((message): message is ChatMessage => Boolean(message));
+            return {
+              ...clientContext,
+              proposalLedger: buildProposalLedger(latestMessages),
+              proposalStates: buildProposalStates(latestMessages),
+            };
+          },
         });
       } catch (err) {
         updateMessage(sessionId, assistantMessageId, (message) => ({
@@ -1691,6 +1776,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       pretrainedModels,
       editTargetMessageId,
       ensureSessionLoaded,
+      finalizeAwaitingConfirmationMessages,
       persist,
       resolveProvider,
       rootPath,
@@ -1865,9 +1951,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       }
       await syncWorkspaceFactMemory(activeProject);
       if (activeProject && restored.restoredPaths.length > 0) {
-        dispatchMutationsAppliedEvent(activeProject.id, restored.restoredPaths, {
-          force: true,
-        });
+        dispatchMutationsAppliedEvent(
+          activeProject.id,
+          restored.restoredPaths,
+          {
+            force: true,
+          },
+        );
       }
       dispatchWorkspaceTextFilesChanged(restorePaths);
       clearFilePreviewSession();
@@ -1908,11 +1998,22 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       clearFilePreviewSession();
       if (dismissed > 0) {
         showToast('已放弃提案', { type: 'info' });
+        // 提案已关闭：续跑因 HITL 断点暂停的 job，让模型重新规划；
+        // 无挂起 job 时兜底把暂停消息落为 done
+        const resumedJobId = resumeAwaitingConfirmation(sessionId);
+        if (!resumedJobId) {
+          finalizeAwaitingConfirmationMessages(sessionId);
+        }
       }
     } finally {
       setDismissingAllPending(false);
     }
-  }, [dismissingAllPending, showToast, updateMessageBlocks]);
+  }, [
+    dismissingAllPending,
+    finalizeAwaitingConfirmationMessages,
+    showToast,
+    updateMessageBlocks,
+  ]);
 
   const reapplyAssistantChanges = useCallback(
     async (assistantMessageId: string) => {
@@ -2060,9 +2161,20 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       });
       if (result.applied > 0) {
         showToast(`已应用 ${result.applied} 项变更`, { type: 'success' });
+        if (result.missingCheckpoints > 0) {
+          showToast('未能保存改前快照，重发时将无法自动回滚这些改动', {
+            type: 'info',
+          });
+        }
         await syncWorkspaceFactMemory(activeProject);
         clearFilePreviewSession();
         dispatchWorkspaceTextFilesChanged(pendingFilePaths);
+        // 提案已落盘：续跑因 HITL 断点暂停的 job，进入核对/报告阶段；
+        // 无挂起 job（如重启后）时兜底把暂停消息落为 done
+        const resumedJobId = resumeAwaitingConfirmation(sessionId);
+        if (!resumedJobId) {
+          finalizeAwaitingConfirmationMessages(sessionId);
+        }
       }
       if (result.errors.length > 0) {
         showToast(result.errors[0], { type: 'error' });
@@ -2073,6 +2185,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   }, [
     activeProject,
     applyingAllPending,
+    finalizeAwaitingConfirmationMessages,
     rootPath,
     showToast,
     updateMessageBlocks,

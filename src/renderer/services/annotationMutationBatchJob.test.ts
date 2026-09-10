@@ -88,9 +88,7 @@ describe('startAnnotationMutationJob status', () => {
   });
 
   it('returns skipped when only text is emitted without proposal', async () => {
-    mockPipeline([
-      { type: 'text', content: '未能识别要修改或删除的标注。' },
-    ]);
+    mockPipeline([{ type: 'text', content: '未能识别要修改或删除的标注。' }]);
     const { result } = await runJob();
     expect(result.status).toBe('skipped');
     expect(result.hasProposal).toBe(false);
@@ -99,10 +97,21 @@ describe('startAnnotationMutationJob status', () => {
 
   it('returns error on pipeline error event', async () => {
     mockPipeline([{ type: 'error', message: '变更准备失败' }]);
-    const { result } = await runJob();
+    const { result, emitted } = await runJob();
     expect(result.status).toBe('error');
     expect(result.hasProposal).toBe(false);
     expect(result.summary).toBe('变更准备失败');
+    expect(emitted.some((event) => event.type === 'error')).toBe(false);
+    expect(emitted.some((event) => event.type === 'done')).toBe(false);
+    expect(emitted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'annotation_progress',
+          status: 'error',
+          message: '变更准备失败',
+        }),
+      ]),
+    );
   });
 
   it('forwards provider credentials to the mutation orchestrator', async () => {

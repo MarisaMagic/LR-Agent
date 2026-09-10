@@ -58,7 +58,8 @@ export default function AgentAssistantMessage({
   const messageTerminal =
     message.status === 'done' ||
     message.status === 'stopped' ||
-    message.status === 'error';
+    message.status === 'error' ||
+    message.status === 'awaiting_confirmation';
   const pipelineCompleted =
     (hasAnnotationProposal && messageTerminal) ||
     (documentProposalBlock != null &&
@@ -268,6 +269,11 @@ export default function AgentAssistantMessage({
 
         {message.status === 'stopped' && (
           <div className="agent-message-meta">已停止生成</div>
+        )}
+        {message.status === 'awaiting_confirmation' && (
+          <div className="agent-message-meta">
+            提案待确认：Keep All 或 Undo 后继续
+          </div>
         )}
         {message.status === 'error' && (
           <div className="agent-message-meta agent-message-meta--error">

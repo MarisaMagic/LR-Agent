@@ -10,11 +10,17 @@ import {
 } from './annotationAgent/mutationOrchestrator';
 import { getRelativeProjectPath } from '../utils/projectPaths';
 import { resolveAnnotationScopePaths } from './annotationAgent/scopePathUtil';
+import {
+  buildProposalFileStats,
+  type AnnotationProposalFileStat,
+} from './annotationProposalStats';
 
 export type AnnotationMutationJobResult = {
   status: 'completed' | 'skipped' | 'error';
   summary: string;
   hasProposal: boolean;
+  /** 提案逐文件明细（路径/增删改/标签），供工具结果携带真实数字 */
+  fileStats?: AnnotationProposalFileStat[];
 };
 
 export async function startAnnotationMutationJob(options: {
@@ -91,7 +97,9 @@ export async function startAnnotationMutationJob(options: {
       });
     }
 
-    const requestedPaths = (options.paths ?? []).map((p) => p.trim()).filter(Boolean);
+    const requestedPaths = (options.paths ?? [])
+      .map((p) => p.trim())
+      .filter(Boolean);
     if (requestedPaths.length > 0) {
       const scoped = await resolveAnnotationScopePaths(
         candidates.map((c) => ({
@@ -107,7 +115,7 @@ export async function startAnnotationMutationJob(options: {
           ) ?? null,
       );
       if (scoped.error) {
-        emit({ type: 'error', message: scoped.error });
+        emitPipelineError(scoped.error, emit);
         return {
           status: 'error',
           summary: scoped.error,
@@ -156,6 +164,10 @@ export async function startAnnotationMutationJob(options: {
         outcome.status = 'completed';
         outcome.summary =
           event.proposal.summary?.trim() || '已生成标注变更提案。';
+        outcome.fileStats = buildProposalFileStats(
+          event.proposal.changes,
+          options.project?.labels,
+        );
       }
       if (event.type === 'text' && !outcome.hasProposal) {
         outcome.status = 'skipped';
@@ -168,17 +180,11 @@ export async function startAnnotationMutationJob(options: {
         break;
       }
     }
-    if (!isCancelled()) {
-      emit({ type: 'done' });
-    }
   } catch (err) {
     if (options.signal.aborted) return outcome;
     outcome.status = 'error';
     outcome.summary = err instanceof Error ? err.message : '标注变更失败';
-    emit({
-      type: 'error',
-      message: outcome.summary,
-    });
+    emitPipelineError(outcome.summary, emit);
   }
 
   if (outcome.status === 'completed' && !outcome.hasProposal) {
@@ -219,6 +225,19 @@ function mapAndEmit(
     return;
   }
   if (event.type === 'error') {
-    onEvent({ type: 'error', message: event.message });
+    emitPipelineError(event.message, onEvent);
   }
+}
+
+function emitPipelineError(
+  message: string,
+  onEvent: (event: StreamEvent) => void,
+): void {
+  onEvent({
+    type: 'annotation_progress',
+    stage: 'prepare',
+    message,
+    status: 'error',
+    pipelineKind: 'mutation',
+  });
 }

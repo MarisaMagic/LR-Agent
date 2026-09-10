@@ -98,7 +98,8 @@ function mapDbMessage(row: DbMessageRow): ChatMessage {
     finishedAt:
       row.status === 'done' ||
       row.status === 'stopped' ||
-      row.status === 'error'
+      row.status === 'error' ||
+      row.status === 'awaiting_confirmation'
         ? row.updated_at
         : undefined,
   };

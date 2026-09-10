@@ -84,7 +84,10 @@ describe('splitWorkHistory', () => {
       textBlock('这是最终回答'),
     ];
     const { history, rest } = splitWorkHistory(blocks);
-    expect(history.map((item) => item.block.type)).toEqual(['text', 'tool_call']);
+    expect(history.map((item) => item.block.type)).toEqual([
+      'text',
+      'tool_call',
+    ]);
     expect(rest.map((item) => item.block.type)).toEqual(['text']);
     expect(rest[0]?.block).toEqual(textBlock('这是最终回答'));
   });
@@ -100,7 +103,10 @@ describe('splitWorkHistory', () => {
       proposalBlock(),
     ];
     const { history, rest } = splitWorkHistory(blocks);
-    expect(history.map((item) => item.block.type)).toEqual(['text', 'tool_call']);
+    expect(history.map((item) => item.block.type)).toEqual([
+      'text',
+      'tool_call',
+    ]);
     expect(rest.map((item) => item.block.type)).toEqual([
       'text',
       'tool_call',

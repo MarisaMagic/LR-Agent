@@ -221,6 +221,25 @@ describe('applyStreamEventToBlocks annotation card ordering', () => {
     });
   });
 
+  it('keeps hasCheckpoint when upserting an applied annotation_proposal', () => {
+    let blocks: MessageBlock[] = [proposalBlock('p1', 'append')];
+    const existing = blocks[0] as Extract<
+      MessageBlock,
+      { type: 'annotation_proposal' }
+    >;
+    existing.status = 'applied';
+    existing.hasCheckpoint = true;
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'annotation_proposal',
+      proposal: existing.proposal,
+    });
+    expect(blocks[0]).toMatchObject({
+      type: 'annotation_proposal',
+      status: 'applied',
+      hasCheckpoint: true,
+    });
+  });
+
   it('places mutation proposal after the mutation pipeline', () => {
     let blocks: MessageBlock[] = [
       pipelineBlock(),
@@ -232,8 +251,15 @@ describe('applyStreamEventToBlocks annotation card ordering', () => {
       proposal: proposalBlock('mut-1', 'delete').proposal,
     });
     expect(
-      blocks.map((b) => (b as { pipelineKind?: string }).pipelineKind ?? b.type),
-    ).toEqual(['batch', 'annotation_proposal', 'mutation', 'annotation_proposal']);
+      blocks.map(
+        (b) => (b as { pipelineKind?: string }).pipelineKind ?? b.type,
+      ),
+    ).toEqual([
+      'batch',
+      'annotation_proposal',
+      'mutation',
+      'annotation_proposal',
+    ]);
     const last = blocks[blocks.length - 1];
     expect(last.type).toBe('annotation_proposal');
     if (last.type === 'annotation_proposal') {

@@ -3,6 +3,7 @@ import json
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from app.agent.context_service import (
+    RESUME_APPLIED_NEXT_HINT,
     RESUME_NEXT_HINT,
     append_client_tool_results_to_messages,
 )
@@ -172,6 +173,85 @@ def test_append_preserves_existing_next_hint() -> None:
     )
     parsed = json.loads(lc_messages[2].content)
     assert parsed["next_hint"] == "可继续 write_workspace_file"
+
+
+def test_resume_hint_applied_after_keep_all() -> None:
+    """Keep All 后续跑：proposal_pending 修正为 False，hint 切换为已落盘口径。"""
+    lc_messages = [HumanMessage(content="标注并写报告")]
+    append_client_tool_results_to_messages(
+        lc_messages,
+        [
+            ClientToolResult(
+                tool_call_id="call-1",
+                name="auto_annotate",
+                result=json.dumps(
+                    {
+                        "status": "completed",
+                        "summary": "已生成待确认提案（未写盘）。批量标注完成：处理 5 张，共 14 个框。",
+                        "proposal_pending": True,
+                        "file_written": False,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        ],
+        user_content="标注并写报告",
+        proposals_applied=True,
+    )
+    parsed = json.loads(lc_messages[2].content)
+    assert parsed["proposal_pending"] is False
+    assert parsed["file_written"] is True
+    assert parsed["next_hint"] == RESUME_APPLIED_NEXT_HINT
+    assert "已写盘" in parsed["next_hint"]
+    # 禁止过时的确认引导（治 Keep All 后模型仍说"请确认 Keep All"）
+    assert "禁止再要求用户确认" in parsed["next_hint"]
+
+
+def test_resume_hint_pending_by_default() -> None:
+    """未确认（或 Dismiss）后续跑：保留 pending 口径，禁止声称已标注。"""
+    lc_messages = [HumanMessage(content="标注")]
+    append_client_tool_results_to_messages(
+        lc_messages,
+        [
+            ClientToolResult(
+                tool_call_id="call-1",
+                name="auto_annotate",
+                result='{"status":"completed","summary":"ok","proposal_pending":true}',
+            )
+        ],
+        user_content="标注",
+    )
+    parsed = json.loads(lc_messages[2].content)
+    assert parsed["proposal_pending"] is True
+    assert parsed["next_hint"] == RESUME_NEXT_HINT
+
+
+def test_resume_applied_hint_skips_no_proposal_result() -> None:
+    """VERIFY 阶段但 mutate 未生成提案（skipped）：不得谎报已写盘。"""
+    lc_messages = [HumanMessage(content="修正标注")]
+    append_client_tool_results_to_messages(
+        lc_messages,
+        [
+            ClientToolResult(
+                tool_call_id="m1",
+                name="mutate_annotation",
+                result=json.dumps(
+                    {
+                        "status": "skipped",
+                        "summary": "未生成提案",
+                        "proposal_pending": False,
+                        "file_written": False,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        ],
+        user_content="修正标注",
+        proposals_applied=True,
+    )
+    parsed = json.loads(lc_messages[2].content)
+    assert parsed["file_written"] is False
+    assert parsed["next_hint"] == RESUME_NEXT_HINT
 
 
 def test_build_lc_messages_restores_assistant_tool_chain() -> None:

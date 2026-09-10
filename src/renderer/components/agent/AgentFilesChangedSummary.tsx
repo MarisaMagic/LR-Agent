@@ -42,10 +42,7 @@ export default function AgentFilesChangedSummary({
     Record<string, { additions: number; deletions: number }>
   >({});
 
-  const items = useMemo(
-    () => collectMessageChangeItems(message),
-    [message],
-  );
+  const items = useMemo(() => collectMessageChangeItems(message), [message]);
 
   useEffect(() => {
     const missing = items.filter(
@@ -60,8 +57,7 @@ export default function AgentFilesChangedSummary({
 
     let cancelled = false;
     void (async () => {
-      const next: Record<string, { additions: number; deletions: number }> =
-        {};
+      const next: Record<string, { additions: number; deletions: number }> = {};
       await Promise.all(
         missing.map(async (item) => {
           const stats = await computeFileProposalDiffStats({

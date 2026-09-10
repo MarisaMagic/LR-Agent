@@ -272,3 +272,363 @@ class TestToolLoopExecuteRound:
         payload = json.loads(messages[1].content)
         assert payload["status"] == "already_completed"
         assert payload["tool"] == "auto_annotate"
+
+
+class TestToolLoopPhaseGate:
+    """阶段门禁：await_confirm 禁止写入；verify 禁止重复标注已落盘路径。"""
+
+    def _make_gathered(self, tool_calls=None, content=""):
+        return MockChunk(content=content, tool_calls=tool_calls)
+
+    async def test_await_confirm_blocks_auto_annotate(self):
+        import json
+
+        from app.agent.assist.task_phase import derive_task_phase
+        from app.schemas.agent import ProposalStateInput
+
+        ctx = derive_task_phase(
+            [ProposalStateInput(path="data/2.jpg", kind="annotation", status="pending")]
+        )
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(
+            llm, [], {}, None, _never_cancel, "test", task_phase_ctx=ctx
+        )
+        gather = self._make_gathered(
+            tool_calls=[
+                {
+                    "id": "c1",
+                    "name": "auto_annotate",
+                    "args": {"user_request": "补标", "paths": ["data/3.jpg"]},
+                }
+            ]
+        )
+        messages: list = []
+        events = await _collect_events(
+            loop.execute_round(gather, "", messages, ProposalStreamInterceptor())
+        )
+        # 被门禁拦截：tool_start + tool_result(phase_blocked)，不发射 tool_pending
+        assert [e.type for e in events] == ["tool_start", "tool_result"]
+        result_event = next(e for e in events if e.type == "tool_result")
+        payload = json.loads(result_event.result or "{}")
+        assert payload["status"] == "phase_blocked"
+        assert "Keep All" in payload["summary"]
+        # AIMessage + 错误 ToolMessage 都已入列，供下一轮模型调整
+        assert len(messages) == 2
+
+    async def test_verify_blocks_reannotate_applied_path(self):
+        import json
+
+        from app.agent.assist.task_phase import derive_task_phase
+        from app.schemas.agent import ProposalStateInput
+
+        ctx = derive_task_phase(
+            [ProposalStateInput(path="data/2.jpg", kind="annotation", status="applied")]
+        )
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(
+            llm, [], {}, None, _never_cancel, "test", task_phase_ctx=ctx
+        )
+        gather = self._make_gathered(
+            tool_calls=[
+                {
+                    "id": "c1",
+                    "name": "auto_annotate",
+                    "args": {"user_request": "补标", "paths": ["data/2.jpg"]},
+                }
+            ]
+        )
+        events = await _collect_events(
+            loop.execute_round(gather, "", [], ProposalStreamInterceptor())
+        )
+        assert [e.type for e in events] == ["tool_start", "tool_result"]
+        result_event = next(e for e in events if e.type == "tool_result")
+        payload = json.loads(result_event.result or "{}")
+        assert payload["status"] == "phase_blocked"
+        assert "data/2.jpg" in payload["summary"]
+
+    async def test_verify_allows_new_path_annotation(self):
+        from app.agent.assist.task_phase import derive_task_phase
+        from app.schemas.agent import ProposalStateInput
+
+        ctx = derive_task_phase(
+            [ProposalStateInput(path="data/2.jpg", kind="annotation", status="applied")]
+        )
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(
+            llm, [], {}, None, _never_cancel, "test", task_phase_ctx=ctx
+        )
+        gather = self._make_gathered(
+            tool_calls=[
+                {
+                    "id": "c1",
+                    "name": "auto_annotate",
+                    "args": {"user_request": "补标", "paths": ["data/9.jpg"]},
+                }
+            ]
+        )
+        events = await _collect_events(
+            loop.execute_round(gather, "", [], ProposalStreamInterceptor())
+        )
+        # 新路径放行：发射 tool_pending
+        assert any(e.type == "tool_pending" for e in events)
+
+
+class TestToolLoopPseudoRetry:
+    """正文伪代码兜底：模型写了 auto_annotate(...) 文本但没发起真实 tool_call。"""
+
+    def _make_gathered(self, tool_calls=None, content=""):
+        return MockChunk(content=content, tool_calls=tool_calls)
+
+    async def test_pseudo_text_triggers_forced_tool_call(self):
+        from langchain_core.tools import StructuredTool
+
+        def _auto_annotate_stub(user_request: str) -> str:
+            return "stub"
+
+        tool = StructuredTool.from_function(
+            func=_auto_annotate_stub,
+            name="auto_annotate",
+            description="自动标注",
+        )
+        # ainvoke（tool_choice="any" 强制重试）返回携带 tool_calls 的 chunk
+        forced_chunk = MockChunk(
+            tool_calls=[
+                {
+                    "id": "forced-1",
+                    "name": "auto_annotate",
+                    "args": {"user_request": "补标", "paths": ["data/2.jpg"]},
+                }
+            ]
+        )
+        llm = MockChatOpenAI([forced_chunk])
+        loop = ToolLoopRunner(llm, [tool], {}, None, _never_cancel, "补标")
+        # 正文写了伪代码但 gathered 无 tool_calls
+        gather = self._make_gathered(
+            tool_calls=[], content="现在调用 auto_annotate(paths=['data/2.jpg']) 补标。"
+        )
+        messages: list = []
+        events = await _collect_events(
+            loop.execute_round(
+                gather,
+                "现在调用 auto_annotate(paths=['data/2.jpg']) 补标。",
+                messages,
+                ProposalStreamInterceptor(),
+            )
+        )
+        # 强制重试成功：发射 tool_pending
+        assert any(e.type == "tool_pending" for e in events)
+        # 合成的 AIMessage 携带 tool_calls 入列，保证 ToolMessage 归属
+        from langchain_core.messages import AIMessage
+
+        ai_msgs = [m for m in messages if isinstance(m, AIMessage)]
+        assert ai_msgs and ai_msgs[0].tool_calls[0]["name"] == "auto_annotate"
+
+    async def test_plain_text_without_tool_mention_not_forced(self):
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(llm, [], {}, None, _never_cancel, "test")
+        gather = self._make_gathered(tool_calls=[], content="你好")
+        events = await _collect_events(
+            loop.execute_round(gather, "你好", [], ProposalStreamInterceptor())
+        )
+        assert events == []
+        assert loop.tool_choice_retries == 0
+
+
+class TestToolLoopAsyncDedupe:
+    """同一轮内多个 auto_annotate 合并为一次批量；mutate_annotation 同范围去重。"""
+
+    def _make_gathered(self, tool_calls=None, content=""):
+        return MockChunk(content=content, tool_calls=tool_calls)
+
+    async def test_same_paths_auto_annotate_coalesced(self):
+        """同 paths 的重复 auto_annotate 先被合并（coalesced），只发一次 pending。"""
+        import json
+
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(llm, [], {}, None, _never_cancel, "test")
+        gather = self._make_gathered(
+            tool_calls=[
+                {
+                    "id": "c1",
+                    "name": "auto_annotate",
+                    "args": {"user_request": "补标", "paths": ["data/2.jpg"]},
+                },
+                {
+                    "id": "c2",
+                    "name": "auto_annotate",
+                    "args": {"user_request": "补标", "paths": ["data/2.jpg"]},
+                },
+            ]
+        )
+        messages: list = []
+        events = await _collect_events(
+            loop.execute_round(gather, "", messages, ProposalStreamInterceptor())
+        )
+        pending = [e for e in events if e.type == "tool_pending"]
+        assert len(pending) == 1
+        assert len(pending[0].client_tool_calls or []) == 1
+        dup_results = [
+            e for e in events if e.type == "tool_result" and e.tool_call_id == "c2"
+        ]
+        assert len(dup_results) == 1
+        payload = json.loads(dup_results[0].result or "{}")
+        assert payload["status"] == "coalesced"
+
+    async def test_multiple_auto_annotate_merged_into_one(self):
+        """5 个不同 paths 的 auto_annotate 合并为一次批量，其余回 coalesced。"""
+        import json
+
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(llm, [], {}, None, _never_cancel, "test")
+        gather = self._make_gathered(
+            tool_calls=[
+                {
+                    "id": f"c{i}",
+                    "name": "auto_annotate",
+                    "args": {"user_request": "补标", "paths": [f"data/{i}.jpg"]},
+                }
+                for i in (2, 4, 5, 6, 7)
+            ]
+        )
+        messages: list = []
+        events = await _collect_events(
+            loop.execute_round(gather, "", messages, ProposalStreamInterceptor())
+        )
+        pending = [e for e in events if e.type == "tool_pending"]
+        assert len(pending) == 1
+        calls = pending[0].client_tool_calls or []
+        assert len(calls) == 1
+        merged_args = calls[0].arguments
+        assert merged_args["paths"] == [
+            "data/2.jpg",
+            "data/4.jpg",
+            "data/5.jpg",
+            "data/6.jpg",
+            "data/7.jpg",
+        ]
+        assert merged_args["all_files"] is False
+        coalesced = [
+            e
+            for e in events
+            if e.type == "tool_result" and "coalesced" in (e.result or "")
+        ]
+        assert len(coalesced) == 4
+
+    async def test_mutate_annotation_same_scope_deduped(self):
+        """mutate_annotation 不合并，但同范围重复仍去重。"""
+        import json
+
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(llm, [], {}, None, _never_cancel, "test")
+        gather = self._make_gathered(
+            tool_calls=[
+                {
+                    "id": "m1",
+                    "name": "mutate_annotation",
+                    "args": {"user_request": "改标签", "paths": ["data/7.jpg"]},
+                },
+                {
+                    "id": "m2",
+                    "name": "mutate_annotation",
+                    "args": {"user_request": "改标签", "paths": ["data/7.jpg"]},
+                },
+            ]
+        )
+        events = await _collect_events(
+            loop.execute_round(gather, "", [], ProposalStreamInterceptor())
+        )
+        pending = [e for e in events if e.type == "tool_pending"]
+        assert len(pending) == 1
+        assert len(pending[0].client_tool_calls or []) == 1
+        dup = [
+            e for e in events if e.type == "tool_result" and e.tool_call_id == "m2"
+        ]
+        assert len(dup) == 1
+        payload = json.loads(dup[0].result or "{}")
+        assert payload["status"] == "duplicate_call"
+
+
+class TestToolLoopSameRoundGate:
+    """同轮顺序不变量：标注写入与工作区写入不能同轮。"""
+
+    def _make_gathered(self, tool_calls=None, content=""):
+        return MockChunk(content=content, tool_calls=tool_calls)
+
+    async def test_write_and_annotate_same_round_write_blocked(self):
+        import json
+
+        from langchain_core.tools import StructuredTool
+
+        def _write_stub(relative_path: str, content: str) -> str:
+            return "stub"
+
+        write_tool = StructuredTool.from_function(
+            func=_write_stub,
+            name="write_workspace_file",
+            description="写文件",
+        )
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(
+            llm, [write_tool], {"write_workspace_file": _write_stub}, None, _never_cancel, "test"
+        )
+        gather = self._make_gathered(
+            tool_calls=[
+                {
+                    "id": "w1",
+                    "name": "write_workspace_file",
+                    "args": {"relative_path": "reports/r.md", "content": "# r"},
+                },
+                {
+                    "id": "a1",
+                    "name": "auto_annotate",
+                    "args": {"user_request": "补标", "paths": ["data/2.jpg"]},
+                },
+            ]
+        )
+        messages: list = []
+        events = await _collect_events(
+            loop.execute_round(gather, "", messages, ProposalStreamInterceptor())
+        )
+        # 文件写入被拦，标注发出 tool_pending
+        blocked = [
+            e
+            for e in events
+            if e.type == "tool_result" and e.tool_call_id == "w1"
+        ]
+        assert len(blocked) == 1
+        payload = json.loads(blocked[0].result or "{}")
+        assert payload["status"] == "phase_blocked"
+        assert "Keep All" in payload["summary"]
+        assert any(e.type == "tool_pending" for e in events)
+
+    async def test_write_alone_not_blocked(self):
+        from langchain_core.tools import StructuredTool
+
+        def _write_stub(relative_path: str, content: str) -> str:
+            return "stub"
+
+        write_tool = StructuredTool.from_function(
+            func=_write_stub,
+            name="write_workspace_file",
+            description="写文件",
+        )
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(
+            llm, [write_tool], {"write_workspace_file": _write_stub}, None, _never_cancel, "test"
+        )
+        gather = self._make_gathered(
+            tool_calls=[
+                {
+                    "id": "w1",
+                    "name": "write_workspace_file",
+                    "args": {"relative_path": "reports/r.md", "content": "# r"},
+                }
+            ]
+        )
+        events = await _collect_events(
+            loop.execute_round(gather, "", [], ProposalStreamInterceptor())
+        )
+        # 无标注写入时，文件写入正常执行（未知工具错误，而非 phase_blocked）
+        results = [e for e in events if e.type == "tool_result"]
+        assert len(results) == 1
+        assert "phase_blocked" not in (results[0].result or "")

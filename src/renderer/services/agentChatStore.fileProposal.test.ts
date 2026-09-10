@@ -109,7 +109,9 @@ describe('applyStreamEventToBlocks file_proposal', () => {
 
 describe('resolveFileProposalOperation', () => {
   it('uses SSE operation or mode=delete', () => {
-    expect(resolveFileProposalOperation({ operation: 'delete' })).toBe('delete');
+    expect(resolveFileProposalOperation({ operation: 'delete' })).toBe(
+      'delete',
+    );
     expect(resolveFileProposalOperation({ mode: 'delete' })).toBe('delete');
     expect(resolveFileProposalOperation({ mode: 'write' })).toBe('write');
   });
@@ -180,5 +182,41 @@ describe('resolveFileProposalOperation', () => {
     } as unknown as StreamEvent);
     expect(blocks.map((b) => b.type)).toEqual(['tool_call', 'file_proposal']);
     expect(blocks[1]).toMatchObject({ operation: 'delete' });
+  });
+
+  it('keeps applied status and hasCheckpoint when the same file is streamed again', () => {
+    let blocks: MessageBlock[] = [
+      {
+        type: 'file_proposal',
+        title: 'Doc',
+        content: 'kept',
+        suggestedRelativePath: 'doc.md',
+        status: 'applied',
+        hasCheckpoint: true,
+      },
+    ];
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal_start',
+      title: 'Doc',
+      suggestedRelativePath: 'doc.md',
+      detail: '0',
+    });
+    expect(blocks[0]).toMatchObject({
+      type: 'file_proposal',
+      status: 'applied',
+      hasCheckpoint: true,
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal',
+      content: 'newer',
+      image_path: 'doc.md',
+      summary: 'Doc',
+    } as unknown as StreamEvent);
+    expect(blocks[0]).toMatchObject({
+      type: 'file_proposal',
+      status: 'applied',
+      hasCheckpoint: true,
+      content: 'newer',
+    });
   });
 });

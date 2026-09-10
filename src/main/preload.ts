@@ -615,7 +615,8 @@ const electronHandler = {
       sessionId: string;
       messageId: string;
       blockIndex: number;
-    }): Promise<void> => ipcRenderer.invoke('agent:checkpoint:discard', payload),
+    }): Promise<void> =>
+      ipcRenderer.invoke('agent:checkpoint:discard', payload),
     has: (payload: {
       sessionId: string;
       messageId: string;

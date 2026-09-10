@@ -30,10 +30,14 @@ const existingCaptions: AnnotationInstance[] = [
 
 describe('inferAnnotationWritePolicy', () => {
   it('appends by default even if user says 重写', () => {
-    expect(inferAnnotationWritePolicy('给 2.jpg 补一条英文 detailed', 'caption')).toEqual({
+    expect(
+      inferAnnotationWritePolicy('给 2.jpg 补一条英文 detailed', 'caption'),
+    ).toEqual({
       mode: 'append',
     });
-    expect(inferAnnotationWritePolicy('重写鸡兔问题 CoT', 'cot').mode).toBe('append');
+    expect(inferAnnotationWritePolicy('重写鸡兔问题 CoT', 'cot').mode).toBe(
+      'append',
+    );
     expect(inferAnnotationWritePolicy('重新标注 data/1.jpg', 'bbox').mode).toBe(
       'append',
     );
@@ -41,7 +45,8 @@ describe('inferAnnotationWritePolicy', () => {
 
   it('uses explicit write_mode over request wording', () => {
     expect(
-      inferAnnotationWritePolicy('不要重写', 'caption', 'replace_matching').mode,
+      inferAnnotationWritePolicy('不要重写', 'caption', 'replace_matching')
+        .mode,
     ).toBe('replace_matching');
     expect(
       inferAnnotationWritePolicy('重新标注 data/1.jpg', 'bbox', 'append').mode,
@@ -87,7 +92,10 @@ describe('selectIdsToReplace', () => {
   it('replaces same caption granularity', () => {
     const ids = selectIdsToReplace(
       existingCaptions,
-      { mode: 'replace_matching', match: { kinds: ['caption'], granularity: 'brief' } },
+      {
+        mode: 'replace_matching',
+        match: { kinds: ['caption'], granularity: 'brief' },
+      },
       [
         {
           id: 'new',

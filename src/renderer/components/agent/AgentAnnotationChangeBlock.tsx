@@ -299,9 +299,7 @@ export default function AgentAnnotationChangeBlock({
                   <AnnotationPreviewCards
                     annotations={item.annotations}
                     labelMap={labelMap}
-                    openLabel={
-                      getOpenActionLabels(modality, item.path).button
-                    }
+                    openLabel={getOpenActionLabels(modality, item.path).button}
                     onOpenAnnotation={(annotation) =>
                       handleOpenAnnotationPreview(
                         item.path,

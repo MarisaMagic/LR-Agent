@@ -39,15 +39,10 @@ export function registerCheckpointHandlers(): void {
           filePaths?: string[];
         },
     ) => {
-      return captureCheckpoint(
-        asRef(payload),
-        payload.kind,
-        asRoots(payload),
-        {
-          annotationPaths: payload.annotationPaths,
-          filePaths: payload.filePaths,
-        },
-      );
+      return captureCheckpoint(asRef(payload), payload.kind, asRoots(payload), {
+        annotationPaths: payload.annotationPaths,
+        filePaths: payload.filePaths,
+      });
     },
   );
 
@@ -65,9 +60,12 @@ export function registerCheckpointHandlers(): void {
     },
   );
 
-  ipcMain.handle('agent:checkpoint:discard', (_event, payload: CheckpointRef) => {
-    return discardCheckpoint(asRef(payload));
-  });
+  ipcMain.handle(
+    'agent:checkpoint:discard',
+    (_event, payload: CheckpointRef) => {
+      return discardCheckpoint(asRef(payload));
+    },
+  );
 
   ipcMain.handle('agent:checkpoint:has', (_event, payload: CheckpointRef) => {
     return hasCheckpoint(asRef(payload));

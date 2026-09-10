@@ -83,13 +83,12 @@ export default function AgentKeepAllBar() {
     };
   }, [activeProject, changeItems, changeItemsKey, rootPath]);
 
-  if (pendingProposalCount <= 0) return null;
+  const streaming =
+    activeSessionId != null && isSessionStreaming(activeSessionId);
+  // 文件提案在 file_proposal_start 就会变 pending；流式结束 / HITL 暂停后再出示 Keep All
+  if (pendingProposalCount <= 0 || streaming) return null;
 
-  const busy =
-    applyingAllPending ||
-    dismissingAllPending ||
-    (activeSessionId != null && isSessionStreaming(activeSessionId)) ||
-    preparingContext;
+  const busy = applyingAllPending || dismissingAllPending || preparingContext;
 
   const fileCount = changeItems.length;
   const headerLabel = fileCount === 1 ? '1 个文件' : `${fileCount} 个文件`;

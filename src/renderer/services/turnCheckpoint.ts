@@ -42,6 +42,7 @@ type CheckpointBridge = {
         dirtyPaths?: string[];
       }>;
       discard?: (payload: CheckpointRef) => Promise<void>;
+      has?: (payload: CheckpointRef) => Promise<boolean>;
     };
   };
 };
@@ -117,8 +118,87 @@ export async function discardProposalCheckpoint(
 }
 
 export type RestoreCheckpointsResult =
-  | { ok: true; restoredPaths: string[] }
+  | { ok: true; restoredPaths: string[]; skipped?: number }
   | { ok: false; error: string; dirtyPaths?: string[] };
+
+export function blockHasCheckpoint(block: MessageBlock | undefined): boolean {
+  return Boolean(
+    block &&
+    (block.type === 'annotation_proposal' || isFileProposalBlock(block)) &&
+    block.hasCheckpoint,
+  );
+}
+
+export async function probeCheckpointExists(
+  ref: CheckpointRef,
+): Promise<boolean> {
+  const has = getBridge()?.has;
+  if (!has) return false;
+  try {
+    return Boolean(await has(ref));
+  } catch {
+    return false;
+  }
+}
+
+export async function partitionAppliedCheckpointRefs(
+  refs: CheckpointRef[],
+  getBlock: (ref: CheckpointRef) => MessageBlock | undefined,
+): Promise<{ restorable: CheckpointRef[]; missing: CheckpointRef[] }> {
+  const restorable: CheckpointRef[] = [];
+  const missing: CheckpointRef[] = [];
+  for (const ref of refs) {
+    const known = blockHasCheckpoint(getBlock(ref));
+    if (known || (await probeCheckpointExists(ref))) {
+      restorable.push(ref);
+    } else {
+      missing.push(ref);
+    }
+  }
+  return { restorable, missing };
+}
+
+export function confirmContinueWithoutSnapshot(missingCount: number): boolean {
+  if (missingCount <= 0) return true;
+  const detail =
+    missingCount === 1
+      ? '已应用的改动缺少改前快照，无法回滚，磁盘上的改动将保留。'
+      : `${missingCount} 项已应用改动缺少改前快照，无法回滚，磁盘上的改动将保留。`;
+  return window.confirm(`${detail}是否仍要继续？`);
+}
+
+export type EditRollbackDecision =
+  | { action: 'abort' }
+  | { action: 'continue'; restorable: CheckpointRef[]; skipped: number };
+
+export async function decideEditRollback(options: {
+  refs: CheckpointRef[];
+  getBlock: (ref: CheckpointRef) => MessageBlock | undefined;
+  confirmContinue?: (missingCount: number) => boolean;
+}): Promise<EditRollbackDecision> {
+  if (options.refs.length === 0) {
+    return { action: 'continue', restorable: [], skipped: 0 };
+  }
+  const { restorable, missing } = await partitionAppliedCheckpointRefs(
+    options.refs,
+    options.getBlock,
+  );
+  if (missing.length > 0) {
+    const confirm = options.confirmContinue ?? confirmContinueWithoutSnapshot;
+    if (!confirm(missing.length)) {
+      return { action: 'abort' };
+    }
+  }
+  return { action: 'continue', restorable, skipped: missing.length };
+}
+
+export function isSkippableRestoreError(error: string): boolean {
+  return (
+    error === 'checkpoint_not_found' ||
+    error === 'checkpoint_incomplete' ||
+    error === 'checkpoint_unavailable'
+  );
+}
 
 export function collectAppliedProposalRefs(
   messages: ChatMessage[],
@@ -219,28 +299,38 @@ export async function restoreAppliedCheckpoints(options: {
   project: AnnotationProject | null;
   workspaceRoot?: string | null;
   newestFirst?: boolean;
+  continueOnSkippable?: boolean;
 }): Promise<RestoreCheckpointsResult> {
   const restore = getBridge()?.restore;
   if (!restore) {
+    if (options.continueOnSkippable) {
+      return { ok: true, restoredPaths: [], skipped: options.refs.length };
+    }
     return { ok: false, error: 'checkpoint_unavailable' };
   }
   const ordered = options.newestFirst
     ? [...options.refs].reverse()
     : [...options.refs];
   const restoredPaths: string[] = [];
+  let skipped = 0;
   const roots = resolveCheckpointRoots(options.project, options.workspaceRoot);
   for (const ref of ordered) {
     const result = await restore({ ...ref, ...roots });
     if (!result.ok) {
+      const error = result.error ?? 'restore_failed';
+      if (options.continueOnSkippable && isSkippableRestoreError(error)) {
+        skipped += 1;
+        continue;
+      }
       return {
         ok: false,
-        error: result.error ?? 'restore_failed',
+        error,
         dirtyPaths: result.dirtyPaths,
       };
     }
     restoredPaths.push(...(result.restoredPaths ?? []));
   }
-  return { ok: true, restoredPaths };
+  return { ok: true, restoredPaths, skipped };
 }
 
 export function formatRestoreError(result: RestoreCheckpointsResult): string {

@@ -41,7 +41,7 @@ export interface GeometryInstance {
   geometry_kind: GeometryKind;
   class_name?: string;
   confidence?: number;
-  /** Normalized axis-aligned crop region for map/judge vision APIs */
+  /** Normalized axis-aligned crop region for map vision APIs */
   crop_box: NormBox;
   payload: GeometryPayload;
 }

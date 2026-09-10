@@ -1,4 +1,5 @@
 import { applyStreamEventToBlocks } from './agentChatStore';
+import type { MessageBlock } from '../../shared/agentTypes';
 import {
   formatToolCallLabel,
   isExplorationTool,
@@ -89,5 +90,82 @@ describe('applyStreamEventToBlocks tool_start', () => {
     expect(tool.collapsed).toBe(true);
     expect(tool.arguments).not.toContain('int x = 1');
     expect(tool.arguments).toContain('a.cpp');
+  });
+});
+
+describe('applyStreamEventToBlocks annotation tool_result', () => {
+  const runningPipeline: MessageBlock = {
+    type: 'annotation_pipeline',
+    collapsed: false,
+    pipelineKind: 'batch',
+    steps: [
+      { stage: 'collect', label: '收集', message: '', status: 'done' },
+      { stage: 'workers', label: '处理', message: '', status: 'running' },
+    ],
+  };
+
+  function seedBlocks(): MessageBlock[] {
+    return [
+      runningPipeline,
+      {
+        type: 'tool_call',
+        id: 't-1',
+        name: 'auto_annotate',
+        arguments: '{}',
+        status: 'running',
+        collapsed: true,
+      },
+    ];
+  }
+
+  it('settles running pipeline steps when auto_annotate finishes', () => {
+    const blocks = applyStreamEventToBlocks(seedBlocks(), {
+      type: 'tool_result',
+      toolCallId: 't-1',
+      result: '{"status":"completed"}',
+    } as unknown as Parameters<typeof applyStreamEventToBlocks>[1]);
+    const pipeline = blocks[0];
+    if (pipeline.type !== 'annotation_pipeline') throw new Error('pipeline');
+    expect(pipeline.steps.every((s) => s.status === 'done')).toBe(true);
+  });
+
+  it('marks running steps as error on phase_blocked', () => {
+    const blocks = applyStreamEventToBlocks(seedBlocks(), {
+      type: 'tool_result',
+      toolCallId: 't-1',
+      result: '{"status":"phase_blocked","summary":"no"}',
+    } as unknown as Parameters<typeof applyStreamEventToBlocks>[1]);
+    const pipeline = blocks[0];
+    if (pipeline.type !== 'annotation_pipeline') throw new Error('pipeline');
+    expect(pipeline.steps[1].status).toBe('error');
+  });
+
+  it('settles mutation pipeline when mutate_annotation finishes', () => {
+    const blocks: MessageBlock[] = [
+      {
+        type: 'annotation_pipeline',
+        collapsed: false,
+        pipelineKind: 'mutation',
+        steps: [
+          { stage: 'resolve', label: '解析', message: '', status: 'running' },
+        ],
+      },
+      {
+        type: 'tool_call',
+        id: 't-2',
+        name: 'mutate_annotation',
+        arguments: '{}',
+        status: 'running',
+        collapsed: true,
+      },
+    ];
+    const next = applyStreamEventToBlocks(blocks, {
+      type: 'tool_result',
+      toolCallId: 't-2',
+      result: '{"status":"completed"}',
+    } as unknown as Parameters<typeof applyStreamEventToBlocks>[1]);
+    const pipeline = next[0];
+    if (pipeline.type !== 'annotation_pipeline') throw new Error('pipeline');
+    expect(pipeline.steps[0].status).toBe('done');
   });
 });

@@ -1,17 +1,13 @@
 /**
- * Generalized geometry sub-image agent: PreAnnot inference → map → finalize → judge.
+ * Generalized geometry sub-image agent: PreAnnot inference → map → finalize.
  */
 import {
-  judgeDetectionLabels,
   mapDetectionBoxesUnified,
-  type JudgeDetectionLabelsResult,
   type MapDetectionBoxesUnifiedResult,
 } from '../annotationAgentApi';
 import type {
   BatchAnnotationPlan,
   ImageCandidate,
-  AnnotationBatchChange,
-  AnnotationJudgeSummary,
 } from '../../../shared/annotationAgentTypes';
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
 import type { SubImageTimingBreakdown } from './annotationTiming';
@@ -32,26 +28,6 @@ import type { FusionSubImageResult } from './fusionSubImageTypes';
 import { readImageBase64 } from './fusionSubImageTools';
 
 type MappingRow = { box_index: number; label_id: string; reason?: string };
-
-function mergeMappings(
-  base: MappingRow[],
-  updates: MappingRow[],
-): MappingRow[] {
-  const byIndex = new Map<number, MappingRow>();
-  for (const row of base) byIndex.set(row.box_index, row);
-  for (const row of updates) byIndex.set(row.box_index, row);
-  return [...byIndex.values()].sort((a, b) => a.box_index - b.box_index);
-}
-
-function extractIssueBoxIndices(judge: JudgeDetectionLabelsResult): number[] {
-  const indices = new Set<number>();
-  for (const issue of judge.issues ?? []) {
-    if (issue.boxIndex != null && Number.isFinite(issue.boxIndex)) {
-      indices.add(issue.boxIndex);
-    }
-  }
-  return [...indices];
-}
 
 export async function runGeometrySubImageAgent(options: {
   annotationType: GeometryAnnotationType;
@@ -114,7 +90,6 @@ export async function runGeometrySubImageAgent(options: {
   let instances: GeometryInstance[] = [];
   let rawCount = 0;
   let keptCount = 0;
-  let excludedCount = 0;
   let mapMethod = '';
   let mapHint = '';
 
@@ -138,7 +113,6 @@ export async function runGeometrySubImageAgent(options: {
     instances = inferResult.instances;
     rawCount = inferResult.rawCount;
     keptCount = inferResult.keptCount;
-    excludedCount = inferResult.excludedCount;
   } catch (err) {
     timing.total_ms = Math.round(performance.now() - totalStarted);
     return {
@@ -187,28 +161,19 @@ export async function runGeometrySubImageAgent(options: {
     return imageBase64;
   };
 
-  const runMap = async (
-    attempt: number,
-    judgeFeedback: string,
-    previousMappings: MappingRow[],
-    boxesOverride?: typeof mapBoxesPayload,
-  ): Promise<MapDetectionBoxesUnifiedResult> => {
+  const runMap = async (): Promise<MapDetectionBoxesUnifiedResult> => {
     throwIfAborted();
-    const boxesToMap = boxesOverride ?? mapBoxesPayload;
     const tMap = performance.now();
     let mapResult = await mapDetectionBoxesUnified(options.providerId, {
       userRequest: options.userRequest,
       intentSummary: plan.intent_summary,
       labelCandidates: options.labelCandidates,
-      boxes: boxesToMap,
+      boxes: mapBoxesPayload,
       useVision,
       labelStrategy: plan.label_strategy,
       singleLabelId,
       annotationScope: { ...plan.annotation_scope },
       imageAbsolutePath: image.absolutePath,
-      judgeFeedback,
-      previousMappings,
-      attempt,
       providerApiKey: options.providerApiKey ?? '',
       providerBaseUrl: options.providerBaseUrl ?? '',
       providerModel: options.providerModel ?? '',
@@ -226,15 +191,12 @@ export async function runGeometrySubImageAgent(options: {
         userRequest: options.userRequest,
         intentSummary: plan.intent_summary,
         labelCandidates: options.labelCandidates,
-        boxes: boxesToMap,
+        boxes: mapBoxesPayload,
         useVision,
         labelStrategy: plan.label_strategy,
         singleLabelId,
         annotationScope: { ...plan.annotation_scope },
         imageBase64: fallbackBase64,
-        judgeFeedback,
-        previousMappings,
-        attempt,
         providerApiKey: options.providerApiKey ?? '',
         providerBaseUrl: options.providerBaseUrl ?? '',
         providerModel: options.providerModel ?? '',
@@ -246,276 +208,84 @@ export async function runGeometrySubImageAgent(options: {
     return mapResult;
   };
 
-  const runJudge = async (
-    attempt: number,
-    mappings: MappingRow[],
-    annotations: Array<Record<string, unknown>>,
-  ): Promise<JudgeDetectionLabelsResult> => {
-    throwIfAborted();
-    const maxRetries = Math.max(0, plan.judge_config?.maxRetries ?? 1);
-    const tJudge = performance.now();
-    try {
-      let judge = await judgeDetectionLabels(options.providerId, {
-        userRequest: options.userRequest,
-        intentSummary: plan.intent_summary,
-        labelCandidates: options.labelCandidates,
-        boxes: mapBoxesPayload,
-        mappings,
-        annotations,
-        imageAbsolutePath: image.absolutePath,
-        attempt,
-        maxRetries,
-        providerApiKey: options.providerApiKey ?? '',
-        providerBaseUrl: options.providerBaseUrl ?? '',
-        providerModel: options.providerModel ?? '',
-        providerSupportsVision: options.providerSupportsVision ?? false,
-        signal: options.signal,
-      });
-      if (judge.ok === false && judge.error === 'image_unavailable') {
-        const fallbackBase64 = await ensureImageBase64();
-        judge = await judgeDetectionLabels(options.providerId, {
-          userRequest: options.userRequest,
-          intentSummary: plan.intent_summary,
-          labelCandidates: options.labelCandidates,
-          boxes: mapBoxesPayload,
-          mappings,
-          annotations,
-          imageBase64: fallbackBase64,
-          attempt,
-          maxRetries,
-          providerApiKey: options.providerApiKey ?? '',
-          providerBaseUrl: options.providerBaseUrl ?? '',
-          providerModel: options.providerModel ?? '',
-          providerSupportsVision: options.providerSupportsVision ?? false,
-          signal: options.signal,
-        });
-      }
-      return judge;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') throw err;
-      return {
-        ok: false,
-        verdict: 'weak_accept',
-        confidence: 0,
-        summary:
-          err instanceof Error
-            ? `评分失败，按弱通过处理：${err.message}`
-            : '评分失败，按弱通过处理',
-        issues: [],
-        retryFeedback: '',
-        checkedBoxes: mappings.length,
-      };
-    } finally {
-      timing.judge_ms =
-        (timing.judge_ms ?? 0) + Math.round(performance.now() - tJudge);
-    }
-  };
-
-  const judgeEnabled = useVision && (plan.judge_config?.enabled ?? true);
-  const maxJudgeRetries = judgeEnabled
-    ? Math.max(0, plan.judge_config?.maxRetries ?? 1)
-    : 0;
-  const rejectSubmitPartial = plan.judge_config?.rejectSubmitPartial !== false;
-  let judgeFeedback = '';
-  let previousMappings: MappingRow[] = [];
-  let issueBoxIndices: number[] = [];
-  let judgeAttempts = 0;
-  let judgeRetryRounds = 0;
-  let lastJudge: JudgeDetectionLabelsResult | undefined;
   let lastMapMappings = formatMapMappingRows([], options.labelCandidates);
   let ctxMappings: MappingRow[] = skipMapping
     ? buildPresetMappings(instances)
     : [];
 
-  const buildSuccessResult = (
-    auto: {
-      change?: AnnotationBatchChange;
-      mappedCount: number;
-      unlabeledInProposal?: number;
-    },
-    judgeSummary?: AnnotationJudgeSummary & {
-      attempts?: number;
-      retryRounds?: number;
-    },
-    weakAccepted = false,
-  ): FusionSubImageResult => {
-    timing.total_ms = Math.round(performance.now() - totalStarted);
-    return withTiming({
-      ok: true,
-      relativePath: image.relativePath,
-      absolutePath: image.absolutePath,
-      change: judgeSummary
-        ? { ...auto.change!, judge: judgeSummary }
-        : auto.change!,
-      rawCount,
-      keptCount,
-      mappedCount: auto.mappedCount,
-      unmappedCount: Math.max(0, keptCount - auto.mappedCount),
-      unlabeledInProposal: auto.unlabeledInProposal,
-      autoFinalized: true,
-      method: mapMethod,
-      mapMappings: lastMapMappings,
-      judge: judgeSummary,
-      judgeAttempts,
-      judgeRetryRounds,
-      weakAccepted,
-    });
-  };
+  throwIfAborted();
 
-  for (let attempt = 0; attempt <= maxJudgeRetries; attempt += 1) {
-    throwIfAborted();
-
-    if (!skipMapping) {
-      let mapResult: MapDetectionBoxesUnifiedResult;
-      if (attempt > 0 && issueBoxIndices.length > 0) {
-        const subsetBoxes = mapBoxesPayload.filter((b) =>
-          issueBoxIndices.includes(b.box_index),
-        );
-        mapResult = await runMap(
-          attempt,
-          judgeFeedback,
-          previousMappings,
-          subsetBoxes,
-        );
-        ctxMappings = mergeMappings(previousMappings, mapResult.mappings ?? []);
-      } else {
-        mapResult = await runMap(attempt, judgeFeedback, previousMappings);
-        ctxMappings = mapResult.mappings ?? [];
-      }
-      mapMethod = mapResult.method ?? '';
-      mapHint = mapResult.hint ?? '';
-      lastMapMappings = formatMapMappingRows(
-        ctxMappings,
-        options.labelCandidates,
-      );
-      logAnnotationDebugMapDetail(image.relativePath, {
-        elapsed_ms: timing.map_ms,
-        mapResult,
-        labelCandidates: options.labelCandidates,
-        userRequest: options.userRequest,
-        attempt,
-      });
-    } else if (singleLabelId) {
-      ctxMappings = instances.map((inst) => ({
-        box_index: inst.instance_index,
-        label_id: singleLabelId,
-        reason: 'single_label_strategy',
-      }));
-      mapMethod = 'preset';
-      lastMapMappings = formatMapMappingRows(
-        ctxMappings,
-        options.labelCandidates,
-      );
-    }
-
-    const auto = tryAutoFinalizeFromGeometry({
-      plan,
-      imageRelativePath: image.relativePath,
-      imageAbsolutePath: image.absolutePath,
-      instances,
-      mappings: ctxMappings,
-      labelCandidates: options.labelCandidates,
-    });
-
-    if (!auto.ok || !auto.change) {
-      const mappedCount = ctxMappings.filter((m) => m.label_id).length;
-      timing.total_ms = Math.round(performance.now() - totalStarted);
-      return withTiming({
-        ...base,
-        reason:
-          auto.reason ||
-          mapHint ||
-          `成功映射 ${mappedCount} 个实例，不足 ${minLabeled}`,
-        rawCount,
-        keptCount,
-        mappedCount,
-        unmappedCount: Math.max(0, keptCount - mappedCount),
-        unlabeledInProposal: auto.unlabeledInProposal,
-        method: mapMethod,
-        mapHint,
-        mapMappings: lastMapMappings,
-        judge: lastJudge,
-        judgeAttempts,
-        judgeRetryRounds,
-      });
-    }
-
-    if (!judgeEnabled) {
-      return buildSuccessResult(auto);
-    }
-
-    options.onProgress?.({
-      stage: 'judge',
-      message: `评分：${image.relativePath}`,
-      status: 'running',
-      imagePath: image.relativePath,
-    });
-    lastJudge = await runJudge(
-      attempt,
+  if (!skipMapping) {
+    const mapResult = await runMap();
+    ctxMappings = mapResult.mappings ?? [];
+    mapMethod = mapResult.method ?? '';
+    mapHint = mapResult.hint ?? '';
+    lastMapMappings = formatMapMappingRows(
       ctxMappings,
-      auto.change.annotations as unknown as Array<Record<string, unknown>>,
+      options.labelCandidates,
     );
-    judgeAttempts += 1;
-    const judgeSummary = {
-      ...lastJudge,
-      attempts: judgeAttempts,
-      retryRounds: judgeRetryRounds,
-    };
+    logAnnotationDebugMapDetail(image.relativePath, {
+      elapsed_ms: timing.map_ms,
+      mapResult,
+      labelCandidates: options.labelCandidates,
+      userRequest: options.userRequest,
+      attempt: 0,
+    });
+  } else if (singleLabelId) {
+    ctxMappings = instances.map((inst) => ({
+      box_index: inst.instance_index,
+      label_id: singleLabelId,
+      reason: 'single_label_strategy',
+    }));
+    mapMethod = 'preset';
+    lastMapMappings = formatMapMappingRows(
+      ctxMappings,
+      options.labelCandidates,
+    );
+  }
 
-    if (lastJudge.verdict === 'accept' || lastJudge.verdict === 'weak_accept') {
-      return buildSuccessResult(
-        auto,
-        judgeSummary,
-        lastJudge.verdict === 'weak_accept',
-      );
-    }
+  const auto = tryAutoFinalizeFromGeometry({
+    plan,
+    imageRelativePath: image.relativePath,
+    imageAbsolutePath: image.absolutePath,
+    instances,
+    mappings: ctxMappings,
+    labelCandidates: options.labelCandidates,
+  });
 
-    if (attempt < maxJudgeRetries) {
-      judgeRetryRounds += 1;
-      issueBoxIndices = extractIssueBoxIndices(lastJudge);
-      judgeFeedback =
-        lastJudge.retryFeedback?.trim() ||
-        lastJudge.summary?.trim() ||
-        '评分子 Agent 判定存在标签错误，请重新分配标签。';
-      previousMappings = ctxMappings;
-      continue;
-    }
-
-    if (
-      rejectSubmitPartial &&
-      auto.ok &&
-      auto.change &&
-      auto.mappedCount >= minLabeled
-    ) {
-      return buildSuccessResult(auto, judgeSummary, true);
-    }
-
+  if (!auto.ok || !auto.change) {
+    const mappedCount = ctxMappings.filter((m) => m.label_id).length;
     timing.total_ms = Math.round(performance.now() - totalStarted);
     return withTiming({
       ...base,
-      reason: `评分拒绝：${lastJudge.summary || lastJudge.retryFeedback || '标签质量未通过'}`,
+      reason:
+        auto.reason ||
+        mapHint ||
+        `成功映射 ${mappedCount} 个实例，不足 ${minLabeled}`,
       rawCount,
       keptCount,
-      mappedCount: auto.mappedCount,
+      mappedCount,
+      unmappedCount: Math.max(0, keptCount - mappedCount),
+      unlabeledInProposal: auto.unlabeledInProposal,
       method: mapMethod,
+      mapHint,
       mapMappings: lastMapMappings,
-      judge: judgeSummary,
-      judgeAttempts,
-      judgeRetryRounds,
-      rejectedByJudge: true,
     });
   }
 
   timing.total_ms = Math.round(performance.now() - totalStarted);
   return withTiming({
-    ...base,
-    reason: mapHint || '未能完成标注',
+    ok: true,
+    relativePath: image.relativePath,
+    absolutePath: image.absolutePath,
+    change: auto.change,
     rawCount,
     keptCount,
+    mappedCount: auto.mappedCount,
+    unmappedCount: Math.max(0, keptCount - auto.mappedCount),
+    unlabeledInProposal: auto.unlabeledInProposal,
+    autoFinalized: true,
     method: mapMethod,
     mapMappings: lastMapMappings,
-    judge: lastJudge,
-    judgeAttempts,
-    judgeRetryRounds,
   });
 }

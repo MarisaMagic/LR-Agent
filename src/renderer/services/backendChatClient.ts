@@ -131,9 +131,7 @@ export function buildBackendMessages(
     const restoreTools = index >= toolRestoreFrom;
     const toolBlocks = restoreTools
       ? message.blocks.filter(
-          (
-            block,
-          ): block is Extract<typeof block, { type: 'tool_call' }> =>
+          (block): block is Extract<typeof block, { type: 'tool_call' }> =>
             block.type === 'tool_call' &&
             Boolean(block.id) &&
             HISTORY_TOOL_NAMES.has(block.name),
@@ -173,10 +171,18 @@ export function serializeBackendMessages(
       role: message.role,
       content: message.content,
     };
-    if (message.role === 'assistant' && 'tool_calls' in message && message.tool_calls?.length) {
+    if (
+      message.role === 'assistant' &&
+      'tool_calls' in message &&
+      message.tool_calls?.length
+    ) {
       payload.tool_calls = message.tool_calls;
     }
-    if (message.role === 'tool' && 'tool_call_id' in message && message.tool_call_id) {
+    if (
+      message.role === 'tool' &&
+      'tool_call_id' in message &&
+      message.tool_call_id
+    ) {
       payload.tool_call_id = message.tool_call_id;
     }
     return payload;

@@ -1,18 +1,13 @@
 /**
  * 确定性快路径：detect（本地 YOLO）→ map（API，服务端读本地路径）→ finalize。
- * 固定流程：本地 detect → map API → finalize → optional JudgeAgent。
  */
 import {
-  judgeDetectionLabels,
   mapDetectionBoxesUnified,
-  type JudgeDetectionLabelsResult,
   type MapDetectionBoxesUnifiedResult,
 } from '../annotationAgentApi';
 import type {
   BatchAnnotationPlan,
   ImageCandidate,
-  AnnotationBatchChange,
-  AnnotationJudgeSummary,
 } from '../../../shared/annotationAgentTypes';
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
 import type { SubImageTimingBreakdown } from './annotationTiming';
@@ -28,32 +23,6 @@ import {
   runObjectDetectionForSubAgent,
   type SubImageToolContext,
 } from './fusionSubImageTools';
-
-type MappingRow = { box_index: number; label_id: string; reason?: string };
-
-function mergeMappings(
-  base: MappingRow[],
-  updates: MappingRow[],
-): MappingRow[] {
-  const byIndex = new Map<number, MappingRow>();
-  for (const row of base) {
-    byIndex.set(row.box_index, row);
-  }
-  for (const row of updates) {
-    byIndex.set(row.box_index, row);
-  }
-  return [...byIndex.values()].sort((a, b) => a.box_index - b.box_index);
-}
-
-function extractIssueBoxIndices(judge: JudgeDetectionLabelsResult): number[] {
-  const indices = new Set<number>();
-  for (const issue of judge.issues ?? []) {
-    if (issue.boxIndex != null && Number.isFinite(issue.boxIndex)) {
-      indices.add(issue.boxIndex);
-    }
-  }
-  return [...indices];
-}
 
 export async function runDeterministicSubImageAgent(options: {
   providerId: string;
@@ -175,28 +144,19 @@ export async function runDeterministicSubImageAgent(options: {
     return imageBase64;
   };
 
-  const runMap = async (
-    attempt: number,
-    judgeFeedback: string,
-    previousMappings: MappingRow[],
-    boxesOverride?: typeof mapBoxesPayload,
-  ): Promise<MapDetectionBoxesUnifiedResult> => {
+  const runMap = async (): Promise<MapDetectionBoxesUnifiedResult> => {
     throwIfAborted();
-    const boxesToMap = boxesOverride ?? mapBoxesPayload;
     const tMap = performance.now();
     let mapResult = await mapDetectionBoxesUnified(options.providerId, {
       userRequest: options.userRequest,
       intentSummary: plan.intent_summary,
       labelCandidates: options.labelCandidates,
-      boxes: boxesToMap,
+      boxes: mapBoxesPayload,
       useVision,
       labelStrategy: plan.label_strategy,
       singleLabelId,
       annotationScope: { ...plan.annotation_scope },
       imageAbsolutePath: image.absolutePath,
-      judgeFeedback,
-      previousMappings,
-      attempt,
       providerApiKey: options.providerApiKey ?? '',
       providerBaseUrl: options.providerBaseUrl ?? '',
       providerModel: options.providerModel ?? '',
@@ -214,15 +174,12 @@ export async function runDeterministicSubImageAgent(options: {
         userRequest: options.userRequest,
         intentSummary: plan.intent_summary,
         labelCandidates: options.labelCandidates,
-        boxes: boxesToMap,
+        boxes: mapBoxesPayload,
         useVision,
         labelStrategy: plan.label_strategy,
         singleLabelId,
         annotationScope: { ...plan.annotation_scope },
         imageBase64: fallbackBase64,
-        judgeFeedback,
-        previousMappings,
-        attempt,
         providerApiKey: options.providerApiKey ?? '',
         providerBaseUrl: options.providerBaseUrl ?? '',
         providerModel: options.providerModel ?? '',
@@ -234,365 +191,80 @@ export async function runDeterministicSubImageAgent(options: {
     return mapResult;
   };
 
-  const runJudge = async (
-    attempt: number,
-    mappings: MappingRow[],
-    annotations: Array<Record<string, unknown>>,
-  ): Promise<JudgeDetectionLabelsResult> => {
-    throwIfAborted();
-    const maxRetries = Math.max(0, plan.judge_config?.maxRetries ?? 1);
-    const tJudge = performance.now();
-    try {
-      let judge = await judgeDetectionLabels(options.providerId, {
-        userRequest: options.userRequest,
-        intentSummary: plan.intent_summary,
-        labelCandidates: options.labelCandidates,
-        boxes: mapBoxesPayload,
-        mappings,
-        annotations,
-        imageAbsolutePath: image.absolutePath,
-        attempt,
-        maxRetries,
-        providerApiKey: options.providerApiKey ?? '',
-        providerBaseUrl: options.providerBaseUrl ?? '',
-        providerModel: options.providerModel ?? '',
-        providerSupportsVision: options.providerSupportsVision ?? false,
-        signal: options.signal,
-      });
-      if (judge.ok === false && judge.error === 'image_unavailable') {
-        const fallbackBase64 = await ensureImageBase64();
-        judge = await judgeDetectionLabels(options.providerId, {
-          userRequest: options.userRequest,
-          intentSummary: plan.intent_summary,
-          labelCandidates: options.labelCandidates,
-          boxes: mapBoxesPayload,
-          mappings,
-          annotations,
-          imageBase64: fallbackBase64,
-          attempt,
-          maxRetries,
-          providerApiKey: options.providerApiKey ?? '',
-          providerBaseUrl: options.providerBaseUrl ?? '',
-          providerModel: options.providerModel ?? '',
-          providerSupportsVision: options.providerSupportsVision ?? false,
-          signal: options.signal,
-        });
-      }
-      return judge;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        throw err;
-      }
-      return {
-        ok: false,
-        verdict: 'weak_accept',
-        confidence: 0,
-        summary:
-          err instanceof Error
-            ? `评分失败，按弱通过处理：${err.message}`
-            : '评分失败，按弱通过处理',
-        issues: [],
-        retryFeedback: '',
-        checkedBoxes: mappings.length,
-      };
-    } finally {
-      timing.judge_ms =
-        (timing.judge_ms ?? 0) + Math.round(performance.now() - tJudge);
-    }
-  };
+  throwIfAborted();
+  const mapResult = await runMap();
+  ctx.mappings = mapResult.mappings ?? [];
+  ctx.mapMethod = mapResult.method ?? '';
+  ctx.mapHint = mapResult.hint ?? '';
+  const lastMapMappings = formatMapMappingRows(
+    ctx.mappings,
+    options.labelCandidates,
+  );
 
-  const judgeEnabled = useVision && (plan.judge_config?.enabled ?? true);
-  const maxJudgeRetries = judgeEnabled
-    ? Math.max(0, plan.judge_config?.maxRetries ?? 1)
-    : 0;
-  const rejectSubmitPartial = plan.judge_config?.rejectSubmitPartial !== false;
-  let judgeFeedback = '';
-  let previousMappings: MappingRow[] = [];
-  let issueBoxIndices: number[] = [];
-  let judgeAttempts = 0;
-  let judgeRetryRounds = 0;
-  let lastJudge: JudgeDetectionLabelsResult | undefined;
-  let lastMapMappings = formatMapMappingRows([], options.labelCandidates);
+  logAnnotationDebugMapDetail(image.relativePath, {
+    elapsed_ms: timing.map_ms,
+    mapResult,
+    labelCandidates: options.labelCandidates,
+    userRequest: options.userRequest,
+    intentSummary: plan.intent_summary,
+    attempt: 0,
+  });
 
-  const buildSuccessResult = (
-    auto: {
-      change?: AnnotationBatchChange;
-      mappedCount: number;
-      unlabeledInProposal?: number;
-    },
-    judgeSummary?: AnnotationJudgeSummary & {
-      attempts?: number;
-      retryRounds?: number;
-    },
-    weakAccepted = false,
-  ): FusionSubImageResult => {
-    timing.total_ms = Math.round(performance.now() - totalStarted);
-    return withTiming({
-      ok: true,
-      relativePath: image.relativePath,
-      absolutePath: image.absolutePath,
-      change: judgeSummary
-        ? { ...auto.change!, judge: judgeSummary }
-        : auto.change!,
-      rawCount: ctx.rawCount,
-      keptCount: ctx.keptCount,
-      mappedCount: auto.mappedCount,
-      unmappedCount: Math.max(0, ctx.keptCount - auto.mappedCount),
-      unlabeledInProposal: auto.unlabeledInProposal,
-      autoFinalized: true,
-      method: ctx.mapMethod,
-      mapMappings: lastMapMappings,
-      judge: judgeSummary,
-      judgeAttempts,
-      judgeRetryRounds,
-      weakAccepted,
-    });
-  };
+  const auto = tryAutoFinalizeFromMap({
+    plan,
+    imageRelativePath: image.relativePath,
+    imageAbsolutePath: image.absolutePath,
+    boxes: ctx.boxes,
+    mappings: ctx.mappings,
+    labelCandidates: options.labelCandidates,
+  });
 
-  for (let attempt = 0; attempt <= maxJudgeRetries; attempt += 1) {
-    throwIfAborted();
-
-    let mapResult: MapDetectionBoxesUnifiedResult;
-    if (attempt > 0 && issueBoxIndices.length > 0) {
-      const subsetBoxes = mapBoxesPayload.filter((b) =>
-        issueBoxIndices.includes(b.box_index),
-      );
-      mapResult = await runMap(
-        attempt,
-        judgeFeedback,
-        previousMappings,
-        subsetBoxes,
-      );
-      ctx.mappings = mergeMappings(previousMappings, mapResult.mappings ?? []);
-    } else {
-      mapResult = await runMap(attempt, judgeFeedback, previousMappings);
-      ctx.mappings = mapResult.mappings ?? [];
-    }
-    ctx.mapMethod = mapResult.method ?? '';
-    ctx.mapHint = mapResult.hint ?? '';
-    lastMapMappings = formatMapMappingRows(
-      ctx.mappings,
-      options.labelCandidates,
-    );
-
-    logAnnotationDebugMapDetail(image.relativePath, {
-      elapsed_ms: timing.map_ms,
-      mapResult,
-      labelCandidates: options.labelCandidates,
-      userRequest: options.userRequest,
-      intentSummary: plan.intent_summary,
-      judge_feedback: judgeFeedback || undefined,
-      attempt,
-      partial_remap:
-        attempt > 0 && issueBoxIndices.length > 0 ? issueBoxIndices : undefined,
-    });
-
-    const auto = tryAutoFinalizeFromMap({
-      plan,
-      imageRelativePath: image.relativePath,
-      imageAbsolutePath: image.absolutePath,
-      boxes: ctx.boxes,
-      mappings: ctx.mappings,
-      labelCandidates: options.labelCandidates,
-    });
-
-    if (!auto.ok || !auto.change) {
-      const mappedCount = ctx.mappings.filter((m) => m.label_id).length;
-      timing.total_ms = Math.round(performance.now() - totalStarted);
-      return withTiming({
-        ...base,
-        reason:
-          auto.reason ||
-          ctx.mapHint ||
-          `成功映射 ${mappedCount} 框，不足 ${minLabeled}`,
-        rawCount: ctx.rawCount,
-        keptCount: ctx.keptCount,
-        mappedCount,
-        unmappedCount: Math.max(0, ctx.keptCount - mappedCount),
-        unlabeledInProposal: auto.unlabeledInProposal,
-        method: ctx.mapMethod,
-        mapHint: ctx.mapHint,
-        mapMappings: lastMapMappings,
-        judge: lastJudge,
-        judgeAttempts,
-        judgeRetryRounds,
-      });
-    }
-
-    logAnnotationDebug('finalize', image.relativePath, {
-      mapped_count: auto.mappedCount,
-      unlabeled_in_proposal: auto.unlabeledInProposal,
-      allow_unlabeled:
-        plan.sub_agent_constraints.allow_unlabeled_boxes !== false,
-    });
-
-    if (!judgeEnabled) {
-      logAnnotationDebug('sub-agent-done', image.relativePath, {
-        elapsed_ms: timing.total_ms,
-        ok: true,
-        mode: 'deterministic',
-        timing,
-        method: ctx.mapMethod,
-      });
-      return buildSuccessResult(auto);
-    }
-
-    options.onProgress?.({
-      stage: 'judge',
-      message: `评分：${image.relativePath}`,
-      status: 'running',
-      detail: attempt > 0 ? `第 ${attempt + 1} 轮` : undefined,
-      imagePath: image.relativePath,
-    });
-    lastJudge = await runJudge(
-      attempt,
-      ctx.mappings,
-      auto.change.annotations as unknown as Array<Record<string, unknown>>,
-    );
-    judgeAttempts += 1;
-    const judgeSummary = {
-      ...lastJudge,
-      attempts: judgeAttempts,
-      retryRounds: judgeRetryRounds,
-    };
-
-    logAnnotationDebug('judge', image.relativePath, {
-      verdict: lastJudge.verdict,
-      confidence: lastJudge.confidence,
-      summary: lastJudge.summary,
-      issue_count: lastJudge.issues?.length ?? 0,
-      attempt,
-    });
-
-    if (lastJudge.verdict === 'accept' || lastJudge.verdict === 'weak_accept') {
-      options.onProgress?.({
-        stage: 'judge',
-        message: `评分完成：${image.relativePath}`,
-        status: 'done',
-        detail: [
-          lastJudge.verdict === 'weak_accept' ? '弱通过' : '通过',
-          lastJudge.confidence != null
-            ? `置信度 ${lastJudge.confidence.toFixed(2)}`
-            : '',
-          auto.unlabeledInProposal ? `留空 ${auto.unlabeledInProposal} 框` : '',
-          lastJudge.summary,
-        ]
-          .filter(Boolean)
-          .join(' · '),
-        imagePath: image.relativePath,
-      });
-      logAnnotationDebug('sub-agent-done', image.relativePath, {
-        elapsed_ms: timing.total_ms,
-        ok: true,
-        mode: 'deterministic',
-        timing,
-        method: ctx.mapMethod,
-        judge_verdict: lastJudge.verdict,
-      });
-      return buildSuccessResult(
-        auto,
-        judgeSummary,
-        lastJudge.verdict === 'weak_accept',
-      );
-    }
-
-    if (attempt < maxJudgeRetries) {
-      judgeRetryRounds += 1;
-      issueBoxIndices = extractIssueBoxIndices(lastJudge);
-      judgeFeedback =
-        lastJudge.retryFeedback?.trim() ||
-        lastJudge.summary?.trim() ||
-        '评分子 Agent 判定存在标签错误，请重新结合整图和检测框分配标签。';
-      options.onProgress?.({
-        stage: 'retry',
-        message: `重新打标签：${image.relativePath}`,
-        status: 'running',
-        detail: [
-          `Judge 拒绝，第 ${judgeRetryRounds} 次重试`,
-          issueBoxIndices.length
-            ? `仅重标框 ${issueBoxIndices.join(', ')}`
-            : '整图重标',
-          judgeFeedback,
-        ]
-          .filter(Boolean)
-          .join(' · '),
-        imagePath: image.relativePath,
-      });
-      previousMappings = ctx.mappings;
-      continue;
-    }
-
-    if (
-      rejectSubmitPartial &&
-      auto.ok &&
-      auto.change &&
-      auto.mappedCount >= minLabeled
-    ) {
-      options.onProgress?.({
-        stage: 'judge',
-        message: `评分拒绝但已提交部分标注：${image.relativePath}`,
-        status: 'done',
-        detail: [
-          `已标 ${auto.mappedCount} 框`,
-          auto.unlabeledInProposal ? `留空 ${auto.unlabeledInProposal} 框` : '',
-          lastJudge.summary || lastJudge.retryFeedback,
-        ]
-          .filter(Boolean)
-          .join(' · '),
-        imagePath: image.relativePath,
-      });
-      timing.total_ms = Math.round(performance.now() - totalStarted);
-      logAnnotationDebug('sub-agent-done', image.relativePath, {
-        elapsed_ms: timing.total_ms,
-        ok: true,
-        mode: 'deterministic',
-        partial_submit_after_reject: true,
-        mapped_count: auto.mappedCount,
-        unlabeled_in_proposal: auto.unlabeledInProposal,
-      });
-      return buildSuccessResult(auto, judgeSummary, true);
-    }
-
-    options.onProgress?.({
-      stage: 'judge',
-      message: `评分拒绝：${image.relativePath}`,
-      status: 'error',
-      detail: lastJudge.summary || lastJudge.retryFeedback || '标签质量未通过',
-      imagePath: image.relativePath,
-    });
+  if (!auto.ok || !auto.change) {
+    const mappedCount = ctx.mappings.filter((m) => m.label_id).length;
     timing.total_ms = Math.round(performance.now() - totalStarted);
     return withTiming({
       ...base,
-      reason: `评分拒绝：${lastJudge.summary || lastJudge.retryFeedback || '标签质量未通过'}`,
+      reason:
+        auto.reason ||
+        ctx.mapHint ||
+        `成功映射 ${mappedCount} 框，不足 ${minLabeled}`,
       rawCount: ctx.rawCount,
       keptCount: ctx.keptCount,
-      mappedCount: auto.mappedCount,
-      unmappedCount: Math.max(0, ctx.keptCount - auto.mappedCount),
+      mappedCount,
+      unmappedCount: Math.max(0, ctx.keptCount - mappedCount),
       unlabeledInProposal: auto.unlabeledInProposal,
       method: ctx.mapMethod,
       mapHint: ctx.mapHint,
       mapMappings: lastMapMappings,
-      judge: judgeSummary,
-      judgeAttempts,
-      judgeRetryRounds,
-      rejectedByJudge: true,
     });
   }
 
-  const mappedCount = ctx.mappings.filter((m) => m.label_id).length;
+  logAnnotationDebug('finalize', image.relativePath, {
+    mapped_count: auto.mappedCount,
+    unlabeled_in_proposal: auto.unlabeledInProposal,
+    allow_unlabeled: plan.sub_agent_constraints.allow_unlabeled_boxes !== false,
+  });
+
   timing.total_ms = Math.round(performance.now() - totalStarted);
+  logAnnotationDebug('sub-agent-done', image.relativePath, {
+    elapsed_ms: timing.total_ms,
+    ok: true,
+    mode: 'deterministic',
+    timing,
+    method: ctx.mapMethod,
+  });
   return withTiming({
-    ...base,
-    reason: ctx.mapHint || `成功映射 ${mappedCount} 框，不足 ${minLabeled}`,
+    ok: true,
+    relativePath: image.relativePath,
+    absolutePath: image.absolutePath,
+    change: auto.change,
     rawCount: ctx.rawCount,
     keptCount: ctx.keptCount,
-    mappedCount,
-    unmappedCount: Math.max(0, ctx.keptCount - mappedCount),
+    mappedCount: auto.mappedCount,
+    unmappedCount: Math.max(0, ctx.keptCount - auto.mappedCount),
+    unlabeledInProposal: auto.unlabeledInProposal,
+    autoFinalized: true,
     method: ctx.mapMethod,
-    mapHint: ctx.mapHint,
     mapMappings: lastMapMappings,
-    judge: lastJudge,
-    judgeAttempts,
-    judgeRetryRounds,
   });
 }

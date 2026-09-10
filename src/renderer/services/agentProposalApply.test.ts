@@ -198,7 +198,12 @@ describe('collectMessageChangeItems', () => {
                 relativePath: 'data/8.jpg',
                 absolutePath: 'C:/proj/data/8.jpg',
                 operation: 'append',
-                annotations: [{ id: 'a1' }, { id: 'a2' }, { id: 'a3' }, { id: 'a4' }],
+                annotations: [
+                  { id: 'a1' },
+                  { id: 'a2' },
+                  { id: 'a3' },
+                  { id: 'a4' },
+                ],
               },
               {
                 relativePath: 'data/9.jpg',

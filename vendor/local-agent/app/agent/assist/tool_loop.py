@@ -15,10 +15,19 @@ from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 
 from app.agent.assist.proposal_streamer import ProposalStreamInterceptor
+from app.agent.assist.task_phase import (
+    TaskPhaseContext,
+    check_call_allowed,
+    extract_call_paths,
+)
 from app.agent.chat_message_builder import build_multimodal_user_message
 from app.agent.stream_adapter import events_from_chunk
-from app.agent.tool_dispatcher import resolve_round_tool_calls, split_resolved_calls
-from app.agent.tool_invocation import ResolvedToolCall
+from app.agent.tool_dispatcher import (
+    SplitToolCalls,
+    resolve_round_tool_calls,
+    split_resolved_calls,
+)
+from app.agent.tool_invocation import ResolvedToolCall, client_tool_mentioned_in_text
 from app.agent.tools.workspace_path import is_lr_agent_relative
 from app.agent.tools.tool_result import (
     build_tool_result,
@@ -87,24 +96,31 @@ async def _invoke_tool_fn(name: str, args: dict, fn_map: dict[str, object]) -> s
         )
 
 
-async def _try_tool_choice_retry(
+async def _force_tool_call_once(
     llm: ChatOpenAI,
     tools: list[StructuredTool],
     messages: list,
-    user_content: str,
-) -> list[ResolvedToolCall]:
-    """tool_choice="any" 强制 LLM 发起 tool call（伪代码回退用）。"""
+    full_text: str,
+) -> tuple[AIMessage, list[ResolvedToolCall]] | None:
+    """tool_choice="any" 强制 LLM 发起真实 tool call（正文伪代码兜底）。
+
+    返回 (携带 tool_calls 的 AIMessage, 解析后的调用)；失败返回 None。
+    AIMessage 保留已流式输出的原文本，确保后续 ToolMessage 的 tool_call_id 有归属。
+    """
     try:
         llm_forced = llm.bind_tools(tools, tool_choice="any")
         response = await llm_forced.ainvoke(messages)
-        api_calls = getattr(response, "tool_calls", None) or []
-        return resolve_round_tool_calls(
-            api_tool_calls=api_calls,
-            response_text=str(getattr(response, "content", "") or ""),
-            user_content=user_content,
-        )
     except Exception:
-        return []
+        return None
+    api_calls = getattr(response, "tool_calls", None) or []
+    resolved = resolve_round_tool_calls(api_tool_calls=api_calls)
+    if not resolved:
+        return None
+    tool_calls = [
+        {"id": call.tool_call_id, "name": call.name, "args": call.arguments}
+        for call in resolved
+    ]
+    return AIMessage(content=full_text, tool_calls=tool_calls), resolved
 
 
 async def _stream_tool_execution(
@@ -211,6 +227,7 @@ class ToolLoopRunner:
         is_cancelled,
         user_content: str,
         provider_is_vision: bool = False,
+        task_phase_ctx: TaskPhaseContext | None = None,
     ) -> None:
         self.llm = llm
         self.tools = tools
@@ -219,6 +236,7 @@ class ToolLoopRunner:
         self.is_cancelled = is_cancelled
         self.user_content = user_content
         self.provider_is_vision = provider_is_vision
+        self.phase_ctx = task_phase_ctx
         self.vision_bootstrapped = False
         self.completed_tools: set[str] = set()
         self.tool_choice_retries = 0
@@ -226,6 +244,55 @@ class ToolLoopRunner:
     def mark_completed(self, tool_call_ids: set[str]) -> None:
         """标记已 resume 的 tool_call_id（允许同名新调用）。"""
         self.completed_tools |= tool_call_ids
+
+    async def _maybe_force_tool_call(
+        self,
+        full_text: str,
+        messages: list,
+    ) -> tuple[AIMessage, list[ResolvedToolCall]] | None:
+        """正文提到客户端工具却未发起真实 tool_call 时，强制重试一次。
+
+        仅触发一次；被阶段门禁禁止的工具不强制（让模型收到门禁反馈而非硬调）。
+        """
+        if self.tool_choice_retries >= 1:
+            return None
+        mentioned = client_tool_mentioned_in_text(full_text)
+        if not mentioned:
+            return None
+        if mentioned not in {t.name for t in self.tools}:
+            return None
+        if check_call_allowed(mentioned, {}, self.phase_ctx) is not None:
+            return None
+        self.tool_choice_retries += 1
+        return await _force_tool_call_once(self.llm, self.tools, messages, full_text)
+
+    async def _yield_blocked_call(
+        self,
+        call: ResolvedToolCall,
+        *,
+        status: str,
+        reason: str,
+        messages: list,
+    ) -> AsyncIterator[StreamEventPayload]:
+        """被门禁/去重拦截的调用：产出 tool_start/tool_result 事件并补 ToolMessage。"""
+        result_text = build_tool_result(
+            ok=False,
+            tool=call.name,
+            status=status,
+            summary=reason,
+        )
+        yield StreamEventPayload(
+            type="tool_start",
+            tool_call_id=call.tool_call_id,
+            name=call.name,
+            arguments=json.dumps(call.arguments, ensure_ascii=False, indent=2),
+        )
+        yield StreamEventPayload(
+            type="tool_result",
+            tool_call_id=call.tool_call_id,
+            result=result_text,
+        )
+        messages.append(ToolMessage(content=result_text, tool_call_id=call.tool_call_id))
 
     async def stream_chunks(
         self,
@@ -253,13 +320,19 @@ class ToolLoopRunner:
         messages: list,
         interceptor: ProposalStreamInterceptor,
     ) -> AsyncIterator[StreamEventPayload]:
-        """解析 tool_calls → 执行 SYNC / 发射 ASYNC pending → 产出事件。"""
+        """解析 tool_calls → 阶段门禁 → 执行 SYNC / 发射 ASYNC pending → 产出事件。"""
         api_tool_calls = gathered.tool_calls or []
 
         resolved = resolve_round_tool_calls(
             api_tool_calls=api_tool_calls,
             completed_tools=frozenset(self.completed_tools),
         )
+
+        if not resolved and not api_tool_calls:
+            # 伪代码兜底：正文写了 auto_annotate(...) 等客户端工具却未发起真实 tool_call
+            forced = await self._maybe_force_tool_call(full_text, messages)
+            if forced is not None:
+                gathered, resolved = forced
 
         if not resolved:
             if not api_tool_calls:
@@ -282,7 +355,135 @@ class ToolLoopRunner:
             return
 
         messages.append(gathered)
+
+        # ── 同轮顺序不变量：标注写入与工作区写入不能同轮 ──
+        # 否则 write_workspace_file（SYNC）会先执行，auto_annotate（ASYNC）后挂起，
+        # 出现「先写报告、后标注」的本末倒置。此处拦截工作区写入，标注照常。
+        from app.agent.assist.task_phase import (
+            ANNOTATION_WRITE_TOOLS,
+            WORKSPACE_WRITE_TOOLS,
+        )
+
+        has_annotation_write = any(
+            call.name in ANNOTATION_WRITE_TOOLS for call in resolved
+        )
+        if has_annotation_write:
+            kept: list[ResolvedToolCall] = []
+            for call in resolved:
+                if call.name in WORKSPACE_WRITE_TOOLS:
+                    async for event in self._yield_blocked_call(
+                        call,
+                        status="phase_blocked",
+                        reason=(
+                            "本轮已包含标注写入（auto_annotate / mutate_annotation）。"
+                            "请先完成标注并等待用户 Keep All，再写报告或修改文件。"
+                        ),
+                        messages=messages,
+                    ):
+                        yield event
+                    continue
+                kept.append(call)
+            resolved = kept
+            if not resolved:
+                return
+
+        # ── 阶段门禁：被禁调用转为错误反馈（loop 继续，模型收到反馈自行调整）──
+        if self.phase_ctx is not None and self.phase_ctx.gating_enabled:
+            allowed_calls: list[ResolvedToolCall] = []
+            for call in resolved:
+                reason = check_call_allowed(call.name, call.arguments, self.phase_ctx)
+                if reason is None:
+                    allowed_calls.append(call)
+                    continue
+                async for event in self._yield_blocked_call(
+                    call,
+                    status="phase_blocked",
+                    reason=reason,
+                    messages=messages,
+                ):
+                    yield event
+            resolved = allowed_calls
+            if not resolved:
+                return
+
         split = split_resolved_calls(resolved)
+
+        # ── 同轮多个 auto_annotate 合并为一次批量 ──
+        # 5 次单文件 auto_annotate 会产出 5 份提案且单张更易过检；合并 paths 后
+        # 前端只跑一次批量标注，只生成一份提案。
+        auto_calls = [c for c in split.async_pending if c.name == "auto_annotate"]
+        if len(auto_calls) > 1:
+            merged_paths: list[str] = []
+            seen_paths: set[str] = set()
+            merged_all_files = False
+            merged_write_mode = "append"
+            for call in auto_calls:
+                for p in extract_call_paths(call.arguments):
+                    if p not in seen_paths:
+                        seen_paths.add(p)
+                        merged_paths.append(p)
+                if call.arguments.get("all_files") is True:
+                    merged_all_files = True
+                wm = call.arguments.get("write_mode")
+                if wm == "replace_matching":
+                    merged_write_mode = "replace_matching"
+
+            first = auto_calls[0]
+            first_args = dict(first.arguments)
+            first_args["paths"] = merged_paths
+            first_args["all_files"] = merged_all_files
+            first_args["write_mode"] = merged_write_mode
+            merged_first = ResolvedToolCall(
+                tool_call_id=first.tool_call_id,
+                name=first.name,
+                arguments=first_args,
+                source=first.source,
+            )
+            async_pending = [merged_first]
+            for call in auto_calls[1:]:
+                async for event in self._yield_blocked_call(
+                    call,
+                    status="coalesced",
+                    reason=(
+                        f"本次调用已并入第一个 auto_annotate（paths 合并为 {merged_paths}），"
+                        "请勿重复发起。"
+                    ),
+                    messages=messages,
+                ):
+                    yield event
+            # 保留非 auto_annotate 的异步调用（mutate_annotation 不合并）
+            async_pending.extend(
+                c for c in split.async_pending if c.name != "auto_annotate"
+            )
+            split = SplitToolCalls(
+                immediate=split.immediate,
+                async_pending=async_pending,
+            )
+
+        # ── 同批异步调用去重：同工具同范围只保留第一个 ──
+        if split.async_pending:
+            seen_scopes: set[tuple[str, frozenset[str]]] = set()
+            deduped_pending: list[ResolvedToolCall] = []
+            for call in split.async_pending:
+                scope_key = (call.name, extract_call_paths(call.arguments))
+                if scope_key in seen_scopes:
+                    async for event in self._yield_blocked_call(
+                        call,
+                        status="duplicate_call",
+                        reason="同一轮内相同范围的重复标注调用已忽略，请勿重复发起。",
+                        messages=messages,
+                    ):
+                        yield event
+                    continue
+                seen_scopes.add(scope_key)
+                deduped_pending.append(call)
+            split = SplitToolCalls(
+                immediate=split.immediate,
+                async_pending=deduped_pending,
+            )
+            if not split.immediate and not split.async_pending:
+                return
+
         streamed_paths = interceptor.collected_paths()
 
         parallel_calls = [

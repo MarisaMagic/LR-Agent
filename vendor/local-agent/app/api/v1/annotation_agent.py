@@ -7,7 +7,6 @@ from openai import BadRequestError
 
 from app.agent.annotation import (
     heuristic_map_boxes,
-    judge_detection_labels,
     map_detection_boxes_to_labels_unified,
     prepare_batch_annotation,
 )
@@ -19,7 +18,6 @@ from app.core.deps import SettingsDep
 from app.schemas.annotation_agent import (
     BatchPrepareRequest,
     HeuristicMapRequest,
-    JudgeDetectionLabelsRequest,
     LlmGenerateRequest,
     MapDetectionBoxesRequest,
     MutationPrepareRequest,
@@ -175,11 +173,6 @@ async def api_batch_prepare(
             "selected_paths": result.selected_paths,
             "scope_reason": result.scope_reason,
             "resolved_user_request": body.user_request,
-            "judge_config": {
-                "enabled": settings.annotation_judge_enabled and provider_is_vision,
-                "max_retries": settings.annotation_judge_max_retries,
-                "reject_submit_partial": settings.annotation_judge_reject_submit_partial,
-            },
             **result.plan.model_dump(),
         }
         return {"data": payload}
@@ -244,9 +237,6 @@ async def api_map_detection_boxes(
             image_absolute_path=body.image_absolute_path,
             image_base64=body.image_base64,
             mime_type=body.mime_type,
-            judge_feedback=body.judge_feedback,
-            previous_mappings=body.previous_mappings,
-            attempt=body.attempt,
         )
         log_annotation_agent(
             "map-api-result",
@@ -258,65 +248,6 @@ async def api_map_detection_boxes(
             unmapped=len(result.get("unmapped_indices") or []),
             label_pool_source=result.get("label_pool_source"),
             hint=result.get("hint"),
-        )
-        return {"data": result}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise _http_from_llm_error(exc) from exc
-
-
-@router.post("/judge-detection-labels", summary="整图评分复核检测框标签")
-async def api_judge_detection_labels(
-    body: JudgeDetectionLabelsRequest,
-    settings: SettingsDep,
-):
-    try:
-        if not settings.annotation_judge_enabled:
-            return {
-                "data": {
-                    "ok": True,
-                    "verdict": "accept",
-                    "confidence": 1.0,
-                    "summary": "JudgeAgent 未启用，直接通过。",
-                    "issues": [],
-                    "retry_feedback": "",
-                    "checked_boxes": len(body.boxes),
-                }
-            }
-        provider_is_vision = body.supports_vision
-        if not provider_is_vision:
-            return {
-                "data": {
-                    "ok": False,
-                    "error": "vision_not_supported",
-                    "verdict": "reject",
-                    "confidence": 0.0,
-                    "summary": "评分子 Agent 需要多模态视觉模型。",
-                    "issues": [],
-                    "retry_feedback": "请使用通过视觉探针的多模态模型。",
-                    "checked_boxes": 0,
-                }
-            }
-        llm = _require_direct_llm(
-            api_key=body.api_key,
-            base_url=body.base_url,
-            model=body.model,
-            temperature=settings.annotation_judge_temperature,
-        )
-        result = await judge_detection_labels(
-            llm,
-            user_request=body.user_request,
-            intent_summary=body.intent_summary,
-            label_candidates=body.label_candidates,
-            boxes=body.boxes,
-            mappings=body.mappings,
-            annotations=body.annotations,
-            image_absolute_path=body.image_absolute_path,
-            image_base64=body.image_base64,
-            attempt=body.attempt,
-            max_retries=body.max_retries,
-            settings=settings,
         )
         return {"data": result}
     except HTTPException:

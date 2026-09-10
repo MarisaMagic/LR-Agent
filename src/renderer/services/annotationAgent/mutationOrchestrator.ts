@@ -78,7 +78,13 @@ function patchesFromOperation(
   if (op.mutation_kind === 'patch_content') {
     const content: Pick<
       AnnotationPatch,
-      'text' | 'granularity' | 'language' | 'steps' | 'answer' | 'instruction' | 'note'
+      | 'text'
+      | 'granularity'
+      | 'language'
+      | 'steps'
+      | 'answer'
+      | 'instruction'
+      | 'note'
     > = {};
     if (op.text != null) content.text = op.text;
     if (op.granularity) content.granularity = op.granularity;
@@ -162,7 +168,10 @@ export async function* runAnnotationMutationJob(options: {
   const annotationDigest = digestParts.length
     ? `【已有标注摘要】\n${digestParts.join('\n').slice(0, 8000)}`
     : '';
-  const conversationTranscript = [options.conversationTranscript, annotationDigest]
+  const conversationTranscript = [
+    options.conversationTranscript,
+    annotationDigest,
+  ]
     .filter((part) => part?.trim())
     .join('\n\n');
 

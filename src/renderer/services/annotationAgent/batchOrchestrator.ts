@@ -10,7 +10,10 @@ import { ANNOTATION_BATCH_MAX_FILES } from '../../../shared/annotationAgentTypes
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
 import { getRelativeProjectPath } from '../../utils/projectPaths';
 import type { AnnotationInstance } from '../../types/annotationDocument';
-import { resolveAnnotationScopePaths, type InputPathEntry } from './scopePathUtil';
+import {
+  resolveAnnotationScopePaths,
+  type InputPathEntry,
+} from './scopePathUtil';
 import {
   attachRewriteDeletes,
   inferAnnotationWritePolicy,

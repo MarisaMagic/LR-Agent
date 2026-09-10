@@ -1,5 +1,7 @@
-import type { FileAnnotationDocument } from '../types/annotationDocument';
-import type { BboxAnnotation } from '../types/annotationDocument';
+import type {
+  FileAnnotationDocument,
+  BboxAnnotation,
+} from '../types/annotationDocument';
 import type { AnnotationBatchChange } from '../../shared/annotationAgentTypes';
 import { isAnnotationChangeAppliedOnDisk } from './agentProposalReconcile';
 
@@ -49,7 +51,10 @@ describe('isAnnotationChangeAppliedOnDisk', () => {
       deleteIds: ['unlabeled-1'],
     };
     expect(
-      isAnnotationChangeAppliedOnDisk(change, doc([box('a'), box('unlabeled-1', null)])),
+      isAnnotationChangeAppliedOnDisk(
+        change,
+        doc([box('a'), box('unlabeled-1', null)]),
+      ),
     ).toBe(false);
     expect(isAnnotationChangeAppliedOnDisk(change, doc([box('a')]))).toBe(true);
     expect(isAnnotationChangeAppliedOnDisk(change, null)).toBe(false);

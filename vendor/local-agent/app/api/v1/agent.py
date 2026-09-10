@@ -15,6 +15,11 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_openai import ChatOpenAI
 
 from app.agent import assist_service, chat_service
+from app.agent.assist.task_phase import (
+    blocked_tool_names,
+    derive_task_phase,
+    phase_prompt_block,
+)
 from app.agent.assist_mode_router import resolve_assist_tool_set
 from app.agent.context_service import CHAT_SYSTEM_PROMPT
 from app.agent.context_snapshot import (
@@ -133,6 +138,11 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
         if has_tools:
             user = _anonymous_user()
 
+            # 标注任务阶段机：从结构化提案状态推导阶段（无状态，每次请求重推导）
+            task_phase_ctx = derive_task_phase(
+                client_ctx.proposal_states if client_ctx else None,
+            )
+
             identity = format_runtime_identity_block(
                 model=body.model,
                 provider_label="local",
@@ -147,6 +157,9 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                 )
             else:
                 system_prompt = f"{identity}\n\n{CHAT_SYSTEM_PROMPT}"
+            phase_block = phase_prompt_block(task_phase_ctx)
+            if phase_block:
+                system_prompt = f"{system_prompt}\n\n{phase_block}"
 
             lc_messages = _build_lc_messages_from_local(body, system_prompt)
 
@@ -202,6 +215,11 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                         exc_info=True,
                     )
 
+            # 阶段门禁：bind 前移除本阶段禁止的工具（await_confirm 禁全部写入）
+            blocked = blocked_tool_names(task_phase_ctx)
+            if blocked:
+                tools = [t for t in tools if t.name not in blocked]
+
             stream = assist_service.stream_assist(
                 llm,
                 lc_messages,
@@ -213,6 +231,7 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                 client_context=client_ctx,
                 user_content=body.user_content,
                 client_tool_results=body.client_tool_results or None,
+                task_phase_ctx=task_phase_ctx,
             )
         else:
             system_prompt = body.system_prompt or CHAT_SYSTEM_PROMPT

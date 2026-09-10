@@ -145,10 +145,7 @@ export default function MonacoTextEditor({
       });
       if (matched) setDiskEpoch((value) => value + 1);
     };
-    window.addEventListener(
-      'lr-agent:workspace-text-files-changed',
-      onChanged,
-    );
+    window.addEventListener('lr-agent:workspace-text-files-changed', onChanged);
     return () => {
       window.removeEventListener(
         'lr-agent:workspace-text-files-changed',

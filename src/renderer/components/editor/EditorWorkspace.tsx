@@ -25,8 +25,8 @@ export default function EditorWorkspace() {
 
   const previewForActiveTab = Boolean(
     filePreview &&
-      activeTab &&
-      pathsEqual(filePreview.absolutePath, activeTab.filePath),
+    activeTab &&
+    pathsEqual(filePreview.absolutePath, activeTab.filePath),
   );
 
   const previewDiff = useMemo(() => {
@@ -64,10 +64,10 @@ export default function EditorWorkspace() {
   /** 仅编辑器模式下、当前激活 tab 是文本且非二进制时才显示 Monaco 浮层 */
   const showSharedMonaco = Boolean(
     workMode === 'editor' &&
-      activeTab &&
-      isMonacoEditableFile(activeTab.filePath) &&
-      !activeTabBinary &&
-      !previewForActiveTab,
+    activeTab &&
+    isMonacoEditableFile(activeTab.filePath) &&
+    !activeTabBinary &&
+    !previewForActiveTab,
   );
   const showFileDiffPreview = Boolean(
     workMode === 'editor' && previewForActiveTab && previewDiff,

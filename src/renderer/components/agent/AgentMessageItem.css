@@ -20,6 +20,15 @@
   background: var(--lr-agent-panel-background);
 }
 
+.agent-message-sticky-sentinel {
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .agent-message-item--user::after {
   content: '';
   position: absolute;
@@ -28,11 +37,16 @@
   top: 100%;
   height: 16px;
   pointer-events: none;
+  opacity: 0;
   background: linear-gradient(
     to bottom,
     var(--lr-agent-panel-background),
     transparent
   );
+}
+
+.agent-message-item--user-stuck::after {
+  opacity: 1;
 }
 
 .agent-message-item--assistant {

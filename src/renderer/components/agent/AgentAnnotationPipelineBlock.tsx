@@ -68,8 +68,16 @@ export default function AgentAnnotationPipelineBlock({
 }: AgentAnnotationPipelineBlockProps) {
   const completed = pipelineCompleted || batchCompleted;
   const running = steps.some((s) => s.status === 'running');
-  const failed = steps.some((s) => s.status === 'error');
-  const inProgress = !completed && (streaming || running);
+  const pending = steps.some((s) => s.status === 'pending');
+  const failed = steps.some(
+    (s) => s.status === 'error' && !isImageDetailPipelineStage(s.stage),
+  );
+  // 进行中只认 step 状态；streaming 只兜底「尚无终态 step、等第一帧进度」的冷启动，
+  // 避免 Keep All 后续跑（消息重新 streaming）时把已完成的 pipeline 又转起来。
+  const inProgress =
+    running ||
+    pending ||
+    (streaming && !failed && !completed && steps.length === 0);
   const titles = PIPELINE_TITLES[pipelineKind] ?? PIPELINE_TITLES.batch;
   const title = inProgress
     ? titles.active

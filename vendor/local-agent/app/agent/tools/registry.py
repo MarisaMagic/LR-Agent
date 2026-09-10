@@ -55,7 +55,10 @@ ANNOTATION_TOOL_NAMES: frozenset[str] = frozenset(
 
 # Pydantic args_schema for client tools — forces LLM to include user_request as a required param
 class AutoAnnotateArgs(BaseModel):
-    user_request: str = Field(min_length=1, description="必须原样传递用户的原始请求")
+    user_request: str = Field(
+        min_length=1,
+        description="本轮要执行的标注任务说明，由模型根据用户意图自行归纳",
+    )
     paths: list[str] = Field(
         default_factory=list,
         description=(
@@ -394,7 +397,7 @@ def _build_all_tools(
             description=(
                 "新增或重写当前项目的自动标注（检测、预标注、生成 caption 等）。"
                 "改已有框/标签请用 mutate_annotation。"
-                "user_request 须原样传递用户请求；指定范围填 paths，全部文件才 all_files=true。"
+                "user_request 填写本轮要执行的标注任务；指定范围填 paths，全部文件才 all_files=true。"
             ),
             args_schema=AutoAnnotateArgs,
         ),

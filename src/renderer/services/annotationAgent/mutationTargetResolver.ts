@@ -31,10 +31,7 @@ export interface MutationTargetSpec {
 }
 
 export type MutationKind =
-  | 'patch_label'
-  | 'patch_geometry'
-  | 'patch_content'
-  | 'delete';
+  'patch_label' | 'patch_geometry' | 'patch_content' | 'delete';
 
 export interface MutationOperationSpec {
   relative_path: string;
@@ -118,7 +115,11 @@ function parseSteps(raw: unknown): CotStep[] | undefined {
 }
 
 function parseMutationTarget(raw: unknown): MutationTargetSpec | null {
-  if (!isRecord(raw) || typeof raw.by !== 'string' || !TARGET_BY.has(raw.by as MutationTargetBy)) {
+  if (
+    !isRecord(raw) ||
+    typeof raw.by !== 'string' ||
+    !TARGET_BY.has(raw.by as MutationTargetBy)
+  ) {
     return null;
   }
   const by = raw.by as MutationTargetBy;
@@ -264,8 +265,13 @@ function applySpatialHint(
   if (!hint || candidates.length === 0) return candidates;
   const withCenter = candidates
     .map((a) => ({ ann: a, center: instanceCenter(a) }))
-    .filter((row): row is { ann: AnnotationInstance; center: { cx: number; cy: number; area: number } } =>
-      row.center != null,
+    .filter(
+      (
+        row,
+      ): row is {
+        ann: AnnotationInstance;
+        center: { cx: number; cy: number; area: number };
+      } => row.center != null,
     );
   if (withCenter.length === 0) return [];
   const h = hint.toLowerCase();
@@ -279,7 +285,9 @@ function applySpatialHint(
   }
   if (h.includes('largest') || h.includes('最大') || h.includes('biggest')) {
     const maxArea = Math.max(...withCenter.map((r) => r.center.area));
-    return withCenter.filter((r) => r.center.area === maxArea).map((r) => r.ann);
+    return withCenter
+      .filter((r) => r.center.area === maxArea)
+      .map((r) => r.ann);
   }
   return withCenter.map((r) => r.ann);
 }
@@ -383,8 +391,7 @@ export function resolveMutationTargets(
 
     if (target.by === 'duplicate_label') {
       const classifiable = annotations.filter(
-        (a) =>
-          a.kind === 'text_classification' || a.kind === 'classification',
+        (a) => a.kind === 'text_classification' || a.kind === 'classification',
       );
       if (classifiable.length === 0) {
         errors.push('duplicate_label 仅用于分类标注');
@@ -411,9 +418,7 @@ export function resolveMutationTargets(
 
     if (target.by === 'granularity' || target.granularity) {
       const gran = (target.granularity ?? '').toLowerCase();
-      pool = pool.filter(
-        (a) => a.kind === 'caption' && a.granularity === gran,
-      );
+      pool = pool.filter((a) => a.kind === 'caption' && a.granularity === gran);
       if (pool.length === 0) {
         errors.push(`无粒度为 ${target.granularity} 的描述`);
         continue;

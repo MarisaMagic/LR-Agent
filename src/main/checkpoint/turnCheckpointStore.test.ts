@@ -38,9 +38,14 @@ describe('turnCheckpointStore', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ckpt-ws-'));
     try {
       await writeScopedTextFile(root, 'notes.md', 'before');
-      await captureCheckpoint(ref, 'file', { workspaceRoot: root }, {
-        filePaths: ['notes.md'],
-      });
+      await captureCheckpoint(
+        ref,
+        'file',
+        { workspaceRoot: root },
+        {
+          filePaths: ['notes.md'],
+        },
+      );
       await writeScopedTextFile(root, 'notes.md', 'after');
       await recordCheckpointAfter(ref, { workspaceRoot: root });
 
@@ -57,9 +62,14 @@ describe('turnCheckpointStore', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ckpt-dirty-'));
     try {
       await writeScopedTextFile(root, 'notes.md', 'before');
-      await captureCheckpoint(ref, 'file', { workspaceRoot: root }, {
-        filePaths: ['notes.md'],
-      });
+      await captureCheckpoint(
+        ref,
+        'file',
+        { workspaceRoot: root },
+        {
+          filePaths: ['notes.md'],
+        },
+      );
       await writeScopedTextFile(root, 'notes.md', 'after');
       await recordCheckpointAfter(ref, { workspaceRoot: root });
       await writeScopedTextFile(root, 'notes.md', 'hand-edit');

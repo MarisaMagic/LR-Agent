@@ -99,9 +99,31 @@ describe('startAnnotationBatchJob status', () => {
   it('marks error on pipeline error event', async () => {
     mockPipeline([{ type: 'error', message: '流水线失败' }]);
 
-    const { result } = await runJob();
+    const { result, emitted } = await runJob();
 
     expect(result.status).toBe('error');
     expect(result.summary).toBe('流水线失败');
+    expect(emitted.some((event) => event.type === 'error')).toBe(false);
+    expect(emitted.some((event) => event.type === 'done')).toBe(false);
+    expect(emitted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'annotation_progress',
+          status: 'error',
+          message: '流水线失败',
+        }),
+      ]),
+    );
+  });
+
+  it('does not emit chat-level done after a successful proposal', async () => {
+    mockPipeline([
+      { type: 'text', content: '已生成 2 条文本分类标注数据（1 项）。' },
+      { type: 'proposal', proposal: buildProposal() },
+    ]);
+
+    const { emitted } = await runJob();
+
+    expect(emitted.some((event) => event.type === 'done')).toBe(false);
   });
 });

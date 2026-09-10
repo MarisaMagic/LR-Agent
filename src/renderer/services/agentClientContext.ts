@@ -38,5 +38,12 @@ export function buildApiClientContext(
       ({ name, description }) => ({ name, description }),
     ),
     proposal_ledger: clientContext.proposalLedger ?? null,
+    proposal_states: (clientContext.proposalStates ?? []).map((state) => ({
+      path: state.path,
+      kind: state.kind,
+      status: state.status,
+      operation: state.operation ?? null,
+      annotation_ids: state.annotationIds ?? [],
+    })),
   };
 }

@@ -161,8 +161,7 @@ export function annotationChangeDiffStats(
   if (change.operation === 'delete') {
     return {
       additions: 0,
-      deletions:
-        change.deleteIds?.length || change.annotations?.length || 0,
+      deletions: change.deleteIds?.length || change.annotations?.length || 0,
     };
   }
   if (change.operation === 'patch') {
@@ -509,12 +508,15 @@ export async function applyProposalRefs(options: {
     patch: Partial<MessageBlock>,
   ) => void;
   onSyncWarning?: (message: string) => void;
-}): Promise<{ applied: number; errors: string[] }> {
+}): Promise<{ applied: number; errors: string[]; missingCheckpoints: number }> {
   const { refs } = options;
-  if (refs.length === 0) return { applied: 0, errors: [] };
+  if (refs.length === 0) {
+    return { applied: 0, errors: [], missingCheckpoints: 0 };
+  }
 
   const errors: string[] = [];
   let applied = 0;
+  let missingCheckpoints = 0;
 
   for (const ref of refs) {
     const msg = options.messages.find((m) => m.id === ref.messageId);
@@ -559,6 +561,7 @@ export async function applyProposalRefs(options: {
           onSyncWarning: options.onSyncWarning,
         });
         applied += 1;
+        if (!appliedResult.hasCheckpoint) missingCheckpoints += 1;
       } else if (ref.kind === 'file' && isFileProposalBlock(block)) {
         const appliedResult = await applyFileBlock(
           options.project,
@@ -588,13 +591,14 @@ export async function applyProposalRefs(options: {
           onSyncWarning: options.onSyncWarning,
         });
         applied += 1;
+        if (!appliedResult.hasCheckpoint) missingCheckpoints += 1;
       }
     } catch (err) {
       errors.push(err instanceof Error ? err.message : '应用失败');
     }
   }
 
-  return { applied, errors };
+  return { applied, errors, missingCheckpoints };
 }
 
 export async function applyAllPendingProposals(options: {
@@ -608,7 +612,11 @@ export async function applyAllPendingProposals(options: {
     patch: Partial<MessageBlock>,
   ) => void;
   onSyncWarning?: (message: string) => void;
-}): Promise<{ applied: number; errors: string[] }> {
+}): Promise<{
+  applied: number;
+  errors: string[];
+  missingCheckpoints: number;
+}> {
   return applyProposalRefs({
     ...options,
     refs: collectPendingProposals(options.messages),

@@ -58,7 +58,10 @@ export function splitWorkHistory(blocks: MessageBlock[]): {
       continue;
     }
     const inExplorationPrefix = i <= lastExplorationIdx;
-    if (inExplorationPrefix && (isWorkProcessBlock(block) || block.type === 'text')) {
+    if (
+      inExplorationPrefix &&
+      (isWorkProcessBlock(block) || block.type === 'text')
+    ) {
       history.push({ block, index: i });
       continue;
     }

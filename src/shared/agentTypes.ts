@@ -9,6 +9,8 @@ export enum JobState {
   Streaming = 'streaming',
   ToolPending = 'tool_pending',
   Resuming = 'resuming',
+  /** 提案已生成、等待用户 Keep All/Dismiss；确认后自动续跑 */
+  AwaitingConfirm = 'awaiting_confirm',
   Done = 'done',
   Error = 'error',
   Cancelled = 'cancelled',
@@ -31,10 +33,7 @@ export interface LlmProviderConfig {
 }
 
 export type ProposalBlockStatus =
-  | 'pending'
-  | 'applied'
-  | 'dismissed'
-  | 'undone';
+  'pending' | 'applied' | 'dismissed' | 'undone';
 
 export type MessageBlock =
   | { type: 'text'; content: string }
@@ -104,7 +103,13 @@ export interface AnnotationPipelineStep {
 }
 
 export type ChatMessageStatus =
-  'pending' | 'streaming' | 'done' | 'stopped' | 'error';
+  | 'pending'
+  | 'streaming'
+  | 'done'
+  | 'stopped'
+  | 'error'
+  /** 提案待用户确认（HITL 断点），Keep All/Dismiss 后同一消息续跑 */
+  | 'awaiting_confirmation';
 
 export interface ChatMessage {
   id: string;
@@ -246,6 +251,10 @@ export type StreamEvent =
   | {
       type: 'tool_pending';
       toolCalls: ClientToolCall[];
+    }
+  | {
+      /** 客户端工具已生成待确认提案，job 暂停等待 Keep All/Dismiss */
+      type: 'awaiting_confirmation';
     };
 
 /** 异步工具调用描述（来自 tool_pending 事件）。 */
@@ -263,6 +272,16 @@ export interface ClientToolResult {
   toolCallId: string;
   name: string;
   result: string;
+}
+
+/** 会话中单个提案变更的结构化状态（注入 client_context，供后端任务阶段机推导）。 */
+export interface ProposalStateEntry {
+  path: string;
+  kind: 'annotation' | 'file';
+  status: 'pending' | 'applied' | 'dismissed' | 'undone';
+  operation?: string | null;
+  /** 该提案涉及的标注实例 id（append/replace 的 annotations、delete 的 deleteIds、patch 的 patches） */
+  annotationIds?: string[];
 }
 
 /** 全局 Agent Skill 目录条目（catalog，仅 name + description 注入 prompt）。 */
@@ -297,6 +316,8 @@ export interface ClientContextPayload {
   skillsCatalog?: AgentSkillEntry[] | null;
   /** 未 Keep All 的提案台账（短文本，注入 system prompt） */
   proposalLedger?: string | null;
+  /** 提案结构化状态（注入 client_context，供后端任务阶段机推导门禁） */
+  proposalStates?: ProposalStateEntry[] | null;
   annotationProjectSnapshot?: {
     projectId: string;
     name: string;

@@ -19,8 +19,7 @@ export type TurnHistoryToolMessage = {
 };
 
 export type TurnHistoryMessage =
-  | TurnHistoryAssistantMessage
-  | TurnHistoryToolMessage;
+  TurnHistoryAssistantMessage | TurnHistoryToolMessage;
 
 type OpenRound = {
   content: string;
@@ -49,14 +48,16 @@ function parseToolArgs(raw: unknown): Record<string, unknown> {
   return {};
 }
 
-function pendingCallsFromEvent(
-  event: StreamEvent,
-): Array<{ toolCallId: string; name: string; arguments: Record<string, unknown> }> {
+function pendingCallsFromEvent(event: StreamEvent): Array<{
+  toolCallId: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}> {
   if (event.type !== 'tool_pending') return [];
   const rec = event as Record<string, unknown>;
-  const raw = (rec.toolCalls ?? rec.client_tool_calls ?? rec.clientToolCalls) as
-    | unknown
-    | undefined;
+  const raw = (rec.toolCalls ??
+    rec.client_tool_calls ??
+    rec.clientToolCalls) as unknown | undefined;
   if (!Array.isArray(raw)) return [];
   return raw.map((item) => {
     const call = item as Record<string, unknown>;
@@ -74,7 +75,9 @@ function pendingCallsFromEvent(
  */
 export class TurnToolHistoryAccumulator {
   private readonly messages: TurnHistoryMessage[] = [];
+
   private textBuffer = '';
+
   private open: OpenRound | null = null;
 
   apply(event: StreamEvent): void {
@@ -121,7 +124,9 @@ export class TurnToolHistoryAccumulator {
         this.beginOrContinueRound();
         for (const call of pending) {
           if (!call.toolCallId || !this.open) continue;
-          if (!this.open.toolCalls.some((item) => item.id === call.toolCallId)) {
+          if (
+            !this.open.toolCalls.some((item) => item.id === call.toolCallId)
+          ) {
             this.open.toolCalls.push({
               id: call.toolCallId,
               name: call.name,
@@ -176,7 +181,9 @@ export class TurnToolHistoryAccumulator {
   }
 }
 
-export function mergeResumeMessages<T extends { role: string; content: string }>(
+export function mergeResumeMessages<
+  T extends { role: string; content: string },
+>(
   prior: T[],
   turnHistory: TurnHistoryMessage[],
 ): Array<T | TurnHistoryMessage> {

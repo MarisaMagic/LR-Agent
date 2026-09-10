@@ -28,9 +28,7 @@ function normalizeRelativePath(relativePath: string): string {
 }
 
 export function collectScopeTokens(request: AnnotationScopeRequest): string[] {
-  const fromPaths = (request.paths ?? [])
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const fromPaths = (request.paths ?? []).map((s) => s.trim()).filter(Boolean);
   if (fromPaths.length > 0) return fromPaths;
   return scopeTokens(request.scopeHint);
 }
@@ -94,7 +92,7 @@ export async function resolveAnnotationScopePaths(
     return resolveAnnotationScope(allPaths, request, maxFiles);
   }
 
-  let filtered = filterPathsByScopeHint(allPaths, tokens.join(','));
+  const filtered = filterPathsByScopeHint(allPaths, tokens.join(','));
   const known = new Set(filtered.map((p) => p.relativePath.toLowerCase()));
 
   if (resolveRelativeFile) {

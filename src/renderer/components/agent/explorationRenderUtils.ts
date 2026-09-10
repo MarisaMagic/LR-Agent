@@ -19,9 +19,7 @@ export type AssistantRenderSegment =
       index: number;
     };
 
-function isVisibleExplorationTool(
-  block: MessageBlock,
-): block is ToolCallBlock {
+function isVisibleExplorationTool(block: MessageBlock): block is ToolCallBlock {
   return block.type === 'tool_call' && isExplorationTool(block.name);
 }
 

@@ -3,7 +3,10 @@ import {
   TurnToolHistoryAccumulator,
   mergeResumeMessages,
 } from './turnToolHistory';
-import { buildBackendMessages, serializeBackendMessages } from './backendChatClient';
+import {
+  buildBackendMessages,
+  serializeBackendMessages,
+} from './backendChatClient';
 
 function text(content: string): StreamEvent {
   return { type: 'text_delta', content };
@@ -63,25 +66,53 @@ describe('TurnToolHistoryAccumulator', () => {
         role: 'assistant',
         content: '我先预览第 6~8 张图片。',
         tool_calls: [
-          { id: 'v1', name: 'read_image_for_vision', args: { relative_path: '6.jpg' } },
-          { id: 'v2', name: 'read_image_for_vision', args: { relative_path: '7.jpg' } },
-          { id: 'v3', name: 'read_image_for_vision', args: { relative_path: '8.jpg' } },
+          {
+            id: 'v1',
+            name: 'read_image_for_vision',
+            args: { relative_path: '6.jpg' },
+          },
+          {
+            id: 'v2',
+            name: 'read_image_for_vision',
+            args: { relative_path: '7.jpg' },
+          },
+          {
+            id: 'v3',
+            name: 'read_image_for_vision',
+            args: { relative_path: '8.jpg' },
+          },
         ],
       },
-      { role: 'tool', content: '{"ok":true,"name":"6.jpg"}', tool_call_id: 'v1' },
-      { role: 'tool', content: '{"ok":true,"name":"7.jpg"}', tool_call_id: 'v2' },
-      { role: 'tool', content: '{"ok":true,"name":"8.jpg"}', tool_call_id: 'v3' },
+      {
+        role: 'tool',
+        content: '{"ok":true,"name":"6.jpg"}',
+        tool_call_id: 'v1',
+      },
+      {
+        role: 'tool',
+        content: '{"ok":true,"name":"7.jpg"}',
+        tool_call_id: 'v2',
+      },
+      {
+        role: 'tool',
+        content: '{"ok":true,"name":"8.jpg"}',
+        tool_call_id: 'v3',
+      },
       {
         role: 'assistant',
         content: '三张图片已预览完毕，现在执行自动标注。',
         tool_calls: [
-          { id: 'a1', name: 'auto_annotate', args: { user_request: '标注第 6~8 张' } },
+          {
+            id: 'a1',
+            name: 'auto_annotate',
+            args: { user_request: '标注第 6~8 张' },
+          },
         ],
       },
     ]);
-    expect(snapshot.some((m) => m.role === 'tool' && m.tool_call_id === 'a1')).toBe(
-      false,
-    );
+    expect(
+      snapshot.some((m) => m.role === 'tool' && m.tool_call_id === 'a1'),
+    ).toBe(false);
   });
 
   it('keeps separate LLM rounds as separate assistant messages', () => {
@@ -123,7 +154,9 @@ describe('mergeResumeMessages', () => {
     const prior = [{ role: 'user', content: '标注第 6~8 张并更新记忆' }];
     const acc = new TurnToolHistoryAccumulator();
     acc.apply(text('先预览。'));
-    acc.apply(toolStart('v1', 'read_image_for_vision', { relative_path: '6.jpg' }));
+    acc.apply(
+      toolStart('v1', 'read_image_for_vision', { relative_path: '6.jpg' }),
+    );
     acc.apply(toolResult('v1', '{"ok":true}'));
     const merged = mergeResumeMessages(prior, acc.snapshot());
     expect(merged[0]).toEqual(prior[0]);
@@ -253,7 +286,11 @@ describe('serializeBackendMessages', () => {
       role: 'assistant',
       content: '先预览。',
       tool_calls: [
-        { id: 'v1', name: 'read_image_for_vision', args: { relative_path: '6.jpg' } },
+        {
+          id: 'v1',
+          name: 'read_image_for_vision',
+          args: { relative_path: '6.jpg' },
+        },
       ],
     });
     expect(serialized[2]).toEqual({
@@ -262,7 +299,11 @@ describe('serializeBackendMessages', () => {
       tool_call_id: 'v1',
     });
     const clientToolResults = [
-      { toolCallId: 'a1', name: 'auto_annotate', result: '{"status":"completed"}' },
+      {
+        toolCallId: 'a1',
+        name: 'auto_annotate',
+        result: '{"status":"completed"}',
+      },
     ];
     expect(clientToolResults).toHaveLength(1);
     expect(serialized.some((m) => m.role === 'tool')).toBe(true);

@@ -57,11 +57,7 @@ describe('resolveAnnotationScope', () => {
   });
 
   it('uses all_files to take the catalog cap', () => {
-    const result = resolveAnnotationScope(
-      samplePaths,
-      { allFiles: true },
-      2,
-    );
+    const result = resolveAnnotationScope(samplePaths, { allFiles: true }, 2);
     expect(result.paths).toHaveLength(2);
     expect(result.error).toBeUndefined();
   });
@@ -72,7 +68,9 @@ describe('resolveAnnotationScope', () => {
       { paths: ['data/'] },
       100,
     );
-    expect(result.paths.map((p) => p.relativePath)).toEqual(['data/algebra.txt']);
+    expect(result.paths.map((p) => p.relativePath)).toEqual([
+      'data/algebra.txt',
+    ]);
   });
 });
 
@@ -87,7 +85,9 @@ describe('resolveAnnotationScopePaths', () => {
           ? { relativePath, absolutePath: '/p/extra/new.txt' }
           : null,
     );
-    expect(resolved.paths.map((p) => p.relativePath)).toEqual(['extra/new.txt']);
+    expect(resolved.paths.map((p) => p.relativePath)).toEqual([
+      'extra/new.txt',
+    ]);
     expect(resolved.error).toBeUndefined();
   });
 

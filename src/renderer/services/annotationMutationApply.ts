@@ -212,9 +212,7 @@ function validatePatchGeometry(patch: AnnotationPatch): string[] {
     if (patch.points.length < 3) {
       errors.push(`patch ${patch.id} 多边形至少 3 个点`);
     }
-    if (
-      patch.points.some((p) => !isNormCoord(p.x) || !isNormCoord(p.y))
-    ) {
+    if (patch.points.some((p) => !isNormCoord(p.x) || !isNormCoord(p.y))) {
       errors.push(`patch ${patch.id} 多边形顶点必须在 0–1`);
     }
   }

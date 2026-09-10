@@ -7,6 +7,7 @@ from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 
 from app.agent.assist.proposal_streamer import ProposalStreamInterceptor
+from app.agent.assist.task_phase import TaskPhase, TaskPhaseContext
 from app.agent.assist.tool_loop import TOOL_CALLS_ALREADY_COMPLETED, ToolLoopRunner
 from app.agent.assist.vision_bootstrap import VisionAutoLoader
 from app.agent.context_service import append_client_tool_results_to_messages
@@ -29,6 +30,7 @@ async def stream_assist(
     client_context: ClientContextInput | None = None,
     user_content: str = "",
     client_tool_results: list | None = None,
+    task_phase_ctx: TaskPhaseContext | None = None,
 ) -> AsyncIterator[StreamEventPayload]:
     yield StreamEventPayload(type="preparing", stage="streaming")
 
@@ -55,6 +57,7 @@ async def stream_assist(
         is_cancelled=is_cancelled,
         user_content=user_content,
         provider_is_vision=provider_is_vision,
+        task_phase_ctx=task_phase_ctx,
     )
 
     # ── resume：注入已完成的工具结果 ─────────────────────────────────
@@ -62,7 +65,12 @@ async def stream_assist(
         completed_ids = {ctr.tool_call_id for ctr in client_tool_results}
         loop.mark_completed(completed_ids)
         append_client_tool_results_to_messages(
-            messages, client_tool_results, user_content=user_content
+            messages,
+            client_tool_results,
+            user_content=user_content,
+            proposals_applied=bool(
+                task_phase_ctx and task_phase_ctx.phase == TaskPhase.VERIFY
+            ),
         )
 
     # ── 视觉预加载（首轮） ───────────────────────────────────────────

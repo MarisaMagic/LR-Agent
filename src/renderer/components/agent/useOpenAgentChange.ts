@@ -86,8 +86,9 @@ export function useOpenAgentChange() {
         (change) => change.relativePath === options.relativePath,
       );
       const annotationId =
-        fileChanges.flatMap((change) => change.annotations ?? []).find((ann) => ann.id)
-          ?.id ??
+        fileChanges
+          .flatMap((change) => change.annotations ?? [])
+          .find((ann) => ann.id)?.id ??
         fileChanges.flatMap((change) => change.deleteIds ?? [])[0] ??
         '';
       requestOpenAnnotationPreview(

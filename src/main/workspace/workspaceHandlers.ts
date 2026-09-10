@@ -1,6 +1,10 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import path from 'path';
-import { readScopedTextFile, writeScopedTextFile, deleteScopedTextFile } from './workspaceWrite';
+import {
+  readScopedTextFile,
+  writeScopedTextFile,
+  deleteScopedTextFile,
+} from './workspaceWrite';
 
 export function registerWorkspaceHandlers(): void {
   ipcMain.handle(
@@ -33,10 +37,7 @@ export function registerWorkspaceHandlers(): void {
 
   ipcMain.handle(
     'workspace:deleteTextFile',
-    async (
-      _event,
-      payload: { rootDir: string; relativePath: string },
-    ) => {
+    async (_event, payload: { rootDir: string; relativePath: string }) => {
       const result = await deleteScopedTextFile(
         payload.rootDir,
         payload.relativePath,

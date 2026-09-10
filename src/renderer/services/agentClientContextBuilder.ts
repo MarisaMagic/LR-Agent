@@ -2,6 +2,7 @@ import type {
   AgentInteractionMode,
   AgentSkillEntry,
   ClientContextPayload,
+  ProposalStateEntry,
 } from '../../shared/agentTypes';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import type { AnnotationProject } from '../types/annotation';
@@ -29,6 +30,8 @@ export function buildClientContextPayload(options: {
   skillsCatalog?: AgentSkillEntry[] | null;
   /** 未 Keep All 的提案台账 */
   proposalLedger?: string | null;
+  /** 提案结构化状态（供后端任务阶段机推导门禁） */
+  proposalStates?: ProposalStateEntry[] | null;
 }): ClientContextPayload {
   const activeRelativePath =
     options.activeProject && options.activeFilePath
@@ -75,6 +78,7 @@ export function buildClientContextPayload(options: {
       : Boolean(options.workspaceMemoryEnabled),
     skillsCatalog: options.skillsCatalog ?? null,
     proposalLedger: options.proposalLedger ?? null,
+    proposalStates: options.proposalStates ?? null,
   };
 
   const wsSnap = getAnnotationWorkspaceAgentSnapshot();

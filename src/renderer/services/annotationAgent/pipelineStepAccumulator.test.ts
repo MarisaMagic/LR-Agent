@@ -60,4 +60,78 @@ describe('pipelineStepAccumulator', () => {
     expect(next[0].status).toBe('done');
     expect(next[0].detail).toBe('已选定 1 张图片');
   });
+
+  it('marks all running steps as error when a main-stage fails', () => {
+    const initial: AnnotationPipelineStep[] = [
+      {
+        stage: 'prepare',
+        label: '准备',
+        message: '准备完成',
+        status: 'done',
+      },
+      {
+        stage: 'workers',
+        label: '批量处理',
+        message: '处理中',
+        status: 'running',
+      },
+      {
+        stage: 'worker',
+        label: '处理图片',
+        message: '处理中：data/1.jpg',
+        status: 'running',
+        imagePath: 'data/1.jpg',
+      },
+    ];
+    const next = upsertPipelineSteps(initial, {
+      type: 'annotation_progress',
+      stage: 'prepare',
+      message: '未能生成可应用的矩形框标注。',
+      status: 'error',
+    });
+    expect(next.find((step) => step.stage === 'prepare')?.status).toBe('error');
+    expect(next.find((step) => step.stage === 'workers')?.status).toBe('error');
+    expect(next.find((step) => step.stage === 'worker')?.status).toBe('error');
+  });
+
+  it('does not mark other images error when one worker fails', () => {
+    const initial: AnnotationPipelineStep[] = [
+      {
+        stage: 'workers',
+        label: '批量处理',
+        message: '处理中',
+        status: 'running',
+      },
+      {
+        stage: 'worker',
+        label: '处理图片',
+        message: '处理中：data/1.jpg',
+        status: 'running',
+        imagePath: 'data/1.jpg',
+      },
+      {
+        stage: 'worker',
+        label: '处理图片',
+        message: '处理中：data/2.jpg',
+        status: 'running',
+        imagePath: 'data/2.jpg',
+      },
+    ];
+    const next = upsertPipelineSteps(initial, {
+      type: 'annotation_progress',
+      stage: 'worker',
+      message: '跳过：data/1.jpg',
+      status: 'error',
+      imagePath: 'data/1.jpg',
+    });
+    expect(next.find((step) => step.imagePath === 'data/1.jpg')?.status).toBe(
+      'error',
+    );
+    expect(next.find((step) => step.imagePath === 'data/2.jpg')?.status).toBe(
+      'running',
+    );
+    expect(next.find((step) => step.stage === 'workers')?.status).toBe(
+      'running',
+    );
+  });
 });

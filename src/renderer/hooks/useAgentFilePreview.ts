@@ -8,11 +8,13 @@ import {
 } from '../services/agentFilePreviewStore';
 
 export function useAgentFilePreview() {
-  const [filePreview, setFilePreview] = useState<AgentFilePreviewSession | null>(
-    () => getFilePreviewSession(),
-  );
+  const [filePreview, setFilePreview] =
+    useState<AgentFilePreviewSession | null>(() => getFilePreviewSession());
 
-  useEffect(() => subscribeFilePreview(() => setFilePreview(getFilePreviewSession())), []);
+  useEffect(
+    () => subscribeFilePreview(() => setFilePreview(getFilePreviewSession())),
+    [],
+  );
 
   const enterFilePreview = useCallback((next: AgentFilePreviewSession) => {
     setFilePreviewSession(next);

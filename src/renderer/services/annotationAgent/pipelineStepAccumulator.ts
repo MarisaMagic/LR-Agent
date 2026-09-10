@@ -34,11 +34,16 @@ export function upsertPipelineSteps(
   pipelineKind: PipelineKind = 'batch',
 ): AnnotationPipelineStep[] {
   const incoming = buildPipelineStepFromProgressEvent(event, pipelineKind);
+  const pipelineFailed =
+    event.status === 'error' && !isImageDetailPipelineStage(event.stage);
   const updated = steps.map((step) =>
     step.status === 'running' &&
-    step.stage !== event.stage &&
-    !isImageDetailPipelineStage(event.stage)
-      ? { ...step, status: 'done' as const }
+    (pipelineFailed ||
+      (step.stage !== event.stage && !isImageDetailPipelineStage(event.stage)))
+      ? {
+          ...step,
+          status: pipelineFailed ? ('error' as const) : ('done' as const),
+        }
       : step,
   );
 

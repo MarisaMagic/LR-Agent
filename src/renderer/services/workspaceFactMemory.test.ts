@@ -36,9 +36,7 @@ describe('syncWorkspaceFactMemory', () => {
   });
 
   it('no-ops when workspace memory is disabled', async () => {
-    await syncWorkspaceFactMemory(
-      project({ workspaceMemoryEnabled: false }),
-    );
+    await syncWorkspaceFactMemory(project({ workspaceMemoryEnabled: false }));
     expect(syncFacts).not.toHaveBeenCalled();
   });
 

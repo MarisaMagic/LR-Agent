@@ -23,7 +23,10 @@ import { getGeometryAdapter } from './geometryPipelineAdapter';
 import { runGeometrySubImageAgent } from './geometrySubImageRunner';
 import type { GeometryAnnotationType } from './geometryTypes';
 import type { FusionSubImageResult } from './fusionSubImageTypes';
-import { resolveAnnotationScopePaths, type InputPathEntry } from './scopePathUtil';
+import {
+  resolveAnnotationScopePaths,
+  type InputPathEntry,
+} from './scopePathUtil';
 import {
   attachRewriteDeletes,
   inferAnnotationWritePolicy,
@@ -58,7 +61,7 @@ function defaultGeometryPlan(
   providerSupportsVision?: boolean,
 ): BatchAnnotationPlan {
   return {
-    intent_summary: '几何实例检测 + 标签映射 + 评分复核',
+    intent_summary: '几何实例检测 + 标签映射',
     label_strategy: 'map_each_box_to_label',
     use_vision_mapping: providerSupportsVision ?? false,
     detection_hints: {},
@@ -80,9 +83,6 @@ function formatWorkerDetailParts(result: WorkerResult): string[] {
       ? `检测 ${result.rawCount}→保留 ${result.keptCount ?? 0}`
       : '',
     result.method ? `方式 ${result.method}` : '',
-    result.judge
-      ? `评分 ${result.judge.verdict === 'weak_accept' ? '弱通过' : result.judge.verdict === 'accept' ? '通过' : '拒绝'}`
-      : '',
   ].filter(Boolean) as string[];
   if (result.timing) {
     parts.push(formatSubImageTiming(result.timing));

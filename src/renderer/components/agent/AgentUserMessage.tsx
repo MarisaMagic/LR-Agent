@@ -7,6 +7,7 @@ import {
 } from 'react';
 import type { ChatMessage } from '../../types/agent';
 import { useAgentChat } from '../../context/AgentChatContext';
+import { useStickyHeaderStuck } from './stickyHeaderStuck';
 import './AgentComposer.css';
 
 interface AgentUserMessageProps {
@@ -25,8 +26,13 @@ export default function AgentUserMessage({ message }: AgentUserMessageProps) {
   } = useAgentChat();
 
   const rootRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const stuck = useStickyHeaderStuck(sentinelRef);
   const isEditing = editTargetMessageId === message.id;
+  const userItemClassName = `agent-message-item agent-message-item--user${
+    stuck ? ' agent-message-item--user-stuck' : ''
+  }`;
   const streaming = isSessionStreaming(message.sessionId);
   const canEdit = message.status === 'done' && !streaming;
 
@@ -83,58 +89,61 @@ export default function AgentUserMessage({ message }: AgentUserMessageProps) {
     [cancelEdit, canSubmit, handleSubmit],
   );
 
-  if (isEditing) {
-    return (
+  return (
+    <>
+      <div
+        ref={sentinelRef}
+        className="agent-message-sticky-sentinel"
+        aria-hidden="true"
+      />
       <div
         ref={rootRef}
-        className="agent-message-item agent-message-item--user"
-        data-editing-bubble="true"
+        className={userItemClassName}
+        data-editing-bubble={isEditing ? 'true' : undefined}
       >
-        <form
-          className="agent-user-bubble agent-user-bubble--editing"
-          onSubmit={handleSubmit}
-        >
-          <textarea
-            ref={textareaRef}
-            className="agent-user-bubble-input"
-            value={editDraft}
-            rows={1}
-            onChange={(event) => {
-              setEditDraft(event.target.value);
-              resizeTextarea();
+        {isEditing ? (
+          <form
+            className="agent-user-bubble agent-user-bubble--editing"
+            onSubmit={handleSubmit}
+          >
+            <textarea
+              ref={textareaRef}
+              className="agent-user-bubble-input"
+              value={editDraft}
+              rows={1}
+              onChange={(event) => {
+                setEditDraft(event.target.value);
+                resizeTextarea();
+              }}
+              onKeyDown={handleKeyDown}
+            />
+            <div className="agent-user-bubble-footer">
+              <button
+                type="submit"
+                className={`agent-composer-send${
+                  canSubmit ? ' agent-composer-send--ready' : ''
+                }`}
+                disabled={!canSubmit}
+                aria-label="发送"
+              >
+                <span className="codicon codicon-arrow-up" />
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button
+            type="button"
+            className="agent-user-bubble"
+            disabled={!canEdit}
+            onClick={() => {
+              if (!canEdit) return;
+              beginEditMessage(message.id);
             }}
-            onKeyDown={handleKeyDown}
-          />
-          <div className="agent-user-bubble-footer">
-            <button
-              type="submit"
-              className={`agent-composer-send${
-                canSubmit ? ' agent-composer-send--ready' : ''
-              }`}
-              disabled={!canSubmit}
-              aria-label="发送"
-            >
-              <span className="codicon codicon-arrow-up" />
-            </button>
-          </div>
-        </form>
+          >
+            {textContent || ' '}
+          </button>
+        )}
       </div>
-    );
-  }
-
-  return (
-    <div className="agent-message-item agent-message-item--user">
-      <button
-        type="button"
-        className="agent-user-bubble"
-        disabled={!canEdit}
-        onClick={() => {
-          if (!canEdit) return;
-          beginEditMessage(message.id);
-        }}
-      >
-        {textContent || ' '}
-      </button>
-    </div>
+    </>
   );
 }

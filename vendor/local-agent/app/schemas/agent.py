@@ -53,6 +53,19 @@ class SkillCatalogEntryInput(BaseModel):
     description: str = Field(max_length=512)
 
 
+class ProposalStateInput(BaseModel):
+    """会话中单个提案变更的结构化状态（由前端消息块构建，随请求发送）。"""
+
+    path: str = Field(min_length=1, description="提案涉及的相对路径")
+    kind: Literal["annotation", "file"] = "annotation"
+    status: Literal["pending", "applied", "dismissed", "undone"] = "pending"
+    operation: str | None = None
+    annotation_ids: list[str] = Field(
+        default_factory=list,
+        description="该提案涉及的标注实例 id（append/replace 的 annotations、delete 的 deleteIds、patch 的 patches）",
+    )
+
+
 class ClientContextInput(BaseModel):
     workspace_root: str | None = None
     active_file_path: str | None = None
@@ -72,6 +85,7 @@ class ClientContextInput(BaseModel):
     workspace_memory_enabled: bool = False
     skills_catalog: list[SkillCatalogEntryInput] = Field(default_factory=list)
     proposal_ledger: str | None = None
+    proposal_states: list[ProposalStateInput] = Field(default_factory=list)
 
 
 class ClientToolResult(BaseModel):
