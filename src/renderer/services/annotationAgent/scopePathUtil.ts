@@ -13,7 +13,44 @@ export type AnnotationScopeRequest = {
 export type AnnotationScopeResult = {
   paths: InputPathEntry[];
   error?: string;
+  omittedCount?: number;
+  omittedPaths?: string[];
 };
+
+const OMITTED_PATHS_PREVIEW = 8;
+
+export function capAnnotationScopePaths(
+  paths: InputPathEntry[],
+  maxFiles: number,
+): Pick<AnnotationScopeResult, 'paths' | 'omittedCount' | 'omittedPaths'> {
+  if (paths.length <= maxFiles) {
+    return { paths };
+  }
+  const omitted = paths.slice(maxFiles);
+  return {
+    paths: paths.slice(0, maxFiles),
+    omittedCount: omitted.length,
+    omittedPaths: omitted
+      .slice(0, OMITTED_PATHS_PREVIEW)
+      .map((item) => item.relativePath),
+  };
+}
+
+export function formatScopeTruncationNote(
+  omittedCount?: number,
+  omittedPaths?: string[],
+  maxFiles: number = 100,
+): string {
+  if (!omittedCount || omittedCount <= 0) return '';
+  const preview = (omittedPaths ?? []).filter(Boolean);
+  const previewText = preview.length
+    ? `（如 ${preview.join(', ')}${omittedCount > preview.length ? '…' : ''}）`
+    : '';
+  return (
+    `另有 ${omittedCount} 张因单次上限 ${maxFiles} 未纳入${previewText}；` +
+    `可再调用 auto_annotate 并传入剩余 paths。`
+  );
+}
 
 export function scopeTokens(scopeHint?: string): string[] {
   if (!scopeHint) return [];
@@ -64,13 +101,13 @@ export function resolveAnnotationScope(
         error: `未命中任何文件：${tokens.join(', ')}。请用 list_workspace_directory 核对 relativePath，或将 all_files 设为 true。`,
       };
     }
-    return { paths: filtered.slice(0, maxFiles) };
+    return capAnnotationScopePaths(filtered, maxFiles);
   }
   if (request.allFiles) {
     if (allPaths.length === 0) {
       return { paths: [], error: '项目内没有可标注文件。' };
     }
-    return { paths: allPaths.slice(0, maxFiles) };
+    return capAnnotationScopePaths(allPaths, maxFiles);
   }
   return {
     paths: [],
@@ -113,5 +150,5 @@ export async function resolveAnnotationScopePaths(
       error: `未命中任何文件：${tokens.join(', ')}。请用 list_workspace_directory 核对 relativePath，或将 all_files 设为 true。`,
     };
   }
-  return { paths: filtered.slice(0, maxFiles) };
+  return capAnnotationScopePaths(filtered, maxFiles);
 }

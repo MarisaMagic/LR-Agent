@@ -207,6 +207,75 @@
   color: var(--vscode-foreground, #cccccc);
 }
 
+/* awaiting_confirmation：暂停符不闪烁，稳定常驻表示「等待用户确认」 */
+.agent-stream-cursor--paused {
+  animation: none;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.agent-awaiting-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--vscode-panelBorder, rgba(128, 128, 128, 0.25));
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, rgba(128, 128, 128, 0.08));
+}
+
+.agent-awaiting-confirm__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--agent-font-meta);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.agent-awaiting-confirm__actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.agent-awaiting-confirm__btn {
+  padding: 2px 12px;
+  border: none;
+  border-radius: 4px;
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+  color: var(--vscode-button-secondaryForeground, #cccccc);
+  font-size: var(--agent-font-meta);
+  cursor: pointer;
+}
+
+.agent-awaiting-confirm__btn:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.35));
+}
+
+.agent-awaiting-confirm__btn--primary {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #ffffff);
+}
+
+.agent-awaiting-confirm__btn--primary:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.agent-awaiting-confirm__btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.agent-stream-phase {
+  margin: 2px 0;
+  font-size: var(--agent-font-meta);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  animation: agent-cursor-blink 1.6s ease-in-out infinite;
+}
+
 @keyframes agent-cursor-blink {
   50% {
     opacity: 0;

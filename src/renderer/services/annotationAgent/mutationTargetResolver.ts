@@ -2,7 +2,9 @@ import {
   parseFileAnnotationDocument,
   type AnnotationInstance,
   type CaptionGranularity,
+  type ConversationTurn,
   type CotStep,
+  type PoseKeypoint,
 } from '../../types/annotationDocument';
 import type { LabelDefinition } from '../../types/annotation';
 
@@ -42,13 +44,30 @@ export interface MutationOperationSpec {
   y?: number;
   width?: number;
   height?: number;
+  /** rotated_bbox / pose：中心点与旋转角 */
+  cx?: number;
+  cy?: number;
+  angle?: number;
   points?: { x: number; y: number }[];
+  /** pose 关键点（整表替换） */
+  keypoints?: PoseKeypoint[];
   text?: string;
   granularity?: CaptionGranularity;
   language?: string;
   steps?: CotStep[];
   answer?: string;
   instruction?: string;
+  input?: string;
+  output?: string;
+  /** span_ner 文本偏移 */
+  start?: number;
+  end?: number;
+  /** preference */
+  prompt?: string;
+  chosen?: string;
+  rejected?: string;
+  /** conversation（整表替换） */
+  turns?: ConversationTurn[];
   note?: string;
 }
 
@@ -80,6 +99,46 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseOptionalNumber(raw: unknown): number | undefined {
   return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
+}
+
+function parseOptionalOffset(raw: unknown): number | undefined {
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0
+    ? raw
+    : undefined;
+}
+
+function parseKeypoints(raw: unknown): PoseKeypoint[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const keypoints: PoseKeypoint[] = [];
+  for (const item of raw) {
+    if (!isRecord(item)) return undefined;
+    if (typeof item.x !== 'number' || typeof item.y !== 'number') {
+      return undefined;
+    }
+    const visibility =
+      item.visibility === 0 || item.visibility === 1 || item.visibility === 2
+        ? item.visibility
+        : 2;
+    keypoints.push({ x: item.x, y: item.y, visibility });
+  }
+  return keypoints.length ? keypoints : undefined;
+}
+
+function parseTurns(raw: unknown): ConversationTurn[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const turns: ConversationTurn[] = [];
+  for (const item of raw) {
+    if (!isRecord(item)) return undefined;
+    if (
+      (item.role !== 'user' && item.role !== 'assistant') ||
+      typeof item.content !== 'string' ||
+      !item.content.trim()
+    ) {
+      return undefined;
+    }
+    turns.push({ role: item.role, content: item.content });
+  }
+  return turns.length ? turns : undefined;
 }
 
 function parsePoints(raw: unknown): { x: number; y: number }[] | undefined {
@@ -200,6 +259,25 @@ export function parseMutationOperation(
   if (steps) spec.steps = steps;
   if (typeof raw.answer === 'string') spec.answer = raw.answer;
   if (typeof raw.instruction === 'string') spec.instruction = raw.instruction;
+  if (typeof raw.input === 'string') spec.input = raw.input;
+  if (typeof raw.output === 'string') spec.output = raw.output;
+  const cx = parseOptionalNumber(raw.cx);
+  const cy = parseOptionalNumber(raw.cy);
+  const angle = parseOptionalNumber(raw.angle);
+  if (cx !== undefined) spec.cx = cx;
+  if (cy !== undefined) spec.cy = cy;
+  if (angle !== undefined) spec.angle = angle;
+  const keypoints = parseKeypoints(raw.keypoints);
+  if (keypoints) spec.keypoints = keypoints;
+  const start = parseOptionalOffset(raw.start);
+  const end = parseOptionalOffset(raw.end);
+  if (start !== undefined) spec.start = start;
+  if (end !== undefined) spec.end = end;
+  if (typeof raw.prompt === 'string') spec.prompt = raw.prompt;
+  if (typeof raw.chosen === 'string') spec.chosen = raw.chosen;
+  if (typeof raw.rejected === 'string') spec.rejected = raw.rejected;
+  const turns = parseTurns(raw.turns);
+  if (turns) spec.turns = turns;
   if (typeof raw.note === 'string') spec.note = raw.note;
   return spec;
 }

@@ -3,8 +3,6 @@ import { VscodeIcon } from '@vscode-elements/react-elements';
 const ICONS: Record<string, { bg: string; fg: string; label: string }> = {
   tavily: { bg: '#0d9488', fg: '#fff', label: 'Tv' },
   context7: { bg: '#6366f1', fg: '#fff', label: 'C7' },
-  'zhipu-web-search': { bg: '#2563eb', fg: '#fff', label: '智' },
-  'qwen-vl': { bg: '#6366f1', fg: '#fff', label: '通' },
   github: { bg: '#24292f', fg: '#fff', label: 'GH' },
   huggingface: { bg: '#ffd21e', fg: '#1a1a1a', label: 'HF' },
 };

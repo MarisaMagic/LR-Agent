@@ -19,6 +19,8 @@ export default function LlmProvidersPanel() {
   const {
     providers,
     loading,
+    auxiliaryProviderId,
+    setAuxiliaryProvider,
     refreshProviders,
     upsertProvider,
     deleteProvider,
@@ -75,6 +77,31 @@ export default function LlmProvidersPanel() {
         />
       </VscodeToolbarContainer>
 
+      <div className="llm-providers-aux">
+        <label
+          className="llm-providers-aux-label"
+          htmlFor="llm-providers-aux-select"
+        >
+          辅助模型
+        </label>
+        <select
+          id="llm-providers-aux-select"
+          className="llm-providers-aux-select"
+          value={auxiliaryProviderId ?? ''}
+          onChange={(event) => setAuxiliaryProvider(event.target.value || null)}
+          title="用于子代理查阅、上下文摘要等轻量调用；不使用则跟随会话模型"
+        >
+          <option value="">不使用（跟随会话模型）</option>
+          {providers
+            .filter((item) => item.enabled)
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name || item.model}
+              </option>
+            ))}
+        </select>
+      </div>
+
       <VscodeScrollHost
         className="llm-providers-scroll-host"
         scrollableClassName="llm-providers-scrollable"
@@ -103,6 +130,7 @@ export default function LlmProvidersPanel() {
         <ModalMotion
           open
           onClose={() => setDeleteTarget(null)}
+          closeOnBackdropClick={false}
           dialogClassName="llm-provider-delete-dialog"
           labelledBy="llm-provider-delete-title"
         >

@@ -3,6 +3,12 @@
 from app.agent.assist.vision_bootstrap import VisionAutoLoader
 
 
+def test_bootstrap_removed_only_fallback_remains():
+    """pre-LLM 视觉预加载已移除：看图由模型自行调用工具，系统仅在首轮无 tool call 时兜底。"""
+    assert not hasattr(VisionAutoLoader, "try_bootstrap")
+    assert hasattr(VisionAutoLoader, "try_fallback")
+
+
 def test_should_load_false_when_resume():
     loader = VisionAutoLoader(
         vision_fn=None,

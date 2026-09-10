@@ -143,6 +143,83 @@ class TestAwaitConfirmGate:
         )
 
 
+class TestAwaitConfirmToolsStayBound:
+    async def test_write_tool_bound_but_blocked_at_execution(self) -> None:
+        """await_confirm 阶段：写工具仍在 bind 列表中（保前缀缓存），执行层拦截。"""
+        from langchain_core.tools import StructuredTool
+
+        from app.agent.assist_service import stream_assist
+
+        states = [
+            ProposalStateInput(path="data/2.jpg", kind="annotation", status="pending")
+        ]
+        ctx = derive_task_phase(states)
+        assert ctx is not None and ctx.phase == TaskPhase.AWAIT_CONFIRM
+
+        def _must_not_run(**_kwargs) -> str:
+            raise AssertionError("await_confirm 阶段不应执行写工具")
+
+        write_tool = StructuredTool.from_function(
+            func=_must_not_run,
+            name="write_workspace_file",
+            description="write file",
+        )
+
+        class CaptureBindLLM:
+            def __init__(self) -> None:
+                self.bound_tool_names: list[str] = []
+                self.calls = 0
+
+            def bind_tools(self, tools, tool_choice=None):
+                self.bound_tool_names = [t.name for t in tools]
+                return self
+
+            async def astream(self, messages):
+                self.calls += 1
+                if self.calls == 1:
+                    yield MockChunk(
+                        tool_calls=[
+                            {
+                                "id": "w1",
+                                "name": "write_workspace_file",
+                                "args": {
+                                    "relative_path": "reports/r.md",
+                                    "content": "# 报告",
+                                },
+                            }
+                        ]
+                    )
+                    return
+                yield MockChunk(content="提案待确认，请 Keep All。")
+
+        llm = CaptureBindLLM()
+        events = await _collect(
+            stream_assist(
+                llm,  # type: ignore[arg-type]
+                [HumanMessage(content="写报告")],
+                [write_tool],
+                settings=None,  # type: ignore[arg-type]
+                max_tool_rounds=5,
+                is_cancelled=_never_cancel,
+                client_context=ClientContextInput(
+                    workspace_root="/w", proposal_states=states
+                ),
+                user_content="写报告",
+                client_tool_results=[_auto_annotate_result()],
+                task_phase_ctx=ctx,
+            )
+        )
+        # 工具仍在 bind 列表（不再 bind 时删减）
+        assert "write_workspace_file" in llm.bound_tool_names
+        # 但执行层拦截，func 未运行（否则会抛 AssertionError）
+        blocked = [
+            e
+            for e in events
+            if e.type == "tool_result" and "phase_blocked" in (e.result or "")
+        ]
+        assert len(blocked) == 1
+
+
 class TestVerifyGate:
     async def test_applied_proposal_blocks_reannotation(self) -> None:
         """Keep All 后续跑：模型试图重复标注已落盘路径 → 拦截。"""

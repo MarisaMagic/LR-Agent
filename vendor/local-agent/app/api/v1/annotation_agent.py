@@ -1,3 +1,4 @@
+import base64
 import logging
 
 from fastapi import APIRouter, HTTPException, status
@@ -11,7 +12,10 @@ from app.agent.annotation import (
     prepare_batch_annotation,
 )
 from app.agent.annotation.debug_log import log_annotation_agent
-from app.agent.annotation.image_bytes_loader import load_image_bytes
+from app.agent.annotation.image_bytes_loader import (
+    image_bytes_to_data_url,
+    load_image_bytes,
+)
 from app.agent.annotation.mutation_prepare_service import prepare_mutation_annotation
 from app.agent.annotation.schemas import AnnotationScopePayload
 from app.core.deps import SettingsDep
@@ -256,9 +260,46 @@ async def api_map_detection_boxes(
         raise _http_from_llm_error(exc) from exc
 
 
+def _build_generate_image_data_url(
+    body: LlmGenerateRequest,
+    settings,
+) -> str:
+    """组装 llm-generate 的多模态图片 data URL。
+
+    路径优先、base64 兜底；统一压缩为 JPEG（长边 / 质量见 Settings）。
+    请求声明了图片但字节无法加载时抛 400，让前端跳过该文件（与旧的前端读图
+    失败行为一致）；压缩失败则回退发送未压缩原图。
+    """
+    wants_image = bool(
+        (body.image_absolute_path or "").strip() or (body.image_base64 or "").strip()
+    )
+    if not wants_image:
+        return ""
+
+    raw, _source = load_image_bytes(
+        image_absolute_path=body.image_absolute_path,
+        image_base64=body.image_base64,
+    )
+    if raw is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="image_load_failed",
+        )
+    try:
+        return image_bytes_to_data_url(
+            raw,
+            max_edge=settings.annotation_llm_image_max_edge,
+            jpeg_quality=settings.annotation_llm_image_jpeg_quality,
+        )
+    except Exception:
+        logger.warning("llm-generate image resize failed, send raw", exc_info=True)
+        return f"data:{body.image_mime_type};base64,{base64.b64encode(raw).decode('ascii')}"
+
+
 @router.post("/llm-generate", summary="通用 LLM 生成代理（caption/cot/instruction 等）")
 async def api_llm_generate(
     body: LlmGenerateRequest,
+    settings: SettingsDep,
 ):
     try:
         llm = _require_direct_llm(
@@ -273,17 +314,13 @@ async def api_llm_generate(
         if body.system_prompt.strip():
             messages.append(SystemMessage(content=body.system_prompt))
 
-        if body.image_base64.strip():
-            image_data = body.image_base64.strip()
-            if "," in image_data[:80]:
-                image_data = image_data.split(",", 1)[1]
+        image_data_url = _build_generate_image_data_url(body, settings)
+        if image_data_url:
             human_content = [
                 {"type": "text", "text": body.user_prompt or ""},
                 {
                     "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{body.image_mime_type};base64,{image_data}"
-                    },
+                    "image_url": {"url": image_data_url},
                 },
             ]
             messages.append(HumanMessage(content=human_content))

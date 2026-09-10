@@ -31,6 +31,7 @@ export default function AgentToolCallBlock({
         <span>
           {label}
           {block.status === 'running' ? ' · 进行中' : ''}
+          {block.status === 'queued' ? ' · 排队中' : ''}
         </span>
       </button>
       {!block.collapsed && (

@@ -14,6 +14,10 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 
+from app.agent.assist.explore_readonly import (
+    EXPLORE_READONLY_TOOL_NAME,
+    ExploreReadonlyRunner,
+)
 from app.agent.assist.proposal_streamer import ProposalStreamInterceptor
 from app.agent.assist.task_phase import (
     TaskPhaseContext,
@@ -123,6 +127,90 @@ async def _force_tool_call_once(
     return AIMessage(content=full_text, tool_calls=tool_calls), resolved
 
 
+def _is_explore_runner(runner: object) -> bool:
+    return isinstance(runner, ExploreReadonlyRunner) or callable(
+        getattr(runner, "stream", None)
+    )
+
+
+def _explore_result_text(summary: str, status: str) -> str:
+    return build_tool_result(
+        ok=status == "done",
+        tool=EXPLORE_READONLY_TOOL_NAME,
+        status="ok" if status == "done" else "error",
+        summary=summary or "（无摘要）",
+    )
+
+
+async def _merge_async_iterators(
+    streams: list[AsyncIterator[StreamEventPayload]],
+) -> AsyncIterator[StreamEventPayload]:
+    if not streams:
+        return
+    if len(streams) == 1:
+        async for event in streams[0]:
+            yield event
+        return
+
+    queue: asyncio.Queue[StreamEventPayload | None] = asyncio.Queue()
+
+    async def _pump(gen: AsyncIterator[StreamEventPayload]) -> None:
+        try:
+            async for event in gen:
+                await queue.put(event)
+        finally:
+            await queue.put(None)
+
+    tasks = [asyncio.create_task(_pump(stream)) for stream in streams]
+    remaining = len(tasks)
+    try:
+        while remaining > 0:
+            item = await queue.get()
+            if item is None:
+                remaining -= 1
+            else:
+                yield item
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def _stream_explore_events(
+    *,
+    tool_id: str,
+    args: dict,
+    fn_map: dict[str, object],
+) -> AsyncIterator[StreamEventPayload]:
+    """产出 tool_start + subagent_*，不写父 messages、不发 tool_result。"""
+    yield StreamEventPayload(
+        type="tool_start",
+        tool_call_id=tool_id,
+        name=EXPLORE_READONLY_TOOL_NAME,
+        arguments=json.dumps(args, ensure_ascii=False, indent=2),
+    )
+    runner = fn_map.get(EXPLORE_READONLY_TOOL_NAME)
+    query = str(args.get("query") or "").strip()
+    focus_raw = args.get("focus_path")
+    focus_path = str(focus_raw).strip() if focus_raw else None
+    stream_fn = getattr(runner, "stream", None)
+    if _is_explore_runner(runner) and callable(stream_fn):
+        async for event in stream_fn(
+            query=query,
+            focus_path=focus_path,
+            parent_tool_id=tool_id,
+        ):
+            yield event
+        return
+    yield StreamEventPayload(
+        type="subagent_done",
+        tool_call_id=tool_id,
+        summary="查阅子代理未就绪",
+        status="error",
+    )
+
+
 async def _stream_tool_execution(
     *,
     tool_id: str,
@@ -144,6 +232,29 @@ async def _stream_tool_execution(
         name=name,
         arguments=json.dumps(args, ensure_ascii=False, indent=2),
     )
+
+    if name == EXPLORE_READONLY_TOOL_NAME:
+        summary = ""
+        status = "error"
+        async for event in _stream_explore_events(
+            tool_id=tool_id,
+            args=args,
+            fn_map=fn_map,
+        ):
+            yield event
+            if event.type == "subagent_done":
+                summary = event.summary or ""
+                status = event.status or "done"
+        display_result = format_tool_result_for_display(
+            _explore_result_text(summary, status)
+        )
+        yield StreamEventPayload(
+            type="tool_result",
+            tool_call_id=tool_id,
+            result=display_result,
+        )
+        messages.append(ToolMessage(content=display_result, tool_call_id=tool_id))
+        return
 
     if result_text is None:
         result_text = await _invoke_tool_fn(name, args, fn_map)
@@ -486,8 +597,19 @@ class ToolLoopRunner:
 
         streamed_paths = interceptor.collected_paths()
 
+        explore_calls = [
+            call
+            for call in split.immediate
+            if call.name == EXPLORE_READONLY_TOOL_NAME
+        ]
+        other_immediate = [
+            call
+            for call in split.immediate
+            if call.name != EXPLORE_READONLY_TOOL_NAME
+        ]
+
         parallel_calls = [
-            call for call in split.immediate if call.name in PARALLEL_SYNC_TOOLS
+            call for call in other_immediate if call.name in PARALLEL_SYNC_TOOLS
         ]
         precomputed: dict[str, str] = {}
         if parallel_calls:
@@ -498,7 +620,7 @@ class ToolLoopRunner:
             pairs = await asyncio.gather(*[_run_parallel(call) for call in parallel_calls])
             precomputed = dict(pairs)
 
-        for call in split.immediate:
+        for call in other_immediate:
             if await self.is_cancelled():
                 return
             async for event in _stream_tool_execution(
@@ -515,6 +637,58 @@ class ToolLoopRunner:
                 yield event
             if call.name == VISION_TOOL_NAME:
                 self.vision_bootstrapped = True
+
+        if explore_calls:
+            finals: dict[str, tuple[str, str]] = {}
+
+            async def _tracked_explore(
+                call: ResolvedToolCall,
+            ) -> AsyncIterator[StreamEventPayload]:
+                summary = ""
+                status = "error"
+                try:
+                    async for event in _stream_explore_events(
+                        tool_id=call.tool_call_id,
+                        args=call.arguments,
+                        fn_map=self.fn_map,
+                    ):
+                        if event.type == "subagent_done":
+                            summary = event.summary or ""
+                            status = event.status or "done"
+                        yield event
+                except Exception as exc:
+                    summary = f"查阅失败：{exc}"
+                    status = "error"
+                    yield StreamEventPayload(
+                        type="subagent_done",
+                        tool_call_id=call.tool_call_id,
+                        summary=summary,
+                        status="error",
+                    )
+                finals[call.tool_call_id] = (summary, status)
+
+            async for event in _merge_async_iterators(
+                [_tracked_explore(call) for call in explore_calls]
+            ):
+                yield event
+
+            for call in explore_calls:
+                summary, status = finals.get(
+                    call.tool_call_id, ("查阅失败", "error")
+                )
+                display_result = format_tool_result_for_display(
+                    _explore_result_text(summary, status)
+                )
+                yield StreamEventPayload(
+                    type="tool_result",
+                    tool_call_id=call.tool_call_id,
+                    result=display_result,
+                )
+                messages.append(
+                    ToolMessage(
+                        content=display_result, tool_call_id=call.tool_call_id
+                    )
+                )
 
         if split.async_pending:
             from app.agent.assist.pending_emitter import emit_tool_pending

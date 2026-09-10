@@ -79,6 +79,7 @@ export default function LlmProviderFormModal({
     <ModalMotion
       open={open}
       onClose={onClose}
+      closeOnBackdropClick={false}
       dialogClassName="llm-provider-form-dialog"
       labelledBy="llm-provider-form-title"
       dialogRole="form"

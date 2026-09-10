@@ -1,4 +1,8 @@
-import type { AnnotationProjectSnapshot } from '../../shared/annotationAgentTypes';
+import type {
+  AnnotationProjectSnapshot,
+  DetectionOverrides,
+} from '../../shared/annotationAgentTypes';
+import { ANNOTATION_BATCH_MAX_FILES } from '../../shared/annotationAgentTypes';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import type { StreamEvent } from '../../shared/agentTypes';
 import {
@@ -17,6 +21,8 @@ export type AnnotationBatchJobResult = {
   hasProposal: boolean;
   /** 提案逐文件明细（路径/增删/标签），供工具结果携带真实数字 */
   fileStats?: AnnotationProposalFileStat[];
+  omittedCount?: number;
+  omittedPaths?: string[];
 };
 
 export async function startAnnotationBatchJob(options: {
@@ -39,6 +45,8 @@ export async function startAnnotationBatchJob(options: {
   scopePaths?: string[];
   allFiles?: boolean;
   writeMode?: 'append' | 'replace_matching';
+  /** auto_annotate 透传的检测约束（仅几何管线消费） */
+  detectionOverrides?: DetectionOverrides;
 }): Promise<AnnotationBatchJobResult> {
   const emit = (event: StreamEvent): void => {
     options.onEvent(event);
@@ -72,9 +80,14 @@ export async function startAnnotationBatchJob(options: {
       scopePaths: options.scopePaths,
       allFiles: options.allFiles,
       writeMode: options.writeMode,
+      detectionOverrides: options.detectionOverrides,
     })) {
       if (isCancelled()) break;
       mapAndEmit(event, emit);
+      if (event.type === 'scope_truncated') {
+        outcome.omittedCount = event.omittedCount;
+        outcome.omittedPaths = event.omittedPaths;
+      }
       if (event.type === 'proposal') {
         outcome.hasProposal = true;
         // 收到有效提案即视为完成；text 事件先于 proposal 到达时曾把 status 置为 skipped，必须恢复
@@ -167,6 +180,15 @@ function mapAndEmit(
   }
   if (event.type === 'error') {
     emitPipelineError(event.message, onEvent);
+  }
+  if (event.type === 'scope_truncated') {
+    onEvent({
+      type: 'annotation_progress',
+      stage: 'prepare',
+      message: `单次上限 ${ANNOTATION_BATCH_MAX_FILES}，另有 ${event.omittedCount} 张未纳入`,
+      status: 'running',
+      detail: event.omittedPaths.join(', '),
+    });
   }
 }
 

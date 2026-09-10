@@ -1,6 +1,9 @@
 import { useCallback, useMemo, useState, type KeyboardEvent } from 'react';
 import { VscodeIcon } from '@vscode-elements/react-elements';
-import type { ProposalBlockStatus } from '../../../shared/agentTypes';
+import type {
+  PipelineKind,
+  ProposalBlockStatus,
+} from '../../../shared/agentTypes';
 import type { AnnotationBatchProposal } from '../../../shared/annotationAgentTypes';
 import type { AnnotationInstance } from '../../types/annotationDocument';
 import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
@@ -28,7 +31,15 @@ interface AgentAnnotationChangeBlockProps {
   blockIndex: number;
   proposal: AnnotationBatchProposal;
   status: ProposalBlockStatus;
+  /** 提案来源流水线（批量标注/标注修改），历史数据可能缺失 */
+  sourceKind?: PipelineKind;
 }
+
+const SOURCE_KIND_LABELS: Record<PipelineKind, string> = {
+  batch: '批量标注',
+  mutation: '标注修改',
+  report: '报告',
+};
 
 const KIND_LABELS: Record<string, string> = {
   bbox: 'bbox',
@@ -150,6 +161,7 @@ export default function AgentAnnotationChangeBlock({
   blockIndex,
   proposal,
   status,
+  sourceKind,
 }: AgentAnnotationChangeBlockProps) {
   const { activeProject } = useAnnotation();
   const { rootPath, openFileInEditor } = useApp();
@@ -252,6 +264,11 @@ export default function AgentAnnotationChangeBlock({
 
   return (
     <>
+      {sourceKind ? (
+        <div className="agent-annotation-change-block__source">
+          来自{SOURCE_KIND_LABELS[sourceKind] ?? '批量标注'}
+        </div>
+      ) : null}
       {items.map((item) => {
         const isExpanded = expandedItems.has(item.key);
         const isDelete = item.operation === 'delete';

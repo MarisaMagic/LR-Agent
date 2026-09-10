@@ -34,7 +34,8 @@ SKIP_DIR_NAMES = frozenset(
 
 
 def _should_skip_dir(name: str) -> bool:
-    return name in SKIP_DIR_NAMES or name.startswith(".")
+    """只跳过显式名单（.git / node_modules 等）；.github、.cursor 等点目录仍参与搜索。"""
+    return name in SKIP_DIR_NAMES
 
 
 def _rel_matches_glob(relative_path: str, glob_pattern: str) -> bool:

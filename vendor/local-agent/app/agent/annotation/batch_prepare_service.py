@@ -3,6 +3,10 @@
 替代原先多步 parse-task + parse-scope + create-plan 流程。
 由 annotation_agent API `/batch-prepare` 调用，前端在 execute_batch 路由后发起。
 
+注意：当前几何标注管线（geometryBatchPipeline）不调用本服务——范围由 auto_annotate
+的 paths/all_files 解析，检测约束由 auto_annotate 的 conf_threshold/model_id 等参数透传。
+本服务保留供后续「LLM 规划模式」使用。
+
 输出 BatchPrepareResult：
   - selected_paths：本轮待标注图片相对路径
   - scope_reason：选图依据

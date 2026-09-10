@@ -56,19 +56,35 @@ function patchesFromOperation(
   if (op.mutation_kind === 'patch_geometry') {
     const geom: Pick<
       AnnotationPatch,
-      'x' | 'y' | 'width' | 'height' | 'points'
+      | 'x'
+      | 'y'
+      | 'width'
+      | 'height'
+      | 'points'
+      | 'cx'
+      | 'cy'
+      | 'angle'
+      | 'keypoints'
     > = {};
     if (op.x != null) geom.x = op.x;
     if (op.y != null) geom.y = op.y;
     if (op.width != null) geom.width = op.width;
     if (op.height != null) geom.height = op.height;
+    if (op.cx != null) geom.cx = op.cx;
+    if (op.cy != null) geom.cy = op.cy;
+    if (op.angle != null) geom.angle = op.angle;
     if (op.points?.length) geom.points = op.points;
+    if (op.keypoints?.length) geom.keypoints = op.keypoints;
     if (
       geom.x == null &&
       geom.y == null &&
       geom.width == null &&
       geom.height == null &&
-      !geom.points
+      geom.cx == null &&
+      geom.cy == null &&
+      geom.angle == null &&
+      !geom.points &&
+      !geom.keypoints
     ) {
       return { error: '缺少几何字段' };
     }
@@ -84,6 +100,14 @@ function patchesFromOperation(
       | 'steps'
       | 'answer'
       | 'instruction'
+      | 'input'
+      | 'output'
+      | 'start'
+      | 'end'
+      | 'prompt'
+      | 'chosen'
+      | 'rejected'
+      | 'turns'
       | 'note'
     > = {};
     if (op.text != null) content.text = op.text;
@@ -92,16 +116,16 @@ function patchesFromOperation(
     if (op.steps) content.steps = op.steps;
     if (op.answer != null) content.answer = op.answer;
     if (op.instruction != null) content.instruction = op.instruction;
+    if (op.input != null) content.input = op.input;
+    if (op.output != null) content.output = op.output;
+    if (op.start != null) content.start = op.start;
+    if (op.end != null) content.end = op.end;
+    if (op.prompt != null) content.prompt = op.prompt;
+    if (op.chosen != null) content.chosen = op.chosen;
+    if (op.rejected != null) content.rejected = op.rejected;
+    if (op.turns) content.turns = op.turns;
     if (op.note != null) content.note = op.note;
-    if (
-      content.text == null &&
-      !content.granularity &&
-      !content.language &&
-      !content.steps &&
-      content.answer == null &&
-      content.instruction == null &&
-      content.note == null
-    ) {
+    if (Object.keys(content).length === 0) {
       return { error: '缺少正文字段' };
     }
     return { patches: ids.map((id) => ({ id, ...content })) };
@@ -154,7 +178,7 @@ export async function* runAnnotationMutationJob(options: {
   yield progress('prepare', '解析标注变更意图', 'running');
 
   const digestParts: string[] = [];
-  for (const candidate of candidates.slice(0, 24)) {
+  for (const candidate of candidates.slice(0, 48)) {
     const anns = await loadWorkingAnnotations(
       project,
       candidate.relativePath,
@@ -166,7 +190,7 @@ export async function* runAnnotationMutationJob(options: {
     );
   }
   const annotationDigest = digestParts.length
-    ? `【已有标注摘要】\n${digestParts.join('\n').slice(0, 8000)}`
+    ? `【已有标注摘要】\n${digestParts.join('\n').slice(0, 12_000)}`
     : '';
   const conversationTranscript = [
     options.conversationTranscript,

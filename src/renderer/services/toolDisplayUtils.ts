@@ -67,6 +67,34 @@ export function formatToolCallLabel(name: string, argsJson: string): string {
     return `Listed ${dir}`;
   }
 
+  if (name === 'glob_workspace') {
+    if (!args) return 'Glob';
+    const pattern = String(
+      args.glob_pattern ?? args.globPattern ?? args.pattern ?? '',
+    ).trim();
+    return pattern ? `Glob ${pattern}` : 'Glob';
+  }
+
+  if (name === 'read_document_file') {
+    if (!args) return '文档';
+    const p = pathFromArgs(args) || '当前文件';
+    return `文档 ${p}`;
+  }
+
+  if (name === 'read_file_annotation') {
+    if (!args) return '标注';
+    return `标注 ${pathFromArgs(args) || '当前文件'}`;
+  }
+
+  if (name === 'auto_annotate' || name === 'mutate_annotation') {
+    const base = name === 'auto_annotate' ? '自动标注' : '修改标注';
+    const req =
+      typeof args?.user_request === 'string' ? args.user_request.trim() : '';
+    if (!req) return base;
+    const short = req.length > 24 ? `${req.slice(0, 24)}…` : req;
+    return `${base}：${short}`;
+  }
+
   return name;
 }
 

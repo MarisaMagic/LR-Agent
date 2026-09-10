@@ -29,6 +29,7 @@ class ToolCapability(str, Enum):
     GREP_WORKSPACE = "grep_workspace"
     GLOB_WORKSPACE = "glob_workspace"
     LIST_DIRECTORY = "list_directory"
+    EXPLORE_READONLY = "explore_readonly"
 
 
 # 内置工具 → 唯一能力映射
@@ -49,6 +50,7 @@ TOOL_CAPABILITY_MAP: dict[str, ToolCapability] = {
     "get_lr_agent_help": ToolCapability.QUERY_CONTEXT,
     "describe_client_context": ToolCapability.QUERY_CONTEXT,
     "describe_annotation_project": ToolCapability.QUERY_CONTEXT,
+    "explore_readonly": ToolCapability.EXPLORE_READONLY,
 }
 
 # 所有内置工具的能力集合
@@ -73,6 +75,7 @@ TOOL_RUNNERS: dict[str, ToolRunner] = {
     "delete_workspace_file": ToolRunner.PROPOSAL,
     "auto_annotate": ToolRunner.ASYNC,
     "mutate_annotation": ToolRunner.ASYNC,
+    "explore_readonly": ToolRunner.SYNC,
 }
 
 # 不与 MCP 重复暴露的本地实现工具名

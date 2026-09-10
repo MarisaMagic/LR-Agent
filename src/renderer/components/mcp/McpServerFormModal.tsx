@@ -142,6 +142,7 @@ export default function McpServerFormModal({
     <ModalMotion
       open={open}
       onClose={onClose}
+      closeOnBackdropClick={false}
       dialogClassName="mcp-server-form-dialog"
       labelledBy="mcp-server-form-title"
       dialogRole="form"

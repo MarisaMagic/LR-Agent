@@ -14,7 +14,8 @@ from app.agent.annotation.llm_invoke import invoke_json_model
 
 MUTATION_PREPARE_SYSTEM = """你是 LR-Agent 标注变更准备助手。用户希望修改或删除已有标注（非新增）。
 
-支持全部标注类型：bbox、polygon、caption、cot、text_classification、classification。
+支持全部标注类型：bbox、rotated_bbox、polygon、keypoint（骨架）、caption、cot、
+text_classification、classification、span_ner、instruction、preference、conversation。
 用户说「不要新增框/不要新增标注」时，只能改或删已有项，不要改用 auto_annotate。
 
 输出 JSON（一次完成）：
@@ -41,13 +42,19 @@ MUTATION_PREPARE_SYSTEM = """你是 LR-Agent 标注变更准备助手。用户�
       ],
       "new_label_name": "worker",
       "x": 0.1, "y": 0.2, "width": 0.15, "height": 0.18,
+      "cx": 0.5, "cy": 0.4, "angle": 30,
       "points": [{"x": 0.1, "y": 0.2}],
+      "keypoints": [{"x": 0.1, "y": 0.2, "visibility": 2}],
       "text": "新的 caption",
       "granularity": "brief",
       "language": "zh",
       "steps": [{"description": "...", "conclusion": "..."}],
       "answer": "...",
       "instruction": "...",
+      "input": "...", "output": "...",
+      "start": 0, "end": 12,
+      "prompt": "...", "chosen": "...", "rejected": "...",
+      "turns": [{"role": "user", "content": "..."}],
       "note": "..."
     }
   ]
@@ -55,8 +62,14 @@ MUTATION_PREPARE_SYSTEM = """你是 LR-Agent 标注变更准备助手。用户�
 
 规则：
 - patch_label：改已有标签（含多边形/分类空 labelId 补标）。必须给出 new_label_name（项目标签名之一）
-- patch_geometry：收框或改多边形顶点。bbox 填 x/y/width/height（0–1）；polygon 仅在用户明确给出新轮廓时填 points（至少 3 点）。飘出的多边形优先 delete
-- patch_content：改 caption 正文或 CoT（steps 至少 2 步 + answer 整表替换）
+- patch_geometry：改几何。
+  bbox 填 x/y/width/height（0–1，左上角）；rotated_bbox 与 keypoint 骨架填 cx/cy/width/height（0–1，中心点），可带 angle（度）；
+  keypoint 改关键点填 keypoints 整表替换（长度与骨架模板一致，visibility 0=不可见 1=遮挡 2=可见）；
+  polygon 仅在用户明确给出新轮廓时填 points（至少 3 点），飘出的多边形优先 delete
+- patch_content：改正文。
+  caption 填 text/granularity/language；cot 填 steps（至少 2 步）+ answer 整表替换，可带 instruction；
+  instruction 填 instruction/input/output；span_ner 改文本偏移填 start/end（字符索引，start < end）；
+  preference 填 prompt/chosen/rejected；conversation 填 turns 整表替换（role 为 user/assistant）
 - delete：删除目标；清空某文件全部标注时 targets=[{"by":"all"}]；去重分类用 {"by":"duplicate_label"}
 - selected_paths 必须为候选列表中的 relative_path
 - 优先使用摘要里的 id；无 id 时用 label_name/index/spatial/unlabeled/granularity
@@ -73,6 +86,18 @@ class MutationPointSchema(BaseModel):
 class MutationCotStepSchema(BaseModel):
     description: str
     conclusion: str
+
+
+class MutationKeypointSchema(BaseModel):
+    x: float
+    y: float
+    # 0=不可见 1=遮挡 2=可见
+    visibility: int = 2
+
+
+class MutationTurnSchema(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1)
 
 
 class MutationTargetSchema(BaseModel):
@@ -109,13 +134,30 @@ class MutationOperationSchema(BaseModel):
     y: float | None = None
     width: float | None = None
     height: float | None = None
+    # rotated_bbox / keypoint 骨架：中心点 + 旋转角（度）
+    cx: float | None = None
+    cy: float | None = None
+    angle: float | None = None
     points: list[MutationPointSchema] | None = None
+    # keypoint 骨架关键点（整表替换）
+    keypoints: list[MutationKeypointSchema] | None = None
     text: str | None = None
     granularity: str | None = None
     language: str | None = None
     steps: list[MutationCotStepSchema] | None = None
     answer: str | None = None
     instruction: str | None = None
+    input: str | None = None
+    output: str | None = None
+    # span_ner 文本偏移（字符索引）
+    start: int | None = Field(default=None, ge=0)
+    end: int | None = Field(default=None, ge=0)
+    # preference
+    prompt: str | None = None
+    chosen: str | None = None
+    rejected: str | None = None
+    # conversation（整表替换）
+    turns: list[MutationTurnSchema] | None = None
     note: str | None = None
 
 

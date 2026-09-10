@@ -4,9 +4,11 @@ import type {
   AnnotationBatchChange,
   AnnotationProjectSnapshot,
 } from '../../../../shared/annotationAgentTypes';
+import { ANNOTATION_GENERATE_CONCURRENCY } from '../../../../shared/annotationAgentTypes';
 import type { SpanAnnotation } from '../../../types/annotationDocument';
 import { callLlmApi } from './llmUtil';
 import { readSourceTextForProject } from './sourceTextUtil';
+import { mapWithConcurrency } from '../runWithConcurrency';
 import {
   type RawSpanRow,
   validateSpanRows,
@@ -54,53 +56,55 @@ export async function runSpanNerPipeline(
   annotations: SpanAnnotation[];
   changes: AnnotationBatchChange[];
 }> {
-  const changes: AnnotationBatchChange[] = [];
+  const changes = await mapWithConcurrency(
+    options.inputPaths,
+    ANNOTATION_GENERATE_CONCURRENCY,
+    async (input) => {
+      if (options.isCancelled?.()) return undefined;
+      options.onProgress?.(`正在为 ${input.relativePath} 识别实体…`);
 
-  for (const input of options.inputPaths) {
-    if (options.isCancelled?.()) break;
-    options.onProgress?.(`正在为 ${input.relativePath} 识别实体…`);
+      const sourceText = await readSourceTextForProject(
+        options.project.directoryPath,
+        input.relativePath,
+      );
+      if (!sourceText.trim()) return undefined;
 
-    const sourceText = await readSourceTextForProject(
-      options.project.directoryPath,
-      input.relativePath,
-    );
-    if (!sourceText.trim()) continue;
+      const result = await callLlmApi({
+        providerId: options.providerId,
+        apiKey: options.providerApiKey,
+        baseUrl: options.providerBaseUrl,
+        model: options.providerModel,
+        systemPrompt: buildSystemPrompt(options.project),
+        userPrompt: `${options.userRequest || '请识别以下文本中的所有命名实体。'}\n\n---\n${sourceText.slice(0, 8000)}\n---`,
+        temperature: 0.2,
+      });
 
-    const result = await callLlmApi({
-      providerId: options.providerId,
-      apiKey: options.providerApiKey,
-      baseUrl: options.providerBaseUrl,
-      model: options.providerModel,
-      systemPrompt: buildSystemPrompt(options.project),
-      userPrompt: `${options.userRequest || '请识别以下文本中的所有命名实体。'}\n\n---\n${sourceText.slice(0, 8000)}\n---`,
-      temperature: 0.2,
-    });
+      if (!result.ok) return undefined;
 
-    if (!result.ok) continue;
-
-    const rows = parseSpanRows(result.content);
-    const { spans, skipped } = validateSpanRows(
-      sourceText,
-      rows,
-      options.project.labels,
-    );
-    if (spans.length === 0) {
-      if (skipped > 0) {
-        options.onProgress?.(
-          `${input.relativePath}：跳过 ${skipped} 条无效 span`,
-        );
+      const rows = parseSpanRows(result.content);
+      const { spans, skipped } = validateSpanRows(
+        sourceText,
+        rows,
+        options.project.labels,
+      );
+      if (spans.length === 0) {
+        if (skipped > 0) {
+          options.onProgress?.(
+            `${input.relativePath}：跳过 ${skipped} 条无效 span`,
+          );
+        }
+        return undefined;
       }
-      continue;
-    }
 
-    const annotations = validatedSpansToAnnotations(spans);
-    changes.push({
-      relativePath: input.relativePath,
-      absolutePath: input.absolutePath,
-      operation: 'append',
-      annotations,
-    });
-  }
+      return {
+        relativePath: input.relativePath,
+        absolutePath: input.absolutePath,
+        operation: 'append' as const,
+        annotations: validatedSpansToAnnotations(spans),
+      };
+    },
+    options.isCancelled,
+  );
 
   const annotations = changes.flatMap(
     (c) => (c.annotations as SpanAnnotation[]) ?? [],

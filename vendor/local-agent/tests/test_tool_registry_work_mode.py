@@ -45,6 +45,7 @@ def test_editor_mode_excludes_annotation_tools(user: User, settings: Settings) -
     )
     names = {tool.name for tool in build_tools_p1(user, ctx, settings=settings)}
     assert ANNOTATION_TOOL_NAMES.isdisjoint(names)
+    assert "explore_readonly" in names
 
 
 def test_annotation_mode_includes_annotation_tools(
@@ -56,3 +57,4 @@ def test_annotation_mode_includes_annotation_tools(
     )
     names = {tool.name for tool in build_tools_p1(user, ctx, settings=settings)}
     assert ANNOTATION_TOOL_NAMES.issubset(names)
+    assert "explore_readonly" in names

@@ -22,6 +22,7 @@ export default function DeleteProjectDialog({
     <ModalMotion
       open
       onClose={onCancel}
+      closeOnBackdropClick={false}
       dialogClassName="delete-project-dialog"
       labelledBy="delete-project-title"
     >

@@ -15,6 +15,11 @@ import {
 } from '../../motion/tokens';
 import VscodeClickableToolbarButton from '../VscodeClickableButton';
 import { useAgentChat } from '../../context/AgentChatContext';
+import {
+  findSubagentBlock,
+  isSamePanelTab,
+  truncateSubagentQuery,
+} from '../../services/subagentBlocks';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useWorkMode } from '../../context/WorkModeContext';
 import AgentHistoryPopover, {
@@ -32,12 +37,13 @@ const SCROLL_HINT_MS = 800;
 
 export default function AgentSessionTabs() {
   const {
-    openTabIds,
-    activeSessionId,
+    openPanelTabs,
+    activePanelTab,
     sessions,
+    messagesBySession,
     createSession,
-    closeTab,
-    switchSession,
+    closePanelTab,
+    switchPanelTab,
     historyOpen,
     setHistoryOpen,
     isSessionStreaming,
@@ -110,7 +116,7 @@ export default function AgentSessionTabs() {
       cancelAnimationFrame(raf);
       observer?.disconnect();
     };
-  }, [openTabIds, updateThumb]);
+  }, [openPanelTabs, updateThumb]);
 
   useEffect(
     () => () => {
@@ -159,7 +165,7 @@ export default function AgentSessionTabs() {
 
     scroller.addEventListener('wheel', onWheel, { passive: false });
     return () => scroller.removeEventListener('wheel', onWheel);
-  }, [markScrolling, updateThumb, openTabIds.length]);
+  }, [markScrolling, updateThumb, openPanelTabs.length]);
 
   const handleScrollbarTrackClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -271,18 +277,74 @@ export default function AgentSessionTabs() {
             initial={false}
             mode={enableTabLayout ? 'popLayout' : 'sync'}
           >
-            {openTabIds.map((sessionId) => {
-              const session = sessions[sessionId];
-              if (!session) return null;
-              const active = sessionId === activeSessionId;
-              const streaming = isSessionStreaming(sessionId);
+            {openPanelTabs.map((tab) => {
+              const active = isSamePanelTab(tab, activePanelTab);
+              if (tab.kind === 'session') {
+                const session = sessions[tab.sessionId];
+                if (!session) return null;
+                const streaming = isSessionStreaming(tab.sessionId);
+                return (
+                  <m.div
+                    key={`session:${tab.sessionId}`}
+                    role="tab"
+                    aria-selected={active}
+                    layout={enableTabLayout}
+                    className={`agent-session-tab${active ? ' agent-session-tab--active' : ''}`}
+                    initial={
+                      reducedMotion
+                        ? { opacity: 0 }
+                        : { opacity: 0, x: motionDistance.x, scale: 0.95 }
+                    }
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={
+                      reducedMotion
+                        ? { opacity: 0 }
+                        : { opacity: 0, x: -motionDistance.x / 2, scale: 0.95 }
+                    }
+                    transition={{
+                      duration: reducedMotion ? 0.1 : motionDuration.tab,
+                      ease: motionEase,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="agent-session-tab-main"
+                      onClick={() => switchPanelTab(tab)}
+                    >
+                      <span
+                        className="codicon codicon-comment agent-session-tab-icon"
+                        aria-hidden
+                      />
+                      {streaming && <span className="agent-session-tab-dot" />}
+                      <span className="agent-session-tab-title">
+                        {session.title}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="agent-session-tab-close"
+                      aria-label="关闭会话"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        closePanelTab(tab);
+                      }}
+                    >
+                      <span className="codicon codicon-close" aria-hidden />
+                    </button>
+                  </m.div>
+                );
+              }
+
+              const found = findSubagentBlock(messagesBySession, tab.runId);
+              const query = found?.block.query ?? '查阅';
+              const running = found?.block.status === 'running';
               return (
                 <m.div
-                  key={sessionId}
+                  key={`subagent:${tab.runId}`}
                   role="tab"
                   aria-selected={active}
                   layout={enableTabLayout}
-                  className={`agent-session-tab${active ? ' agent-session-tab--active' : ''}`}
+                  className={`agent-session-tab agent-session-tab--subagent${active ? ' agent-session-tab--active' : ''}`}
                   initial={
                     reducedMotion
                       ? { opacity: 0 }
@@ -302,24 +364,27 @@ export default function AgentSessionTabs() {
                   <button
                     type="button"
                     className="agent-session-tab-main"
-                    onClick={() => switchSession(sessionId)}
+                    onClick={() => switchPanelTab(tab)}
                   >
                     <span
-                      className="codicon codicon-comment agent-session-tab-icon"
-                      aria-hidden
+                      className={`agent-session-tab-dot${
+                        running ? ' agent-subagent-row-dot--running' : ''
+                      }`}
                     />
-                    {streaming && <span className="agent-session-tab-dot" />}
+                    <span className="agent-session-tab-subagent-label">
+                      subagent
+                    </span>
                     <span className="agent-session-tab-title">
-                      {session.title}
+                      {truncateSubagentQuery(query, 20)}
                     </span>
                   </button>
                   <button
                     type="button"
                     className="agent-session-tab-close"
-                    aria-label="关闭会话"
+                    aria-label="关闭查阅"
                     onClick={(event) => {
                       event.stopPropagation();
-                      closeTab(sessionId);
+                      closePanelTab(tab);
                     }}
                   >
                     <span className="codicon codicon-close" aria-hidden />

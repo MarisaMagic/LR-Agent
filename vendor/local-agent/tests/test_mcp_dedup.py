@@ -46,4 +46,31 @@ def test_exposes_memory_tools_when_workspace_memory_enabled():
         "memory_create",
         "read_agent_skill",
     ):
-        assert should_expose_mcp_tool(name, workspace_memory_enabled=True)
+        assert should_expose_mcp_tool(
+            name,
+            workspace_memory_enabled=True,
+            agent_mode="annotation",
+        )
+
+
+def test_ask_mode_exposes_only_memory_read():
+    assert should_expose_mcp_tool(
+        "memory_read",
+        workspace_memory_enabled=True,
+        agent_mode="chat",
+    )
+    assert not should_expose_mcp_tool(
+        "memory_write",
+        workspace_memory_enabled=True,
+        agent_mode="chat",
+    )
+    assert not should_expose_mcp_tool(
+        "memory_create",
+        workspace_memory_enabled=True,
+        agent_mode=None,
+    )
+    assert should_expose_mcp_tool(
+        "read_agent_skill",
+        workspace_memory_enabled=True,
+        agent_mode="chat",
+    )

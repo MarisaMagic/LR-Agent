@@ -81,6 +81,28 @@ describe('buildAssistantRenderSegments', () => {
     }
   });
 
+  it('does not fold explore_readonly or subagent into exploration', () => {
+    const blocks: MessageBlock[] = [
+      {
+        type: 'subagent',
+        id: 'run-1',
+        query: '摸底 src',
+        status: 'done',
+        steps: [],
+        summary: 'ok',
+        startedAt: 1,
+      },
+      toolCall('t1', 'explore_readonly', { query: '不应进组' }),
+      toolCall('t2', 'grep_workspace', { pattern: 'X' }),
+    ];
+    const segments = buildAssistantRenderSegments(blocks);
+    expect(segments.map((segment) => segment.kind)).toEqual([
+      'block',
+      'block',
+      'exploration',
+    ]);
+  });
+
   it('keeps write tools and file proposals as separate visible blocks', () => {
     const blocks: MessageBlock[] = [
       toolCall('t1', 'write_workspace_file', { relative_path: 'a.md' }),

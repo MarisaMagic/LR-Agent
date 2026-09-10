@@ -110,6 +110,7 @@ export default function WorkspaceMemoryPanel({
     <ModalMotion
       open
       onClose={onClose}
+      closeOnBackdropClick={false}
       dialogClassName="workspace-memory-panel"
       labelledBy="workspace-memory-panel-title"
     >

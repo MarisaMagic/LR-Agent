@@ -4,12 +4,11 @@ import type {
   AnnotationBatchChange,
   AnnotationProjectSnapshot,
 } from '../../../../shared/annotationAgentTypes';
-import type {
-  ClassificationAnnotation,
-  AnnotationInstance,
-} from '../../../types/annotationDocument';
+import { ANNOTATION_GENERATE_CONCURRENCY } from '../../../../shared/annotationAgentTypes';
+import type { ClassificationAnnotation } from '../../../types/annotationDocument';
 import { callLlmApi } from './llmUtil';
 import { readImageBase64 } from '../fusionSubImageTools';
+import { mapWithConcurrency } from '../runWithConcurrency';
 
 function buildSystemPrompt(project: AnnotationProjectSnapshot): string {
   const labelList = project.labels
@@ -49,54 +48,64 @@ export async function runClassificationPipeline(
   annotations: ClassificationAnnotation[];
   changes: AnnotationBatchChange[];
 }> {
-  const changes: AnnotationBatchChange[] = [];
+  const changes = await mapWithConcurrency(
+    options.inputPaths,
+    ANNOTATION_GENERATE_CONCURRENCY,
+    async (input) => {
+      if (options.isCancelled?.()) return undefined;
+      options.onProgress?.(`正在为 ${input.relativePath} 分类…`);
+      const startedAt = Date.now();
 
-  for (const input of options.inputPaths) {
-    if (options.isCancelled?.()) break;
-    options.onProgress?.(`正在为 ${input.relativePath} 分类…`);
+      // 路径优先：后端同机读盘并压缩；仅缺路径时回退前端整图 base64
+      let imageBase64 = '';
+      if (!input.absolutePath) {
+        try {
+          imageBase64 = await readImageBase64(input.absolutePath);
+        } catch {
+          return undefined;
+        }
+        if (!imageBase64) return undefined;
+      }
 
-    let imageBase64 = '';
-    try {
-      imageBase64 = await readImageBase64(input.absolutePath);
-    } catch {
-      // skip
-    }
+      const result = await callLlmApi({
+        providerId: options.providerId,
+        apiKey: options.providerApiKey,
+        baseUrl: options.providerBaseUrl,
+        model: options.providerModel,
+        systemPrompt: buildSystemPrompt(options.project),
+        userPrompt: options.userRequest || '请为这张图片选择最合适的分类标签。',
+        imageAbsolutePath: input.absolutePath,
+        imageBase64,
+        imageMimeType: 'image/jpeg',
+        temperature: 0.2,
+      });
 
-    if (!imageBase64) continue;
+      if (!result.ok) return undefined;
 
-    const result = await callLlmApi({
-      providerId: options.providerId,
-      apiKey: options.providerApiKey,
-      baseUrl: options.providerBaseUrl,
-      model: options.providerModel,
-      systemPrompt: buildSystemPrompt(options.project),
-      userPrompt: options.userRequest || '请为这张图片选择最合适的分类标签。',
-      imageBase64,
-      imageMimeType: 'image/jpeg',
-      temperature: 0.2,
-    });
+      const parsed = parseClassificationJson(result.content, options.project);
+      if (!parsed) return undefined;
+      options.onProgress?.(
+        `已为 ${input.relativePath} 完成分类（${((Date.now() - startedAt) / 1000).toFixed(1)}s）`,
+      );
 
-    if (!result.ok) continue;
+      const now = new Date().toISOString();
+      const annotation: ClassificationAnnotation = {
+        id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        kind: 'classification',
+        labelId: parsed.labelId,
+        createdAt: now,
+        updatedAt: now,
+      };
 
-    const parsed = parseClassificationJson(result.content, options.project);
-    if (!parsed) continue;
-
-    const now = new Date().toISOString();
-    const annotation: ClassificationAnnotation = {
-      id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      kind: 'classification',
-      labelId: parsed.labelId,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    changes.push({
-      relativePath: input.relativePath,
-      absolutePath: input.absolutePath,
-      operation: 'append',
-      annotations: [annotation],
-    });
-  }
+      return {
+        relativePath: input.relativePath,
+        absolutePath: input.absolutePath,
+        operation: 'append' as const,
+        annotations: [annotation],
+      };
+    },
+    options.isCancelled,
+  );
 
   const annotations = changes.flatMap(
     (c) => (c.annotations as ClassificationAnnotation[]) ?? [],

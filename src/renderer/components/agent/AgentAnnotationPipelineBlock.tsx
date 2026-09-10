@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
 import { VscodeIcon } from '@vscode-elements/react-elements';
-import type { AnnotationPipelineStep, PipelineKind } from '../../types/agent';
+import type {
+  AnnotationPipelineStep,
+  AnnotationPipelineTask,
+  PipelineKind,
+} from '../../types/agent';
 import {
   isImageDetailPipelineStage,
   resolvePipelineImagePath,
@@ -19,7 +23,29 @@ interface AgentAnnotationPipelineBlockProps {
   pipelineCompleted?: boolean;
   batchCompleted?: boolean;
   pipelineKind?: PipelineKind;
+  /** 客户端标注工具任务队列（从同消息 tool_call 块派生） */
+  tasks?: AnnotationPipelineTask[];
   onToggle: () => void;
+}
+
+const TASK_STATUS_LABELS: Record<AnnotationPipelineTask['status'], string> = {
+  queued: '排队中',
+  running: '进行中',
+  done: '已完成',
+  error: '失败',
+};
+
+function taskStatusIcon(status: AnnotationPipelineTask['status']): string {
+  switch (status) {
+    case 'done':
+      return 'check';
+    case 'error':
+      return 'error';
+    case 'running':
+      return 'sync';
+    default:
+      return 'circle-large';
+  }
 }
 
 function statusIcon(status: AnnotationPipelineStep['status']): string {
@@ -64,6 +90,7 @@ export default function AgentAnnotationPipelineBlock({
   pipelineCompleted = false,
   batchCompleted = false,
   pipelineKind = 'batch',
+  tasks,
   onToggle,
 }: AgentAnnotationPipelineBlockProps) {
   const completed = pipelineCompleted || batchCompleted;
@@ -72,11 +99,15 @@ export default function AgentAnnotationPipelineBlock({
   const failed = steps.some(
     (s) => s.status === 'error' && !isImageDetailPipelineStage(s.stage),
   );
+  const taskInProgress = (tasks ?? []).some(
+    (t) => t.status === 'queued' || t.status === 'running',
+  );
   // 进行中只认 step 状态；streaming 只兜底「尚无终态 step、等第一帧进度」的冷启动，
   // 避免 Keep All 后续跑（消息重新 streaming）时把已完成的 pipeline 又转起来。
   const inProgress =
     running ||
     pending ||
+    taskInProgress ||
     (streaming && !failed && !completed && steps.length === 0);
   const titles = PIPELINE_TITLES[pipelineKind] ?? PIPELINE_TITLES.batch;
   const title = inProgress
@@ -115,6 +146,34 @@ export default function AgentAnnotationPipelineBlock({
 
       {!collapsed && (
         <div className="agent-pipeline-body">
+          {tasks && tasks.length > 0 ? (
+            <ul className="agent-pipeline-list agent-pipeline-list--tasks">
+              {tasks.map((task) => (
+                <li
+                  key={task.id}
+                  className={`agent-pipeline-step agent-pipeline-step--task agent-pipeline-step--${task.status}`}
+                >
+                  <VscodeIcon
+                    name={taskStatusIcon(task.status)}
+                    size={14}
+                    className={
+                      task.status === 'running'
+                        ? 'agent-pipeline-spin'
+                        : undefined
+                    }
+                  />
+                  <div className="agent-pipeline-step-text">
+                    <span className="agent-pipeline-step-label">
+                      {task.label}
+                    </span>
+                    <span className="agent-pipeline-step-message">
+                      {TASK_STATUS_LABELS[task.status]}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <ul className="agent-pipeline-list">
             {mainStages.map((step) => (
               <li

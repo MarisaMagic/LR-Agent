@@ -122,6 +122,10 @@ class LocalChatStreamRequest(BaseModel):
     base_url: str = Field(min_length=1)
     model: str = Field(min_length=1)
     supports_vision: bool = False
+    # 辅助模型（子代理查阅等轻量调用）；三者齐全才生效，否则跟随主模型
+    aux_model: str = ""
+    aux_api_key: str = ""
+    aux_base_url: str = ""
     messages: list[ChatMessageInput]
     user_content: str = Field(min_length=1)
     system_prompt: str | None = None
@@ -167,6 +171,9 @@ class StreamEventPayload(BaseModel):
     target: str | None = None
     reason: str | None = None
     client_tool_calls: list[ClientToolCallPayload] | None = None
+    query: str | None = None
+    focus_path: str | None = None
+    inner_tool_call_id: str | None = None
 
     def to_sse_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {"type": self.type}
@@ -221,6 +228,12 @@ class StreamEventPayload(BaseModel):
             data["target"] = self.target
         if self.reason is not None:
             data["reason"] = self.reason
+        if self.query is not None:
+            data["query"] = self.query
+        if self.focus_path is not None:
+            data["focusPath"] = self.focus_path
+        if self.inner_tool_call_id is not None:
+            data["innerToolCallId"] = self.inner_tool_call_id
         if self.client_tool_calls is not None:
             serialized = [
                 {

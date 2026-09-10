@@ -37,12 +37,14 @@ _DETECTION_MODEL_TYPES: frozenset[str] = frozenset({"bbox", "polygon", "keypoint
 
 WORKSPACE_ASSIST_TASK = """【任务】在 LR-Agent 内回答用户问题，按需使用工具完成读/写/分析操作。
 {vision_hint}
+- 大范围摸底用 explore_readonly；独立摸底可一次发起多个（不同 query / focus_path），它们会并行执行。标注与改文件必须由主 Agent 调对应工具。
 - 用自然、简洁的中文回复。
 - 调用工具前先用一两句中文说明下一步要做什么。"""
 
 ASSISTANT_TASK_BASE = """【任务】在 LR-Agent 内完成问答、标注、分析、写文件。
 - 新增/重写标注用 auto_annotate；改已有标注用 mutate_annotation。不要用写文件工具保存标注。
 - 写文件工具只用于工作区文档与代码。
+- 大范围摸底用 explore_readonly；独立摸底可一次发起多个（不同 query / focus_path），它们会并行执行。标注与改文件必须由主 Agent 调对应工具。
 {vision_hint}
 - 未收到工具返回前，禁止输出执行结果、统计数字或完成声明；不得用文本假装执行了工具。
 - 报告与汇总中的每个数字必须来自工具返回或提案明细，禁止估算或凭印象填写。
@@ -183,16 +185,29 @@ def build_assist_system_prompt(
         task = WORKSPACE_ASSIST_TASK
     editor_note = ""
     if client_context and client_context.work_mode == "editor":
-        editor_note = (
-            "\n【编辑器模式】当前为编辑器模式：禁止调用标注读写、批量标注、标注变更与标注数据分析相关工具；"
-            "可使用 read_workspace_file、write_workspace_file、read_document_file 等通用工具。"
-        )
+        if client_context.agent_mode == "annotation":
+            editor_note = (
+                "\n【编辑器模式】当前为编辑器 Agent：禁止调用标注读写、批量标注、标注变更相关工具；"
+                "可使用 read_workspace_file、write_workspace_file、"
+                "str_replace_workspace_file、read_document_file 等通用工具。"
+            )
+        else:
+            editor_note = (
+                "\n【编辑器模式】当前为编辑器 Ask：只读问答与分析。"
+                "禁止调用写文件、标注读写、批量标注与标注变更相关工具。"
+            )
     base = f"{identity}\n\n{task}"
     if editor_note:
         base = f"{base}{editor_note}"
     instructions = (client_context.project_instructions or "").strip() if client_context else ""
     if instructions:
         base = f"{base}\n\n【项目指令】\n{instructions}"
+    # 块顺序按“稳定在前、动态沉底”排列，让 system prompt 长前缀跨轮保持一致，
+    # 以命中 DeepSeek / OpenAI 等服务端的前缀缓存：skills（稳定）先于记忆与台账（动态）。
+    skills = (client_context.skills_catalog or []) if client_context else []
+    skills_block = format_skills_catalog_block(skills)
+    if skills_block:
+        base = f"{base}\n\n{skills_block}"
     memory_enabled = bool(
         client_context and client_context.workspace_memory_enabled
     )
@@ -214,10 +229,6 @@ def build_assist_system_prompt(
             "（如 conventions.md、preferences.md）；不要把未确认提案写成已完成。"
             "项目指令优先级高于记忆。"
         )
-    skills = (client_context.skills_catalog or []) if client_context else []
-    skills_block = format_skills_catalog_block(skills)
-    if skills_block:
-        base = f"{base}\n\n{skills_block}"
     ledger = (client_context.proposal_ledger or "").strip() if client_context else ""
     if ledger:
         base = f"{base}\n\n{ledger}"

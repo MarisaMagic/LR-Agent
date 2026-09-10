@@ -3,6 +3,7 @@ import type {
   AnnotationBatchProposal,
   AnnotationProjectSnapshot,
   BatchAnnotationPlan,
+  DetectionOverrides,
   GeometryProposalStats,
   ImageCandidate,
 } from '../../../shared/annotationAgentTypes';
@@ -25,6 +26,7 @@ import type { GeometryAnnotationType } from './geometryTypes';
 import type { FusionSubImageResult } from './fusionSubImageTypes';
 import {
   resolveAnnotationScopePaths,
+  type AnnotationScopeResult,
   type InputPathEntry,
 } from './scopePathUtil';
 import {
@@ -45,7 +47,12 @@ type GeometryProgressEvent =
     }
   | { type: 'proposal'; proposal: AnnotationBatchProposal }
   | { type: 'text'; content: string }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | {
+      type: 'scope_truncated';
+      omittedCount: number;
+      omittedPaths: string[];
+    };
 
 function progress(
   stage: string,
@@ -69,6 +76,48 @@ function defaultGeometryPlan(
     annotation_scope: {},
     plan_steps: [],
   };
+}
+
+/** 将 auto_annotate 透传的检测约束覆盖到 plan（仅覆盖显式给出的字段）。 */
+export function applyDetectionOverrides(
+  plan: BatchAnnotationPlan,
+  overrides: DetectionOverrides | undefined,
+  providerSupportsVision?: boolean,
+): void {
+  if (!overrides) return;
+  if (overrides.confThreshold !== undefined) {
+    plan.detection_hints.conf_threshold = overrides.confThreshold;
+  }
+  if (overrides.iouThreshold !== undefined) {
+    plan.detection_hints.iou_threshold = overrides.iouThreshold;
+  }
+  if (overrides.modelId) {
+    plan.detection_hints.model_id = overrides.modelId;
+  }
+  if (overrides.includeClasses?.length) {
+    plan.annotation_scope.include_detection_labels = [
+      ...overrides.includeClasses,
+    ];
+  }
+  if (overrides.excludeClasses?.length) {
+    plan.annotation_scope.exclude_detection_labels = [
+      ...overrides.excludeClasses,
+    ];
+  }
+  if (overrides.useVisionMapping !== undefined) {
+    // 视觉映射需要提供商通过视觉探针；未通过时强制关闭，避免逐框失败
+    plan.use_vision_mapping =
+      overrides.useVisionMapping && (providerSupportsVision ?? false);
+  }
+}
+
+/** 按 id 指定检测模型；未命中返回 null，由调用方回退默认模型。 */
+function pickModelById(
+  models: PretrainedModelConfig[],
+  modelId: string | undefined,
+): PretrainedModelConfig | null {
+  if (!modelId) return null;
+  return models.find((m) => m.id === modelId) ?? null;
 }
 
 function formatWorkerDetailParts(result: WorkerResult): string[] {
@@ -163,7 +212,7 @@ async function resolveScopePathsForProject(
     preselectedPaths?: string[];
   },
   projectDir: string,
-): Promise<{ paths: InputPathEntry[]; error?: string }> {
+): Promise<AnnotationScopeResult> {
   const preselected = (options.preselectedPaths ?? []).filter(Boolean);
   return resolveAnnotationScopePaths(
     allPaths,
@@ -214,6 +263,8 @@ export async function* runGeometryPipeline(
     allFiles?: boolean;
     writeMode?: 'append' | 'replace_matching';
     preselectedPaths?: string[];
+    /** auto_annotate 透传的检测约束 */
+    detectionOverrides?: DetectionOverrides;
   },
   isCancelled: () => boolean,
   geometryType: GeometryAnnotationType,
@@ -236,10 +287,18 @@ export async function* runGeometryPipeline(
     labels: project.labels,
   };
 
-  const primaryModel = adapter.pickPrimaryModel(
-    detectionModels,
-    adapterContext,
-  );
+  const requestedModelId = options.detectionOverrides?.modelId;
+  let primaryModel = requestedModelId
+    ? pickModelById(detectionModels, requestedModelId)
+    : null;
+  if (requestedModelId && !primaryModel) {
+    yield progress(
+      'prepare',
+      `未找到指定检测模型（id: ${requestedModelId}），回退默认模型`,
+      'running',
+    );
+  }
+  primaryModel ??= adapter.pickPrimaryModel(detectionModels, adapterContext);
   if (!primaryModel) {
     yield {
       type: 'error',
@@ -284,6 +343,17 @@ export async function* runGeometryPipeline(
     name: l.name,
   }));
   const plan = defaultGeometryPlan(options.providerSupportsVision);
+  applyDetectionOverrides(
+    plan,
+    options.detectionOverrides,
+    options.providerSupportsVision,
+  );
+  logAnnotationDebug('plan-overrides', project.projectId, {
+    overrides: options.detectionOverrides,
+    detection_hints: plan.detection_hints,
+    annotation_scope: plan.annotation_scope,
+    use_vision_mapping: plan.use_vision_mapping,
+  });
 
   yield progress('prepare', `正在准备${typeLabel}批量标注…`);
 
@@ -317,6 +387,13 @@ export async function* runGeometryPipeline(
     if (scoped.error) {
       yield { type: 'error', message: scoped.error };
       return;
+    }
+    if (scoped.omittedCount && scoped.omittedCount > 0) {
+      yield {
+        type: 'scope_truncated',
+        omittedCount: scoped.omittedCount,
+        omittedPaths: scoped.omittedPaths ?? [],
+      };
     }
     const scopedByPath = new Map(scoped.paths.map((p) => [p.relativePath, p]));
     images = candidates.filter((c) => scopedByPath.has(c.relativePath));

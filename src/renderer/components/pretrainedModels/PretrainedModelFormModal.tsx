@@ -348,6 +348,7 @@ export default function PretrainedModelFormModal({
     <ModalMotion
       open={open}
       onClose={onClose}
+      closeOnBackdropClick={false}
       dialogClassName="pretrained-model-form-dialog"
       labelledBy="pretrained-model-form-title"
       dialogRole="form"

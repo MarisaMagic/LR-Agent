@@ -20,7 +20,11 @@ export type AssistantRenderSegment =
     };
 
 function isVisibleExplorationTool(block: MessageBlock): block is ToolCallBlock {
-  return block.type === 'tool_call' && isExplorationTool(block.name);
+  return (
+    block.type === 'tool_call' &&
+    block.name !== 'explore_readonly' &&
+    isExplorationTool(block.name)
+  );
 }
 
 export function buildAssistantRenderSegments(

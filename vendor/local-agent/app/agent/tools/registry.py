@@ -84,6 +84,40 @@ class AutoAnnotateArgs(BaseModel):
         default=None,
         description="兼容旧参数：逗号分隔的相对路径。优先使用 paths。未命中时不会回退到全部文件。",
     )
+    conf_threshold: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="检测置信度阈值（0-1）。仅当用户明确给出置信度时填写，否则留空用模型默认值。",
+    )
+    iou_threshold: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="检测 NMS IoU 阈值（0-1）。仅当用户明确给出时填写。",
+    )
+    model_id: str | None = Field(
+        default=None,
+        description=(
+            "指定检测模型 id（取自 describe_annotation_project 列出的可用检测模型）。"
+            "仅当用户点名模型时填写。"
+        ),
+    )
+    include_classes: list[str] | None = Field(
+        default=None,
+        description='只保留这些检测类名的框（如 ["person"]）。用户说「只标人/只要车」时填写。',
+    )
+    exclude_classes: list[str] | None = Field(
+        default=None,
+        description="排除这些检测类名的框。用户说「不要行人/排除车」时填写。",
+    )
+    use_vision_mapping: bool | None = Field(
+        default=None,
+        description=(
+            "是否用视觉模型把检测框映射到项目标签。实例/细粒度标签（球员名等）用 true；"
+            "留空由系统按标签情况决定。"
+        ),
+    )
 
 
 class MutateAnnotationArgs(BaseModel):
@@ -110,6 +144,26 @@ class StrReplaceArgs(BaseModel):
 
 class DeleteWorkspaceFileArgs(BaseModel):
     relative_path: str = Field(min_length=1, description="要删除的相对路径")
+
+
+class ExploreReadonlyArgs(BaseModel):
+    query: str = Field(min_length=1, description="要查阅的问题或目标")
+    focus_path: str | None = Field(
+        default=None,
+        description="可选，优先查阅的相对路径或目录",
+    )
+
+
+def _explore_readonly_stub(query: str, focus_path: str | None = None) -> str:
+    return json.dumps(
+        {
+            "ok": False,
+            "tool": "explore_readonly",
+            "status": "error",
+            "summary": "explore_readonly 必须由编排层执行",
+        },
+        ensure_ascii=False,
+    )
 
 
 def _client_tool_stub(tool_name: str) -> StructuredTool:
@@ -154,6 +208,12 @@ def _build_all_tools(
 ) -> list[StructuredTool]:
     """构建工具集：只读工具 + 写文件提案工具 + 客户端工具 schema 存根。"""
     def account_summary() -> str:
+        # 本地无状态模式（agent.py 注入匿名用户）：如实说明，不展示占位账户
+        if user.username == "anonymous" and str(user.email).endswith("@local"):
+            return (
+                "本地模式：LR-Agent 本地服务无云端账户体系，"
+                "对话、标注与配置均保存在本机。"
+            )
         verified = "已验证" if user.email_verified else "未验证"
         name = user.display_name or user.username or "未设置"
         return (
@@ -194,14 +254,39 @@ def _build_all_tools(
     def help_tool(topic: str | None = None) -> str:
         return get_lr_agent_help(topic)
 
-    def read_file_annotation(relative_path: str) -> str:
+    def read_file_annotation(
+        relative_path: str,
+        annotation_offset: int = 0,
+        annotation_limit: int = 200,
+    ) -> str:
         project_dir = project_directory(client_context)
         if not project_dir:
             return "无法读取标注：未绑定项目目录。请确认已在标注任务中打开项目。"
         doc, err = read_file_annotation_doc(project_dir, relative_path)
         if doc is None:
             return err or "未找到标注。"
-        return json.dumps(doc, ensure_ascii=False, indent=2)[:12_000]
+
+        note = ""
+        annotations = doc.get("annotations")
+        if isinstance(annotations, list):
+            total = len(annotations)
+            start = max(0, annotation_offset)
+            limit = max(1, min(annotation_limit, 500))
+            end = min(start + limit, total)
+            if start > 0 or end < total:
+                doc = {**doc, "annotations": annotations[start:end]}
+                note = (
+                    f"（共 {total} 条标注，当前返回第 {start + 1}-{end} 条；"
+                    "可用 annotation_offset/annotation_limit 分页读取其余）\n"
+                )
+
+        text = json.dumps(doc, ensure_ascii=False, indent=2)
+        if len(text) > 40_000:
+            text = (
+                text[:40_000]
+                + "\n…[结果已截断，请用 annotation_offset/annotation_limit 分页读取]"
+            )
+        return note + text
 
     def read_workspace_file(
         relative_path: str = "",
@@ -303,6 +388,7 @@ def _build_all_tools(
             name="read_file_annotation",
             description=(
                 "读取项目中某文件的已有标注（相对路径，如 data/2.jpg）。"
+                "标注较多时可用 annotation_offset/annotation_limit 分页（默认返回前 200 条）。"
                 "只读查询，不要用写文件工具回写。"
             ),
         ),
@@ -398,6 +484,9 @@ def _build_all_tools(
                 "新增或重写当前项目的自动标注（检测、预标注、生成 caption 等）。"
                 "改已有框/标签请用 mutate_annotation。"
                 "user_request 填写本轮要执行的标注任务；指定范围填 paths，全部文件才 all_files=true。"
+                "用户给出检测约束时填对应参数：conf_threshold/iou_threshold（0-1）、"
+                "model_id（可用检测模型见 describe_annotation_project）、"
+                "include_classes/exclude_classes（检测类名过滤）、use_vision_mapping。"
             ),
             args_schema=AutoAnnotateArgs,
         ),
@@ -409,6 +498,17 @@ def _build_all_tools(
                 "不含新增；新增请用 auto_annotate。"
             ),
             args_schema=MutateAnnotationArgs,
+        ),
+        StructuredTool.from_function(
+            func=_explore_readonly_stub,
+            name="explore_readonly",
+            description=(
+                "只读查阅子代理：在工作区内搜索/阅读代码与文档"
+                "（标注任务还可读已有标注），返回中文摘要。"
+                "大范围摸底时使用。query 描述要查什么；focus_path 可选，缩小范围。"
+                "本工具不会改文件或写标注；标注与写文件必须由你直接调用对应工具。"
+            ),
+            args_schema=ExploreReadonlyArgs,
         ),
     ]
 

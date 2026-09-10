@@ -6,7 +6,9 @@ import type {
 import type {
   AnnotationInstance,
   CaptionGranularity,
+  ConversationTurn,
   CotStep,
+  PoseKeypoint,
 } from '../renderer/types/annotationDocument';
 
 export interface ImageCandidate {
@@ -31,6 +33,23 @@ export interface DetectionHints {
   conf_threshold?: number;
   iou_threshold?: number;
   notes?: string;
+}
+
+/**
+ * auto_annotate 工具透传的检测约束（主 Agent 从用户请求中解析，见后端 AutoAnnotateArgs）。
+ * 仅几何标注管线（bbox/rotated_bbox/polygon/keypoint）消费；生成类管线忽略。
+ */
+export interface DetectionOverrides {
+  confThreshold?: number;
+  iouThreshold?: number;
+  /** 指定检测模型 id（预训练模型配置 id），未命中时回退默认模型 */
+  modelId?: string;
+  /** 只保留这些检测类名的框 */
+  includeClasses?: string[];
+  /** 排除这些检测类名的框 */
+  excludeClasses?: string[];
+  /** 覆盖是否使用视觉映射；undefined 时按系统默认策略 */
+  useVisionMapping?: boolean;
 }
 
 export interface SubAgentConstraints {
@@ -78,8 +97,18 @@ export interface AnnotationPatch {
   y?: number;
   width?: number;
   height?: number;
+  /** rotated_bbox / pose center + rotation（width/height 与 bbox 共用） */
+  cx?: number;
+  cy?: number;
+  /** 旋转角度（度） */
+  angle?: number;
   /** polygon vertices (normalized 0–1) */
   points?: { x: number; y: number }[];
+  /** pose 关键点（整表替换，长度须与骨架模板一致） */
+  keypoints?: PoseKeypoint[];
+  /** span_ner 文本偏移（字符索引，start < end） */
+  start?: number;
+  end?: number;
   /** caption */
   text?: string;
   granularity?: CaptionGranularity;
@@ -87,7 +116,17 @@ export interface AnnotationPatch {
   /** cot */
   steps?: CotStep[];
   answer?: string;
+  /** cot / instruction 的指令文本 */
   instruction?: string;
+  /** instruction 的输入/输出 */
+  input?: string;
+  output?: string;
+  /** preference */
+  prompt?: string;
+  chosen?: string;
+  rejected?: string;
+  /** conversation（整表替换） */
+  turns?: ConversationTurn[];
 }
 
 export interface AnnotationBatchChange {
@@ -204,3 +243,4 @@ export interface DetectionModelSummary {
 
 export const ANNOTATION_BATCH_MAX_FILES = 100;
 export const ANNOTATION_BATCH_CONCURRENCY = 4;
+export const ANNOTATION_GENERATE_CONCURRENCY = 3;

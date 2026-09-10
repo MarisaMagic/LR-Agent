@@ -429,6 +429,7 @@ export default function McpPanel() {
         <ModalMotion
           open
           onClose={() => setDeleteTarget(null)}
+          closeOnBackdropClick={false}
           dialogClassName="mcp-delete-dialog"
           labelledBy="mcp-delete-title"
         >

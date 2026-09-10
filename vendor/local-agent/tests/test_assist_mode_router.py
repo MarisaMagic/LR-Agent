@@ -7,6 +7,12 @@ from app.agent.assist_mode_router import (
 )
 
 
+def test_three_sets_include_explore_readonly():
+    assert "explore_readonly" in ASK_TOOL_SET
+    assert "explore_readonly" in LIGHT_TOOL_SET
+    assert "explore_readonly" in FULL_TOOL_SET
+
+
 def test_ask_tool_set_strips_writes():
     assert WRITE_TOOL_NAMES.isdisjoint(ASK_TOOL_SET)
     assert "read_file_annotation" in ASK_TOOL_SET
@@ -24,6 +30,7 @@ def test_light_still_has_write_workspace_file():
     assert "str_replace_workspace_file" in LIGHT_TOOL_SET
     assert "delete_workspace_file" in LIGHT_TOOL_SET
     assert "glob_workspace" in LIGHT_TOOL_SET
+    assert "explore_readonly" in LIGHT_TOOL_SET
     assert "auto_annotate" not in LIGHT_TOOL_SET
 
 
@@ -47,3 +54,58 @@ def test_resolve_assist_tool_set_full_only_in_annotation_mode():
     )
     assert tools == FULL_TOOL_SET
     assert WRITE_TOOL_NAMES.issubset(tools)
+
+
+def test_resolve_editor_ask_is_readonly():
+    tools = resolve_assist_tool_set(
+        has_project_snapshot=False,
+        agent_mode="chat",
+        is_editor=True,
+        has_workspace=True,
+    )
+    assert tools == ASK_TOOL_SET
+    assert WRITE_TOOL_NAMES.isdisjoint(tools)
+
+
+def test_resolve_editor_agent_is_light():
+    tools = resolve_assist_tool_set(
+        has_project_snapshot=False,
+        agent_mode="annotation",
+        is_editor=True,
+        has_workspace=True,
+    )
+    assert tools == LIGHT_TOOL_SET
+    assert "write_workspace_file" in tools
+    assert "auto_annotate" not in tools
+
+
+def test_resolve_editor_agent_ignores_leaked_snapshot():
+    tools = resolve_assist_tool_set(
+        has_project_snapshot=True,
+        agent_mode="annotation",
+        is_editor=True,
+        has_workspace=True,
+    )
+    assert tools == LIGHT_TOOL_SET
+    assert "auto_annotate" not in tools
+
+
+def test_resolve_annotation_ask_is_readonly():
+    tools = resolve_assist_tool_set(
+        has_project_snapshot=True,
+        agent_mode="chat",
+        is_editor=False,
+        has_workspace=True,
+    )
+    assert tools == ASK_TOOL_SET
+    assert WRITE_TOOL_NAMES.isdisjoint(tools)
+
+
+def test_resolve_ask_without_context_is_empty():
+    tools = resolve_assist_tool_set(
+        has_project_snapshot=False,
+        agent_mode="chat",
+        is_editor=False,
+        has_workspace=False,
+    )
+    assert tools == frozenset()

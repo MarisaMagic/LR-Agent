@@ -10,9 +10,11 @@ import {
 import { createAgentId, type LlmProviderConfig } from '../../shared/agentTypes';
 import {
   buildEmptyProvider,
+  loadAuxiliaryProviderId,
   loadDefaultProviderId,
   loadLlmProviders,
   markDefaultLlmProvider,
+  persistAuxiliaryProviderId,
   persistDefaultProviderId,
   removeLlmProvider,
   resolveDefaultProvider,
@@ -24,6 +26,10 @@ interface LlmProvidersContextValue {
   providers: LlmProviderConfig[];
   loading: boolean;
   defaultProvider: LlmProviderConfig | null;
+  /** 辅助模型（子代理查阅 / 上下文摘要等轻量调用）；null 表示跟随会话模型 */
+  auxiliaryProvider: LlmProviderConfig | null;
+  auxiliaryProviderId: string | null;
+  setAuxiliaryProvider: (id: string | null) => void;
   refreshProviders: () => Promise<void>;
   upsertProvider: (
     provider: LlmProviderConfig,
@@ -44,6 +50,14 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
   const [defaultProviderId, setDefaultProviderId] = useState<string | null>(
     loadDefaultProviderId(),
   );
+  const [auxiliaryProviderId, setAuxiliaryProviderId] = useState<string | null>(
+    loadAuxiliaryProviderId(),
+  );
+
+  const setAuxiliaryProvider = useCallback((id: string | null) => {
+    persistAuxiliaryProviderId(id);
+    setAuxiliaryProviderId(id);
+  }, []);
 
   const refreshProviders = useCallback(async () => {
     setLoading(true);
@@ -95,8 +109,12 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
         persistDefaultProviderId(resolved?.id ?? null);
         setDefaultProviderId(resolved?.id ?? null);
       }
+      if (auxiliaryProviderId === id) {
+        persistAuxiliaryProviderId(null);
+        setAuxiliaryProviderId(null);
+      }
     },
-    [providers, defaultProviderId],
+    [providers, defaultProviderId, auxiliaryProviderId],
   );
 
   const setDefaultProvider = useCallback(
@@ -127,11 +145,20 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
     [providers, defaultProviderId],
   );
 
+  const auxiliaryProvider = useMemo(() => {
+    if (!auxiliaryProviderId) return null;
+    const match = providers.find((item) => item.id === auxiliaryProviderId);
+    return match && match.enabled ? match : null;
+  }, [providers, auxiliaryProviderId]);
+
   const value = useMemo(
     () => ({
       providers,
       loading,
       defaultProvider,
+      auxiliaryProvider,
+      auxiliaryProviderId,
+      setAuxiliaryProvider,
       refreshProviders,
       upsertProvider,
       deleteProvider,
@@ -142,6 +169,9 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
       providers,
       loading,
       defaultProvider,
+      auxiliaryProvider,
+      auxiliaryProviderId,
+      setAuxiliaryProvider,
       refreshProviders,
       upsertProvider,
       deleteProvider,

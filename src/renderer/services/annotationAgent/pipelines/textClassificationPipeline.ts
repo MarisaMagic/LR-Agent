@@ -4,10 +4,12 @@ import type {
   AnnotationBatchChange,
   AnnotationProjectSnapshot,
 } from '../../../../shared/annotationAgentTypes';
+import { ANNOTATION_GENERATE_CONCURRENCY } from '../../../../shared/annotationAgentTypes';
 import type { TextClassificationAnnotation } from '../../../types/annotationDocument';
 import { callLlmApi } from './llmUtil';
 import { resolveUniqueLabelIds, resolveLabelId } from './labelResolve';
 import { readSourceTextForProject } from './sourceTextUtil';
+import { mapWithConcurrency } from '../runWithConcurrency';
 
 function buildSystemPrompt(project: AnnotationProjectSnapshot): string {
   const labelList = project.labels
@@ -47,54 +49,57 @@ export async function runTextClassificationPipeline(
   annotations: TextClassificationAnnotation[];
   changes: AnnotationBatchChange[];
 }> {
-  const changes: AnnotationBatchChange[] = [];
+  const changes = await mapWithConcurrency(
+    options.inputPaths,
+    ANNOTATION_GENERATE_CONCURRENCY,
+    async (input) => {
+      if (options.isCancelled?.()) return undefined;
+      options.onProgress?.(`正在为 ${input.relativePath} 分类…`);
 
-  for (const input of options.inputPaths) {
-    if (options.isCancelled?.()) break;
-    options.onProgress?.(`正在为 ${input.relativePath} 分类…`);
+      const sourceText = await readSourceTextForProject(
+        options.project.directoryPath,
+        input.relativePath,
+      );
+      if (!sourceText.trim()) return undefined;
 
-    const sourceText = await readSourceTextForProject(
-      options.project.directoryPath,
-      input.relativePath,
-    );
-    if (!sourceText.trim()) continue;
+      const result = await callLlmApi({
+        providerId: options.providerId,
+        apiKey: options.providerApiKey,
+        baseUrl: options.providerBaseUrl,
+        model: options.providerModel,
+        systemPrompt: buildSystemPrompt(options.project),
+        userPrompt: `${options.userRequest || '请为以下文本选择所有适用的分类标签。'}\n\n---\n${sourceText.slice(0, 8000)}\n---`,
+        temperature: 0.2,
+      });
 
-    const result = await callLlmApi({
-      providerId: options.providerId,
-      apiKey: options.providerApiKey,
-      baseUrl: options.providerBaseUrl,
-      model: options.providerModel,
-      systemPrompt: buildSystemPrompt(options.project),
-      userPrompt: `${options.userRequest || '请为以下文本选择所有适用的分类标签。'}\n\n---\n${sourceText.slice(0, 8000)}\n---`,
-      temperature: 0.2,
-    });
+      if (!result.ok) return undefined;
 
-    if (!result.ok) continue;
+      const labelIds = parseTextClassificationLabels(
+        result.content,
+        options.project,
+      );
+      if (labelIds.length === 0) return undefined;
 
-    const labelIds = parseTextClassificationLabels(
-      result.content,
-      options.project,
-    );
-    if (labelIds.length === 0) continue;
+      const now = new Date().toISOString();
+      const annotations: TextClassificationAnnotation[] = labelIds.map(
+        (labelId) => ({
+          id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          kind: 'text_classification',
+          labelId,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
 
-    const now = new Date().toISOString();
-    const annotations: TextClassificationAnnotation[] = labelIds.map(
-      (labelId) => ({
-        id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        kind: 'text_classification',
-        labelId,
-        createdAt: now,
-        updatedAt: now,
-      }),
-    );
-
-    changes.push({
-      relativePath: input.relativePath,
-      absolutePath: input.absolutePath,
-      operation: 'append',
-      annotations,
-    });
-  }
+      return {
+        relativePath: input.relativePath,
+        absolutePath: input.absolutePath,
+        operation: 'append' as const,
+        annotations,
+      };
+    },
+    options.isCancelled,
+  );
 
   const annotations = changes.flatMap(
     (c) => (c.annotations as TextClassificationAnnotation[]) ?? [],

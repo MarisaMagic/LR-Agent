@@ -1,5 +1,6 @@
 import { applyStreamEventToBlocks } from './agentChatStore';
 import type { MessageBlock } from '../../shared/agentTypes';
+import type { AnnotationBatchProposal } from '../../shared/annotationAgentTypes';
 import {
   formatToolCallLabel,
   isExplorationTool,
@@ -44,6 +45,21 @@ describe('formatToolCallLabel', () => {
       JSON.stringify({ relative_dir: 'src' }),
     );
     expect(label).toBe('Listed src');
+  });
+
+  it('formats glob and document', () => {
+    expect(
+      formatToolCallLabel(
+        'glob_workspace',
+        JSON.stringify({ glob_pattern: '**/*.ts' }),
+      ),
+    ).toBe('Glob **/*.ts');
+    expect(
+      formatToolCallLabel(
+        'read_document_file',
+        JSON.stringify({ relative_path: 'docs/a.pdf' }),
+      ),
+    ).toBe('文档 docs/a.pdf');
   });
 });
 
@@ -167,5 +183,137 @@ describe('applyStreamEventToBlocks annotation tool_result', () => {
     const pipeline = next[0];
     if (pipeline.type !== 'annotation_pipeline') throw new Error('pipeline');
     expect(pipeline.steps[0].status).toBe('done');
+  });
+});
+
+describe('applyStreamEventToBlocks client tool queue semantics', () => {
+  const annotateArgs = JSON.stringify({ user_request: '标注第 6~8 张' });
+
+  function makeProposal(
+    id: string,
+    operation: 'append' | 'delete',
+  ): AnnotationBatchProposal {
+    const change =
+      operation === 'delete'
+        ? {
+            relativePath: 'data/8.jpg',
+            absolutePath: 'C:/proj/data/8.jpg',
+            operation: 'delete' as const,
+            deleteIds: ['unlabeled-1'],
+            annotations: [],
+          }
+        : {
+            relativePath: 'data/6.jpg',
+            absolutePath: 'C:/proj/data/6.jpg',
+            operation: 'append' as const,
+            annotations: [],
+          };
+    return {
+      id,
+      projectId: 'proj-1',
+      summary: '批量标注',
+      changes: [change],
+      stats: { kind: 'generic', processed: 1, succeeded: 1, skipped: 0 },
+      createdAt: Date.now(),
+    } as unknown as AnnotationBatchProposal;
+  }
+
+  function toolBlockAt(
+    blocks: MessageBlock[],
+    id: string,
+  ): Extract<MessageBlock, { type: 'tool_call' }> {
+    const block = blocks.find(
+      (b): b is Extract<MessageBlock, { type: 'tool_call' }> =>
+        b.type === 'tool_call' && b.id === id,
+    );
+    if (!block) throw new Error(`tool_call ${id} not found`);
+    return block;
+  }
+
+  it('creates client annotation tools as queued on tool_start', () => {
+    const blocks = applyStreamEventToBlocks([], {
+      type: 'tool_start',
+      toolCallId: 'a1',
+      name: 'auto_annotate',
+      arguments: annotateArgs,
+    });
+    expect(toolBlockAt(blocks, 'a1').status).toBe('queued');
+  });
+
+  it('keeps server-side tools running on tool_start', () => {
+    const blocks = applyStreamEventToBlocks([], {
+      type: 'tool_start',
+      toolCallId: 's1',
+      name: 'list_workspace_directory',
+      arguments: '{}',
+    });
+    expect(toolBlockAt(blocks, 's1').status).toBe('running');
+  });
+
+  it('flips queued to running on the repeated tool_start and keeps arguments', () => {
+    let blocks = applyStreamEventToBlocks([], {
+      type: 'tool_start',
+      toolCallId: 'a1',
+      name: 'auto_annotate',
+      arguments: annotateArgs,
+    });
+    // runLoop 开始执行该工具时合成的第二个 tool_start（arguments 为空串）
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'tool_start',
+      toolCallId: 'a1',
+      name: 'auto_annotate',
+      arguments: '',
+    });
+    const tool = toolBlockAt(blocks, 'a1');
+    expect(tool.status).toBe('running');
+    expect(tool.arguments).toContain('标注第 6~8 张');
+  });
+
+  it('settles only the matching-kind client tool when a proposal arrives', () => {
+    let blocks = applyStreamEventToBlocks([], {
+      type: 'tool_start',
+      toolCallId: 'a1',
+      name: 'auto_annotate',
+      arguments: annotateArgs,
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'tool_start',
+      toolCallId: 'm1',
+      name: 'mutate_annotation',
+      arguments: annotateArgs,
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'annotation_proposal',
+      proposal: makeProposal('p1', 'append'),
+    });
+    expect(toolBlockAt(blocks, 'a1').status).toBe('done');
+    // mutation 提案未到，mutate_annotation 保持排队
+    expect(toolBlockAt(blocks, 'm1').status).toBe('queued');
+    const proposal = blocks.find((b) => b.type === 'annotation_proposal');
+    if (proposal?.type !== 'annotation_proposal') throw new Error('proposal');
+    expect(proposal.sourceKind).toBe('batch');
+  });
+
+  it('marks mutation proposal sourceKind and settles the mutate tool', () => {
+    let blocks = applyStreamEventToBlocks([], {
+      type: 'tool_start',
+      toolCallId: 'm1',
+      name: 'mutate_annotation',
+      arguments: annotateArgs,
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'tool_start',
+      toolCallId: 'm1',
+      name: 'mutate_annotation',
+      arguments: '',
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'annotation_proposal',
+      proposal: makeProposal('p2', 'delete'),
+    });
+    expect(toolBlockAt(blocks, 'm1').status).toBe('done');
+    const proposal = blocks.find((b) => b.type === 'annotation_proposal');
+    if (proposal?.type !== 'annotation_proposal') throw new Error('proposal');
+    expect(proposal.sourceKind).toBe('mutation');
   });
 });

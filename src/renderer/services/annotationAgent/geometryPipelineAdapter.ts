@@ -66,6 +66,22 @@ function normBoxToSamBox(box: {
   };
 }
 
+/** 从 plan.detection_hints 提取 conf/iou 阈值覆盖（无则不动模型默认值）。 */
+function thresholdOverrides(plan: BatchAnnotationPlan): {
+  overrides?: { confThreshold?: number; iouThreshold?: number };
+} {
+  const hints = plan.detection_hints;
+  if (hints.conf_threshold === undefined && hints.iou_threshold === undefined) {
+    return {};
+  }
+  return {
+    overrides: {
+      confThreshold: hints.conf_threshold,
+      iouThreshold: hints.iou_threshold,
+    },
+  };
+}
+
 const bboxAdapter: GeometryPipelineAdapter = {
   annotationType: 'bbox',
   pickPrimaryModel: (models) => pickDefaultPreAnnotModel('bbox', models),
@@ -112,6 +128,7 @@ const rotatedBboxAdapter: GeometryPipelineAdapter = {
       'yolo_obb',
       ctx.image.absolutePath,
       ctx.primaryModel,
+      thresholdOverrides(ctx.plan),
     );
     const result = assertPreAnnotResult(response, isDetectResult, 'OBB 检测');
     const rawItems = result.items.map((item, idx) => {
@@ -261,7 +278,7 @@ const keypointAdapter: GeometryPipelineAdapter = {
       'keypoint_full',
       ctx.image.absolutePath,
       ctx.primaryModel,
-      { templateId },
+      { templateId, ...thresholdOverrides(ctx.plan) },
     );
     const result = assertPreAnnotResult(response, isPoseResult, '关键点');
     const instances: GeometryInstance[] = result.poses.map((pose, index) => {

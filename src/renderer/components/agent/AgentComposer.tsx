@@ -104,6 +104,7 @@ export default function AgentComposer() {
               {showAnnotateMode ? (
                 <AgentModePicker
                   mode={agentMode}
+                  workMode={workMode}
                   disabled={busy}
                   onSelect={setAgentMode}
                 />

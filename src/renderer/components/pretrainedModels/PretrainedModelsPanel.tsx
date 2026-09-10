@@ -133,6 +133,7 @@ export default function PretrainedModelsPanel() {
         <ModalMotion
           open
           onClose={() => setDeleteTarget(null)}
+          closeOnBackdropClick={false}
           dialogClassName="pretrained-model-delete-dialog"
           labelledBy="pretrained-model-delete-title"
         >

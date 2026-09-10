@@ -45,9 +45,6 @@ export function buildClientContextPayload(options: {
       : null;
 
   const isEditorMode = options.workMode === 'editor';
-  const effectiveAgentMode: AgentInteractionMode = isEditorMode
-    ? 'chat'
-    : options.agentMode;
 
   const base: ClientContextPayload = {
     workspaceRoot: options.rootPath,
@@ -65,7 +62,7 @@ export function buildClientContextPayload(options: {
     annotationProjectType: isEditorMode
       ? null
       : (options.activeProject?.annotationType ?? null),
-    agentMode: effectiveAgentMode,
+    agentMode: options.agentMode,
     workMode: options.workMode,
     selectedAnnotationId: isEditorMode
       ? null

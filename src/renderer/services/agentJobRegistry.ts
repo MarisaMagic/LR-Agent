@@ -10,7 +10,10 @@ import type {
 import type {
   AnnotationBatchChange,
   AnnotationProjectSnapshot,
+  DetectionOverrides,
 } from '../../shared/annotationAgentTypes';
+import { ANNOTATION_BATCH_MAX_FILES } from '../../shared/annotationAgentTypes';
+import { formatScopeTruncationNote } from './annotationAgent/scopePathUtil';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import { mockChatStream } from './agentStreamMock';
 import { streamChatDirectly } from './localChatClient';
@@ -147,6 +150,8 @@ export function formatAnnotationToolResult(options: {
   summary: string;
   hasProposal: boolean;
   fileStats?: AnnotationProposalFileStat[];
+  omittedCount?: number;
+  omittedPaths?: string[];
 }): string {
   const pendingNote = options.hasProposal
     ? '已生成待确认提案（未写盘）。'
@@ -156,9 +161,15 @@ export function formatAnnotationToolResult(options: {
   const fileStatsText = options.fileStats?.length
     ? ` ${formatFileStatsText(options.fileStats)}。`
     : '';
+  const truncationNote = formatScopeTruncationNote(
+    options.omittedCount,
+    options.omittedPaths,
+    ANNOTATION_BATCH_MAX_FILES,
+  );
+  const truncationText = truncationNote ? ` ${truncationNote}` : '';
   const summary = options.hasProposal
-    ? `${pendingNote}${options.summary}${fileStatsText}`
-    : `${options.summary} ${pendingNote}`;
+    ? `${pendingNote}${options.summary}${fileStatsText}${truncationText}`
+    : `${options.summary} ${pendingNote}${truncationText}`;
   return formatClientToolResult({
     status: options.status,
     tool: options.tool,
@@ -218,6 +229,47 @@ export function parseStringList(value: unknown): string[] {
 
 function parseWriteMode(value: unknown): 'append' | 'replace_matching' {
   return value === 'replace_matching' ? 'replace_matching' : 'append';
+}
+
+function parseOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+function parseOptionalBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const text = value.trim().toLowerCase();
+    if (text === 'true') return true;
+    if (text === 'false') return false;
+  }
+  return undefined;
+}
+
+/** 解析 auto_annotate 透传的检测约束（与后端 AutoAnnotateArgs 对齐）。 */
+export function parseDetectionOverrides(
+  args: Record<string, unknown>,
+): DetectionOverrides | undefined {
+  const overrides: DetectionOverrides = {};
+  const conf = parseOptionalNumber(args.conf_threshold);
+  if (conf !== undefined)
+    overrides.confThreshold = Math.min(Math.max(conf, 0), 1);
+  const iou = parseOptionalNumber(args.iou_threshold);
+  if (iou !== undefined) overrides.iouThreshold = Math.min(Math.max(iou, 0), 1);
+  if (typeof args.model_id === 'string' && args.model_id.trim()) {
+    overrides.modelId = args.model_id.trim();
+  }
+  const include = parseStringList(args.include_classes);
+  if (include.length) overrides.includeClasses = include;
+  const exclude = parseStringList(args.exclude_classes);
+  if (exclude.length) overrides.excludeClasses = exclude;
+  const vision = parseOptionalBoolean(args.use_vision_mapping);
+  if (vision !== undefined) overrides.useVisionMapping = vision;
+  return Object.keys(overrides).length > 0 ? overrides : undefined;
 }
 
 const ANNOTATION_CLIENT_TOOLS = new Set(['auto_annotate', 'mutate_annotation']);
@@ -281,16 +333,14 @@ async function runClientTool(
         message: '未绑定标注项目，无法执行自动标注',
       });
     }
-    const args = toolCall.arguments as {
+    const args = toolCall.arguments as Record<string, unknown> & {
       scope_hint?: string;
-      paths?: unknown;
-      all_files?: unknown;
-      write_mode?: unknown;
     };
     const scopePaths = parseStringList(args.paths);
     const scopeHint = args.scope_hint?.trim() || undefined;
     const allFiles = args.all_files === true;
     const writeMode = parseWriteMode(args.write_mode);
+    const detectionOverrides = parseDetectionOverrides(args);
     const controller = new AbortController();
     signal.addEventListener('abort', () => controller.abort());
     const onEvent = (event: StreamEvent): void => {
@@ -316,6 +366,7 @@ async function runClientTool(
         scopePaths,
         allFiles,
         writeMode,
+        detectionOverrides,
       });
       return formatAnnotationToolResult({
         status:
@@ -325,6 +376,8 @@ async function runClientTool(
         summary: batchResult.summary,
         hasProposal: batchResult.hasProposal,
         fileStats: batchResult.fileStats,
+        omittedCount: batchResult.omittedCount,
+        omittedPaths: batchResult.omittedPaths,
       });
     } catch {
       return formatAnnotationToolResult({
@@ -412,6 +465,8 @@ export async function startChatJob(options: {
   providerApiKey: string;
   providerModel: string;
   providerSupportsVision?: boolean;
+  /** 辅助模型凭据（子代理查阅等轻量调用）；null/缺省时跟随会话模型 */
+  auxiliaryProvider?: { baseUrl: string; apiKey: string; model: string } | null;
   userMessageId: string;
   assistantMessageId: string;
   userContent: string;
@@ -543,6 +598,7 @@ export async function startChatJob(options: {
               model: options.providerModel,
               supportsVision: options.providerSupportsVision,
               systemPrompt: options.systemPrompt,
+              auxiliary: options.auxiliaryProvider ?? null,
             },
             controller.signal,
           )
@@ -599,7 +655,19 @@ export async function startChatJob(options: {
     // ── 有客户端工具需要执行：分派 → 收集结果 → resume ──────────────────
     if (pendingToolCalls && pendingToolCalls.length > 0) {
       const results: ClientToolResult[] = [];
-      for (const toolCall of pendingToolCalls) {
+      for (let i = 0; i < pendingToolCalls.length; i += 1) {
+        const toolCall = pendingToolCalls[i];
+        // 合成 tool_start：把该工具块从 queued 翻成 running。
+        // arguments 置空串——store 的合并逻辑会保留派发时的完整参数；
+        // 不进 turnHistory（resume 消息由真实 tool_start + 结果构成）。
+        const started: StreamEvent = {
+          type: 'tool_start',
+          toolCallId: toolCall.toolCallId,
+          name: toolCall.name,
+          arguments: '',
+        };
+        emitJobEvent(options.jobId, started);
+        options.onPersistEvent?.(started);
         // Debug: log client tool dispatch
         console.log(
           `%c[LR-Agent]%c ⚡ runClientTool %c${toolCall.name}`,
@@ -633,7 +701,23 @@ export async function startChatJob(options: {
           'color: #4caf50;',
           '',
         );
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) {
+          // 取消时收掉尚未执行的排队工具块，避免 UI 永久「排队中」
+          for (let j = i + 1; j < pendingToolCalls.length; j += 1) {
+            const skipped = pendingToolCalls[j];
+            const cancelled: StreamEvent = {
+              type: 'tool_result',
+              toolCallId: skipped.toolCallId,
+              result: JSON.stringify({
+                status: 'cancelled',
+                summary: '已取消',
+              }),
+            };
+            emitJobEvent(options.jobId, cancelled);
+            options.onPersistEvent?.(cancelled);
+          }
+          return;
+        }
       }
       const allResults = [...accumulatedResults, ...results];
       // 提案待确认 → HITL 断点：结束当前 turn，等 Keep All/Dismiss 后续跑。

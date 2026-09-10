@@ -1,7 +1,17 @@
 import { VscodeIcon } from '@vscode-elements/react-elements';
-import { useCallback, useEffect, useState } from 'react';
-import type { ChatMessage, MessageBlock } from '../../types/agent';
-import { isFileProposalBlock } from '../../../shared/agentTypes';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type {
+  AnnotationPipelineTask,
+  ChatMessage,
+  ChatStreamPhase,
+  MessageBlock,
+  PipelineKind,
+} from '../../types/agent';
+import {
+  clientToolPipelineKind,
+  isFileProposalBlock,
+} from '../../../shared/agentTypes';
+import { formatToolCallLabel } from '../../services/toolDisplayUtils';
 import { useAgentChat } from '../../context/AgentChatContext';
 import AgentMarkdown from './AgentMarkdown';
 import AgentReasoningBlock from './AgentReasoningBlock';
@@ -20,6 +30,7 @@ import {
   workHistoryDurationMs,
   type IndexedBlock,
 } from './workHistoryUtils';
+import AgentSubagentRow from './AgentSubagentRow';
 import AgentAnnotationPipelineBlock from './AgentAnnotationPipelineBlock';
 import AgentFileChangeBlock from './AgentFileChangeBlock';
 import AgentAnnotationChangeBlock from './AgentAnnotationChangeBlock';
@@ -37,6 +48,91 @@ function getAssistantPlainText(message: ChatMessage): string {
     .join('\n');
 }
 
+const STREAM_PHASE_LABELS: Record<ChatStreamPhase, string> = {
+  'preparing-context': '正在准备上下文…',
+  summarizing: '正在压缩历史对话…',
+  'waiting-model': '等待模型响应…',
+  'applying-changes': '正在应用变更…',
+  'discarding-changes': '正在放弃提案…',
+};
+
+/** 这些阶段发生在消息已有内容之后（Keep All/Undo 空窗），不受空消息限制 */
+const ALWAYS_VISIBLE_PHASES: ReadonlySet<ChatStreamPhase> = new Set([
+  'applying-changes',
+  'discarding-changes',
+]);
+
+/** 首 token 前的空窗状态行：展示当前阶段与已等待秒数 */
+function StreamPhaseHint({
+  phase,
+  since,
+}: {
+  phase: ChatStreamPhase;
+  since: number;
+}) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => setTick((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const seconds = Math.max(0, Math.floor((Date.now() - since) / 1000));
+  return (
+    <div className="agent-stream-phase">
+      {STREAM_PHASE_LABELS[phase]}
+      {seconds > 0 ? ` ${seconds}s` : ''}
+    </div>
+  );
+}
+
+/** awaiting_confirmation 活跃态：暂停指示 + 等待计时 + 内联 Keep All / Undo */
+function AwaitingConfirmHint({
+  since,
+  applying,
+  dismissing,
+  onKeepAll,
+  onUndo,
+}: {
+  since: number;
+  applying: boolean;
+  dismissing: boolean;
+  onKeepAll: () => void;
+  onUndo: () => void;
+}) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => setTick((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const seconds = Math.max(0, Math.floor((Date.now() - since) / 1000));
+  const busy = applying || dismissing;
+  return (
+    <div className="agent-awaiting-confirm">
+      <span className="agent-awaiting-confirm__label">
+        <VscodeIcon name="debug-pause" size={14} />
+        提案待确认{seconds > 0 ? ` · 已等待 ${seconds}s` : ''}
+      </span>
+      <span className="agent-awaiting-confirm__actions">
+        <button
+          type="button"
+          className="agent-awaiting-confirm__btn"
+          disabled={busy}
+          onClick={onUndo}
+        >
+          {dismissing ? '撤销中…' : 'Undo'}
+        </button>
+        <button
+          type="button"
+          className="agent-awaiting-confirm__btn agent-awaiting-confirm__btn--primary"
+          disabled={busy}
+          onClick={onKeepAll}
+        >
+          {applying ? '应用中…' : 'Keep All'}
+        </button>
+      </span>
+    </div>
+  );
+}
+
 export default function AgentAssistantMessage({
   message,
 }: AgentAssistantMessageProps) {
@@ -46,11 +142,19 @@ export default function AgentAssistantMessage({
     isSessionStreaming,
     getSessionMessages,
     activeSessionId,
+    applyAllPendingChanges,
+    applyingAllPending,
+    dismissAllPendingChanges,
+    dismissingAllPending,
   } = useAgentChat();
 
   const [thoughtCollapsed, setThoughtCollapsed] = useState(true);
 
   const isStreaming = message.status === 'streaming';
+  // awaiting_confirmation 是第三种活跃态：turn 暂停在 HITL 断点，
+  // 不折叠工作历史、保留指示符，等待用户 Keep All / Undo
+  const isAwaitingConfirm = message.status === 'awaiting_confirmation';
+  const isActive = isStreaming || isAwaitingConfirm;
   const hasAnnotationProposal = message.blocks.some(
     (block) => block.type === 'annotation_proposal',
   );
@@ -126,7 +230,7 @@ export default function AgentAssistantMessage({
   }, [message.id, regenerateAssistant]);
 
   const { history, rest } = splitWorkHistory(message.blocks);
-  const foldWorkHistory = !isStreaming && history.length > 0;
+  const foldWorkHistory = !isActive && history.length > 0;
   const liveBlocks: IndexedBlock[] = message.blocks.map((block, index) => ({
     block,
     index,
@@ -139,9 +243,51 @@ export default function AgentAssistantMessage({
   const thoughtContent = collectThoughtContent(message.blocks);
   const showThoughtFold = !isStreaming && thoughtContent.length > 0;
   const hasToolCall = message.blocks.some(
-    (block) => block.type === 'tool_call',
+    (block) => block.type === 'tool_call' || block.type === 'subagent',
   );
   const thoughtLabel = formatThoughtLabel(durationMs, { hasToolCall });
+
+  // 聚合标注任务卡：消息内出现的标注流水线类型
+  const pipelineKindsPresent = useMemo(() => {
+    const kinds = new Set<PipelineKind>();
+    for (const block of message.blocks) {
+      if (block.type === 'annotation_pipeline') {
+        kinds.add(block.pipelineKind ?? 'batch');
+      }
+    }
+    return kinds;
+  }, [message.blocks]);
+
+  // 客户端标注工具（auto_annotate/mutate_annotation）按流水线类型派生为
+  // 任务队列，渲染进对应 pipeline 卡，不再占用独立工具行
+  const pipelineTasks = useMemo(() => {
+    const byKind = new Map<PipelineKind, AnnotationPipelineTask[]>();
+    for (const block of message.blocks) {
+      if (block.type !== 'tool_call') continue;
+      const kind = clientToolPipelineKind(block.name);
+      if (!kind || !pipelineKindsPresent.has(kind)) continue;
+      const list = byKind.get(kind) ?? [];
+      // 历史数据修正：非活跃消息里停在 queued/running 的任务视为已完成
+      const settled =
+        !isActive && (block.status === 'queued' || block.status === 'running');
+      list.push({
+        id: block.id,
+        name: block.name,
+        label: formatToolCallLabel(block.name, block.arguments),
+        status: settled ? 'done' : block.status,
+      });
+      byKind.set(kind, list);
+    }
+    return byKind;
+  }, [message.blocks, pipelineKindsPresent, isActive]);
+
+  const handleKeepAll = useCallback(() => {
+    applyAllPendingChanges().catch(() => undefined);
+  }, [applyAllPendingChanges]);
+
+  const handleUndoAll = useCallback(() => {
+    dismissAllPendingChanges().catch(() => undefined);
+  }, [dismissAllPendingChanges]);
 
   const renderBlock = (block: MessageBlock, index: number) => {
     if ((block as { type: string }).type === 'mode_suggestion') {
@@ -157,7 +303,22 @@ export default function AgentAssistantMessage({
         />
       );
     }
+    if (block.type === 'subagent') {
+      return (
+        <AgentSubagentRow
+          key={block.id}
+          block={block}
+          sessionId={message.sessionId}
+        />
+      );
+    }
     if (block.type === 'tool_call') {
+      // 客户端标注工具被吸收进对应 pipeline 任务卡，不再渲染独立工具行；
+      // 若对应 pipeline 不存在（如工具立即报错），保留工具行便于诊断
+      const taskKind = clientToolPipelineKind(block.name);
+      if (taskKind && pipelineKindsPresent.has(taskKind)) {
+        return null;
+      }
       return (
         <AgentToolCallBlock
           key={block.id}
@@ -167,14 +328,16 @@ export default function AgentAssistantMessage({
       );
     }
     if (block.type === 'annotation_pipeline') {
+      const kind = block.pipelineKind ?? 'batch';
       return (
         <AgentAnnotationPipelineBlock
-          key={`pipeline-${block.pipelineKind ?? 'batch'}`}
+          key={`pipeline-${kind}`}
           steps={block.steps}
           collapsed={block.collapsed}
-          streaming={isStreaming}
+          streaming={isActive}
           pipelineCompleted={pipelineCompleted}
-          pipelineKind={block.pipelineKind ?? 'batch'}
+          pipelineKind={kind}
+          tasks={pipelineTasks.get(kind)}
           onToggle={() => handleToggle(index)}
         />
       );
@@ -211,6 +374,7 @@ export default function AgentAssistantMessage({
           blockIndex={index}
           proposal={block.proposal}
           status={block.status}
+          sourceKind={block.sourceKind}
         />
       );
     }
@@ -256,24 +420,43 @@ export default function AgentAssistantMessage({
             onToggle={() => setThoughtCollapsed((value) => !value)}
           />
         ) : null}
-        {isStreaming ? (
+        {isActive ? (
           renderSegments(liveBlocks)
         ) : foldWorkHistory ? (
           <AgentWorkHistory key={`${message.id}-work`} label={workedLabel}>
             {renderSegments(history)}
           </AgentWorkHistory>
         ) : null}
-        {isStreaming ? null : renderSegments(rest)}
+        {isActive ? null : renderSegments(rest)}
+
+        {isStreaming &&
+        message.streamPhase &&
+        (message.blocks.length === 0 ||
+          ALWAYS_VISIBLE_PHASES.has(message.streamPhase)) ? (
+          <StreamPhaseHint
+            phase={message.streamPhase}
+            since={message.updatedAt}
+          />
+        ) : null}
 
         {isStreaming && <span className="agent-stream-cursor">▍</span>}
+        {isAwaitingConfirm && (
+          <span className="agent-stream-cursor agent-stream-cursor--paused">
+            ❚❚
+          </span>
+        )}
 
         {message.status === 'stopped' && (
           <div className="agent-message-meta">已停止生成</div>
         )}
-        {message.status === 'awaiting_confirmation' && (
-          <div className="agent-message-meta">
-            提案待确认：Keep All 或 Undo 后继续
-          </div>
+        {isAwaitingConfirm && (
+          <AwaitingConfirmHint
+            since={message.finishedAt ?? message.updatedAt}
+            applying={applyingAllPending}
+            dismissing={dismissingAllPending}
+            onKeepAll={handleKeepAll}
+            onUndo={handleUndoAll}
+          />
         )}
         {message.status === 'error' && (
           <div className="agent-message-meta agent-message-meta--error">

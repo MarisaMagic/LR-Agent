@@ -1,8 +1,7 @@
 /**
  * MCP 广场预设目录。
  *
- * 注意：第三方端点会随厂商调整，仅 Tavily / Context7 预填稳定 URL；
- * 智谱、通义等仅提供文档链接与协议模板，由用户粘贴实际端点。
+ * 第三方端点会随厂商调整；此处仅收录带稳定预填 URL 的服务。
  */
 import { MCP_API_KEY_PLACEHOLDER, type McpPreset } from './mcpTypes';
 
@@ -58,32 +57,6 @@ export const MCP_PRESETS: McpPreset[] = [
     apiKeyTemplate: `Bearer ${MCP_API_KEY_PLACEHOLDER}`,
     docsUrl: 'https://huggingface.co/settings/mcp',
     icon: 'huggingface',
-  },
-  {
-    id: 'zhipu-web-search',
-    name: '智谱网页搜索',
-    description:
-      '智谱开放平台 web_search MCP（SSE 协议）。端点形如 https://open.bigmodel.cn/api/mcp/web_search/sse，请在控制台复制带鉴权的完整地址。',
-    url: '',
-    transport: 'sse',
-    requiresApiKey: true,
-    apiKeyHeader: 'Authorization',
-    apiKeyTemplate: `Bearer ${MCP_API_KEY_PLACEHOLDER}`,
-    docsUrl: 'https://docs.bigmodel.cn',
-    icon: 'zhipu-web-search',
-  },
-  {
-    id: 'qwen-vl',
-    name: '通义识图（百炼）',
-    description:
-      '阿里云百炼 MCP 广场的通义视觉理解服务。请在百炼控制台开通后复制 MCP 端点 URL。',
-    url: '',
-    transport: 'streamable_http',
-    requiresApiKey: true,
-    apiKeyHeader: 'Authorization',
-    apiKeyTemplate: `Bearer ${MCP_API_KEY_PLACEHOLDER}`,
-    docsUrl: 'https://bailian.console.aliyun.com',
-    icon: 'qwen-vl',
   },
 ];
 

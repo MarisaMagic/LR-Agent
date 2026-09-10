@@ -48,7 +48,8 @@ export type MessageBlock =
       id: string;
       name: string;
       arguments: string;
-      status: 'running' | 'done' | 'error';
+      /** queued：客户端异步工具已派发、等待串行执行（tool_pending 队列） */
+      status: 'queued' | 'running' | 'done' | 'error';
       result?: string;
       collapsed: boolean;
     }
@@ -58,6 +59,8 @@ export type MessageBlock =
       status: ProposalBlockStatus;
       /** Apply 时成功写入改前快照后为 true；无快照不显示 Undo */
       hasCheckpoint?: boolean;
+      /** 提案来源流水线（批量标注/标注修改），用于卡片标注来源 */
+      sourceKind?: PipelineKind;
     }
   | {
       type: 'annotation_pipeline';
@@ -88,7 +91,32 @@ export type MessageBlock =
       operation?: 'write' | 'delete';
       additions?: number;
       deletions?: number;
+    }
+  | {
+      type: 'subagent';
+      id: string;
+      query: string;
+      focusPath?: string;
+      status: 'running' | 'done' | 'error';
+      steps: SubagentStep[];
+      /** 与主对话对齐的 text / tool_call 时间线；历史消息可能缺失 */
+      innerBlocks?: MessageBlock[];
+      summary: string;
+      startedAt: number;
+      finishedAt?: number;
     };
+
+export interface SubagentStep {
+  id: string;
+  name: string;
+  arguments: string;
+  result?: string;
+  status: 'running' | 'done' | 'error';
+}
+
+export type AgentPanelTab =
+  | { kind: 'session'; sessionId: string }
+  | { kind: 'subagent'; runId: string; sessionId: string };
 
 export type AnnotationPipelineStepStatus =
   'pending' | 'running' | 'done' | 'error' | 'skipped';
@@ -103,6 +131,18 @@ export interface AnnotationPipelineStep {
   imagePath?: string;
 }
 
+/**
+ * 标注任务卡中的客户端工具任务项（渲染层从 tool_call 块派生，不持久化）：
+ * 同一条 assistant 消息内的 auto_annotate / mutate_annotation 调用按队列展示。
+ */
+export interface AnnotationPipelineTask {
+  /** 对应 tool_call 块的 toolCallId */
+  id: string;
+  name: string;
+  label: string;
+  status: 'queued' | 'running' | 'done' | 'error';
+}
+
 export type ChatMessageStatus =
   | 'pending'
   | 'streaming'
@@ -112,12 +152,24 @@ export type ChatMessageStatus =
   /** 提案待用户确认（HITL 断点），Keep All/Dismiss 后同一消息续跑 */
   | 'awaiting_confirmation';
 
+/** 流式阶段提示（瞬态，不持久化）：首 token 前向用户展示等待原因 */
+export type ChatStreamPhase =
+  | 'preparing-context'
+  | 'summarizing'
+  | 'waiting-model'
+  /** Keep All 后正在落盘变更（awaiting → resume 之间的空窗） */
+  | 'applying-changes'
+  /** Undo 后正在放弃提案（awaiting → resume 之间的空窗） */
+  | 'discarding-changes';
+
 export interface ChatMessage {
   id: string;
   sessionId: string;
   role: 'user' | 'assistant' | 'system';
   blocks: MessageBlock[];
   status: ChatMessageStatus;
+  /** 流式空窗期的阶段提示；收到首个内容事件后清空 */
+  streamPhase?: ChatStreamPhase | null;
   /** 该轮 UI 模式：chat=Ask，annotation=Agent */
   interactionMode?: AgentInteractionMode | null;
   providerId: string;
@@ -256,6 +308,33 @@ export type StreamEvent =
   | {
       /** 客户端工具已生成待确认提案，job 暂停等待 Keep All/Dismiss */
       type: 'awaiting_confirmation';
+    }
+  | {
+      type: 'subagent_start';
+      toolCallId: string;
+      query: string;
+      focusPath?: string;
+    }
+  | {
+      type: 'subagent_tool_start';
+      toolCallId: string;
+      name: string;
+      arguments: string;
+      innerToolCallId: string;
+    }
+  | {
+      type: 'subagent_tool_result';
+      toolCallId: string;
+      result: string;
+      innerToolCallId: string;
+      status?: 'running' | 'done' | 'error';
+    }
+  | { type: 'subagent_text_delta'; toolCallId: string; content: string }
+  | {
+      type: 'subagent_done';
+      toolCallId: string;
+      summary: string;
+      status: 'done' | 'error';
     };
 
 /** 异步工具调用描述（来自 tool_pending 事件）。 */
@@ -267,6 +346,19 @@ export interface ClientToolCall {
 
 /** 客户端工具名称枚举，与后端 CLIENT_TOOL_NAMES 保持一致。 */
 export type ClientToolName = 'auto_annotate' | 'mutate_annotation';
+
+/** 客户端异步工具集合：经 tool_pending 由前端串行执行，排队期间块状态为 queued。 */
+export const CLIENT_TOOL_NAME_SET: ReadonlySet<string> = new Set<string>([
+  'auto_annotate',
+  'mutate_annotation',
+]);
+
+/** 客户端工具 → 其产出的标注流水线类型。 */
+export function clientToolPipelineKind(name: string): PipelineKind | null {
+  if (name === 'auto_annotate') return 'batch';
+  if (name === 'mutate_annotation') return 'mutation';
+  return null;
+}
 
 /** 客户端工具执行结果，随 resume 请求一并发送给后端。 */
 export interface ClientToolResult {

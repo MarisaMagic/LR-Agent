@@ -87,6 +87,8 @@ class LlmGenerateRequest(AnnotationLlmBaseRequest):
     user_prompt: str = Field(default="", max_length=20_000)
     temperature: float = Field(default=0.3, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, ge=1, le=128_000)
+    # 图片路径优先：同机部署时后端直接读盘并压缩，免去前端整图 base64 传输
+    image_absolute_path: str = Field(default="", max_length=1024)
     image_base64: str = Field(default="", max_length=16_000_000)
     image_mime_type: str = "image/jpeg"
 

@@ -10,6 +10,8 @@ import type {
   StreamEvent,
 } from '../../shared/agentTypes';
 import {
+  CLIENT_TOOL_NAME_SET,
+  clientToolPipelineKind,
   isFileProposalBlock,
   normalizeHistoricalBlocks,
   WORKSPACE_AGENT_UI_KEY,
@@ -173,6 +175,47 @@ export function persistAgentChatState(state: AgentChatPersistedState): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function markRunningToolsTerminal(
+  inner: MessageBlock[],
+  terminalStatus: 'done' | 'error',
+): MessageBlock[] {
+  return inner.map((block) =>
+    block.type === 'tool_call' && block.status === 'running'
+      ? { ...block, status: terminalStatus }
+      : block,
+  );
+}
+
+export function finalizeSubagentBlocks(
+  blocks: MessageBlock[],
+  terminalStatus: 'done' | 'error' = 'error',
+): MessageBlock[] {
+  return blocks.map((block) => {
+    if (block.type !== 'subagent') {
+      return block;
+    }
+    const innerBlocks = markRunningToolsTerminal(
+      block.innerBlocks ?? [],
+      terminalStatus,
+    );
+    if (block.status !== 'running') {
+      return { ...block, innerBlocks };
+    }
+    return {
+      ...block,
+      status: terminalStatus,
+      summary:
+        block.summary ||
+        (terminalStatus === 'error' ? '已停止' : block.summary),
+      finishedAt: block.finishedAt ?? Date.now(),
+      steps: block.steps.map((step) =>
+        step.status === 'running' ? { ...step, status: terminalStatus } : step,
+      ),
+      innerBlocks,
+    };
+  });
+}
+
 export function finalizeAnnotationPipelineBlock(
   block: Extract<MessageBlock, { type: 'annotation_pipeline' }>,
   terminalStatus: 'done' | 'error' = 'done',
@@ -236,29 +279,26 @@ export function normalizeHistoricalAssistantMessage(
       block.type === 'annotation_pipeline' &&
       block.steps.some((step) => step.status === 'running'),
   );
-  if (!needsPipelineFix) {
-    return ensureFinishedAt({
-      ...next,
-      blocks: normalizeAnnotationCardOrder(
-        normalizePipelineKindsInBlocks(next.blocks),
-      ),
-    });
-  }
-
-  const terminalStatus = next.status === 'error' ? 'error' : 'done';
-  next = {
-    ...next,
-    blocks: next.blocks.map((block) =>
+  const needsSubagentFix = next.blocks.some(
+    (block) => block.type === 'subagent' && block.status === 'running',
+  );
+  let { blocks } = next;
+  if (needsPipelineFix) {
+    const terminalStatus = next.status === 'error' ? 'error' : 'done';
+    blocks = blocks.map((block) =>
       block.type === 'annotation_pipeline'
         ? finalizeAnnotationPipelineBlock(block, terminalStatus)
         : block,
-    ),
-  };
+    );
+  }
+  if (needsSubagentFix) {
+    blocks = finalizeSubagentBlocks(blocks, 'error');
+  }
 
   return ensureFinishedAt({
     ...next,
     blocks: normalizeAnnotationCardOrder(
-      normalizePipelineKindsInBlocks(next.blocks),
+      normalizePipelineKindsInBlocks(blocks),
     ),
   });
 }
@@ -297,18 +337,6 @@ function inferAnnotationProposalKind(
     return 'mutation';
   }
   return 'batch';
-}
-
-/**
- * 定位标注卡片组（batch pipeline / annotation_proposal）首个块的索引，无则 -1。
- * 标注卡片应作为消息尾部展示；晚到的叙述/工具块需插入到该组之前。
- */
-function findAnnotationCardIndex(blocks: MessageBlock[]): number {
-  const pipelineIdx = blocks.findIndex((b) => b.type === 'annotation_pipeline');
-  const proposalIdx = blocks.findIndex((b) => b.type === 'annotation_proposal');
-  if (pipelineIdx < 0) return proposalIdx;
-  if (proposalIdx < 0) return pipelineIdx;
-  return Math.min(pipelineIdx, proposalIdx);
 }
 
 function applyAnnotationProgressToBlocks(
@@ -524,6 +552,116 @@ export function resolveFileProposalOperation(
   return 'write';
 }
 
+const EXPLORE_READONLY_TOOL = 'explore_readonly';
+
+function eventToolCallId(event: StreamEvent | Record<string, unknown>): string {
+  const rec = event as Record<string, unknown>;
+  return (
+    (rec.toolCallId as string | undefined) ??
+    (rec.tool_call_id as string | undefined) ??
+    ''
+  );
+}
+
+function parseExploreReadonlyArgs(argsJson: string): {
+  query: string;
+  focusPath?: string;
+} {
+  try {
+    const parsed = JSON.parse(argsJson) as Record<string, unknown>;
+    const query = String(parsed.query ?? '').trim();
+    const focus = String(parsed.focus_path ?? parsed.focusPath ?? '').trim();
+    return { query, focusPath: focus || undefined };
+  } catch {
+    return { query: argsJson.trim() };
+  }
+}
+
+function parseToolResultSummary(result: string | undefined): string {
+  if (!result?.trim()) return '';
+  try {
+    const parsed = JSON.parse(result) as Record<string, unknown>;
+    const { summary } = parsed;
+    if (typeof summary === 'string' && summary.trim()) {
+      return summary;
+    }
+  } catch {
+    // plain text tool_result
+  }
+  return result.trim();
+}
+
+function upsertSubagentBlock(
+  blocks: MessageBlock[],
+  id: string,
+  patch: Partial<Extract<MessageBlock, { type: 'subagent' }>>,
+): MessageBlock[] {
+  const next = [...blocks];
+  const idx = next.findIndex(
+    (block) => block.type === 'subagent' && block.id === id,
+  );
+  if (idx >= 0) {
+    const current = next[idx];
+    if (current.type === 'subagent') {
+      next[idx] = { ...current, ...patch, id: current.id };
+    }
+    return next;
+  }
+  next.push({
+    type: 'subagent',
+    id,
+    query: patch.query ?? '',
+    focusPath: patch.focusPath,
+    status: patch.status ?? 'running',
+    steps: patch.steps ?? [],
+    innerBlocks: patch.innerBlocks ?? [],
+    summary: patch.summary ?? '',
+    startedAt: patch.startedAt ?? Date.now(),
+    finishedAt: patch.finishedAt,
+  });
+  return next;
+}
+
+function currentInnerBlocks(block: MessageBlock | undefined): MessageBlock[] {
+  return block?.type === 'subagent' ? [...(block.innerBlocks ?? [])] : [];
+}
+
+function asSubagent(
+  block: MessageBlock | undefined,
+): Extract<MessageBlock, { type: 'subagent' }> | undefined {
+  return block?.type === 'subagent' ? block : undefined;
+}
+
+function appendInnerText(
+  inner: MessageBlock[],
+  content: string,
+): MessageBlock[] {
+  const next = [...inner];
+  const last = next[next.length - 1];
+  if (last?.type === 'text') {
+    next[next.length - 1] = { ...last, content: last.content + content };
+    return next;
+  }
+  next.push({ type: 'text', content });
+  return next;
+}
+
+function upsertInnerToolCall(
+  inner: MessageBlock[],
+  tool: Extract<MessageBlock, { type: 'tool_call' }>,
+): MessageBlock[] {
+  const next = [...inner];
+  const idx = next.findIndex(
+    (block) => block.type === 'tool_call' && block.id === tool.id,
+  );
+  if (idx >= 0 && next[idx].type === 'tool_call') {
+    next[idx] = { ...next[idx], ...tool, collapsed: next[idx].collapsed };
+    return next;
+  }
+  next.push(tool);
+  return next;
+}
+
 export function applyStreamEventToBlocks(
   blocks: MessageBlock[],
   event: StreamEvent,
@@ -560,11 +698,187 @@ export function applyStreamEventToBlocks(
     return next;
   }
 
+  if (event.type === 'subagent_start') {
+    const toolCallId = eventToolCallId(event);
+    if (!toolCallId) return next;
+    return upsertSubagentBlock(next, toolCallId, {
+      query: event.query,
+      focusPath: event.focusPath,
+      status: 'running',
+    });
+  }
+
+  if (event.type === 'subagent_tool_start') {
+    const toolCallId = eventToolCallId(event);
+    if (!toolCallId) return next;
+    const existing = next.find(
+      (block) => block.type === 'subagent' && block.id === toolCallId,
+    );
+    const steps =
+      existing && existing.type === 'subagent' ? [...existing.steps] : [];
+    const stepIdx = steps.findIndex(
+      (step) => step.id === event.innerToolCallId,
+    );
+    const step = {
+      id: event.innerToolCallId,
+      name: event.name,
+      arguments: event.arguments,
+      status: 'running' as const,
+    };
+    if (stepIdx >= 0) {
+      steps[stepIdx] = { ...steps[stepIdx], ...step };
+    } else {
+      steps.push(step);
+    }
+    const current = asSubagent(existing);
+    const keepRunning = !current || current.status === 'running';
+    const innerBlocks = upsertInnerToolCall(currentInnerBlocks(existing), {
+      type: 'tool_call',
+      id: event.innerToolCallId,
+      name: event.name,
+      arguments: event.arguments,
+      status: 'running',
+      collapsed: true,
+    });
+    return upsertSubagentBlock(next, toolCallId, {
+      steps,
+      innerBlocks,
+      status: keepRunning ? 'running' : current.status,
+    });
+  }
+
+  if (event.type === 'subagent_tool_result') {
+    const toolCallId = eventToolCallId(event);
+    if (!toolCallId) return next;
+    const existing = next.find(
+      (block) => block.type === 'subagent' && block.id === toolCallId,
+    );
+    if (!existing || existing.type !== 'subagent') {
+      return upsertSubagentBlock(next, toolCallId, {
+        steps: [
+          {
+            id: event.innerToolCallId,
+            name: '',
+            arguments: '',
+            result: event.result,
+            status: event.status ?? 'done',
+          },
+        ],
+        innerBlocks: [
+          {
+            type: 'tool_call',
+            id: event.innerToolCallId,
+            name: '',
+            arguments: '',
+            result: event.result,
+            status: event.status ?? 'done',
+            collapsed: true,
+          },
+        ],
+      });
+    }
+    const steps = existing.steps.map((step) =>
+      step.id === event.innerToolCallId
+        ? {
+            ...step,
+            result: event.result,
+            status: event.status ?? 'done',
+          }
+        : step,
+    );
+    if (!steps.some((step) => step.id === event.innerToolCallId)) {
+      steps.push({
+        id: event.innerToolCallId,
+        name: '',
+        arguments: '',
+        result: event.result,
+        status: event.status ?? 'done',
+      });
+    }
+    const innerBlocks = upsertInnerToolCall(currentInnerBlocks(existing), {
+      type: 'tool_call',
+      id: event.innerToolCallId,
+      name:
+        existing.steps.find((step) => step.id === event.innerToolCallId)
+          ?.name ?? '',
+      arguments:
+        existing.steps.find((step) => step.id === event.innerToolCallId)
+          ?.arguments ?? '',
+      result: event.result,
+      status: event.status ?? 'done',
+      collapsed: true,
+    });
+    return upsertSubagentBlock(next, toolCallId, { steps, innerBlocks });
+  }
+
+  if (event.type === 'subagent_text_delta') {
+    const toolCallId = eventToolCallId(event);
+    if (!toolCallId) return next;
+    const existing = next.find(
+      (block) => block.type === 'subagent' && block.id === toolCallId,
+    );
+    const current = asSubagent(existing);
+    const prev = current ? current.summary : '';
+    const keepRunning = !current || current.status === 'running';
+    return upsertSubagentBlock(next, toolCallId, {
+      summary: keepRunning ? prev + event.content : prev,
+      innerBlocks: keepRunning
+        ? appendInnerText(currentInnerBlocks(existing), event.content)
+        : currentInnerBlocks(existing),
+      status: keepRunning ? 'running' : current.status,
+    });
+  }
+
+  if (event.type === 'subagent_done') {
+    const toolCallId = eventToolCallId(event);
+    if (!toolCallId) return next;
+    const existing = next.find(
+      (block) => block.type === 'subagent' && block.id === toolCallId,
+    );
+    const prevSummary =
+      existing && existing.type === 'subagent' ? existing.summary : '';
+    const terminal: 'done' | 'error' =
+      event.status === 'error' ? 'error' : 'done';
+    const summary = event.summary || prevSummary;
+    let innerBlocks = markRunningToolsTerminal(
+      currentInnerBlocks(existing),
+      terminal,
+    );
+    const streamedText = innerBlocks
+      .filter(
+        (block): block is Extract<MessageBlock, { type: 'text' }> =>
+          block.type === 'text',
+      )
+      .map((block) => block.content)
+      .join('');
+    if (summary.trim() && !streamedText.includes(summary.trim())) {
+      innerBlocks = [...innerBlocks, { type: 'text', content: summary }];
+    }
+    const steps = (
+      existing && existing.type === 'subagent' ? existing.steps : []
+    ).map((step) =>
+      step.status === 'running' ? { ...step, status: terminal } : step,
+    );
+    return upsertSubagentBlock(next, toolCallId, {
+      status: event.status,
+      summary,
+      steps,
+      innerBlocks,
+      finishedAt: Date.now(),
+    });
+  }
+
   if (event.type === 'tool_start') {
-    const toolCallId =
-      ((event as Record<string, unknown>).toolCallId as string | undefined) ??
-      ((event as Record<string, unknown>).tool_call_id as string | undefined) ??
-      '';
+    const toolCallId = eventToolCallId(event);
+    if (event.name === EXPLORE_READONLY_TOOL) {
+      const parsed = parseExploreReadonlyArgs(event.arguments);
+      return upsertSubagentBlock(next, toolCallId, {
+        query: parsed.query,
+        focusPath: parsed.focusPath,
+        status: 'running',
+        startedAt: Date.now(),
+      });
+    }
     const existingIdx = next.findIndex(
       (block) => block.type === 'tool_call' && block.id === toolCallId,
     );
@@ -588,6 +902,8 @@ export function applyStreamEventToBlocks(
         next[existingIdx] = {
           ...block,
           arguments: summarizeToolArgumentsForDisplay(block.name, resolved),
+          // 客户端异步工具：重复的 tool_start 表示开始执行（queued → running）
+          ...(block.status === 'queued' ? { status: 'running' as const } : {}),
         };
       }
       return next;
@@ -597,7 +913,8 @@ export function applyStreamEventToBlocks(
       id: toolCallId,
       name: event.name,
       arguments: summarizeToolArgumentsForDisplay(event.name, event.arguments),
-      status: 'running',
+      // 客户端异步工具经 tool_pending 串行执行，派发时先排队
+      status: CLIENT_TOOL_NAME_SET.has(event.name) ? 'queued' : 'running',
       collapsed: true,
     };
     next.push(toolBlock);
@@ -605,10 +922,25 @@ export function applyStreamEventToBlocks(
   }
 
   if (event.type === 'tool_result') {
-    const toolCallId =
-      ((event as Record<string, unknown>).toolCallId as string | undefined) ??
-      ((event as Record<string, unknown>).tool_call_id as string | undefined) ??
-      '';
+    const toolCallId = eventToolCallId(event);
+    const subIdx = next.findIndex(
+      (block) => block.type === 'subagent' && block.id === toolCallId,
+    );
+    if (subIdx >= 0) {
+      const block = next[subIdx];
+      if (block.type === 'subagent') {
+        if (block.status !== 'running' && block.summary) {
+          return next;
+        }
+        next[subIdx] = {
+          ...block,
+          summary: block.summary || parseToolResultSummary(event.result),
+          status: block.status === 'running' ? 'done' : block.status,
+          finishedAt: block.finishedAt ?? Date.now(),
+        };
+      }
+      return next;
+    }
     const idx = next.findIndex(
       (block) => block.type === 'tool_call' && block.id === toolCallId,
     );
@@ -661,6 +993,7 @@ export function applyStreamEventToBlocks(
   }
 
   if (event.type === 'annotation_proposal') {
+    const proposalKind = inferAnnotationProposalKind(event.proposal);
     for (let i = 0; i < next.length; i += 1) {
       const b = next[i];
       if (b.type === 'annotation_pipeline') {
@@ -672,11 +1005,20 @@ export function applyStreamEventToBlocks(
           ),
         };
       }
+      // 提案已生成 = 对应客户端工具执行完毕：收掉其 queued/running 工具块
+      if (
+        b.type === 'tool_call' &&
+        (b.status === 'queued' || b.status === 'running') &&
+        clientToolPipelineKind(b.name) === proposalKind
+      ) {
+        next[i] = { ...b, status: 'done', collapsed: true };
+      }
     }
     const incoming = {
       type: 'annotation_proposal' as const,
       proposal: event.proposal,
       status: 'pending' as const,
+      sourceKind: proposalKind as PipelineKind,
     };
     const existingIdx = next.findIndex(
       (b) =>
@@ -687,11 +1029,10 @@ export function applyStreamEventToBlocks(
       next[existingIdx] = preserveAppliedProposalMeta(incoming, existing, true);
       return next;
     }
-    const kind = inferAnnotationProposalKind(event.proposal);
     const pipelineIdx = next.findIndex(
       (b) =>
         b.type === 'annotation_pipeline' &&
-        (b.pipelineKind ?? 'batch') === kind,
+        (b.pipelineKind ?? 'batch') === proposalKind,
     );
     if (pipelineIdx >= 0) {
       next.splice(pipelineIdx + 1, 0, incoming);

@@ -45,6 +45,8 @@ export interface BackendChatRequest {
   model: string;
   supportsVision?: boolean;
   systemPrompt?: string;
+  /** 辅助模型凭据（子代理查阅等轻量调用）；缺省时后端跟随主模型 */
+  auxiliary?: { model: string; apiKey: string; baseUrl: string } | null;
 }
 
 const HISTORY_TOOL_NAMES = new Set([
@@ -240,6 +242,16 @@ export async function* streamChatViaBackend(
 
   if (request.systemPrompt) {
     body.system_prompt = request.systemPrompt;
+  }
+  if (
+    request.auxiliary &&
+    request.auxiliary.model.trim() &&
+    request.auxiliary.apiKey.trim() &&
+    request.auxiliary.baseUrl.trim()
+  ) {
+    body.aux_model = request.auxiliary.model;
+    body.aux_api_key = request.auxiliary.apiKey;
+    body.aux_base_url = request.auxiliary.baseUrl;
   }
   if (request.supportsVision !== undefined) {
     body.supports_vision = request.supportsVision;

@@ -16,12 +16,15 @@ import {
 } from '../services/proposalLedger';
 import {
   buildSessionTitle,
+  CLIENT_TOOL_NAME_SET,
   createAgentId,
   isFileProposalBlock,
   type AgentChatPersistedState,
   type AgentInteractionMode,
   type AgentSession,
+  type AgentPanelTab,
   type ChatMessage,
+  type ChatStreamPhase,
   type ClientContextPayload,
   type MessageBlock,
 } from '../../shared/agentTypes';
@@ -46,6 +49,7 @@ import {
   createEmptyChatState,
   createEmptyProjectUi,
   finalizeAnnotationPipelineBlock,
+  finalizeSubagentBlocks,
   getUserTextFromMessage,
   mergeMessagesFromRemote,
   mergeSessionFromRemote,
@@ -110,6 +114,7 @@ import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import { usePretrainedModels } from './PretrainedModelsContext';
 import { shouldClearSummaryOnEdit } from '../services/chatContextUtils';
 import { prepareChatContext } from '../services/contextPreparer';
+import { summarizeConversation } from '../services/contextSummarizer';
 import { loadProjectInstructions } from '../services/projectInstructions';
 import {
   computeMemoryScopeKey,
@@ -124,6 +129,7 @@ import { useWorkMode } from './WorkModeContext';
 import { useApp } from './AppContext';
 import { useLlmProviders } from './LlmProvidersContext';
 import { useToast } from './ToastContext';
+import { findSubagentBlock, isSamePanelTab } from '../services/subagentBlocks';
 import { ApiError } from '../types/auth';
 import translateError, {
   isAuthError,
@@ -134,6 +140,8 @@ interface AgentChatContextValue {
   sessions: Record<string, AgentSession>;
   sessionOrder: string[];
   openTabIds: string[];
+  openPanelTabs: AgentPanelTab[];
+  activePanelTab: AgentPanelTab | null;
   activeSessionId: string | null;
   activeSession: AgentSession | null;
   messagesBySession: Record<string, Record<string, ChatMessage>>;
@@ -146,8 +154,11 @@ interface AgentChatContextValue {
   setEditDraft: (draft: string) => void;
   createSession: () => string;
   closeTab: (sessionId: string) => void;
+  closePanelTab: (tab: AgentPanelTab) => void;
   switchSession: (sessionId: string) => void;
+  switchPanelTab: (tab: AgentPanelTab) => void;
   openSessionTab: (sessionId: string) => void;
+  openSubagentTab: (runId: string, sessionId: string) => void;
   deleteSession: (sessionId: string) => void;
   sendMessage: (
     content: string,
@@ -224,7 +235,7 @@ function normalizeLoadedState(
 }
 
 export function AgentChatProvider({ children }: { children: ReactNode }) {
-  const { providers, defaultProvider } = useLlmProviders();
+  const { providers, defaultProvider, auxiliaryProvider } = useLlmProviders();
   const { showToast } = useToast();
   const { user, status: authStatus } = useAuth();
   const currentUserId = user?.id ?? '';
@@ -252,6 +263,12 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const [applyingAllPending, setApplyingAllPending] = useState(false);
   const [dismissingAllPending, setDismissingAllPending] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [openSubagentTabs, setOpenSubagentTabs] = useState<
+    Array<Extract<AgentPanelTab, { kind: 'subagent' }>>
+  >([]);
+  const [activePanelTab, setActivePanelTab] = useState<AgentPanelTab | null>(
+    null,
+  );
   const [composerDraft, setComposerDraft] = useState('');
   const [editTargetMessageId, setEditTargetMessageId] = useState<string | null>(
     null,
@@ -268,6 +285,16 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   stateRef.current = state;
 
   const currentAnnotationProjectId = activeProject?.id ?? null;
+  const prevAnnotationProjectIdRef = useRef(currentAnnotationProjectId);
+
+  useEffect(() => {
+    if (prevAnnotationProjectIdRef.current === currentAnnotationProjectId) {
+      return;
+    }
+    prevAnnotationProjectIdRef.current = currentAnnotationProjectId;
+    setOpenSubagentTabs([]);
+    setActivePanelTab(null);
+  }, [currentAnnotationProjectId]);
 
   const persistUiSlice = useCallback(
     (slice: Partial<ReturnType<typeof createEmptyProjectUi>>) => {
@@ -848,6 +875,59 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     [updateMessage],
   );
 
+  /**
+   * 点击 Keep All / Undo 时立即把 awaiting 消息切回 streaming（带阶段提示），
+   * 消除「apply 写盘 + resume 建连」期间 UI 停在「等待确认」的空窗。
+   * 返回被切换的消息 id，供失败兜底恢复；无 awaiting 消息时返回 null。
+   */
+  const promoteAwaitingMessageToStreaming = useCallback(
+    (sessionId: string, phase: ChatStreamPhase): string | null => {
+      const latest = stateRef.current;
+      const messagesMap = latest.messagesBySession[sessionId] ?? {};
+      const ids = resolveSessionMessageIds(
+        latest.sessions[sessionId],
+        messagesMap,
+      );
+      for (let i = ids.length - 1; i >= 0; i -= 1) {
+        const msg = messagesMap[ids[i]];
+        if (
+          msg?.role === 'assistant' &&
+          msg.status === 'awaiting_confirmation'
+        ) {
+          updateMessage(sessionId, msg.id, (m) => ({
+            ...m,
+            status: 'streaming',
+            streamPhase: phase,
+            // 重新计时：awaiting 时写过的 finishedAt 会让 Worked for 偏小
+            finishedAt: undefined,
+            updatedAt: Date.now(),
+          }));
+          return msg.id;
+        }
+      }
+      return null;
+    },
+    [updateMessage],
+  );
+
+  /** promote 的失败兜底：把消息恢复为 awaiting（可重试）或落 done（无 job 可续跑）。 */
+  const settlePromotedMessage = useCallback(
+    (
+      sessionId: string,
+      messageId: string,
+      outcome: 'awaiting_confirmation' | 'done',
+    ) => {
+      updateMessage(sessionId, messageId, (m) => ({
+        ...m,
+        status: outcome,
+        streamPhase: null,
+        finishedAt: m.finishedAt ?? Date.now(),
+        updatedAt: Date.now(),
+      }));
+    },
+    [updateMessage],
+  );
+
   const attachJobListener = useCallback(
     (jobId: string, sessionId: string, messageId: string) => {
       return subscribeJobEvents(jobId, (event) => {
@@ -871,15 +951,28 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             status: nextStatus,
             updatedAt: Date.now(),
             finishedAt: existing.finishedAt ?? Date.now(),
-            blocks: existing.blocks.map((block) => {
-              if (block.type === 'annotation_pipeline') {
-                return finalizeAnnotationPipelineBlock(block, 'done');
-              }
-              if (block.type === 'reasoning' || block.type === 'tool_call') {
-                return { ...block, collapsed: true };
-              }
-              return block;
-            }),
+            blocks: finalizeSubagentBlocks(
+              existing.blocks.map((block) => {
+                if (block.type === 'annotation_pipeline') {
+                  return finalizeAnnotationPipelineBlock(block, 'done');
+                }
+                if (block.type === 'tool_call') {
+                  // 客户端异步工具没有真实 tool_result，turn 结束（含 awaiting）
+                  // 时收掉其 queued/running 状态，避免工具行永远「进行中」
+                  const settle =
+                    CLIENT_TOOL_NAME_SET.has(block.name) &&
+                    (block.status === 'queued' || block.status === 'running');
+                  return settle
+                    ? { ...block, collapsed: true, status: 'done' as const }
+                    : { ...block, collapsed: true };
+                }
+                if (block.type === 'reasoning') {
+                  return { ...block, collapsed: true };
+                }
+                return block;
+              }),
+              'error',
+            ),
           };
 
           const session = latest.sessions[sessionId];
@@ -928,18 +1021,21 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             error: translateError(event.message),
             updatedAt: Date.now(),
             finishedAt: existing.finishedAt ?? Date.now(),
-            blocks: existing.blocks.map((block) =>
-              block.type === 'annotation_pipeline'
-                ? {
-                    ...block,
-                    collapsed: true,
-                    steps: block.steps.map((s) =>
-                      s.status === 'running'
-                        ? { ...s, status: 'error' as const }
-                        : s,
-                    ),
-                  }
-                : block,
+            blocks: finalizeSubagentBlocks(
+              existing.blocks.map((block) =>
+                block.type === 'annotation_pipeline'
+                  ? {
+                      ...block,
+                      collapsed: true,
+                      steps: block.steps.map((s) =>
+                        s.status === 'running'
+                          ? { ...s, status: 'error' as const }
+                          : s,
+                      ),
+                    }
+                  : block,
+              ),
+              'error',
             ),
           };
 
@@ -1005,13 +1101,24 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        if (event.type === 'preparing' || event.type === 'route_decided') {
+        if (event.type === 'preparing') {
+          // 后端已接单、正在向模型发起流式调用：空窗期提示“等待模型响应”
+          updateMessage(sessionId, messageId, (message) => ({
+            ...message,
+            streamPhase: 'waiting-model',
+            updatedAt: Date.now(),
+          }));
+          return;
+        }
+
+        if (event.type === 'route_decided') {
           return;
         }
 
         updateMessage(sessionId, messageId, (message) => ({
           ...message,
           status: 'streaming',
+          streamPhase: null,
           blocks: applyStreamEventToBlocks(message.blocks, event),
           updatedAt: Date.now(),
         }));
@@ -1028,6 +1135,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       provider ? { id: provider.id, model: provider.model } : null,
       agentMode,
     );
+    setActivePanelTab({ kind: 'session', sessionId: session.id });
     persist({
       ...current,
       sessions: { ...current.sessions, [session.id]: session },
@@ -1047,6 +1155,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     (sessionId: string) => {
       const { current } = stateRef;
       if (!current.sessions[sessionId]) return;
+      setActivePanelTab({ kind: 'session', sessionId });
       persist({ ...current, activeSessionId: sessionId });
       setEditTargetMessageId(null);
       setComposerDraft('');
@@ -1062,6 +1171,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       const openTabIds = current.openTabIds.includes(sessionId)
         ? current.openTabIds
         : [...current.openTabIds, sessionId];
+      setActivePanelTab({ kind: 'session', sessionId });
       persist({
         ...current,
         openTabIds,
@@ -1102,6 +1212,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           provider ? { id: provider.id, model: provider.model } : null,
           agentMode,
         );
+        setActivePanelTab({ kind: 'session', sessionId: session.id });
         persist({
           ...current,
           sessions: { ...sessions, [session.id]: session },
@@ -1111,6 +1222,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           messagesBySession: { ...messagesBySession, [session.id]: {} },
         });
         return;
+      }
+      if (activeSessionId) {
+        setActivePanelTab({ kind: 'session', sessionId: activeSessionId });
       }
       persist({
         ...current,
@@ -1122,6 +1236,47 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       });
     },
     [activeProject?.id, agentMode, defaultProvider, persist],
+  );
+
+  const openSubagentTab = useCallback((runId: string, sessionId: string) => {
+    const tab: Extract<AgentPanelTab, { kind: 'subagent' }> = {
+      kind: 'subagent',
+      runId,
+      sessionId,
+    };
+    setOpenSubagentTabs((tabs) =>
+      tabs.some((item) => item.runId === runId) ? tabs : [...tabs, tab],
+    );
+    setActivePanelTab(tab);
+  }, []);
+
+  const switchPanelTab = useCallback(
+    (tab: AgentPanelTab) => {
+      setActivePanelTab(tab);
+      if (tab.kind === 'session') {
+        switchSession(tab.sessionId);
+      }
+    },
+    [switchSession],
+  );
+
+  const closePanelTab = useCallback(
+    (tab: AgentPanelTab) => {
+      if (tab.kind === 'session') {
+        closeTab(tab.sessionId);
+        return;
+      }
+      setOpenSubagentTabs((tabs) =>
+        tabs.filter((item) => item.runId !== tab.runId),
+      );
+      setActivePanelTab((current) => {
+        if (current?.kind === 'subagent' && current.runId === tab.runId) {
+          return { kind: 'session', sessionId: tab.sessionId };
+        }
+        return current;
+      });
+    },
+    [closeTab],
   );
 
   const deleteSession = useCallback(
@@ -1158,6 +1313,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           provider ? { id: provider.id, model: provider.model } : null,
           agentMode,
         );
+        setOpenSubagentTabs((tabs) =>
+          tabs.filter((tab) => tab.sessionId !== sessionId),
+        );
+        setActivePanelTab({ kind: 'session', sessionId: session.id });
         persist({
           sessions: { ...sessions, [session.id]: session },
           sessionOrder,
@@ -1166,6 +1325,12 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           messagesBySession: { ...messagesBySession, [session.id]: {} },
         });
         return;
+      }
+      setOpenSubagentTabs((tabs) =>
+        tabs.filter((tab) => tab.sessionId !== sessionId),
+      );
+      if (activeSessionId) {
+        setActivePanelTab({ kind: 'session', sessionId: activeSessionId });
       }
       persist({
         sessions,
@@ -1203,16 +1368,35 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       if (!session?.activeJobId) return;
       stopJob(session.activeJobId);
       const assistantId = session.messageIds[session.messageIds.length - 1];
-      if (assistantId) {
-        updateMessage(targetSessionId, assistantId, (message) => ({
-          ...message,
+      const sessionMessages = {
+        ...(current.messagesBySession[targetSessionId] ?? {}),
+      };
+      if (assistantId && sessionMessages[assistantId]) {
+        const existing = sessionMessages[assistantId];
+        sessionMessages[assistantId] = {
+          ...existing,
           status: 'stopped',
           updatedAt: Date.now(),
-          finishedAt: message.finishedAt ?? Date.now(),
-        }));
+          finishedAt: existing.finishedAt ?? Date.now(),
+          // 手动停止时收掉排队/执行中的客户端标注工具块，避免永久「排队中」
+          blocks: finalizeSubagentBlocks(
+            existing.blocks.map((block) =>
+              block.type === 'tool_call' &&
+              CLIENT_TOOL_NAME_SET.has(block.name) &&
+              (block.status === 'queued' || block.status === 'running')
+                ? { ...block, status: 'error' as const, collapsed: true }
+                : block,
+            ),
+            'error',
+          ),
+        };
       }
       persist({
         ...current,
+        messagesBySession: {
+          ...current.messagesBySession,
+          [targetSessionId]: sessionMessages,
+        },
         sessions: {
           ...current.sessions,
           [targetSessionId]: {
@@ -1223,7 +1407,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         },
       });
     },
-    [persist, updateMessage],
+    [persist],
   );
 
   /**
@@ -1447,6 +1631,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         role: 'assistant',
         blocks: [],
         status: 'streaming',
+        streamPhase: 'preparing-context',
         interactionMode: agentMode,
         providerId: selectedProvider.id,
         model: selectedProvider.model,
@@ -1625,6 +1810,25 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             model: selectedProvider.model,
           },
           excludeMessageIds: new Set([assistantMessageId]),
+          // 摘要真正触发时更新空窗提示（仅此时 summarizeFn 才会被调用）；
+          // 配置了辅助模型时摘要走辅助模型凭据，否则跟随会话模型
+          summarizeFn: (summarizeOptions) => {
+            updateMessage(sessionId, assistantMessageId, (message) => ({
+              ...message,
+              streamPhase: 'summarizing',
+              updatedAt: Date.now(),
+            }));
+            return summarizeConversation(
+              auxiliaryProvider
+                ? {
+                    ...summarizeOptions,
+                    baseUrl: auxiliaryProvider.baseUrl,
+                    apiKey: auxiliaryProvider.apiKey,
+                    model: auxiliaryProvider.model,
+                  }
+                : summarizeOptions,
+            );
+          },
         });
         messageIdsForJob = prepared.windowedMessageIds;
         if (prepared.summarized && prepared.contextSummary) {
@@ -1716,6 +1920,12 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       }
 
       try {
+        // 请求即将发出：进入等待模型阶段（后端 preparing 事件会再次确认该状态）
+        updateMessage(sessionId, assistantMessageId, (message) => ({
+          ...message,
+          streamPhase: 'waiting-model',
+          updatedAt: Date.now(),
+        }));
         await startChatJob({
           jobId,
           session: sessionForJob,
@@ -1726,6 +1936,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           providerApiKey: selectedProvider.apiKey,
           providerModel: selectedProvider.model,
           providerSupportsVision: selectedProvider.supportsVision,
+          auxiliaryProvider: auxiliaryProvider
+            ? {
+                baseUrl: auxiliaryProvider.baseUrl,
+                apiKey: auxiliaryProvider.apiKey,
+                model: auxiliaryProvider.model,
+              }
+            : null,
           userMessageId: userMessageIdForJob,
           assistantMessageId,
           userContent: trimmed,
@@ -1781,6 +1998,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       activeProject,
       agentMode,
       attachJobListener,
+      auxiliaryProvider,
       pretrainedModels,
       editTargetMessageId,
       ensureSessionLoaded,
@@ -1989,6 +2207,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     if (countPendingProposals(messages) === 0) return;
 
     setDismissingAllPending(true);
+    // 立即反馈：消息切回 streaming 并提示「正在放弃提案…」（同 Keep All 空窗）
+    const promotedId = promoteAwaitingMessageToStreaming(
+      sessionId,
+      'discarding-changes',
+    );
     try {
       const dismissed = dismissPendingProposals({
         sessionId,
@@ -2010,15 +2233,27 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         // 无挂起 job 时兜底把暂停消息落为 done
         const resumedJobId = resumeAwaitingConfirmation(sessionId);
         if (!resumedJobId) {
+          if (promotedId) {
+            settlePromotedMessage(sessionId, promotedId, 'done');
+          }
           finalizeAwaitingConfirmationMessages(sessionId);
         }
+      } else if (promotedId) {
+        settlePromotedMessage(sessionId, promotedId, 'awaiting_confirmation');
       }
+    } catch (err) {
+      if (promotedId) {
+        settlePromotedMessage(sessionId, promotedId, 'awaiting_confirmation');
+      }
+      showToast(resolveErrorMessage(err, '放弃提案失败'), { type: 'error' });
     } finally {
       setDismissingAllPending(false);
     }
   }, [
     dismissingAllPending,
     finalizeAwaitingConfirmationMessages,
+    promoteAwaitingMessageToStreaming,
+    settlePromotedMessage,
     showToast,
     updateMessageBlocks,
   ]);
@@ -2150,6 +2385,12 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     });
 
     setApplyingAllPending(true);
+    // 立即反馈：消息切回 streaming 并提示「正在应用变更…」，
+    // 覆盖 apply 写盘 + resume 建连的空窗；失败时在下面恢复 awaiting
+    const promotedId = promoteAwaitingMessageToStreaming(
+      sessionId,
+      'applying-changes',
+    );
     try {
       const result = await applyAllPendingProposals({
         sessionId,
@@ -2181,12 +2422,27 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         // 无挂起 job（如重启后）时兜底把暂停消息落为 done
         const resumedJobId = resumeAwaitingConfirmation(sessionId);
         if (!resumedJobId) {
+          // 消息已被 promote 成 streaming，finalizeAwaiting* 只认 awaiting，
+          // 这里直接落 done
+          if (promotedId) {
+            settlePromotedMessage(sessionId, promotedId, 'done');
+          }
           finalizeAwaitingConfirmationMessages(sessionId);
         }
+        // resume 成功：首个 SSE 事件会清掉 streamPhase 并保持 streaming
+      } else if (promotedId) {
+        // 未应用任何变更（全部失败）：恢复 awaiting，允许用户重试
+        settlePromotedMessage(sessionId, promotedId, 'awaiting_confirmation');
       }
       if (result.errors.length > 0) {
         showToast(result.errors[0], { type: 'error' });
       }
+    } catch (err) {
+      // apply 抛异常：恢复 awaiting，避免消息卡在 streaming
+      if (promotedId) {
+        settlePromotedMessage(sessionId, promotedId, 'awaiting_confirmation');
+      }
+      showToast(resolveErrorMessage(err, '应用变更失败'), { type: 'error' });
     } finally {
       setApplyingAllPending(false);
     }
@@ -2194,10 +2450,36 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     activeProject,
     applyingAllPending,
     finalizeAwaitingConfirmationMessages,
+    promoteAwaitingMessageToStreaming,
     rootPath,
+    settlePromotedMessage,
     showToast,
     updateMessageBlocks,
   ]);
+
+  const openPanelTabs = useMemo<AgentPanelTab[]>(() => {
+    const sessionTabs: AgentPanelTab[] = state.openTabIds.map((sessionId) => ({
+      kind: 'session',
+      sessionId,
+    }));
+    const subagentTabs = openSubagentTabs.filter((tab) =>
+      findSubagentBlock(state.messagesBySession, tab.runId),
+    );
+    return [...sessionTabs, ...subagentTabs];
+  }, [openSubagentTabs, state.messagesBySession, state.openTabIds]);
+
+  const resolvedActivePanelTab = useMemo<AgentPanelTab | null>(() => {
+    if (
+      activePanelTab &&
+      openPanelTabs.some((tab) => isSamePanelTab(tab, activePanelTab))
+    ) {
+      return activePanelTab;
+    }
+    if (state.activeSessionId) {
+      return { kind: 'session', sessionId: state.activeSessionId };
+    }
+    return null;
+  }, [activePanelTab, openPanelTabs, state.activeSessionId]);
 
   const activeSession = useMemo(
     () =>
@@ -2233,6 +2515,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       agentMode,
       setAgentMode,
       openTabIds: state.openTabIds,
+      openPanelTabs,
+      activePanelTab: resolvedActivePanelTab,
       activeSessionId: state.activeSessionId,
       activeSession,
       messagesBySession: state.messagesBySession,
@@ -2245,8 +2529,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       setEditDraft,
       createSession,
       closeTab,
+      closePanelTab,
       switchSession,
+      switchPanelTab,
       openSessionTab,
+      openSubagentTab,
       deleteSession,
       sendMessage,
       stopGeneration,
@@ -2287,10 +2574,15 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       sessionsHasMore,
       loadingMoreSessions,
       loadingOlderMessages,
+      openPanelTabs,
+      resolvedActivePanelTab,
       createSession,
       closeTab,
+      closePanelTab,
       switchSession,
+      switchPanelTab,
       openSessionTab,
+      openSubagentTab,
       deleteSession,
       sendMessage,
       stopGeneration,

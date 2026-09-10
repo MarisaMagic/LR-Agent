@@ -85,8 +85,16 @@ export default function AgentKeepAllBar() {
 
   const streaming =
     activeSessionId != null && isSessionStreaming(activeSessionId);
+  // awaiting_confirmation 时由消息尾部的内联 Keep All / Undo 接管，避免双按钮
+  const hasAwaitingMessage = messages.some(
+    (message) =>
+      message.role === 'assistant' &&
+      message.status === 'awaiting_confirmation',
+  );
   // 文件提案在 file_proposal_start 就会变 pending；流式结束 / HITL 暂停后再出示 Keep All
-  if (pendingProposalCount <= 0 || streaming) return null;
+  if (pendingProposalCount <= 0 || streaming || hasAwaitingMessage) {
+    return null;
+  }
 
   const busy = applyingAllPending || dismissingAllPending || preparingContext;
 

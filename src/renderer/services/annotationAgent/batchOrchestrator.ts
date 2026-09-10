@@ -3,6 +3,7 @@ import type {
   AnnotationBatchChange,
   AnnotationBatchProposal,
   AnnotationProjectSnapshot,
+  DetectionOverrides,
   GenericProposalStats,
   ImageCandidate,
 } from '../../../shared/annotationAgentTypes';
@@ -12,6 +13,7 @@ import { getRelativeProjectPath } from '../../utils/projectPaths';
 import type { AnnotationInstance } from '../../types/annotationDocument';
 import {
   resolveAnnotationScopePaths,
+  type AnnotationScopeResult,
   type InputPathEntry,
 } from './scopePathUtil';
 import {
@@ -43,7 +45,12 @@ export type AnnotationProgressEvent =
     }
   | { type: 'proposal'; proposal: AnnotationBatchProposal }
   | { type: 'text'; content: string }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | {
+      type: 'scope_truncated';
+      omittedCount: number;
+      omittedPaths: string[];
+    };
 
 function progress(
   stage: string,
@@ -73,6 +80,8 @@ export async function* runAnnotationBatchJob(options: {
   scopePaths?: string[];
   allFiles?: boolean;
   writeMode?: 'append' | 'replace_matching';
+  /** auto_annotate 透传的检测约束（仅几何管线消费） */
+  detectionOverrides?: DetectionOverrides;
 }): AsyncGenerator<AnnotationProgressEvent> {
   const { project } = options;
   const isCancelled = () =>
@@ -143,7 +152,7 @@ async function resolveScopePathsForProject(
     preselectedPaths?: string[];
   },
   projectDir: string,
-): Promise<{ paths: InputPathEntry[]; error?: string }> {
+): Promise<AnnotationScopeResult> {
   const preselected = (options.preselectedPaths ?? []).filter(Boolean);
   return resolveAnnotationScopePaths(
     allPaths,
@@ -220,6 +229,13 @@ async function* runGeneratePipeline(
     return;
   }
   inputPaths = scoped.paths;
+  if (scoped.omittedCount && scoped.omittedCount > 0) {
+    yield {
+      type: 'scope_truncated',
+      omittedCount: scoped.omittedCount,
+      omittedPaths: scoped.omittedPaths ?? [],
+    };
+  }
 
   if (isCancelled()) return;
 

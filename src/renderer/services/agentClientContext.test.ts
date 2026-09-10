@@ -35,11 +35,26 @@ describe('buildClientContextPayload', () => {
     });
 
     expect(payload.workMode).toBe('editor');
-    expect(payload.agentMode).toBe('chat');
+    expect(payload.agentMode).toBe('annotation');
     expect(payload.annotationProjectSnapshot).toBeUndefined();
     expect(payload.activeAnnotationProjectId).toBeNull();
     expect(payload.workspaceMemoryEnabled).toBe(false);
     expect(payload.memoryIndex).toBeNull();
+  });
+
+  it('forwards editor Ask as chat without annotation snapshot', () => {
+    const payload = buildClientContextPayload({
+      rootPath: '/tmp/project',
+      activeFilePath: '/tmp/project/a.ts',
+      activeProject: sampleProject,
+      agentMode: 'chat',
+      workMode: 'editor',
+      detectionModels: [],
+    });
+
+    expect(payload.agentMode).toBe('chat');
+    expect(payload.workMode).toBe('editor');
+    expect(payload.annotationProjectSnapshot).toBeUndefined();
   });
 
   it('includes annotation snapshot in annotation work mode', () => {

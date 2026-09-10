@@ -10,20 +10,38 @@ interface ModeOption {
   icon: 'ask' | 'agent';
 }
 
-const MODE_OPTIONS: ModeOption[] = [
-  {
-    id: 'chat',
-    label: 'Ask',
-    description: '问答与分析，不写入标注',
-    icon: 'ask',
-  },
-  {
-    id: 'annotation',
-    label: 'Agent',
-    description: '批量标注、变更、分析与报告',
-    icon: 'agent',
-  },
-];
+function modeOptions(workMode: 'editor' | 'annotation'): ModeOption[] {
+  if (workMode === 'editor') {
+    return [
+      {
+        id: 'chat',
+        label: 'Ask',
+        description: '问答与分析，不修改文件',
+        icon: 'ask',
+      },
+      {
+        id: 'annotation',
+        label: 'Agent',
+        description: '可改代码/文档，不能标注',
+        icon: 'agent',
+      },
+    ];
+  }
+  return [
+    {
+      id: 'chat',
+      label: 'Ask',
+      description: '问答与分析，不写入标注或文件',
+      icon: 'ask',
+    },
+    {
+      id: 'annotation',
+      label: 'Agent',
+      description: '批量标注、变更、分析与报告',
+      icon: 'agent',
+    },
+  ];
+}
 
 function ModeIcon({ kind }: { kind: ModeOption['icon'] }) {
   if (kind === 'agent') {
@@ -43,20 +61,22 @@ function ModeIcon({ kind }: { kind: ModeOption['icon'] }) {
 
 interface AgentModePickerProps {
   mode: AgentInteractionMode;
+  workMode?: 'editor' | 'annotation';
   disabled?: boolean;
   onSelect: (mode: AgentInteractionMode) => void;
 }
 
 export default function AgentModePicker({
   mode,
+  workMode = 'annotation',
   disabled = false,
   onSelect,
 }: AgentModePickerProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const options = modeOptions(workMode);
 
-  const active =
-    MODE_OPTIONS.find((item) => item.id === mode) ?? MODE_OPTIONS[0];
+  const active = options.find((item) => item.id === mode) ?? options[0];
 
   useEffect(() => {
     if (!open) return undefined;
@@ -93,7 +113,7 @@ export default function AgentModePicker({
         origin="bottom"
         role="listbox"
       >
-        {MODE_OPTIONS.map((option) => (
+        {options.map((option) => (
           <button
             key={option.id}
             type="button"

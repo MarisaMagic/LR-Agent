@@ -5,7 +5,11 @@ from app.agent.context_snapshot import (
     format_snapshot_for_prompt,
 )
 from app.agent.tools.help import get_lr_agent_help
-from app.schemas.agent import AnnotationProjectSnapshotInput, ClientContextInput
+from app.schemas.agent import (
+    AnnotationProjectSnapshotInput,
+    ClientContextInput,
+    SkillCatalogEntryInput,
+)
 
 
 def _bbox_snapshot() -> AnnotationProjectSnapshotInput:
@@ -44,6 +48,7 @@ def test_project_system_prompt_routes_annotation_writes_to_tools() -> None:
     assert ".lr-agent/annotations" not in prompt
     assert "auto_annotate" in prompt
     assert "mutate_annotation" in prompt
+    assert "explore_readonly" in prompt
     assert "不要用写文件工具保存标注" in prompt
     assert "查已有标注 JSON" not in prompt
 
@@ -63,8 +68,52 @@ def test_proposal_ledger_appended_to_system_prompt() -> None:
     assert "data/8.jpg" in prompt
 
 
+def test_dynamic_blocks_sink_to_bottom_for_prefix_cache() -> None:
+    """稳定块（指令、skills）在前，动态块（记忆、台账）沉底，保证前缀缓存命中。"""
+    ctx = ClientContextInput(
+        workspace_root="/ws",
+        project_instructions="优先使用中文回答。",
+        workspace_memory_enabled=True,
+        memory_index="- progress.md: 标注进度",
+        skills_catalog=[SkillCatalogEntryInput(name="demo", description="演示技能")],
+        proposal_ledger="【未确认提案】未 Keep All，未写盘。",
+    )
+    prompt = _build_prompt(ctx)
+    instructions_pos = prompt.index("【项目指令】")
+    skills_pos = prompt.index("【可用 Skills】")
+    memory_pos = prompt.index("【工作区记忆】")
+    ledger_pos = prompt.index("【未确认提案】")
+    assert instructions_pos < skills_pos < memory_pos < ledger_pos
+
+
 def test_help_annotation_topic_does_not_leak_storage_path() -> None:
     text = get_lr_agent_help("标注")
     assert ".lr-agent/annotations" not in text
     assert "auto_annotate" in text
     assert "mutate_annotation" in text
+
+
+def test_editor_ask_prompt_is_readonly() -> None:
+    prompt = _build_prompt(
+        ClientContextInput(
+            workspace_root="/ws",
+            work_mode="editor",
+            agent_mode="chat",
+        )
+    )
+    assert "编辑器 Ask" in prompt
+    assert "禁止调用写文件" in prompt
+    assert "write_workspace_file" not in prompt.split("【编辑器模式】")[-1]
+
+
+def test_editor_agent_prompt_allows_file_writes() -> None:
+    prompt = _build_prompt(
+        ClientContextInput(
+            workspace_root="/ws",
+            work_mode="editor",
+            agent_mode="annotation",
+        )
+    )
+    assert "编辑器 Agent" in prompt
+    assert "write_workspace_file" in prompt
+    assert "禁止调用标注" in prompt

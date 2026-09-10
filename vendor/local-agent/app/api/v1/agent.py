@@ -16,7 +16,6 @@ from langchain_openai import ChatOpenAI
 
 from app.agent import assist_service, chat_service
 from app.agent.assist.task_phase import (
-    blocked_tool_names,
     derive_task_phase,
     phase_prompt_block,
 )
@@ -131,6 +130,22 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
             timeout=120,
         )
 
+        # 辅助模型：子代理查阅等轻量调用使用；未配置时跟随主模型
+        aux_llm: ChatOpenAI | None = None
+        if (
+            body.aux_model.strip()
+            and body.aux_api_key.strip()
+            and body.aux_base_url.strip()
+        ):
+            aux_llm = ChatOpenAI(
+                model=body.aux_model.strip(),
+                api_key=body.aux_api_key.strip(),
+                base_url=body.aux_base_url.strip().rstrip("/"),
+                streaming=True,
+                temperature=0.7,
+                timeout=120,
+            )
+
         client_ctx: ClientContextInput | None = body.client_context
         has_tools = bool(
             client_ctx
@@ -214,6 +229,7 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                             and should_expose_mcp_tool(
                                 t.name,
                                 workspace_memory_enabled=memory_on,
+                                agent_mode=client_ctx.agent_mode if client_ctx else None,
                             )
                         ]
                 except Exception:
@@ -222,10 +238,10 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                         exc_info=True,
                     )
 
-            # 阶段门禁：bind 前移除本阶段禁止的工具（await_confirm 禁全部写入）
-            blocked = blocked_tool_names(task_phase_ctx)
-            if blocked:
-                tools = [t for t in tools if t.name not in blocked]
+            # tools 列表保持稳定（按名称排序）：阶段门禁不在 bind 时增删工具，
+            # 交由执行层 check_call_allowed 拦截（tool_loop.py），
+            # 避免 tools 前缀随任务阶段变化而破坏 LLM 前缀缓存。
+            tools = sorted(tools, key=lambda t: t.name)
 
             stream = assist_service.stream_assist(
                 llm,
@@ -239,6 +255,7 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                 user_content=body.user_content,
                 client_tool_results=body.client_tool_results or None,
                 task_phase_ctx=task_phase_ctx,
+                aux_llm=aux_llm,
             )
         else:
             system_prompt = body.system_prompt or CHAT_SYSTEM_PROMPT

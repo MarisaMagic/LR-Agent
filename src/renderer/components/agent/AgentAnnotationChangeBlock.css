@@ -23,6 +23,14 @@
   gap: 8px;
 }
 
+/* 提案来源标签（批量标注 / 标注修改） */
+.agent-annotation-change-block__source {
+  margin: 0 0 2px 2px;
+  font-size: var(--agent-font-meta, 11px);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  opacity: 0.85;
+}
+
 .agent-annotation-change-block__chevron,
 .agent-annotation-change-block__name {
   border: none;

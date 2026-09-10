@@ -150,7 +150,7 @@ export default function ExportAnnotationWizard({
     <ModalMotion
       open={open}
       onClose={onClose}
-      closeOnBackdropClick={!submitting}
+      closeOnBackdropClick={false}
       dialogClassName="export-annotation-wizard"
       dialogRole="form"
       labelledBy="export-annotation-title"

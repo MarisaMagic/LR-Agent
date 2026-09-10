@@ -366,6 +366,281 @@ describe('applyChangeToDoc patch and rewrite', () => {
   });
 });
 
+describe('applyChangeToDoc patch extended kinds', () => {
+  const baseTime = '2020-01-01T00:00:00.000Z';
+
+  it('patches rotated_bbox center and angle', () => {
+    const rotatedDoc: FileAnnotationDocument = {
+      ...doc,
+      annotationType: 'rotated_bbox',
+      annotations: [
+        {
+          id: 'r1',
+          kind: 'rotated_bbox',
+          labelId: 'l1',
+          cx: 0.5,
+          cy: 0.5,
+          width: 0.2,
+          height: 0.1,
+          angle: 0,
+          createdAt: baseTime,
+          updatedAt: baseTime,
+        },
+      ],
+    };
+    const next = applyChangeToDoc(
+      rotatedDoc,
+      {
+        relativePath: 'data/1.jpg',
+        absolutePath: '/tmp/data/1.jpg',
+        operation: 'patch',
+        patches: [{ id: 'r1', cx: 0.6, angle: 45 }],
+      },
+      { ...project, annotationType: 'rotated_bbox' },
+    );
+    const ann = next.annotations[0];
+    expect(ann && ann.kind === 'rotated_bbox' && ann.cx).toBe(0.6);
+    expect(ann && ann.kind === 'rotated_bbox' && ann.angle).toBe(45);
+    expect(ann && ann.kind === 'rotated_bbox' && ann.cy).toBe(0.5);
+  });
+
+  it('patches pose keypoints and angle', () => {
+    const poseDoc: FileAnnotationDocument = {
+      ...doc,
+      annotationType: 'keypoint',
+      annotations: [
+        {
+          id: 'p1',
+          kind: 'pose',
+          labelId: null,
+          templateId: 'tpl',
+          cx: 0.5,
+          cy: 0.5,
+          width: 0.3,
+          height: 0.4,
+          angle: 0,
+          keypoints: [{ x: 0.5, y: 0.4, visibility: 2 }],
+          createdAt: baseTime,
+          updatedAt: baseTime,
+        },
+      ],
+    };
+    const next = applyChangeToDoc(
+      poseDoc,
+      {
+        relativePath: 'data/1.jpg',
+        absolutePath: '/tmp/data/1.jpg',
+        operation: 'patch',
+        patches: [
+          {
+            id: 'p1',
+            angle: 90,
+            keypoints: [{ x: 0.6, y: 0.45, visibility: 1 }],
+          },
+        ],
+      },
+      { ...project, annotationType: 'keypoint' },
+    );
+    const ann = next.annotations[0];
+    expect(ann && ann.kind === 'pose' && ann.angle).toBe(90);
+    expect(ann && ann.kind === 'pose' && ann.keypoints[0]?.visibility).toBe(1);
+  });
+
+  it('patches span_ner offsets', () => {
+    const spanDoc: FileAnnotationDocument = {
+      ...doc,
+      modality: 'text',
+      annotationType: 'span_ner',
+      annotations: [
+        {
+          id: 's1',
+          kind: 'span_ner',
+          labelId: 'l1',
+          start: 0,
+          end: 5,
+          createdAt: baseTime,
+          updatedAt: baseTime,
+        },
+      ],
+    };
+    const next = applyChangeToDoc(
+      spanDoc,
+      {
+        relativePath: 'data/a.txt',
+        absolutePath: '/tmp/data/a.txt',
+        operation: 'patch',
+        patches: [{ id: 's1', start: 2, end: 8 }],
+      },
+      { ...project, modality: 'text', annotationType: 'span_ner' },
+    );
+    const ann = next.annotations[0];
+    expect(ann && ann.kind === 'span_ner' && ann.start).toBe(2);
+    expect(ann && ann.kind === 'span_ner' && ann.end).toBe(8);
+  });
+
+  it('patches preference chosen/rejected', () => {
+    const prefDoc: FileAnnotationDocument = {
+      ...doc,
+      modality: 'text',
+      annotationType: 'preference',
+      annotations: [
+        {
+          id: 'pr1',
+          kind: 'preference',
+          labelId: null,
+          prompt: '问',
+          chosen: '旧好',
+          rejected: '旧差',
+          createdAt: baseTime,
+          updatedAt: baseTime,
+        },
+      ],
+    };
+    const next = applyChangeToDoc(
+      prefDoc,
+      {
+        relativePath: 'data/a.txt',
+        absolutePath: '/tmp/data/a.txt',
+        operation: 'patch',
+        patches: [{ id: 'pr1', chosen: '新好', rejected: '新差' }],
+      },
+      { ...project, modality: 'text', annotationType: 'preference' },
+    );
+    const ann = next.annotations[0];
+    expect(ann && ann.kind === 'preference' && ann.chosen).toBe('新好');
+    expect(ann && ann.kind === 'preference' && ann.prompt).toBe('问');
+  });
+
+  it('patches conversation turns', () => {
+    const convDoc: FileAnnotationDocument = {
+      ...doc,
+      modality: 'text',
+      annotationType: 'conversation',
+      annotations: [
+        {
+          id: 'cv1',
+          kind: 'conversation',
+          labelId: null,
+          turns: [{ role: 'user', content: '旧问题' }],
+          createdAt: baseTime,
+          updatedAt: baseTime,
+        },
+      ],
+    };
+    const next = applyChangeToDoc(
+      convDoc,
+      {
+        relativePath: 'data/a.txt',
+        absolutePath: '/tmp/data/a.txt',
+        operation: 'patch',
+        patches: [
+          {
+            id: 'cv1',
+            turns: [
+              { role: 'user', content: '新问题' },
+              { role: 'assistant', content: '新回答' },
+            ],
+          },
+        ],
+      },
+      { ...project, modality: 'text', annotationType: 'conversation' },
+    );
+    const ann = next.annotations[0];
+    expect(ann && ann.kind === 'conversation' && ann.turns).toHaveLength(2);
+  });
+
+  it('patches instruction input/output', () => {
+    const insDoc: FileAnnotationDocument = {
+      ...doc,
+      modality: 'text',
+      annotationType: 'instruction',
+      annotations: [
+        {
+          id: 'i1',
+          kind: 'instruction',
+          labelId: null,
+          instruction: '旧指令',
+          input: '旧输入',
+          output: '旧输出',
+          createdAt: baseTime,
+          updatedAt: baseTime,
+        },
+      ],
+    };
+    const next = applyChangeToDoc(
+      insDoc,
+      {
+        relativePath: 'data/a.txt',
+        absolutePath: '/tmp/data/a.txt',
+        operation: 'patch',
+        patches: [{ id: 'i1', instruction: '新指令', output: '新输出' }],
+      },
+      { ...project, modality: 'text', annotationType: 'instruction' },
+    );
+    const ann = next.annotations[0];
+    expect(ann && ann.kind === 'instruction' && ann.instruction).toBe('新指令');
+    expect(ann && ann.kind === 'instruction' && ann.output).toBe('新输出');
+  });
+
+  it('rejects angle on bbox', () => {
+    const result = validateMutations(
+      doc,
+      {
+        relativePath: 'data/1.jpg',
+        absolutePath: '/tmp/data/1.jpg',
+        operation: 'patch',
+        patches: [{ id: 'a1', angle: 30 }],
+      },
+      labels,
+    );
+    expect(result.valid).toBe(false);
+  });
+
+  it('rejects keypoints on bbox', () => {
+    const result = validateMutations(
+      doc,
+      {
+        relativePath: 'data/1.jpg',
+        absolutePath: '/tmp/data/1.jpg',
+        operation: 'patch',
+        patches: [{ id: 'a1', keypoints: [{ x: 0.5, y: 0.5, visibility: 2 }] }],
+      },
+      labels,
+    );
+    expect(result.valid).toBe(false);
+  });
+
+  it('rejects span offsets with start >= end', () => {
+    const spanDoc: FileAnnotationDocument = {
+      ...doc,
+      modality: 'text',
+      annotationType: 'span_ner',
+      annotations: [
+        {
+          id: 's1',
+          kind: 'span_ner',
+          labelId: 'l1',
+          start: 0,
+          end: 5,
+          createdAt: baseTime,
+          updatedAt: baseTime,
+        },
+      ],
+    };
+    const result = validateMutations(
+      spanDoc,
+      {
+        relativePath: 'data/a.txt',
+        absolutePath: '/tmp/data/a.txt',
+        operation: 'patch',
+        patches: [{ id: 's1', start: 8, end: 2 }],
+      },
+      labels,
+    );
+    expect(result.valid).toBe(false);
+  });
+});
+
 describe('foldValidatedChangesIntoDoc', () => {
   it('validates delete+append in memory and keeps remaining items', () => {
     const captionDoc: FileAnnotationDocument = {

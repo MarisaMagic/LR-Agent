@@ -36,10 +36,18 @@ def should_expose_mcp_tool(
     tool_name: str,
     *,
     workspace_memory_enabled: bool,
+    agent_mode: str | None = None,
 ) -> bool:
-    """工作区记忆关闭时不向 Agent 暴露 memory_*，保留 read_agent_skill。"""
+    """工作区记忆关闭时不向 Agent 暴露 memory_*，保留 read_agent_skill。
+
+    Ask（agent_mode 非 annotation）只暴露 memory_read，禁止 memory_write / memory_create。
+    """
     if tool_name.startswith("memory_"):
-        return workspace_memory_enabled
+        if not workspace_memory_enabled:
+            return False
+        if agent_mode != "annotation":
+            return tool_name == "memory_read"
+        return True
     return True
 
 

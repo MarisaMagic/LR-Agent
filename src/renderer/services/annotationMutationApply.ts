@@ -190,23 +190,43 @@ export function patchHasPayload(patch: AnnotationPatch): boolean {
     patch.y !== undefined ||
     patch.width !== undefined ||
     patch.height !== undefined ||
+    patch.cx !== undefined ||
+    patch.cy !== undefined ||
+    patch.angle !== undefined ||
     (patch.points != null && patch.points.length >= 3) ||
+    (patch.keypoints != null && patch.keypoints.length > 0) ||
+    patch.start !== undefined ||
+    patch.end !== undefined ||
     patch.text !== undefined ||
     patch.granularity !== undefined ||
     patch.language !== undefined ||
     patch.steps !== undefined ||
     patch.answer !== undefined ||
-    patch.instruction !== undefined
+    patch.instruction !== undefined ||
+    patch.input !== undefined ||
+    patch.output !== undefined ||
+    patch.prompt !== undefined ||
+    patch.chosen !== undefined ||
+    patch.rejected !== undefined ||
+    (patch.turns != null && patch.turns.length > 0)
   );
 }
 
 function validatePatchGeometry(patch: AnnotationPatch): string[] {
   const errors: string[] = [];
-  if (!isNormCoord(patch.x) || !isNormCoord(patch.y)) {
+  if (
+    !isNormCoord(patch.x) ||
+    !isNormCoord(patch.y) ||
+    !isNormCoord(patch.cx) ||
+    !isNormCoord(patch.cy)
+  ) {
     errors.push(`patch ${patch.id} 坐标必须在 0–1`);
   }
   if (!isNormSize(patch.width) || !isNormSize(patch.height)) {
     errors.push(`patch ${patch.id} 宽高必须在 (0, 1]`);
+  }
+  if (patch.angle !== undefined && !Number.isFinite(patch.angle)) {
+    errors.push(`patch ${patch.id} 旋转角必须是有限数值`);
   }
   if (patch.points) {
     if (patch.points.length < 3) {
@@ -214,6 +234,25 @@ function validatePatchGeometry(patch: AnnotationPatch): string[] {
     }
     if (patch.points.some((p) => !isNormCoord(p.x) || !isNormCoord(p.y))) {
       errors.push(`patch ${patch.id} 多边形顶点必须在 0–1`);
+    }
+  }
+  if (patch.keypoints) {
+    if (
+      patch.keypoints.some((kp) => !isNormCoord(kp.x) || !isNormCoord(kp.y))
+    ) {
+      errors.push(`patch ${patch.id} 关键点坐标必须在 0–1`);
+    }
+  }
+  if (
+    patch.start !== undefined &&
+    patch.end !== undefined &&
+    patch.start >= patch.end
+  ) {
+    errors.push(`patch ${patch.id} span 偏移必须满足 start < end`);
+  }
+  if (patch.turns) {
+    if (patch.turns.some((t) => !t.content.trim())) {
+      errors.push(`patch ${patch.id} 对话轮次内容不能为空`);
     }
   }
   return errors;
@@ -228,28 +267,70 @@ function validatePatchForKind(
     patch.text !== undefined ||
     patch.granularity !== undefined ||
     patch.language !== undefined;
-  const hasCot =
-    patch.steps !== undefined ||
-    patch.answer !== undefined ||
-    patch.instruction !== undefined;
+  const hasCot = patch.steps !== undefined || patch.answer !== undefined;
+  const hasCenter = patch.cx !== undefined || patch.cy !== undefined;
+  const hasRotatableSize =
+    patch.width !== undefined || patch.height !== undefined;
 
   if (patch.points && ann.kind !== 'polygon') {
     errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入多边形点`);
   }
+  if ((patch.x !== undefined || patch.y !== undefined) && ann.kind !== 'bbox') {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入 bbox 左上角几何`);
+  }
   if (
-    (patch.x !== undefined ||
-      patch.y !== undefined ||
-      patch.width !== undefined ||
-      patch.height !== undefined) &&
-    ann.kind !== 'bbox'
+    hasRotatableSize &&
+    ann.kind !== 'bbox' &&
+    ann.kind !== 'rotated_bbox' &&
+    ann.kind !== 'pose'
   ) {
-    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入 bbox 几何`);
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入宽高`);
+  }
+  if (
+    (hasCenter || patch.angle !== undefined) &&
+    ann.kind !== 'rotated_bbox' &&
+    ann.kind !== 'pose'
+  ) {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入中心点/旋转角`);
+  }
+  if (patch.keypoints && ann.kind !== 'pose') {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入关键点`);
   }
   if (hasCaption && ann.kind !== 'caption') {
     errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入 caption 字段`);
   }
   if (hasCot && ann.kind !== 'cot') {
     errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入 CoT 字段`);
+  }
+  if (
+    patch.instruction !== undefined &&
+    ann.kind !== 'cot' &&
+    ann.kind !== 'instruction'
+  ) {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入 instruction 字段`);
+  }
+  if (
+    (patch.input !== undefined || patch.output !== undefined) &&
+    ann.kind !== 'instruction'
+  ) {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入 input/output 字段`);
+  }
+  if (
+    (patch.start !== undefined || patch.end !== undefined) &&
+    ann.kind !== 'span_ner'
+  ) {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入 span 偏移`);
+  }
+  if (
+    (patch.prompt !== undefined ||
+      patch.chosen !== undefined ||
+      patch.rejected !== undefined) &&
+    ann.kind !== 'preference'
+  ) {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入 preference 字段`);
+  }
+  if (patch.turns && ann.kind !== 'conversation') {
+    errors.push(`patch ${patch.id} 不能对 ${ann.kind} 写入对话轮次`);
   }
   if (patch.steps && patch.steps.length < 2) {
     errors.push(`patch ${patch.id} CoT 至少 2 步`);
@@ -309,6 +390,74 @@ function applyPatchToAnnotation(
       answer: patch.answer ?? ann.answer,
       instruction:
         patch.instruction !== undefined ? patch.instruction : ann.instruction,
+    };
+  }
+  if (ann.kind === 'rotated_bbox') {
+    return {
+      ...ann,
+      labelId,
+      note,
+      updatedAt: now,
+      cx: patch.cx ?? ann.cx,
+      cy: patch.cy ?? ann.cy,
+      width: patch.width ?? ann.width,
+      height: patch.height ?? ann.height,
+      angle: patch.angle ?? ann.angle,
+    };
+  }
+  if (ann.kind === 'pose') {
+    return {
+      ...ann,
+      labelId,
+      note,
+      updatedAt: now,
+      cx: patch.cx ?? ann.cx,
+      cy: patch.cy ?? ann.cy,
+      width: patch.width ?? ann.width,
+      height: patch.height ?? ann.height,
+      angle: patch.angle ?? ann.angle,
+      keypoints: patch.keypoints ?? ann.keypoints,
+    };
+  }
+  if (ann.kind === 'span_ner') {
+    return {
+      ...ann,
+      labelId,
+      note,
+      updatedAt: now,
+      start: patch.start ?? ann.start,
+      end: patch.end ?? ann.end,
+    };
+  }
+  if (ann.kind === 'instruction') {
+    return {
+      ...ann,
+      labelId,
+      note,
+      updatedAt: now,
+      instruction: patch.instruction ?? ann.instruction,
+      input: patch.input !== undefined ? patch.input : ann.input,
+      output: patch.output ?? ann.output,
+    };
+  }
+  if (ann.kind === 'preference') {
+    return {
+      ...ann,
+      labelId,
+      note,
+      updatedAt: now,
+      prompt: patch.prompt ?? ann.prompt,
+      chosen: patch.chosen ?? ann.chosen,
+      rejected: patch.rejected ?? ann.rejected,
+    };
+  }
+  if (ann.kind === 'conversation') {
+    return {
+      ...ann,
+      labelId,
+      note,
+      updatedAt: now,
+      turns: patch.turns ?? ann.turns,
     };
   }
   return {

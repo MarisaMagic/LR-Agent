@@ -9,7 +9,9 @@ export interface LlmCallOptions {
   model: string;
   systemPrompt: string;
   userPrompt: string;
-  /** Optional base64-encoded image for vision models */
+  /** Optional absolute image path — backend reads disk directly (preferred, avoids base64 transfer) */
+  imageAbsolutePath?: string;
+  /** Optional base64-encoded image for vision models (fallback when no path) */
   imageBase64?: string;
   imageMimeType?: string;
   temperature?: number;
@@ -46,6 +48,7 @@ export async function callLlmApi(
         user_prompt: options.userPrompt,
         temperature: options.temperature ?? 0.3,
         max_tokens: options.maxTokens ?? 4096,
+        image_absolute_path: options.imageAbsolutePath ?? '',
         image_base64: options.imageBase64 ?? '',
         image_mime_type: options.imageMimeType ?? 'image/jpeg',
       }),

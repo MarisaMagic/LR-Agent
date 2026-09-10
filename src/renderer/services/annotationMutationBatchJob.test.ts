@@ -13,9 +13,15 @@ jest.mock('./annotationAgent/mutationOrchestrator', () => ({
   runAnnotationMutationJob: jest.fn(),
 }));
 
-jest.mock('./annotationAgent/scopePathUtil', () => ({
-  resolveAnnotationScopePaths: jest.fn(),
-}));
+jest.mock('./annotationAgent/scopePathUtil', () => {
+  const actual = jest.requireActual(
+    './annotationAgent/scopePathUtil',
+  ) as typeof import('./annotationAgent/scopePathUtil');
+  return {
+    ...actual,
+    resolveAnnotationScopePaths: jest.fn(),
+  };
+});
 
 const mockedRun = jest.mocked(runAnnotationMutationJob);
 
@@ -173,5 +179,21 @@ describe('formatAnnotationToolResult', () => {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     expect(parsed.status).toBe('error');
     expect(String(parsed.summary)).toContain('不要对用户说已标注完成');
+  });
+
+  it('appends remaining paths when batch is truncated', () => {
+    const raw = formatAnnotationToolResult({
+      status: 'completed',
+      tool: 'auto_annotate',
+      userRequest: '全部标注',
+      summary: '批量标注完成：处理 100 张。',
+      hasProposal: true,
+      omittedCount: 37,
+      omittedPaths: ['data/101.jpg', 'data/102.jpg'],
+    });
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    expect(String(parsed.summary)).toContain('另有 37 张因单次上限 100 未纳入');
+    expect(String(parsed.summary)).toContain('data/101.jpg');
+    expect(String(parsed.summary)).toContain('可再调用 auto_annotate');
   });
 });

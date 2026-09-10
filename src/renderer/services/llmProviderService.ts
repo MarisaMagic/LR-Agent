@@ -8,15 +8,16 @@ import {
 } from './llmProviderApi';
 
 const DEFAULT_PROVIDER_KEY = 'lr-agent:defaultLlmProviderId';
+const AUX_PROVIDER_KEY = 'lr-agent:auxiliaryLlmProviderId';
 
 export function buildEmptyProvider(): LlmProviderConfig {
   const now = Date.now();
   return {
     id: crypto.randomUUID(),
     name: '',
-    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    baseUrl: '',
     apiKey: '',
-    model: 'qwen-plus',
+    model: '',
     enabled: true,
     isDefault: false,
     supportsVision: false,
@@ -58,6 +59,31 @@ export function resolveDefaultProvider(
   const stored = storedId ? enabled.find((item) => item.id === storedId) : null;
   if (stored) return stored;
   return enabled.find((item) => item.isDefault) ?? enabled[0] ?? null;
+}
+
+export function loadAuxiliaryProviderId(): string | null {
+  return localStorage.getItem(AUX_PROVIDER_KEY);
+}
+
+export function persistAuxiliaryProviderId(id: string | null): void {
+  if (id) {
+    localStorage.setItem(AUX_PROVIDER_KEY, id);
+  } else {
+    localStorage.removeItem(AUX_PROVIDER_KEY);
+  }
+}
+
+/**
+ * 辅助模型：用于子代理查阅、上下文摘要等轻量调用。
+ * 未配置、已删除或已禁用时返回 null（调用方回退为跟随会话模型）。
+ */
+export function resolveAuxiliaryProvider(
+  providers: LlmProviderConfig[],
+): LlmProviderConfig | null {
+  const storedId = loadAuxiliaryProviderId();
+  if (!storedId) return null;
+  const match = providers.find((item) => item.id === storedId);
+  return match && match.enabled ? match : null;
 }
 
 export async function upsertLlmProvider(

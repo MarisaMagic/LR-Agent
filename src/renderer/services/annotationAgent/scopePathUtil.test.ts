@@ -59,7 +59,27 @@ describe('resolveAnnotationScope', () => {
   it('uses all_files to take the catalog cap', () => {
     const result = resolveAnnotationScope(samplePaths, { allFiles: true }, 2);
     expect(result.paths).toHaveLength(2);
+    expect(result.omittedCount).toBe(1);
+    expect(result.omittedPaths).toEqual(['data/algebra.txt']);
     expect(result.error).toBeUndefined();
+  });
+
+  it('reports omitted paths when explicit scope exceeds maxFiles', () => {
+    const many: InputPathEntry[] = Array.from({ length: 5 }, (_, i) => ({
+      relativePath: `data/${i}.jpg`,
+      absolutePath: `/p/data/${i}.jpg`,
+    }));
+    const result = resolveAnnotationScope(many, { allFiles: true }, 2);
+    expect(result.paths.map((p) => p.relativePath)).toEqual([
+      'data/0.jpg',
+      'data/1.jpg',
+    ]);
+    expect(result.omittedCount).toBe(3);
+    expect(result.omittedPaths).toEqual([
+      'data/2.jpg',
+      'data/3.jpg',
+      'data/4.jpg',
+    ]);
   });
 
   it('filters explicit paths', () => {

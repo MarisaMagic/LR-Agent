@@ -57,6 +57,17 @@
   color: var(--vscode-foreground, #cccccc);
 }
 
+/* 任务队列行（客户端标注工具）：排队中弱化显示 */
+.agent-pipeline-list--tasks {
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--vscode-panelBorder, rgba(128, 128, 128, 0.25));
+}
+
+.agent-pipeline-step--queued {
+  opacity: 0.7;
+}
+
 .agent-pipeline-step-text {
   display: flex;
   flex-direction: column;

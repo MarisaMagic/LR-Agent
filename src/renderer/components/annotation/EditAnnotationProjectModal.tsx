@@ -75,6 +75,7 @@ export default function EditAnnotationProjectModal({
     <ModalMotion
       open
       onClose={onClose}
+      closeOnBackdropClick={false}
       dialogClassName="edit-annotation-project-dialog"
       dialogRole="form"
       labelledBy="edit-annotation-project-title"

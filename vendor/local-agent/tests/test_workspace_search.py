@@ -108,6 +108,19 @@ def test_grep_skips_git_dir(client_context: ClientContextInput, settings: Settin
     assert ".git/config" not in result
 
 
+def test_grep_includes_useful_dot_dirs(
+    client_context: ClientContextInput,
+    workspace: Path,
+    settings: Settings,
+) -> None:
+    """.github 等有用点目录参与搜索（只有 .git / node_modules 等显式名单被跳过）。"""
+    workflows = workspace / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "ci.yml").write_text("name: ci-pipeline\n", encoding="utf-8")
+    result = grep_workspace(client_context, "ci-pipeline", settings=settings)
+    assert ".github/workflows/ci.yml" in result
+
+
 def test_list_directory_root(client_context: ClientContextInput, settings: Settings) -> None:
     result = list_workspace_directory(client_context, "", settings=settings)
     assert "src" in result

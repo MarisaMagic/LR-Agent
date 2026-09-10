@@ -119,6 +119,102 @@ def test_read_workspace_invalid_line_range(
     assert "无效行范围" in content
 
 
+def _write_numbered_file(path: Path, count: int) -> None:
+    path.write_text(
+        "".join(f"line-{i}\n" for i in range(1, count + 1)),
+        encoding="utf-8",
+    )
+
+
+def test_read_line_range_beyond_max_lines(
+    client_context: ClientContextInput,
+    workspace: Path,
+    settings: Settings,
+) -> None:
+    """行范围超出 max_lines 预截断时仍能读到（流式窗口）。"""
+    _write_numbered_file(workspace / "big.py", 300)
+    small = settings.model_copy(update={"agent_read_file_max_lines": 50})
+    content = read_workspace_text_file(
+        client_context,
+        "big.py",
+        settings=small,
+        start_line=120,
+        end_line=125,
+    )
+    assert "行范围：L120-L125" in content
+    assert "line-123" in content
+    assert "   120|line-120" in content
+
+
+def test_read_line_range_beyond_max_bytes(
+    client_context: ClientContextInput,
+    workspace: Path,
+    settings: Settings,
+) -> None:
+    """行范围超出 max_bytes 预截断时仍能读到。"""
+    _write_numbered_file(workspace / "long.py", 300)
+    small = settings.model_copy(update={"agent_read_file_max_bytes": 128})
+    content = read_workspace_text_file(
+        client_context,
+        "long.py",
+        settings=small,
+        start_line=250,
+        end_line=255,
+    )
+    assert "line-253" in content
+    assert "   250|line-250" in content
+
+
+def test_read_line_range_window_capped_by_max_lines(
+    client_context: ClientContextInput,
+    workspace: Path,
+    settings: Settings,
+) -> None:
+    """窗口超过 max_lines 时截断并提示可继续分段。"""
+    _write_numbered_file(workspace / "wide.py", 300)
+    small = settings.model_copy(update={"agent_read_file_max_lines": 10})
+    content = read_workspace_text_file(
+        client_context,
+        "wide.py",
+        settings=small,
+        start_line=5,
+        end_line=100,
+    )
+    assert "行窗口已截断" in content
+    assert "    5|line-5" in content
+    assert "   14|line-14" in content
+    assert "line-15" not in content
+
+
+def test_read_line_range_start_beyond_eof(
+    client_context: ClientContextInput,
+    workspace: Path,
+    settings: Settings,
+) -> None:
+    _write_numbered_file(workspace / "short.py", 5)
+    content = read_workspace_text_file(
+        client_context,
+        "short.py",
+        settings=settings,
+        start_line=100,
+    )
+    assert "起始行超出文件末尾" in content
+    assert "共 5 行" in content
+
+
+def test_read_truncated_hint_points_to_line_range(
+    client_context: ClientContextInput,
+    workspace: Path,
+    settings: Settings,
+) -> None:
+    """无行范围且被截断时，提示可用 start_line/end_line 分段读取。"""
+    _write_numbered_file(workspace / "huge.py", 300)
+    small = settings.model_copy(update={"agent_read_file_max_bytes": 128})
+    content = read_workspace_text_file(client_context, "huge.py", settings=small)
+    assert "内容已截断" in content
+    assert "start_line" in content
+
+
 def test_read_image_for_vision_returns_marker(
     workspace: Path,
 ) -> None:

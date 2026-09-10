@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     # Assist 工具循环
     agent_max_tool_rounds: int = 20
+    agent_subagent_max_tool_rounds: int = 8
 
     # 上下文 / 读取限制
     agent_chat_vision_max_edge: int = 1280
@@ -35,8 +36,8 @@ class Settings(BaseSettings):
     agent_read_file_max_bytes: int = 524_288
     agent_read_file_max_lines: int = 2000
     agent_read_document_max_pages: int = 30
-    agent_grep_max_results: int = 50
-    agent_grep_max_files_scanned: int = 500
+    agent_grep_max_results: int = 100
+    agent_grep_max_files_scanned: int = 1000
     agent_list_dir_max_entries: int = 80
 
     # 功能开关
@@ -46,6 +47,9 @@ class Settings(BaseSettings):
     # 标注 LLM
     annotation_llm_temperature: float = 0.0
     annotation_prepare_temperature: float = 0.1
+    # 生成类标注（caption/分类等）发送给 LLM 的图片压缩参数
+    annotation_llm_image_max_edge: int = 1280
+    annotation_llm_image_jpeg_quality: int = 85
     annotation_vision_map_concurrency: int = 3
     annotation_vision_map_validate: bool = True
     annotation_vision_map_max_retries: int = 1

@@ -31,6 +31,7 @@ LIGHT_TOOL_SET: frozenset[str] = frozenset({
     "describe_client_context",
     "describe_annotation_project",
     "read_file_annotation",
+    "explore_readonly",
 })
 
 FULL_TOOL_SET: frozenset[str] = frozenset({
@@ -50,6 +51,7 @@ FULL_TOOL_SET: frozenset[str] = frozenset({
     "describe_client_context",
     "describe_annotation_project",
     "read_file_annotation",
+    "explore_readonly",
 })
 
 WRITE_TOOL_NAMES: frozenset[str] = frozenset(
@@ -73,10 +75,11 @@ def resolve_assist_tool_set(
     is_editor: bool,
     has_workspace: bool,
 ) -> frozenset[str]:
-    """有项目快照时：仅 agent_mode=annotation 给写工具，缺失/Ask 一律只读。"""
-    if has_project_snapshot:
-        if agent_mode != "annotation":
-            return ASK_TOOL_SET
+    """Ask / 缺失模式一律只读；Agent 仅在标注任务（有快照且非编辑器）给完整工具。"""
+    has_context = has_project_snapshot or is_editor or has_workspace
+    if agent_mode != "annotation":
+        return ASK_TOOL_SET if has_context else frozenset()
+    if has_project_snapshot and not is_editor:
         return FULL_TOOL_SET
     if is_editor or has_workspace:
         return LIGHT_TOOL_SET

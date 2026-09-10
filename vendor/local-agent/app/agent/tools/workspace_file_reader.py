@@ -38,6 +38,101 @@ IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".
 DOCUMENT_SUFFIXES = frozenset({".pdf", ".docx"})
 
 
+# 单行展示上限：防止 minified / 单行巨型文件把工具结果撑爆
+MAX_LINE_DISPLAY_CHARS = 2000
+
+
+def _cap_line(line: str) -> str:
+    if len(line) <= MAX_LINE_DISPLAY_CHARS:
+        return line
+    return f"{line[:MAX_LINE_DISPLAY_CHARS]}…[行已截断，共 {len(line)} 字符]"
+
+
+def _read_line_window(
+    resolved: Path,
+    start: int,
+    end: int | None,
+    max_lines: int,
+) -> tuple[list[str], int | None, bool, str | None]:
+    """流式读取 [start, end]（1-indexed，含首尾；end=None 表示到 EOF）行窗口。
+
+    返回 (lines, total_lines, truncated, error)：
+    - total_lines 为 None 表示提前停止（按 end 或窗口上限），总行数未知
+    - truncated=True 表示窗口超过 max_lines 被截断
+    """
+    for encoding in ("utf-8", "utf-8-sig"):
+        try:
+            collected: list[str] = []
+            total: int | None = 0
+            truncated = False
+            with resolved.open("r", encoding=encoding) as fh:
+                for idx, raw_line in enumerate(fh, start=1):
+                    if idx < start:
+                        total = idx
+                        continue
+                    if end is not None and idx > end:
+                        total = None
+                        break
+                    if len(collected) >= max_lines:
+                        truncated = True
+                        total = None
+                        break
+                    collected.append(raw_line.rstrip("\n"))
+                    total = idx
+            return collected, total, truncated, None
+        except UnicodeDecodeError:
+            continue
+        except OSError as exc:
+            return [], None, False, f"读取失败：{exc}"
+    return [], None, False, f"「{resolved.name}」不是 UTF-8 文本，暂不支持读取。"
+
+
+def _read_ranged_text(
+    resolved: Path,
+    size: int,
+    start_line: int | None,
+    end_line: int | None,
+    max_lines: int,
+) -> str:
+    """行范围读取：流式窗口，不受 max_bytes / max_lines 对文件头部的预截断影响。"""
+    s = max(1, start_line if start_line is not None else 1)
+    if end_line is not None and end_line < s:
+        return f"无效行范围：start_line ({s}) 不能大于 end_line ({end_line})。"
+
+    try:
+        with resolved.open("rb") as fh:
+            if b"\x00" in fh.read(8192):
+                return f"「{resolved.name}」似乎是二进制文件，请使用对应专用工具。"
+    except OSError as exc:
+        return f"读取失败：{exc}"
+
+    lines, total, truncated, read_err = _read_line_window(resolved, s, end_line, max_lines)
+    if read_err is not None:
+        return read_err
+
+    header = f"文件：{resolved.name}\n大小：{size} 字节\n"
+    end_label = f"L{end_line}" if end_line is not None else "EOF"
+    header += f"行范围：L{s}-{end_label}"
+    if total is not None:
+        header += f"（共 {total} 行）"
+    header += "\n"
+    if truncated:
+        header += (
+            f"（行窗口已截断，最多 {max_lines} 行；"
+            "可用 start_line/end_line 继续分段读取）\n"
+        )
+    header += "---\n"
+    if not lines:
+        if total is not None:
+            return header + f"（起始行超出文件末尾，共 {total} 行）"
+        return header + "（指定范围内无内容）"
+    numbered = [
+        f"{s + offset:6d}|{_cap_line(line)}"
+        for offset, line in enumerate(lines)
+    ]
+    return header + "\n".join(numbered)
+
+
 def read_workspace_text_file(
     client_context: ClientContextInput | None,
     path: str,
@@ -46,7 +141,10 @@ def read_workspace_text_file(
     start_line: int | None = None,
     end_line: int | None = None,
 ) -> str:
-    """读取 UTF-8 文本/代码文件，按配置截断字节数与行数；可选行范围（1-indexed，含首尾）。"""
+    """读取 UTF-8 文本/代码文件，按配置截断字节数与行数；可选行范围（1-indexed，含首尾）。
+
+    指定行范围时按流式窗口读取，支持大文件任意位置；否则读取文件头部并截断。
+    """
     resolved, err = resolve_workspace_file(client_context, path)
     if resolved is None:
         return err
@@ -65,6 +163,9 @@ def read_workspace_text_file(
         size = resolved.stat().st_size
     except OSError as exc:
         return f"无法读取文件：{exc}"
+
+    if start_line is not None or end_line is not None:
+        return _read_ranged_text(resolved, size, start_line, end_line, max_lines)
 
     truncated = False
     try:
@@ -88,33 +189,19 @@ def read_workspace_text_file(
             return f"「{resolved.name}」不是 UTF-8 文本，暂不支持读取。"
 
     lines = text.splitlines()
-    total_lines = len(lines)
     if len(lines) > max_lines:
         truncated = True
         lines = lines[:max_lines]
 
-    line_range_applied = False
-    if start_line is not None or end_line is not None:
-        s = max(1, start_line if start_line is not None else 1)
-        e = end_line if end_line is not None else len(lines)
-        if e < s:
-            return f"无效行范围：start_line ({s}) 不能大于 end_line ({e})。"
-        lines = lines[s - 1 : e]
-        line_range_applied = True
-        range_label = f"L{s}-L{e}"
-    else:
-        range_label = ""
-
-    rel_hint = resolved.name
-    header = f"文件：{rel_hint}\n大小：{size} 字节\n"
-    if line_range_applied:
-        header += f"行范围：{range_label}（共 {total_lines} 行）\n"
+    header = f"文件：{resolved.name}\n大小：{size} 字节\n"
     if truncated:
-        header += f"（内容已截断，最多 {max_bytes} 字节 / {max_lines} 行）\n"
+        header += (
+            f"（内容已截断，最多 {max_bytes} 字节 / {max_lines} 行；"
+            "可用 start_line/end_line 分段读取后续内容）\n"
+        )
     header += "---\n"
-    start_idx = s if line_range_applied else 1
     numbered = [
-        f"{start_idx + offset:6d}|{line}"
+        f"{1 + offset:6d}|{_cap_line(line)}"
         for offset, line in enumerate(lines)
     ]
     return header + "\n".join(numbered)

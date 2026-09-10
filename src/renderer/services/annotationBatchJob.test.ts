@@ -116,6 +116,30 @@ describe('startAnnotationBatchJob status', () => {
     );
   });
 
+  it('captures omitted files from scope_truncated', async () => {
+    mockPipeline([
+      {
+        type: 'scope_truncated',
+        omittedCount: 37,
+        omittedPaths: ['data/101.jpg'],
+      },
+      { type: 'proposal', proposal: buildProposal() },
+    ]);
+
+    const { result, emitted } = await runJob();
+
+    expect(result.omittedCount).toBe(37);
+    expect(result.omittedPaths).toEqual(['data/101.jpg']);
+    expect(emitted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'annotation_progress',
+          message: expect.stringContaining('另有 37 张未纳入'),
+        }),
+      ]),
+    );
+  });
+
   it('does not emit chat-level done after a successful proposal', async () => {
     mockPipeline([
       { type: 'text', content: '已生成 2 条文本分类标注数据（1 项）。' },

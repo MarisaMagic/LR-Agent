@@ -95,7 +95,7 @@ export default function AgentModelPicker({
   }, [open]);
 
   const label = selected
-    ? selected.model
+    ? selected.name || selected.model
     : providers.length === 0
       ? '请先配置大模型'
       : '选择模型';

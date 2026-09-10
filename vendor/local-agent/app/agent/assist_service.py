@@ -31,11 +31,31 @@ async def stream_assist(
     user_content: str = "",
     client_tool_results: list | None = None,
     task_phase_ctx: TaskPhaseContext | None = None,
+    aux_llm: ChatOpenAI | None = None,
 ) -> AsyncIterator[StreamEventPayload]:
     yield StreamEventPayload(type="preparing", stage="streaming")
 
     llm_with_tools = llm.bind_tools(tools)
     fn_map = tool_fn_map(tools)
+    from app.agent.assist.explore_readonly import (
+        EXPLORE_READONLY_TOOL_NAME,
+        ExploreReadonlyRunner,
+    )
+
+    parent_fns = {
+        name: fn
+        for name, fn in fn_map.items()
+        if name != EXPLORE_READONLY_TOOL_NAME
+    }
+    if any(tool.name == EXPLORE_READONLY_TOOL_NAME for tool in tools):
+        fn_map[EXPLORE_READONLY_TOOL_NAME] = ExploreReadonlyRunner(
+            llm=aux_llm or llm,
+            settings=settings,
+            is_cancelled=is_cancelled,
+            parent_tools=tools,
+            parent_fn_map=parent_fns,
+            client_context=client_context,
+        )
     messages = list(lc_messages)
     vision_fn = fn_map.get(VISION_TOOL_NAME)
     is_resume = bool(client_tool_results)
@@ -73,13 +93,9 @@ async def stream_assist(
             ),
         )
 
-    # ── 视觉预加载（首轮） ───────────────────────────────────────────
-    if vision.should_load(is_resume):
-        async for event in vision.try_bootstrap(messages):
-            yield event
-        loop.vision_bootstrapped = True
-
     # ── 主循环 ───────────────────────────────────────────────────────
+    # 视觉图片由模型按需调用 read_image_for_vision 加载；
+    # 仅在第一轮无 tool call 时由 VisionAutoLoader 兜底（见循环内 fallback 分支）。
     for round_idx in range(max_tool_rounds + 1):
         if await is_cancelled():
             return
