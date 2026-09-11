@@ -3,7 +3,7 @@
  *
  * 在 Electron 主进程中启动 Streamable HTTP MCP 服务器（单端点 /mcp），暴露本地能力：
  *   - memory_read / memory_write / memory_create（工作区记忆，需任务开关激活）
- *   - read_agent_skill
+ *   - read_agent_skill / list_agent_skill_files
  *
  * 后端 Agent 通过 langchain-mcp-adapters（streamable_http）连接此服务器。
  * 前端在 app.whenReady() 后调用 startMcpServer()，并将端口通过 IPC 传给 renderer。
@@ -26,7 +26,11 @@ import {
   readMemoryTopic,
   writeMemoryTopic,
 } from '../memory/memoryStore';
-import { readSkillMarkdown, scanSkillsCatalog } from '../skills/skillScanner';
+import {
+  listSkillFiles,
+  readSkillFile,
+  scanSkillsCatalog,
+} from '../skills/skillScanner';
 
 type McpSession = {
   transport: StreamableHTTPServerTransport;
@@ -148,7 +152,46 @@ function createMcpServer(): McpServer {
 
   mcpServer.tool(
     'read_agent_skill',
-    'Read the full SKILL.md content of a user-level agent skill. Skills are listed with name and description in the available-skills block in the system prompt. Use this tool when a user request matches a skill description, then follow the steps in the SKILL.md. Pass the skill name exactly as listed (e.g. "caveman").',
+    'Read a text file from a user-level agent skill. Skills are listed with name and description in the available-skills block. When a user request matches a skill, first read SKILL.md (omit relative_path), follow its steps, then read bundled files it references via relative_path (e.g. "references/api.md"). Scripts may be read as source only — never executed. Pass skill_name exactly as listed (directory name).',
+    {
+      skill_name: z
+        .string()
+        .describe(
+          'Skill name as listed in the available-skills block, e.g. "caveman"',
+        ),
+      relative_path: z
+        .string()
+        .optional()
+        .describe(
+          'Optional path relative to the skill directory. Omit to read SKILL.md. Examples: "references/guide.md", "scripts/extract.py".',
+        ),
+    },
+    async ({ skill_name, relative_path }) => {
+      try {
+        const result = await readSkillFile(skill_name, relative_path);
+        if (!result.ok) {
+          const catalog = await scanSkillsCatalog();
+          return mcpJson({
+            ok: false,
+            error: result.error,
+            available_skills: catalog.map((s) => s.name),
+          });
+        }
+        return mcpJson({
+          ok: true,
+          relative_path: result.relativePath,
+          content: result.content,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return mcpJson({ ok: false, error: msg });
+      }
+    },
+  );
+
+  mcpServer.tool(
+    'list_agent_skill_files',
+    'List text files bundled in a user-level agent skill directory (SKILL.md, references, templates, script sources). Use after matching a skill, or when SKILL.md points to extra files. Scripts are listed for reading only and cannot be executed. Pass skill_name exactly as listed.',
     {
       skill_name: z
         .string()
@@ -158,40 +201,19 @@ function createMcpServer(): McpServer {
     },
     async ({ skill_name }) => {
       try {
-        const content = await readSkillMarkdown(skill_name);
-        if (content === null) {
+        const files = await listSkillFiles(skill_name);
+        if (files === null) {
           const catalog = await scanSkillsCatalog();
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: JSON.stringify({
-                  ok: false,
-                  error: 'skill_not_found',
-                  available_skills: catalog.map((s) => s.name),
-                }),
-              },
-            ],
-          };
+          return mcpJson({
+            ok: false,
+            error: 'skill_not_found',
+            available_skills: catalog.map((s) => s.name),
+          });
         }
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({ ok: true, content }),
-            },
-          ],
-        };
+        return mcpJson({ ok: true, files });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({ ok: false, error: msg }),
-            },
-          ],
-        };
+        return mcpJson({ ok: false, error: msg });
       }
     },
   );

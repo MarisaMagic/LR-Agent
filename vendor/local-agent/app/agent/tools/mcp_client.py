@@ -14,8 +14,9 @@
   - memory_read           读取工作区记忆 topic 文件（需任务开关）
   - memory_write          覆盖已有工作区记忆 topic（需任务开关）
   - memory_create         新建工作区记忆 topic（需任务开关）
-  - read_agent_skill      读取全局 Agent Skill 的 SKILL.md 正文（走默认 SYNC runner，
-                          与 canonical 工具无能力冲突，_infer_mcp_capability 返回 None）
+  - read_agent_skill      读取全局 Agent Skill 的 SKILL.md 或附属文本文件
+  - list_agent_skill_files 列出 skill 目录内文件（只读，不执行脚本）
+                          （二者走默认 SYNC runner，与 canonical 无能力冲突）
 """
 
 from __future__ import annotations
@@ -54,7 +55,8 @@ def should_expose_mcp_tool(
 def _infer_mcp_capability(tool_name: str) -> ToolCapability | None:
     """从 MCP 工具名称推断其能力类型。
 
-    当前 Electron MCP 工具（memory_* / read_agent_skill）与内置能力不冲突，返回 None。
+    当前 Electron MCP 工具（memory_* / read_agent_skill / list_agent_skill_files）
+    与内置能力不冲突，返回 None。
     若将来再暴露与 canonical 重叠的名字，在此登记以免双轨注入。
     """
     _ = tool_name

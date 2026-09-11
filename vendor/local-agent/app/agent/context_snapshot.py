@@ -152,7 +152,9 @@ def format_skills_catalog_block(
         "【可用 Skills】",
         "以下为可用的任务工作流 Skills。当用户请求与某 skill 的 description 匹配时，"
         "先调用 read_agent_skill(skill_name) 读取该 SKILL.md 正文，再按其中步骤执行；"
-        "不要凭名字猜测内容。",
+        "需要附属资料时用 list_agent_skill_files(skill_name) 查看文件，"
+        "再用 read_agent_skill(skill_name, relative_path) 读取；"
+        "不要凭名字猜测内容。脚本仅可阅读源码，不可执行。",
     ]
     for item in skills:
         name = (item.name or "").strip()

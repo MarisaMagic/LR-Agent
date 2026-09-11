@@ -654,6 +654,12 @@ const electronHandler = {
     /** 扫描全局 skills 目录（~/.agents/skills），返回 catalog（name + description） */
     listCatalog: (): Promise<unknown> =>
       ipcRenderer.invoke('agent:skills:listCatalog'),
+    listInventory: (force?: boolean): Promise<unknown> =>
+      ipcRenderer.invoke('agent:skills:listInventory', force === true),
+    openRoot: (): Promise<string> =>
+      ipcRenderer.invoke('agent:skills:openRoot'),
+    reveal: (dirName: string): Promise<string> =>
+      ipcRenderer.invoke('agent:skills:reveal', dirName),
   },
   db: {
     // ── Session operations ──

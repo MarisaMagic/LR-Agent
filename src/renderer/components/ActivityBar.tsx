@@ -8,7 +8,13 @@ import ActivityIcon from './ActivityIcon';
 import './ActivityBar.css';
 
 export type LeftPanel =
-  'explorer' | 'annotations' | 'models' | 'llmProviders' | 'mcp' | 'settings';
+  | 'explorer'
+  | 'annotations'
+  | 'models'
+  | 'llmProviders'
+  | 'mcp'
+  | 'skills'
+  | 'settings';
 export type RightPanel = 'agent' | 'annotation' | 'quality' | 'quickInference';
 
 interface ActivityBarProps {
@@ -18,6 +24,7 @@ interface ActivityBarProps {
   onModelsClick?: () => void;
   onLlmProvidersClick?: () => void;
   onMcpClick?: () => void;
+  onSkillsClick?: () => void;
   onSettingsClick?: () => void;
 }
 
@@ -109,6 +116,7 @@ export default function ActivityBar({
   onModelsClick,
   onLlmProvidersClick,
   onMcpClick,
+  onSkillsClick,
   onSettingsClick,
 }: ActivityBarProps) {
   const { toggleDarkLight } = useTheme();
@@ -145,6 +153,12 @@ export default function ActivityBar({
           label="MCP 工具"
           active={activePanel === 'mcp'}
           onClick={onMcpClick ?? (() => undefined)}
+        />
+        <ActivityIcon
+          name="lightbulb"
+          label="Agent Skills"
+          active={activePanel === 'skills'}
+          onClick={onSkillsClick ?? (() => undefined)}
         />
       </div>
       <div className="activity-bar-bottom">

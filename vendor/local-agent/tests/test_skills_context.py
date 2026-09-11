@@ -34,6 +34,8 @@ def test_injects_skills_catalog_block() -> None:
 
     assert "【可用 Skills】" in prompt
     assert "read_agent_skill" in prompt
+    assert "list_agent_skill_files" in prompt
+    assert "relative_path" in prompt
     assert "- caveman: Ultra-compressed communication mode." in prompt
     assert "- docx: Create and edit Word documents." in prompt
     # 其他既有区块仍存在

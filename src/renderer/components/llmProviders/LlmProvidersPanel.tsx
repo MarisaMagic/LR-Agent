@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import {
   VscodeButton,
+  VscodeIcon,
+  VscodeOption,
+  VscodeSingleSelect,
   VscodeToolbarContainer,
 } from '@vscode-elements/react-elements';
 import VscodeClickableToolbarButton from '../VscodeClickableButton';
@@ -19,6 +22,7 @@ export default function LlmProvidersPanel() {
   const {
     providers,
     loading,
+    auxiliaryProvider,
     auxiliaryProviderId,
     setAuxiliaryProvider,
     refreshProviders,
@@ -77,43 +81,74 @@ export default function LlmProvidersPanel() {
         />
       </VscodeToolbarContainer>
 
-      <div className="llm-providers-aux">
-        <label
-          className="llm-providers-aux-label"
-          htmlFor="llm-providers-aux-select"
-        >
-          辅助模型
-        </label>
-        <select
-          id="llm-providers-aux-select"
-          className="llm-providers-aux-select"
-          value={auxiliaryProviderId ?? ''}
-          onChange={(event) => setAuxiliaryProvider(event.target.value || null)}
-          title="用于子代理查阅、上下文摘要等轻量调用；不使用则跟随会话模型"
-        >
-          <option value="">不使用（跟随会话模型）</option>
-          {providers
-            .filter((item) => item.enabled)
-            .map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name || item.model}
-              </option>
-            ))}
-        </select>
-      </div>
-
       <VscodeScrollHost
         className="llm-providers-scroll-host"
         scrollableClassName="llm-providers-scrollable"
       >
-        <LlmProviderList
-          providers={providers}
-          loading={loading}
-          onEdit={openEdit}
-          onDelete={setDeleteTarget}
-          onSetDefault={(provider) => setDefaultProvider(provider.id)}
-          onProbeVision={(provider) => probeProviderVision(provider.id)}
-        />
+        <section className="llm-section">
+          <h4 className="llm-section-title">子代理配置</h4>
+          <div className="llm-aux-card">
+            <span className="llm-aux-icon" aria-hidden>
+              <VscodeIcon name="type-hierarchy-sub" size={16} />
+            </span>
+            <div className="llm-aux-main">
+              <div className="llm-aux-head">
+                <span className="llm-aux-name">辅助模型</span>
+                <span
+                  className={`llm-provider-badge ${
+                    auxiliaryProvider
+                      ? 'llm-provider-badge-default'
+                      : 'llm-provider-badge-disabled'
+                  }`}
+                >
+                  {auxiliaryProvider
+                    ? auxiliaryProvider.name || auxiliaryProvider.model
+                    : '跟随会话'}
+                </span>
+              </div>
+              <p className="llm-aux-desc">
+                用于子代理查阅、上下文摘要等轻量调用。不指定则跟随当前会话模型。
+              </p>
+              <VscodeSingleSelect
+                id="llm-providers-aux-select"
+                className="llm-aux-select"
+                value={auxiliaryProviderId ?? ''}
+                aria-label="选择辅助模型"
+                onChange={(event) => {
+                  const target = event.target as HTMLElement & {
+                    value?: string;
+                  };
+                  if (typeof target.value === 'string') {
+                    setAuxiliaryProvider(target.value || null);
+                  }
+                }}
+              >
+                <VscodeOption value="">不使用（跟随会话模型）</VscodeOption>
+                {providers
+                  .filter((item) => item.enabled)
+                  .map((item) => (
+                    <VscodeOption key={item.id} value={item.id}>
+                      {item.name || item.model}
+                    </VscodeOption>
+                  ))}
+              </VscodeSingleSelect>
+            </div>
+          </div>
+        </section>
+
+        <section className="llm-section">
+          <h4 className="llm-section-title">
+            已配置 {loading ? '…' : providers.length}
+          </h4>
+          <LlmProviderList
+            providers={providers}
+            loading={loading}
+            onEdit={openEdit}
+            onDelete={setDeleteTarget}
+            onSetDefault={(provider) => setDefaultProvider(provider.id)}
+            onProbeVision={(provider) => probeProviderVision(provider.id)}
+          />
+        </section>
       </VscodeScrollHost>
 
       {formOpen && editingProvider && (

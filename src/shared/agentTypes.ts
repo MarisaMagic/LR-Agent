@@ -377,12 +377,26 @@ export interface ProposalStateEntry {
   annotationIds?: string[];
 }
 
-/** 全局 Agent Skill 目录条目（catalog，仅 name + description 注入 prompt）。 */
+/** 全局 Agent Skill 目录条目（catalog，name 为目录名，注入 prompt）。 */
 export interface AgentSkillEntry {
   name: string;
   description: string;
   /** 预留来源字段：目前仅 'user'（~/.agents/skills），未来支持项目级 */
   scope: 'user';
+}
+
+export type AgentSkillStatus = 'available' | 'disabled' | 'invalid';
+
+/** 面板用 Skill 清单（含未注入项与附属文件列表）。 */
+export interface AgentSkillInventoryItem {
+  dirName: string;
+  name: string;
+  description: string;
+  scope: 'user';
+  status: AgentSkillStatus;
+  reason?: string;
+  files: string[];
+  path: string;
 }
 
 export interface ClientContextPayload {

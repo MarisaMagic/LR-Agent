@@ -23,6 +23,7 @@ import EditorFileSiblingNav from './editor/EditorFileSiblingNav';
 import EditorWorkspace from './editor/EditorWorkspace';
 import LlmProvidersPanel from './llmProviders/LlmProvidersPanel';
 import McpPanel from './mcp/McpPanel';
+import SkillsPanel from './skills/SkillsPanel';
 import PretrainedModelsPanel from './pretrainedModels/PretrainedModelsPanel';
 import SettingsPanel from './SettingsPanel';
 import Sidebar from './Sidebar';
@@ -49,6 +50,7 @@ const LEFT_PANEL_TITLES: Record<LeftPanel, string> = {
   models: '预训练模型',
   llmProviders: '大模型配置',
   mcp: 'MCP 工具',
+  skills: 'Agent Skills',
   settings: '账户设置',
 };
 
@@ -56,6 +58,7 @@ function renderLeftPanel(panel: LeftPanel, onProjectOpened: () => void) {
   if (panel === 'settings') return <SettingsPanel />;
   if (panel === 'llmProviders') return <LlmProvidersPanel />;
   if (panel === 'mcp') return <McpPanel />;
+  if (panel === 'skills') return <SkillsPanel />;
   if (panel === 'models') return <PretrainedModelsPanel />;
   if (panel === 'annotations') {
     return <AnnotationProjectPanel onProjectOpened={onProjectOpened} />;
@@ -382,6 +385,7 @@ export default function Layout() {
         onModelsClick={() => openLeftPanel('models')}
         onLlmProvidersClick={() => openLeftPanel('llmProviders')}
         onMcpClick={() => openLeftPanel('mcp')}
+        onSkillsClick={() => openLeftPanel('skills')}
         onSettingsClick={() => openLeftPanel('settings')}
       />
 

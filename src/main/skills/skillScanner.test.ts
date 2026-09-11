@@ -6,10 +6,14 @@ import {
   MAX_CATALOG_ENTRIES,
   MAX_DESCRIPTION_CHARS,
   MAX_SKILL_CHARS,
+  MAX_SKILL_FILE_LIST,
   clearSkillsCache,
+  listSkillFiles,
   parseSkillFrontmatter,
+  readSkillFile,
   readSkillMarkdown,
   scanSkillsCatalog,
+  scanSkillsInventory,
 } from './skillScanner';
 
 jest.mock('electron', () => ({
@@ -138,6 +142,19 @@ describe('scanSkillsCatalog', () => {
     ]);
   });
 
+  it('uses directory name in catalog when frontmatter name differs', async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lr-skills-'));
+    await fs.outputFile(
+      path.join(tmpDir, 'my-docx', 'SKILL.md'),
+      '---\nname: docx\ndescription: Word documents.\n---\nBody',
+    );
+
+    const catalog = await scanSkillsCatalog(tmpDir);
+    expect(catalog).toEqual([
+      { name: 'my-docx', description: 'Word documents.', scope: 'user' },
+    ]);
+  });
+
   it('caps catalog at MAX_CATALOG_ENTRIES and truncates description', async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lr-skills-'));
     for (let i = 0; i < MAX_CATALOG_ENTRIES + 5; i += 1) {
@@ -199,5 +216,152 @@ describe('readSkillMarkdown', () => {
     const content = await readSkillMarkdown('big', tmpDir);
     expect(content!.length).toBeLessThanOrEqual(MAX_SKILL_CHARS + 20);
     expect(content).toContain('…（内容过长已截断）');
+  });
+
+  it('resolves skill by frontmatter name when it differs from directory', async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lr-skills-'));
+    await fs.outputFile(
+      path.join(tmpDir, 'my-docx', 'SKILL.md'),
+      '---\nname: docx\ndescription: Word documents.\n---\nUse templates.',
+    );
+
+    const content = await readSkillMarkdown('docx', tmpDir);
+    expect(content).toContain('Use templates.');
+  });
+});
+
+describe('readSkillFile and listSkillFiles', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    clearSkillsCache();
+  });
+
+  afterEach(async () => {
+    if (tmpDir) {
+      await fs.remove(tmpDir);
+    }
+  });
+
+  it('reads bundled relative files and rejects traversal / binary', async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lr-skills-'));
+    await fs.outputFile(
+      path.join(tmpDir, 'docx', 'SKILL.md'),
+      '---\nname: docx\ndescription: Word.\n---\nSee references/guide.md',
+    );
+    await fs.outputFile(
+      path.join(tmpDir, 'docx', 'references', 'guide.md'),
+      '# Guide\nUse the template.',
+    );
+    await fs.outputFile(
+      path.join(tmpDir, 'docx', 'assets', 'logo.bin'),
+      Buffer.from([0, 1, 2, 3, 0, 9]),
+    );
+    await fs.outputFile(path.join(tmpDir, 'secret.md'), 'outside');
+
+    const listed = await listSkillFiles('docx', tmpDir);
+    expect(listed).toEqual(
+      expect.arrayContaining([
+        'SKILL.md',
+        'references/guide.md',
+        'assets/logo.bin',
+      ]),
+    );
+
+    const guide = await readSkillFile('docx', 'references/guide.md', tmpDir);
+    expect(guide).toEqual({
+      ok: true,
+      relativePath: 'references/guide.md',
+      content: '# Guide\nUse the template.',
+    });
+
+    expect(await readSkillFile('docx', '../secret.md', tmpDir)).toEqual({
+      ok: false,
+      error: 'invalid_path',
+    });
+    expect(await readSkillFile('docx', 'assets/logo.bin', tmpDir)).toEqual({
+      ok: false,
+      error: 'binary',
+    });
+    expect(await readSkillFile('missing', undefined, tmpDir)).toEqual({
+      ok: false,
+      error: 'skill_not_found',
+    });
+  });
+
+  it('caps listed files at MAX_SKILL_FILE_LIST and skips deep paths', async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lr-skills-'));
+    await fs.outputFile(
+      path.join(tmpDir, 'big', 'SKILL.md'),
+      '---\nname: big\ndescription: many files.\n---\n',
+    );
+    for (let i = 0; i < MAX_SKILL_FILE_LIST + 5; i += 1) {
+      await fs.outputFile(
+        path.join(tmpDir, 'big', 'refs', `f-${String(i).padStart(3, '0')}.md`),
+        `file ${i}`,
+      );
+    }
+    await fs.outputFile(
+      path.join(tmpDir, 'big', 'a', 'b', 'c', 'too-deep.md'),
+      'skipped',
+    );
+
+    const files = await listSkillFiles('big', tmpDir);
+    expect(files).toHaveLength(MAX_SKILL_FILE_LIST);
+    expect(files).not.toContain('a/b/c/too-deep.md');
+  });
+});
+
+describe('scanSkillsInventory', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    clearSkillsCache();
+  });
+
+  afterEach(async () => {
+    if (tmpDir) {
+      await fs.remove(tmpDir);
+    }
+  });
+
+  it('classifies available, disabled, and invalid skills', async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lr-skills-'));
+    await fs.outputFile(
+      path.join(tmpDir, 'public', 'SKILL.md'),
+      '---\nname: public\ndescription: invoke me\n---\nBody',
+    );
+    await fs.outputFile(
+      path.join(tmpDir, 'public', 'references', 'note.md'),
+      'note',
+    );
+    await fs.outputFile(
+      path.join(tmpDir, 'internal', 'SKILL.md'),
+      '---\nname: internal\ndescription: hidden\ndisable-model-invocation: true\n---\n',
+    );
+    await fs.outputFile(
+      path.join(tmpDir, 'broken', 'SKILL.md'),
+      '# no frontmatter',
+    );
+    await fs.outputFile(
+      path.join(tmpDir, 'no-desc', 'SKILL.md'),
+      '---\nname: x\n---\n',
+    );
+
+    const inventory = await scanSkillsInventory(tmpDir);
+    const byDir = Object.fromEntries(
+      inventory.map((item) => [item.dirName, item]),
+    );
+
+    expect(byDir.public?.status).toBe('available');
+    expect(byDir.public?.files).toEqual(
+      expect.arrayContaining(['SKILL.md', 'references/note.md']),
+    );
+    expect(byDir.internal?.status).toBe('disabled');
+    expect(byDir.internal?.reason).toBe('已禁用模型调用');
+    expect(byDir.broken?.status).toBe('invalid');
+    expect(byDir.broken?.reason).toBe('缺少 YAML frontmatter');
+    expect(byDir['no-desc']?.status).toBe('invalid');
+    expect(byDir['no-desc']?.reason).toBe('缺少 description');
   });
 });
