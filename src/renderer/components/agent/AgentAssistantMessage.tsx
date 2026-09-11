@@ -258,6 +258,19 @@ export default function AgentAssistantMessage({
     return kinds;
   }, [message.blocks]);
 
+  // 已经出现过 error 步骤的流水线类型：其派生任务行也必须显示失败，
+  // 不能因为 tool_call 块被收尾成 done 就伪造成「已完成」。
+  const pipelineFailedKinds = useMemo(() => {
+    const kinds = new Set<PipelineKind>();
+    for (const block of message.blocks) {
+      if (block.type !== 'annotation_pipeline') continue;
+      if (block.steps.some((step) => step.status === 'error')) {
+        kinds.add(block.pipelineKind ?? 'batch');
+      }
+    }
+    return kinds;
+  }, [message.blocks]);
+
   // 客户端标注工具（auto_annotate/mutate_annotation）按流水线类型派生为
   // 任务队列，渲染进对应 pipeline 卡，不再占用独立工具行
   const pipelineTasks = useMemo(() => {
@@ -267,19 +280,21 @@ export default function AgentAssistantMessage({
       const kind = clientToolPipelineKind(block.name);
       if (!kind || !pipelineKindsPresent.has(kind)) continue;
       const list = byKind.get(kind) ?? [];
-      // 历史数据修正：非活跃消息里停在 queued/running 的任务视为已完成
-      const settled =
+      // 历史数据修正：非活跃消息里停在 queued/running 说明任务被中断，
+      // 绝不能伪造成「已完成」，否则会凭空多出一条假标注步骤。
+      const interrupted =
         !isActive && (block.status === 'queued' || block.status === 'running');
       list.push({
         id: block.id,
         name: block.name,
         label: formatToolCallLabel(block.name, block.arguments),
-        status: settled ? 'done' : block.status,
+        status:
+          interrupted || pipelineFailedKinds.has(kind) ? 'error' : block.status,
       });
       byKind.set(kind, list);
     }
     return byKind;
-  }, [message.blocks, pipelineKindsPresent, isActive]);
+  }, [message.blocks, pipelineKindsPresent, pipelineFailedKinds, isActive]);
 
   const handleKeepAll = useCallback(() => {
     applyAllPendingChanges().catch(() => undefined);
@@ -331,7 +346,10 @@ export default function AgentAssistantMessage({
       const kind = block.pipelineKind ?? 'batch';
       return (
         <AgentAnnotationPipelineBlock
-          key={`pipeline-${kind}`}
+          // 必须用 index 保证唯一：同一条消息可能存在多个 pipelineKind 相同的块，
+          // 若用 `pipeline-${kind}` 会产生重复 key，React 会不断新增而无法回收节点，
+          // 表现为拖动宽度（每帧重渲）时「标注变更步骤」卡片无限增多。
+          key={`pipeline-${kind}-${index}`}
           steps={block.steps}
           collapsed={block.collapsed}
           streaming={isActive}

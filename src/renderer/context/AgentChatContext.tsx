@@ -57,7 +57,10 @@ import {
   resolveSessionMessageIds,
   resolveUserMessageIdForJob,
   getProjectUi,
+  loadAgentChatState,
   loadAgentChatUiState,
+  flushAgentChatState,
+  flushAgentChatUiState,
   persistAgentChatState,
   persistAgentChatUiState,
   sessionBelongsToProject,
@@ -146,11 +149,9 @@ interface AgentChatContextValue {
   activeSession: AgentSession | null;
   messagesBySession: Record<string, Record<string, ChatMessage>>;
   historyOpen: boolean;
-  composerDraft: string;
   editTargetMessageId: string | null;
   editDraft: string;
   setHistoryOpen: (open: boolean) => void;
-  setComposerDraft: (draft: string) => void;
   setEditDraft: (draft: string) => void;
   createSession: () => string;
   closeTab: (sessionId: string) => void;
@@ -205,6 +206,29 @@ interface AgentChatContextValue {
 
 const AgentChatContext = createContext<AgentChatContextValue | null>(null);
 
+/**
+ * 输入框草稿独立成一个 context：
+ * 它每敲一个字都会变，若挂在 AgentChatContext 的 value 上会让
+ * AgentMessageList / AgentAssistantMessage 整棵子树跟着重渲。
+ */
+interface AgentComposerDraftContextValue {
+  composerDraft: string;
+  setComposerDraft: (draft: string) => void;
+}
+
+const AgentComposerDraftContext =
+  createContext<AgentComposerDraftContextValue | null>(null);
+
+export function useAgentComposerDraft(): AgentComposerDraftContextValue {
+  const ctx = useContext(AgentComposerDraftContext);
+  if (!ctx) {
+    throw new Error(
+      'useAgentComposerDraft must be used within AgentChatProvider',
+    );
+  }
+  return ctx;
+}
+
 function normalizeLoadedState(
   state: AgentChatPersistedState,
 ): AgentChatPersistedState {
@@ -243,9 +267,12 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const { activeProject } = useAnnotation();
   const { workMode } = useWorkMode();
   const { models: pretrainedModels } = usePretrainedModels();
-  const [state, setState] = useState<AgentChatPersistedState>(() =>
-    createEmptyChatState(),
-  );
+  const [state, setState] = useState<AgentChatPersistedState>(() => {
+    // Electron 下 SQLite 是事实来源，等 bootstrap 覆盖即可；
+    // 纯浏览器（无 electron）没有 SQLite，用 localStorage 缓存恢复会话。
+    if (window.electron) return createEmptyChatState();
+    return normalizeLoadedState(loadAgentChatState());
+  });
   const initializedRef = useRef(false);
   const remoteHydratedRef = useRef(false);
   const bootstrappedProjectIdRef = useRef<string | null | undefined>(undefined);
@@ -270,6 +297,24 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     null,
   );
   const [composerDraft, setComposerDraft] = useState('');
+  const composerDraftValue = useMemo(
+    () => ({ composerDraft, setComposerDraft }),
+    [composerDraft],
+  );
+
+  // 页面卸载前把节流中的 localStorage 缓存刷盘，避免最后一次改动丢失
+  useEffect(() => {
+    const flush = () => {
+      flushAgentChatState();
+      flushAgentChatUiState();
+    };
+    window.addEventListener('beforeunload', flush);
+    return () => {
+      window.removeEventListener('beforeunload', flush);
+      flush();
+    };
+  }, []);
+
   const [editTargetMessageId, setEditTargetMessageId] = useState<string | null>(
     null,
   );
@@ -1671,9 +1716,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       });
 
       // ── 同步到 SQLite ──
+      // 必须按 session → 用户消息 → 助手消息的顺序 await：否则后续 update 可能
+      // 先于 create 落到不存在的行，而 update 对缺失行是静默 no-op，会丢更新。
       // 首次发消息：创建 session
       if (wasDraft) {
-        createSessionLocally(currentUserIdRef.current, {
+        await createSessionLocally(currentUserIdRef.current, {
           id: sessionId,
           title: nextTitle,
           annotationProjectId:
@@ -1690,13 +1737,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       const userMessageData = sessionMessages[userMessageIdForJob];
       if (userMessageData) {
         if (isEdit) {
-          updateMessageLocally(userMessageData.id, {
+          await updateMessageLocally(userMessageData.id, {
             blocksJson: JSON.stringify(userMessageData.blocks),
           }).catch((err) =>
             console.error('[DB] Failed to update user message:', err),
           );
         } else {
-          createMessageLocally({
+          await createMessageLocally({
             id: userMessageData.id,
             sessionId,
             userId: currentUserIdRef.current,
@@ -1713,7 +1760,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       }
 
       // 助手消息占位
-      createMessageLocally({
+      await createMessageLocally({
         id: assistantMessageId,
         sessionId,
         userId: currentUserIdRef.current,
@@ -1726,6 +1773,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         console.error('[DB] Failed to create assistant message:', err),
       );
 
+      // 消息已进入内存态，输入框立即清空，不必等 IPC 落库
       setComposerDraft('');
 
       attachJobListener(jobId, sessionId, assistantMessageId);
@@ -2521,11 +2569,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       activeSession,
       messagesBySession: state.messagesBySession,
       historyOpen,
-      composerDraft,
       editTargetMessageId,
       editDraft,
       setHistoryOpen,
-      setComposerDraft,
       setEditDraft,
       createSession,
       closeTab,
@@ -2567,7 +2613,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       agentMode,
       setAgentMode,
       historyOpen,
-      composerDraft,
       editTargetMessageId,
       editDraft,
       preparingContext,
@@ -2608,7 +2653,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   return (
     <AgentChatContext.Provider value={value}>
-      {children}
+      <AgentComposerDraftContext.Provider value={composerDraftValue}>
+        {children}
+      </AgentComposerDraftContext.Provider>
     </AgentChatContext.Provider>
   );
 }

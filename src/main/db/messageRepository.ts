@@ -31,10 +31,11 @@ export function getMessages(
   const params: unknown[] = [sessionId];
 
   if (options.beforeMessageId) {
-    // Get the sort_index of the before message
+    // Get the sort_index of the before message（限定同一会话，避免跨会话误用）
     const beforeMsg = db.get(
-      'SELECT sort_index FROM messages WHERE id = ?',
+      'SELECT sort_index FROM messages WHERE id = ? AND session_id = ?',
       options.beforeMessageId,
+      sessionId,
     ) as { sort_index: number } | undefined;
     if (beforeMsg) {
       sql += ' AND sort_index < ?';
@@ -71,16 +72,17 @@ export function createMessage(message: {
 }): MessageRow {
   const db = getDatabase();
   const now = Date.now();
-  const sortIndex = message.sortIndex ?? 0;
 
-  // Determine sort_index if not provided
-  let finalSortIndex = sortIndex;
-  if (message.sortIndex === undefined || message.sortIndex === 0) {
+  // 只有显式未传 sortIndex 时才自动取 MAX+1；传 0 是合法值，不能当作“未指定”。
+  let finalSortIndex: number;
+  if (message.sortIndex === undefined) {
     const maxRow = db.get(
       'SELECT COALESCE(MAX(sort_index), 0) as max_idx FROM messages WHERE session_id = ?',
       message.sessionId,
     ) as { max_idx: number } | undefined;
     finalSortIndex = (maxRow?.max_idx ?? 0) + 1;
+  } else {
+    finalSortIndex = message.sortIndex;
   }
 
   db.run(

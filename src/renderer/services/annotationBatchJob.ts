@@ -60,6 +60,8 @@ export async function startAnnotationBatchJob(options: {
     processedImages: 0,
     hasProposal: false,
   };
+  // 是否已经产生过 progress（决定是否存在 pipeline 卡，避免 skipped 时凭空建卡）
+  let sawProgress = false;
 
   try {
     for await (const event of runAnnotationBatchJob({
@@ -83,6 +85,7 @@ export async function startAnnotationBatchJob(options: {
       detectionOverrides: options.detectionOverrides,
     })) {
       if (isCancelled()) break;
+      if (event.type === 'progress') sawProgress = true;
       mapAndEmit(event, emit);
       if (event.type === 'scope_truncated') {
         outcome.omittedCount = event.omittedCount;
@@ -133,6 +136,17 @@ export async function startAnnotationBatchJob(options: {
       outcome.summary =
         '批量标注未产生提案（可能未选定图片或任务与标注无关）。';
     }
+  }
+
+  if (outcome.status === 'skipped' && sawProgress) {
+    // 未产出任何标注：把一开始的 prepare 步骤落为 skipped。
+    // 否则消息结束时会被自动收尾成「已完成」，看起来像凭空生成的假步骤。
+    emit({
+      type: 'annotation_progress',
+      stage: 'prepare',
+      message: outcome.summary,
+      status: 'skipped',
+    });
   }
 
   return outcome;

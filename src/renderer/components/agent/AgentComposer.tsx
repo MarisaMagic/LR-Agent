@@ -6,7 +6,10 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import { useAgentChat } from '../../context/AgentChatContext';
+import {
+  useAgentChat,
+  useAgentComposerDraft,
+} from '../../context/AgentChatContext';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useWorkMode } from '../../context/WorkModeContext';
 import { useLlmProviders } from '../../context/LlmProvidersContext';
@@ -20,8 +23,6 @@ export default function AgentComposer() {
   const {
     activeSessionId,
     activeSession,
-    composerDraft,
-    setComposerDraft,
     sendMessage,
     stopGeneration,
     isSessionStreaming,
@@ -30,6 +31,8 @@ export default function AgentComposer() {
     agentMode,
     setAgentMode,
   } = useAgentChat();
+  // 草稿单独走一个轻量 context，避免每敲一个字都让整个消息列表重渲。
+  const { composerDraft, setComposerDraft } = useAgentComposerDraft();
   const { activeProject } = useAnnotation();
   const { workMode } = useWorkMode();
   const { providers, defaultProvider } = useLlmProviders();
@@ -73,6 +76,8 @@ export default function AgentComposer() {
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // 输入法组合态（如中文拼音按 Enter 选字）不应触发发送
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       handleSubmit().catch(() => undefined);

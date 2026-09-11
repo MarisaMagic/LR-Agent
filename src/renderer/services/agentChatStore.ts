@@ -131,8 +131,33 @@ export function setProjectUi(
   };
 }
 
+let uiPersistTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingUiPersist: AgentChatUiStateV2 | null = null;
+
+/** 立即把挂起的 UI 态写入 localStorage（页面卸载前调用）。 */
+export function flushAgentChatUiState(): void {
+  if (uiPersistTimer != null) {
+    clearTimeout(uiPersistTimer);
+    uiPersistTimer = null;
+  }
+  if (!pendingUiPersist) return;
+  const state = pendingUiPersist;
+  pendingUiPersist = null;
+  try {
+    localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(state));
+  } catch (err) {
+    console.warn('[agentChatStore] UI 态写入失败，已忽略', err);
+  }
+}
+
 export function persistAgentChatUiState(state: AgentChatUiStateV2): void {
-  localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(state));
+  // 与 persistAgentChatState 同理：调用点在流式期间非常高，节流 + 容错。
+  pendingUiPersist = state;
+  if (uiPersistTimer != null) return;
+  uiPersistTimer = setTimeout(() => {
+    uiPersistTimer = null;
+    flushAgentChatUiState();
+  }, PERSIST_THROTTLE_MS);
 }
 
 /** @deprecated use AgentChatUiStateV2 */
@@ -169,10 +194,37 @@ export function loadAgentChatState(): AgentChatPersistedState {
   }
 }
 
+const PERSIST_THROTTLE_MS = 500;
+
+let statePersistTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingStatePersist: AgentChatPersistedState | null = null;
+
+/** 立即把挂起的会话缓存写入 localStorage（页面卸载前调用）。 */
+export function flushAgentChatState(): void {
+  if (statePersistTimer != null) {
+    clearTimeout(statePersistTimer);
+    statePersistTimer = null;
+  }
+  if (!pendingStatePersist) return;
+  const state = pendingStatePersist;
+  pendingStatePersist = null;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (err) {
+    // QuotaExceededError 等不应打断流式渲染；SQLite 才是事实来源。
+    console.warn('[agentChatStore] 会话缓存写入失败，已忽略', err);
+  }
+}
+
 export function persistAgentChatState(state: AgentChatPersistedState): void {
-  // Always persist to localStorage as a fast in-memory-like cache
-  // The SQLite DB is the source of truth, updated through AgentChatContext
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // localStorage 只作为崩溃恢复缓存；流式输出每个 token 都会调用这里，
+  // 因此做尾沿节流并容错，避免每 token 全量序列化 + 写爆配额。
+  pendingStatePersist = state;
+  if (statePersistTimer != null) return;
+  statePersistTimer = setTimeout(() => {
+    statePersistTimer = null;
+    flushAgentChatState();
+  }, PERSIST_THROTTLE_MS);
 }
 
 function markRunningToolsTerminal(

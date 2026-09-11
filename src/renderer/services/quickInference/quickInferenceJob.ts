@@ -46,6 +46,15 @@ export async function runQuickInferenceJob(options: {
     }
     if (event.type === 'annotation_proposal') {
       proposal = event.proposal;
+      // 与对话链路（applyStreamEventToBlocks）保持一致：提案已生成即流水线结束。
+      // 几何管线在发出 workers/infer 的 running 后不会再发终结性的 main stage，
+      // 若不在此刻收尾，面板会一直显示「批量标注进行中…」。
+      pipelineSteps = pipelineSteps.map((step) =>
+        step.status === 'running' || step.status === 'pending'
+          ? { ...step, status: 'done' as const }
+          : step,
+      );
+      options.onPipelineUpdate?.(pipelineSteps);
       return;
     }
     if (event.type === 'error') {

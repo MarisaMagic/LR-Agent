@@ -74,6 +74,8 @@ export default function AgentUserMessage({ message }: AgentUserMessageProps) {
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      // 输入法组合态（如中文拼音按 Enter 选字）不应触发提交/取消
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         cancelEdit();
