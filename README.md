@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/MarisaMagic/LR-Agent">
-    <img alt="LR-Agent Logo" width="200" src="https://sukicdn.com/wyx/i/2026/09/11/v8u5.png">
+    <img alt="LR-Agent Logo" width="200" src="./assets/icon.png">
   </a>
 </p>
 
@@ -21,114 +21,113 @@
 
 ### 用户登录
 
-![](https://sukicdn.com/wyx/i/2026/09/11/5t3re.png)
+![](./assets/LR-Agent-imgs/user-login-01.png)
 
 
 ### 环境配置向导
 
 > 可以根据向导完成 AI Agent 本地编排、预训练模型推理的环境配置。也可自行安装，然后自动检测环境是否满足要求。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/ua4d.png)
+![](./assets/LR-Agent-imgs/install-environment-1.png)
 
 
 ### 任务创建
 
 > 可自定义任务路径、任务类型（应用预设）、标签设置等。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/5t7bz.png)
+![](./assets/LR-Agent-imgs/create-task-1.png)
 
 
 ### 任务列表
 
 > 左侧可查看创建的任务列表，每个人物更多选项可进行自定义配置。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/5s7zh.png)
+![](./assets/LR-Agent-imgs/annotate-tasklist-01.png)
 
 
 ### 查看与标注内容
 
 > 支持图像-矩形框、图像-多边形、图像-caption 以及 多种其它图像、文本任务的内容查看与手动标注。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/lqu.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/5ryv8.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/lv7.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/5si1l.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/34h.png)
-
+![](./assets/LR-Agent-imgs/annotate-img-1.png)
+![](./assets/LR-Agent-imgs/annotate-img-2.png)
+![](./assets/LR-Agent-imgs/annotate-img-3.png)
+![](./assets/LR-Agent-imgs/annotate-text-1.png)
+![](./assets/LR-Agent-imgs/annotate-text-2.png)
 
 ### 标注列表
 
 > 右侧栏标注列表可查看数据已有的标注
 
-![](https://sukicdn.com/wyx/i/2026/09/11/4bmy.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/u9kp.png)
+![](./assets/LR-Agent-imgs/annotate-list-1.png)
+![](./assets/LR-Agent-imgs/annotate-list-2.png)
 
 
 ### 标注导出
 
 > 标注任务的更多选项中，可导出目前已有的标注。支持多种可用于后续模型训练的格式。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/mlf.png)
+![](./assets/LR-Agent-imgs/annotation-export.png)
 
 
 ### 预训练模型配置
 
 > 可配置目前已支持图像任务类型所用的预训练模型，包括 YOLO、SAM。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/5w2y9.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/4bug.png)
+![](./assets/LR-Agent-imgs/annotate-pretrained-models-1.png)
+![](./assets/LR-Agent-imgs/annotate-pretrained-models-2.png)
 
 
 ### 大模型配置
 
 > 可配置 OpenAI 兼容端口大模型，可选择子代理配置。支持多模态视觉探针检测大模型是否具备视觉能力。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/4byp.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/5wass.png)
+![](./assets/LR-Agent-imgs/annotate-llm-1.png)
+![](./assets/LR-Agent-imgs/annotate-llm-2.png)
 
 
 ### MCP
 
 > 可配置 MCP 远程接入外部工具。支持添加 MCP 广场中的预设工具，也支持自定义端点。支持 Streamable HTTP / SSE。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/5wdem.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/15an4e.png)
+![](./assets/LR-Agent-imgs/annotate-mcp-1.png)
+![](./assets/LR-Agent-imgs/annotate-mcp-2.png)
 
 
 ### Skills
 
 > 可查看本地安装的 Agent Skills。缺口：目前仅做了渐进式读取 Skills 中的文档，暂时不支持脚本运行。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/4c5v.png)
+![](./assets/LR-Agent-imgs/annotate-skills-1.png)
 
 
 ### AI Agent
 
 > 支持在 AI Agent 对话中切换 Ask / Agent 模式。可自由输入问题，例如辅助标注、生成报告、查阅文档、编辑文件、检索内容等需求。AI Agent 通过 Tool-Use-Loop 自主调用工具完成任务。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/5wqbp.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/5wrsa.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/ue6k.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/5wsw8.png)
+![](./assets/LR-Agent-imgs/annotate-agent-1.png)
+![](./assets/LR-Agent-imgs/annotate-agent-2.png)
+![](./assets/LR-Agent-imgs/annotate-agent-3.png)
+![](./assets/LR-Agent-imgs/annotate-agent-4.png)
 
 > 另外，支持启动子代理完成一些只读任务。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/5wttf.png)
-![](https://sukicdn.com/wyx/i/2026/09/11/5wt1h.png)
+![](./assets/LR-Agent-imgs/subagent-1.png)
+![](./assets/LR-Agent-imgs/subagent-2.png)
 
 
 ### 快捷 LLM 推理
 
 > 快捷 LLM 推理仅用于单条数据 / 单张图片的标注生成。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/15hep7.png)
+![](./assets/LR-Agent-imgs/annotate-fast-1.png)
 
 
 ### 质量面板
 
 > 可查看标注任务下的标注情况，包括标签分布、标注覆盖率等。另外，可以生成质量看板报告。缺口：目前仅支持部分图像任务。
 
-![](https://sukicdn.com/wyx/i/2026/09/11/meh.png)
+![](./assets/LR-Agent-imgs/annotate-quality-1.png)
 
 
 
