@@ -10,11 +10,12 @@ import os
 import sys
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
+from app.core.deps import require_local_token
 
 logger = logging.getLogger(__name__)
 
@@ -38,15 +39,26 @@ def create_app() -> FastAPI:
         debug=settings.debug,
     )
 
+    cors_origins = [origin.strip() for origin in settings.cors_origins if origin.strip()]
+    # allow_credentials=True 与通配符 origin 组合会让任意站点携带凭据访问，直接拒绝启动
+    if any(origin == "*" for origin in cors_origins):
+        raise RuntimeError(
+            "cors_origins 不能包含 '*': allow_credentials=True 时禁止通配符"
+        )
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    app.include_router(api_router, prefix=settings.api_v1_prefix)
+    app.include_router(
+        api_router,
+        prefix=settings.api_v1_prefix,
+        dependencies=[Depends(require_local_token)],
+    )
 
     @app.get("/health", tags=["health"])
     async def health_check() -> dict[str, str]:

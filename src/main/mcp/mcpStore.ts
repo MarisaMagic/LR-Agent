@@ -9,6 +9,11 @@ import { randomUUID } from 'crypto';
 import fs from 'fs-extra';
 import { app } from 'electron';
 import {
+  encryptSecret,
+  isEncryptedSecret,
+  tryDecryptSecret,
+} from '../security/secretStore';
+import {
   MCP_TRANSPORTS,
   type McpConfig,
   type McpServerConfig,
@@ -32,13 +37,21 @@ function sanitizeTransport(value: unknown): McpTransport {
     : 'streamable_http';
 }
 
-function sanitizeHeaders(raw: unknown): Record<string, string> {
+function sanitizeHeaders(
+  raw: unknown,
+  options: { decrypt: boolean } = { decrypt: false },
+): Record<string, string> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     const name = key.trim();
     if (name && typeof value === 'string' && value.trim()) {
-      out[name] = value;
+      if (options.decrypt) {
+        // headers 落盘时加密；解密失败则置空（失败关闭，不发送错误凭据）
+        out[name] = tryDecryptSecret(value) ?? '';
+      } else {
+        out[name] = value;
+      }
     }
   }
   return out;
@@ -68,7 +81,11 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-function sanitizeServer(id: string, raw: unknown): McpServerConfig | null {
+function sanitizeServer(
+  id: string,
+  raw: unknown,
+  options: { decryptHeaders: boolean } = { decryptHeaders: false },
+): McpServerConfig | null {
   if (!ID_PATTERN.test(id)) return null;
   if (!raw || typeof raw !== 'object') return null;
   const record = raw as Record<string, unknown>;
@@ -83,7 +100,9 @@ function sanitizeServer(id: string, raw: unknown): McpServerConfig | null {
         : id,
     url,
     transport: sanitizeTransport(record.transport),
-    headers: sanitizeHeaders(record.headers),
+    headers: sanitizeHeaders(record.headers, {
+      decrypt: options.decryptHeaders,
+    }),
     enabled: record.enabled !== false,
     preset:
       typeof record.preset === 'string' && record.preset.trim()
@@ -114,7 +133,7 @@ function sanitizeConfig(raw: unknown): McpConfig {
     for (const [id, serverRaw] of Object.entries(
       serversRaw as Record<string, unknown>,
     )) {
-      const server = sanitizeServer(id, serverRaw);
+      const server = sanitizeServer(id, serverRaw, { decryptHeaders: true });
       if (server) mcpServers[id] = server;
     }
   }
@@ -136,12 +155,64 @@ export function getMcpConfig(): McpConfig {
   return cached;
 }
 
+function encryptHeadersForDisk(
+  headers: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    out[key] = value ? encryptSecret(value) : value;
+  }
+  return out;
+}
+
+/** 磁盘表示：header 值加密；内存缓存保持明文 */
+function configForDisk(config: McpConfig): McpConfig {
+  return {
+    mcpServers: Object.fromEntries(
+      Object.entries(config.mcpServers).map(([id, server]) => [
+        id,
+        { ...server, headers: encryptHeadersForDisk(server.headers) },
+      ]),
+    ),
+  };
+}
+
 async function writeMcpConfig(config: McpConfig): Promise<McpConfig> {
   cached = config;
   const storePath = getMcpStorePath();
   await fs.ensureDir(path.dirname(storePath));
-  await fs.writeJson(storePath, config, { spaces: 2 });
+  await fs.writeJson(storePath, configForDisk(config), { spaces: 2 });
   return config;
+}
+
+/**
+ * 幂等迁移：把 mcp.json 中仍为明文的 header 值加密回写。
+ * 任何失败都不抛出，避免阻断启动。
+ */
+export async function migrateStoredMcpSecrets(): Promise<void> {
+  const storePath = getMcpStorePath();
+  let raw: unknown;
+  try {
+    raw = await fs.readJson(storePath, { throws: false });
+  } catch {
+    return;
+  }
+  if (!raw || typeof raw !== 'object') return;
+  const config = sanitizeConfig(raw);
+  if (Object.keys(config.mcpServers).length === 0) return;
+
+  const needsWrite = Object.values(config.mcpServers).some((server) =>
+    Object.values(server.headers).some((value) => !isEncryptedSecret(value)),
+  );
+  if (!needsWrite) {
+    cached = config;
+    return;
+  }
+  try {
+    await writeMcpConfig(config);
+  } catch (err) {
+    console.error('[mcp] failed to migrate header secrets:', err);
+  }
 }
 
 export function listMcpServers(): McpServerConfig[] {

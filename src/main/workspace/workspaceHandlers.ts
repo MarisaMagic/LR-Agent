@@ -5,6 +5,9 @@ import {
   writeScopedTextFile,
   deleteScopedTextFile,
 } from './workspaceWrite';
+import { isWithinAuthorizedRoot } from '../security/authorizedRoots';
+
+const FORBIDDEN = { success: false, error: 'forbidden_root' } as const;
 
 export function registerWorkspaceHandlers(): void {
   ipcMain.handle(
@@ -13,6 +16,7 @@ export function registerWorkspaceHandlers(): void {
       _event,
       payload: { rootDir: string; relativePath: string; content: string },
     ) => {
+      if (!isWithinAuthorizedRoot(payload?.rootDir)) return FORBIDDEN;
       const result = await writeScopedTextFile(
         payload.rootDir,
         payload.relativePath,
@@ -31,6 +35,7 @@ export function registerWorkspaceHandlers(): void {
   ipcMain.handle(
     'workspace:readTextFile',
     async (_event, payload: { rootDir: string; relativePath: string }) => {
+      if (!isWithinAuthorizedRoot(payload?.rootDir)) return FORBIDDEN;
       return readScopedTextFile(payload.rootDir, payload.relativePath);
     },
   );
@@ -38,6 +43,7 @@ export function registerWorkspaceHandlers(): void {
   ipcMain.handle(
     'workspace:deleteTextFile',
     async (_event, payload: { rootDir: string; relativePath: string }) => {
+      if (!isWithinAuthorizedRoot(payload?.rootDir)) return FORBIDDEN;
       const result = await deleteScopedTextFile(
         payload.rootDir,
         payload.relativePath,

@@ -9,7 +9,7 @@ import type {
   McpServerInput,
   McpTransport,
 } from '../../shared/mcpTypes';
-import { resolveLocalAgentBaseUrl } from '../config';
+import { localAgentFetch, resolveLocalAgentBaseUrl } from '../config';
 
 export async function listMcpConfig(): Promise<McpConfig> {
   return (
@@ -60,7 +60,7 @@ export async function probeMcpServer(input: {
 }): Promise<McpProbeResult> {
   try {
     const base = await resolveLocalAgentBaseUrl();
-    const resp = await fetch(`${base}/agent/mcp/probe`, {
+    const resp = await localAgentFetch(`${base}/agent/mcp/probe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -1,6 +1,11 @@
 /**
- * 工作区文件策略：二进制/富媒体黑名单 + 默认文本可编辑。
- * 须与 LR-Agent-backend/app/agent/tools/workspace_text_extensions.py 保持同步。
+ * 工作区文件策略。
+ *
+ * - 预览路由使用「二进制/富媒体黑名单」（只有明确的非文本类型才走特殊预览）。
+ * - 写盘与 Monaco 编辑使用「文本扩展名白名单」：默认不可写，仅白名单内的
+ *   纯文本/代码类型允许写盘，从根上阻断“写入脚本/可执行文件再触发执行”。
+ *
+ * 需与 LR-Agent-backend/app/agent/tools/workspace_text_extensions.py 保持同步。
  */
 
 function fileBaseName(filePath: string): string {
@@ -17,8 +22,8 @@ function fileExtension(filePath: string): string {
   return name.slice(dot + 1).toLowerCase();
 }
 
-/** 禁止 Monaco 编辑、禁止 write_workspace_file / Electron 写盘的扩展名。 */
-export const TEXT_WRITE_BLOCKLIST = new Set([
+/** 明确的二进制/富媒体类型：不参与文本预览与编辑。 */
+const BINARY_OR_RICH_EXTENSIONS = new Set([
   '.png',
   '.jpg',
   '.jpeg',
@@ -47,8 +52,114 @@ export const TEXT_WRITE_BLOCKLIST = new Set([
   '.otf',
 ]);
 
-/** FileViewer 专用预览扩展名（与写盘黑名单一致）。 */
-export const SPECIAL_PREVIEW_EXTENSIONS = TEXT_WRITE_BLOCKLIST;
+/** @deprecated 语义已改为「非文本预览」黑名单，请用 isSpecialPreviewFile */
+export const TEXT_WRITE_BLOCKLIST = BINARY_OR_RICH_EXTENSIONS;
+
+/** FileViewer 专用特殊预览扩展名（明确的二进制/富媒体）。 */
+export const SPECIAL_PREVIEW_EXTENSIONS = BINARY_OR_RICH_EXTENSIONS;
+
+/**
+ * 允许写盘/编辑的文本与代码扩展名白名单（不含点，全小写）。
+ * 刻意排除 .bat/.cmd/.ps1/.psm1/.vbs/.wsf/.hta/.scr/.com/.msi/.jar/.reg/.lnk
+ * 等可执行/脚本类型。
+ */
+const TEXT_WRITE_WHITELIST = new Set([
+  // 文档
+  'md',
+  'markdown',
+  'mdx',
+  'txt',
+  'text',
+  'log',
+  'rst',
+  'adoc',
+  'csv',
+  'tsv',
+  // 数据 / 配置
+  'json',
+  'jsonl',
+  'ndjson',
+  'jsonc',
+  'yaml',
+  'yml',
+  'toml',
+  'ini',
+  'cfg',
+  'conf',
+  'config',
+  'properties',
+  'env',
+  'gitignore',
+  'gitattributes',
+  'dockerignore',
+  'editorconfig',
+  'npmrc',
+  'nvmrc',
+  'lock',
+  // 代码
+  'js',
+  'jsx',
+  'mjs',
+  'cjs',
+  'ts',
+  'tsx',
+  'mts',
+  'cts',
+  'py',
+  'pyw',
+  'pyi',
+  'java',
+  'kt',
+  'kts',
+  'c',
+  'h',
+  'cc',
+  'cpp',
+  'cxx',
+  'hpp',
+  'hh',
+  'hxx',
+  'cs',
+  'go',
+  'rs',
+  'rb',
+  'php',
+  'swift',
+  'm',
+  'mm',
+  'lua',
+  'r',
+  'pl',
+  'pm',
+  'scala',
+  'dart',
+  'groovy',
+  'gradle',
+  'sh',
+  'bash',
+  'zsh',
+  'fish',
+  'sql',
+  'html',
+  'htm',
+  'xml',
+  'css',
+  'scss',
+  'sass',
+  'less',
+  'vue',
+  'svelte',
+  'astro',
+  'graphql',
+  'gql',
+  'proto',
+  'tf',
+  'hcl',
+  'dockerfile',
+  'makefile',
+  'cmake',
+  'mk',
+]);
 
 function getDottedExtension(filePath: string): string {
   const ext = fileExtension(filePath);
@@ -56,11 +167,19 @@ function getDottedExtension(filePath: string): string {
   return `.${ext.toLowerCase()}`;
 }
 
+/**
+ * 扩展名是否允许写盘/编辑。
+ * 无扩展名的文件（LICENSE、Makefile 等）视为文本放行。
+ */
+export function isAllowedTextWriteExtension(ext: string): boolean {
+  const normalized = ext.replace(/^\./, '').toLowerCase();
+  if (!normalized) return true;
+  return TEXT_WRITE_WHITELIST.has(normalized);
+}
+
+/** 是否禁止写盘/编辑（白名单之外一律禁止）。 */
 export function isBlockedTextExtension(ext: string): boolean {
-  const normalized = ext.startsWith('.')
-    ? ext.toLowerCase()
-    : `.${ext.toLowerCase()}`;
-  return TEXT_WRITE_BLOCKLIST.has(normalized);
+  return !isAllowedTextWriteExtension(ext);
 }
 
 export function isSpecialPreviewFile(filePath: string): boolean {
@@ -69,14 +188,14 @@ export function isSpecialPreviewFile(filePath: string): boolean {
   return SPECIAL_PREVIEW_EXTENSIONS.has(dotted);
 }
 
-/** 默认 true；仅命中黑名单时不可 Monaco 编辑 / 写盘。 */
+/** 仅白名单内的文本/代码文件可写、可 Monaco 编辑。 */
 export function isTextEditableFile(filePath: string): boolean {
-  return !isSpecialPreviewFile(filePath);
+  return isAllowedTextWriteExtension(fileExtension(filePath));
 }
 
 /** @deprecated 使用 isTextEditableFile / isBlockedTextExtension */
 export function isAllowedTextFileExtension(ext: string): boolean {
-  return !isBlockedTextExtension(ext);
+  return isAllowedTextWriteExtension(ext);
 }
 
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown']);

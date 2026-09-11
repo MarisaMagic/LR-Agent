@@ -21,6 +21,8 @@ export default function FileTypeIcon({
     ? getSetiFolderIconSvg(Boolean(isOpen))
     : getSetiFileIconSvg(path);
 
+  // 安全说明：svgMarkup 来自内置 seti-icons 图标集（按扩展名查表 + 固定的
+  // 颜色正则改写），文件名不会被拼进标记，属可信来源，因此不额外消毒。
   const isTreeIcon = Boolean(slot);
   const classes = [
     'file-type-icon',

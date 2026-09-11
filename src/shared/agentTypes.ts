@@ -413,6 +413,8 @@ export interface ClientContextPayload {
   selectedAnnotationIds?: string[];
   /** 本地 MCP Server 地址（Electron 启动时分配，如 "http://127.0.0.1:PORT"） */
   mcpServerUrl?: string | null;
+  /** 本地 MCP Server 访问 token（仅注入本机 MCP 连接，禁止打日志） */
+  mcpServerToken?: string | null;
   /** 用户启用的远程 MCP Server（userData/mcp.json；含 headers，禁止打日志） */
   mcpServers?: McpRemoteServerPayload[] | null;
   /** 项目级指令（.lragent/INSTRUCTIONS.md 内容，注入 system prompt） */

@@ -1,3 +1,5 @@
+import path from 'path';
+import { pathToFileURL } from 'url';
 import { isAppOwnedNavigation } from './util';
 
 describe('isAppOwnedNavigation', () => {
@@ -15,9 +17,14 @@ describe('isAppOwnedNavigation', () => {
     expect(isAppOwnedNavigation('https://example.com/docs')).toBe(false);
   });
 
-  it('allows file: urls in production and rejects http(s)', () => {
+  it('only allows file: urls inside the renderer directory in production', () => {
     process.env.NODE_ENV = 'production';
-    expect(isAppOwnedNavigation('file:///C:/app/index.html')).toBe(true);
+    const appRoot = path.resolve(__dirname, '../renderer/');
+    const insideUrl = pathToFileURL(path.join(appRoot, 'index.html')).href;
+    expect(isAppOwnedNavigation(insideUrl)).toBe(true);
+    // 任意的本机文件不再视为应用自身导航
+    expect(isAppOwnedNavigation('file:///C:/app/index.html')).toBe(false);
+    expect(isAppOwnedNavigation('file:///etc/passwd')).toBe(false);
     expect(isAppOwnedNavigation('https://example.com')).toBe(false);
   });
 });

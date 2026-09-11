@@ -63,15 +63,21 @@ def _infer_mcp_capability(tool_name: str) -> ToolCapability | None:
     return None
 
 
-def _local_connection(mcp_server_url: str) -> dict:
-    """本机 Electron MCP Server 连接参数（端点固定 /mcp，见 src/main/mcp/server.ts）。"""
-    return {
+def _local_connection(mcp_server_url: str, token: str | None = None) -> dict:
+    """本机 Electron MCP Server 连接参数（端点固定 /mcp，见 src/main/mcp/server.ts）。
+
+    token 由 client_context.mcp_server_token 传入，作为 Bearer 头注入。
+    """
+    conn: dict = {
         "url": mcp_server_url.rstrip("/") + "/mcp",
         "transport": "streamable_http",
         "timeout": 60,
         "sse_read_timeout": 300,
         "terminate_on_close": True,
     }
+    if token and token.strip():
+        conn["headers"] = {"Authorization": f"Bearer {token.strip()}"}
+    return conn
 
 
 def _remote_connection(server) -> dict:
@@ -115,6 +121,7 @@ async def load_mcp_tools_from_servers(
     local_server_url: str | None,
     remote_servers: list | None = None,
     *,
+    local_server_token: str | None = None,
     existing_capabilities: set[ToolCapability] | None = None,
 ) -> list[StructuredTool]:
     """连接本机 + 远程 MCP Server，动态发现并按能力/名称去重后返回工具列表。
@@ -133,7 +140,9 @@ async def load_mcp_tools_from_servers(
     connections: dict[str, dict] = {}
     disabled_by_conn: dict[str, set[str]] = {}
     if local_server_url and local_server_url.strip():
-        connections["lr-agent-local"] = _local_connection(local_server_url)
+        connections["lr-agent-local"] = _local_connection(
+            local_server_url, local_server_token
+        )
     for server in remote_servers or []:
         server_id = getattr(server, "id", "") or f"remote-{len(connections)}"
         conn = _remote_connection(server)

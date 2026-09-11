@@ -1,4 +1,4 @@
-import { resolveLocalAgentBaseUrl } from '../../config';
+import { localAgentFetch, resolveLocalAgentBaseUrl } from '../../config';
 import type { AnnotationProjectSnapshot } from '../../../shared/annotationAgentTypes';
 import type { EffectiveTheme } from '../../theme/themeConstants';
 import { parseApiError } from '../authenticatedFetch';
@@ -95,7 +95,7 @@ async function* streamQualityReportCompose(options: {
   signal?: AbortSignal;
 }): AsyncGenerator<string> {
   const baseUrl = await resolveLocalAgentBaseUrl();
-  const response = await fetch(
+  const response = await localAgentFetch(
     `${baseUrl}/agent/annotation-quality/report/compose/stream`,
     {
       method: 'POST',

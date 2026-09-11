@@ -16,6 +16,7 @@ import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
 import deleteSourceMaps from '../scripts/delete-source-maps';
+import { buildRendererCsp, themeInitScript } from './rendererCsp';
 
 checkNodeEnv('production');
 deleteSourceMaps();
@@ -195,6 +196,12 @@ const configuration: webpack.Configuration = {
         collapseWhitespace: true,
         removeAttributeQuotes: true,
         removeComments: true,
+        // 不压缩内联脚本：CSP 的 sha256 必须与脚本字节完全一致
+        minifyJS: false,
+      },
+      templateParameters: {
+        cspContent: buildRendererCsp(false),
+        themeInitScript,
       },
       isBrowser: false,
       isDevelopment: false,

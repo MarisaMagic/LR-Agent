@@ -210,11 +210,15 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                 else ""
             )
             remote_mcp = list(client_ctx.mcp_servers) if client_ctx else []
+            local_mcp_token = (
+                (client_ctx.mcp_server_token or "").strip() if client_ctx else ""
+            )
             if mcp_url or remote_mcp:
                 try:
                     mcp_tools = await load_mcp_tools_from_servers(
                         mcp_url or None,
                         remote_mcp,
+                        local_server_token=local_mcp_token or None,
                         existing_capabilities=CANONICAL_CAPABILITIES,
                     )
                     if mcp_tools:

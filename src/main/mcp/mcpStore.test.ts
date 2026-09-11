@@ -21,6 +21,17 @@ jest.mock('electron', () => ({
   app: {
     getPath: jest.fn(() => userDataDir),
   },
+  safeStorage: {
+    isEncryptionAvailable: () => true,
+    encryptString: (value: string) => Buffer.from(`enc:${value}`, 'utf8'),
+    decryptString: (buffer: Buffer) => {
+      const text = buffer.toString('utf8');
+      if (!text.startsWith('enc:')) {
+        throw new Error('decrypt_failed');
+      }
+      return text.slice('enc:'.length);
+    },
+  },
 }));
 
 beforeEach(() => {

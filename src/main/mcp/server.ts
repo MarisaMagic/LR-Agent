@@ -9,7 +9,7 @@
  * 前端在 app.whenReady() 后调用 startMcpServer()，并将端口通过 IPC 传给 renderer。
  */
 
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import http from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
 import net from 'net';
@@ -39,7 +39,43 @@ type McpSession = {
 
 let httpServer: http.Server | null = null;
 let listenPort: number | null = null;
+let authToken: string | null = null;
 const sessions = new Map<string, McpSession>();
+
+/** 常量时间比较，避免 token 被逐字节探测 */
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
+/** /mcp 只接受本机 Host，且不允许带 Origin（浏览器跨源请求一律拒绝） */
+function isTrustedMcpRequest(req: IncomingMessage): boolean {
+  const { host } = req.headers;
+  if (typeof host !== 'string' || !host.trim()) return false;
+  const hostname = host.split(':')[0].toLowerCase();
+  if (
+    hostname !== '127.0.0.1' &&
+    hostname !== 'localhost' &&
+    hostname !== '[::1]' &&
+    hostname !== '::1'
+  ) {
+    return false;
+  }
+  const { origin } = req.headers;
+  if (typeof origin === 'string' && origin.trim()) return false;
+  return true;
+}
+
+function hasValidBearerToken(req: IncomingMessage): boolean {
+  if (!authToken) return false;
+  const header = req.headers.authorization;
+  if (typeof header !== 'string') return false;
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+  if (!match) return false;
+  return safeEqual(match[1].trim(), authToken);
+}
 
 /** 获取本机随机空闲端口 */
 async function getFreePort(): Promise<number> {
@@ -387,11 +423,20 @@ export async function startMcpServer(): Promise<string> {
   }
 
   const port = await getFreePort();
+  authToken = randomBytes(32).toString('hex');
 
   httpServer = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
 
     if (url.pathname === '/mcp') {
+      if (!isTrustedMcpRequest(req)) {
+        sendJson(res, 403, { error: 'forbidden' });
+        return;
+      }
+      if (!hasValidBearerToken(req)) {
+        sendJson(res, 401, { error: 'unauthorized' });
+        return;
+      }
       try {
         await handleMcpRequest(req, res);
       } catch (err) {
@@ -433,6 +478,7 @@ export function stopMcpServer(): void {
     httpServer.close();
     httpServer = null;
     listenPort = null;
+    authToken = null;
   }
 }
 
@@ -440,4 +486,9 @@ export function stopMcpServer(): void {
 export function getMcpServerUrl(): string | null {
   if (listenPort) return `http://127.0.0.1:${listenPort}`;
   return null;
+}
+
+/** 获取当前 MCP Server 访问 token（未启动时返回 null） */
+export function getMcpServerToken(): string | null {
+  return authToken;
 }

@@ -1784,14 +1784,18 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           typeof globalThis & {
             electron?: {
               mcp?: {
-                getServerUrl?: () => Promise<string | null>;
+                getServerUrl?: () => Promise<{
+                  url: string;
+                  token: string;
+                } | null>;
                 getEnabledServers?: () => Promise<McpServerConfig[] | null>;
               };
             };
           }
       ).electron?.mcp;
-      const mcpServerUrl: string | null =
-        (await mcpBridge?.getServerUrl?.()) ?? null;
+      const localMcp = (await mcpBridge?.getServerUrl?.()) ?? null;
+      const mcpServerUrl: string | null = localMcp?.url ?? null;
+      const mcpServerToken: string | null = localMcp?.token ?? null;
       const remoteMcpServers: McpServerConfig[] =
         (await mcpBridge?.getEnabledServers?.().catch(() => null)) ?? [];
 
@@ -1832,6 +1836,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         workMode,
         detectionModels: pretrainedModels,
         mcpServerUrl,
+        mcpServerToken,
         mcpServers: remoteMcpServers,
         projectInstructions,
         memoryIndex,

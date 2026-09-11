@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { highlightCode } from '../../utils/syntaxHighlight';
+import { sanitizeHighlightHtml } from '../../utils/sanitizeHtml';
 import './HighlightedCodeBlock.css';
 
 interface HighlightedCodeBlockProps {
@@ -12,7 +13,7 @@ export default function HighlightedCodeBlock({
   filePath,
 }: HighlightedCodeBlockProps) {
   const html = useMemo(
-    () => highlightCode(content, filePath),
+    () => sanitizeHighlightHtml(highlightCode(content, filePath)),
     [content, filePath],
   );
 

@@ -45,10 +45,55 @@ export function resolveApiBaseUrl(): string {
 }
 
 let cachedLocalAgentBaseUrl: string | null = null;
+let cachedLocalAgentToken: string | null = null;
 
 /** 供测试或强制刷新时清除缓存 */
 export function resetLocalAgentBaseUrlCache(): void {
   cachedLocalAgentBaseUrl = null;
+  cachedLocalAgentToken = null;
+}
+
+async function queryLocalAgentEndpoint(): Promise<{
+  url: string;
+  token: string;
+} | null> {
+  if (typeof window === 'undefined') return null;
+  return (
+    (await window.electron?.localAgent?.getBaseUrl?.().catch(() => null)) ??
+    null
+  );
+}
+
+/**
+ * 解析本地 Agent 服务 base URL 与访问 token。
+ *
+ * 优先使用 Electron main 进程持有的实际监听地址（随机端口）；
+ * 服务尚未就绪时短暂重试；IPC 不可用（如纯 Web 调试）时回退默认端口（此时无 token）。
+ */
+export async function resolveLocalAgentAuth(options?: {
+  retries?: number;
+  intervalMs?: number;
+}): Promise<{ baseUrl: string; token: string | null }> {
+  if (cachedLocalAgentBaseUrl) {
+    return { baseUrl: cachedLocalAgentBaseUrl, token: cachedLocalAgentToken };
+  }
+
+  const retries = options?.retries ?? 10;
+  const intervalMs = options?.intervalMs ?? 500;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const result = await queryLocalAgentEndpoint();
+    if (result) {
+      cachedLocalAgentBaseUrl = result.url;
+      cachedLocalAgentToken = result.token;
+      return { baseUrl: result.url, token: result.token };
+    }
+    if (attempt < retries) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+
+  return { baseUrl: LOCAL_AGENT_DEFAULT_BASE_URL, token: null };
 }
 
 /**
@@ -61,31 +106,24 @@ export async function resolveLocalAgentBaseUrl(options?: {
   retries?: number;
   intervalMs?: number;
 }): Promise<string> {
-  if (cachedLocalAgentBaseUrl) {
-    return cachedLocalAgentBaseUrl;
+  const { baseUrl } = await resolveLocalAgentAuth(options);
+  return baseUrl;
+}
+
+/**
+ * 携带本地服务 Bearer token 的 fetch 封装。
+ * 所有发往 LR-Agent-local 的请求都应经此发出（否则服务返回 401）。
+ */
+export async function localAgentFetch(
+  input: string,
+  init?: RequestInit,
+): Promise<Response> {
+  if (!cachedLocalAgentToken) {
+    await resolveLocalAgentAuth();
   }
-
-  const retries = options?.retries ?? 10;
-  const intervalMs = options?.intervalMs ?? 500;
-
-  const query = async (): Promise<string | null> => {
-    if (typeof window === 'undefined') return null;
-    return (
-      (await window.electron?.localAgent?.getBaseUrl?.().catch(() => null)) ??
-      null
-    );
-  };
-
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    const url = await query();
-    if (url) {
-      cachedLocalAgentBaseUrl = url;
-      return url;
-    }
-    if (attempt < retries) {
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
+  const headers = new Headers(init?.headers);
+  if (cachedLocalAgentToken && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${cachedLocalAgentToken}`);
   }
-
-  return LOCAL_AGENT_DEFAULT_BASE_URL;
+  return fetch(input, { ...init, headers });
 }

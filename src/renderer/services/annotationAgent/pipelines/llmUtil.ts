@@ -1,6 +1,6 @@
 /** Shared LLM API call utility for annotation generation pipelines. */
 
-import { resolveLocalAgentBaseUrl } from '../../../config';
+import { localAgentFetch, resolveLocalAgentBaseUrl } from '../../../config';
 
 export interface LlmCallOptions {
   providerId: string;
@@ -36,24 +36,27 @@ export async function callLlmApi(
 ): Promise<LlmCallResult> {
   try {
     const baseUrl = await resolveLocalAgentBaseUrl();
-    const response = await fetch(`${baseUrl}/agent/annotation/llm-generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        provider_id: options.providerId,
-        api_key: options.apiKey,
-        base_url: options.baseUrl,
-        model: options.model,
-        system_prompt: options.systemPrompt,
-        user_prompt: options.userPrompt,
-        temperature: options.temperature ?? 0.3,
-        max_tokens: options.maxTokens ?? 4096,
-        image_absolute_path: options.imageAbsolutePath ?? '',
-        image_base64: options.imageBase64 ?? '',
-        image_mime_type: options.imageMimeType ?? 'image/jpeg',
-      }),
-      signal: options.signal,
-    });
+    const response = await localAgentFetch(
+      `${baseUrl}/agent/annotation/llm-generate`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider_id: options.providerId,
+          api_key: options.apiKey,
+          base_url: options.baseUrl,
+          model: options.model,
+          system_prompt: options.systemPrompt,
+          user_prompt: options.userPrompt,
+          temperature: options.temperature ?? 0.3,
+          max_tokens: options.maxTokens ?? 4096,
+          image_absolute_path: options.imageAbsolutePath ?? '',
+          image_base64: options.imageBase64 ?? '',
+          image_mime_type: options.imageMimeType ?? 'image/jpeg',
+        }),
+        signal: options.signal,
+      },
+    );
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '');

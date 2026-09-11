@@ -30,4 +30,25 @@ describe('workspace file policy', () => {
     expect(isBlockedTextExtension('.jsonl')).toBe(false);
     expect(isBlockedTextExtension('')).toBe(false);
   });
+
+  it('blocks script and executable extensions from being written', () => {
+    for (const filePath of [
+      '/ws/evil.bat',
+      '/ws/evil.cmd',
+      '/ws/evil.ps1',
+      '/ws/evil.psm1',
+      '/ws/evil.vbs',
+      '/ws/evil.hta',
+      '/ws/evil.scr',
+      '/ws/evil.com',
+      '/ws/evil.jar',
+      '/ws/evil.reg',
+      '/ws/evil.lnk',
+    ]) {
+      expect(isTextEditableFile(filePath)).toBe(false);
+      expect(isBlockedTextExtension(filePath.split('.').pop() ?? '')).toBe(
+        true,
+      );
+    }
+  });
 });

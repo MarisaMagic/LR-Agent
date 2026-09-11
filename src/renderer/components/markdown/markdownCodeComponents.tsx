@@ -2,6 +2,10 @@ import type { ReactNode } from 'react';
 import type { Components } from 'react-markdown';
 import AgentScrollablePre from '../agent/AgentScrollablePre';
 import { highlightMarkdownCode } from '../../utils/syntaxHighlight';
+import {
+  isSafeExternalUrl,
+  sanitizeHighlightHtml,
+} from '../../utils/sanitizeHtml';
 import MarkdownLocalImage from './MarkdownLocalImage';
 
 export interface MarkdownCodeComponentsOptions {
@@ -37,11 +41,13 @@ export function createMarkdownCodeComponents(
         <a
           href={href}
           {...props}
+          rel="noopener noreferrer"
           onClick={(e) => {
             if (!href || href.startsWith('#')) return;
             e.preventDefault();
-            // 仅 http(s) 绝对链接交给系统浏览器，相对链接不再触发当前窗口导航
-            if (/^https?:\/\//i.test(href)) {
+            // 仅 https 绝对链接交给系统浏览器；相对链接与其他协议（javascript:、
+            // data:、file: 等）一律阻断，避免当前窗口被替换或脚本执行。
+            if (isSafeExternalUrl(href)) {
               window.electron.window.openExternal(href).catch(() => undefined);
             }
           }}
@@ -62,7 +68,9 @@ export function createMarkdownCodeComponents(
       const isBlock = language != null || content.includes('\n');
 
       if (isBlock) {
-        const html = highlightMarkdownCode(content, language);
+        const html = sanitizeHighlightHtml(
+          highlightMarkdownCode(content, language),
+        );
         const hljsClassName = language ? `hljs language-${language}` : 'hljs';
         return (
           <code

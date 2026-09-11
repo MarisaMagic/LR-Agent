@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { DiffDisplayLine } from '../../utils/fileDiffStats';
 import { highlightCode } from '../../utils/syntaxHighlight';
+import { sanitizeHighlightHtml } from '../../utils/sanitizeHtml';
 import './AgentFileChangeBlock.css';
 
 function isEllipsisLine(text: string): boolean {
@@ -16,7 +17,7 @@ function DiffLineContent({
 }) {
   const html = useMemo(() => {
     if (!text || isEllipsisLine(text)) return null;
-    return highlightCode(text, relativePath);
+    return sanitizeHighlightHtml(highlightCode(text, relativePath));
   }, [text, relativePath]);
 
   if (html === null) {

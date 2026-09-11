@@ -31,6 +31,7 @@ export function buildApiClientContext(
         }
       : null,
     mcp_server_url: clientContext.mcpServerUrl ?? null,
+    mcp_server_token: clientContext.mcpServerToken ?? null,
     mcp_servers: (clientContext.mcpServers ?? []).map((server) => ({
       id: server.id,
       url: server.url,

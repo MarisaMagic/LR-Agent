@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
 export type Channels =
-  | 'ipc-example'
   | 'dialog:openDirectory'
   | 'fs:readDir'
   | 'fs:readFile'
@@ -46,6 +45,60 @@ export type Channels =
   | 'env:install:progress'
   | 'localAgent:status';
 
+/**
+ * 渲染层允许订阅的主进程事件通道白名单。
+ *
+ * 运行时强校验：任何不在集合内的通道都会被拒绝，避免渲染层（含被注入脚本）
+ * 随意订阅内部通道。
+ */
+export type RendererEventChannel =
+  | 'window:maximize-change'
+  | 'window:fullscreen-change'
+  | 'theme:systemChanged'
+  | 'file-system:changed'
+  | 'auth:resetPasswordDeepLink'
+  | 'env:install:progress'
+  | 'localAgent:status'
+  | 'menu:openFolder'
+  | 'menu:toggleLeftSidebar'
+  | 'menu:toggleRightSidebar'
+  | 'menu:createAnnotationProject'
+  | 'edit:undo'
+  | 'edit:redo'
+  | 'edit:cut'
+  | 'edit:copy'
+  | 'edit:paste'
+  | 'edit:selectAll'
+  | 'edit:save';
+
+const ALLOWED_EVENT_CHANNELS: ReadonlySet<string> =
+  new Set<RendererEventChannel>([
+    'window:maximize-change',
+    'window:fullscreen-change',
+    'theme:systemChanged',
+    'file-system:changed',
+    'auth:resetPasswordDeepLink',
+    'env:install:progress',
+    'localAgent:status',
+    'menu:openFolder',
+    'menu:toggleLeftSidebar',
+    'menu:toggleRightSidebar',
+    'menu:createAnnotationProject',
+    'edit:undo',
+    'edit:redo',
+    'edit:cut',
+    'edit:copy',
+    'edit:paste',
+    'edit:selectAll',
+    'edit:save',
+  ]);
+
+function assertEventChannel(channel: string): void {
+  if (!ALLOWED_EVENT_CHANNELS.has(channel)) {
+    throw new Error(`blocked ipc event channel: ${channel}`);
+  }
+}
+
 export interface DirectoryItem {
   name: string;
   isDirectory: boolean;
@@ -61,10 +114,12 @@ export interface FileStats {
 const electronHandler = {
   platform: process.platform as NodeJS.Platform,
   ipcRenderer: {
-    sendMessage(channel: Channels, ...args: unknown[]) {
-      ipcRenderer.send(channel, ...args);
-    },
-    on(channel: Channels, func: (...args: unknown[]) => void) {
+    /**
+     * 订阅主进程事件。注意：不暴露通用 send / invoke 桥，
+     * 高权限能力一律走下方逐方法接口。
+     */
+    on(channel: RendererEventChannel, func: (...args: unknown[]) => void) {
+      assertEventChannel(channel);
       const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>
         func(...args);
       ipcRenderer.on(channel, subscription);
@@ -73,11 +128,9 @@ const electronHandler = {
         ipcRenderer.removeListener(channel, subscription);
       };
     },
-    once(channel: Channels, func: (...args: unknown[]) => void) {
+    once(channel: RendererEventChannel, func: (...args: unknown[]) => void) {
+      assertEventChannel(channel);
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
-    },
-    invoke: <T = unknown>(channel: string, ...args: unknown[]) => {
-      return ipcRenderer.invoke(channel, ...args) as Promise<T>;
     },
   },
   window: {
@@ -416,6 +469,11 @@ const electronHandler = {
       ipcRenderer.invoke('quality:getRunPath', projectDir, runId),
   },
   workspace: {
+    /** 开始监听工作区文件变化（chokidar） */
+    startWatch: (rootPath: string): Promise<void> =>
+      ipcRenderer.invoke('workspace:startWatch', rootPath),
+    /** 停止监听工作区文件变化 */
+    stopWatch: (): Promise<void> => ipcRenderer.invoke('workspace:stopWatch'),
     writeTextFile: (payload: {
       rootDir: string;
       relativePath: string;
@@ -471,8 +529,11 @@ const electronHandler = {
     }> => ipcRenderer.invoke('workspace:moveEntry', srcPath, destDir),
   },
   mcp: {
-    /** 获取本地 MCP Server URL（如 "http://127.0.0.1:PORT"），未启动时返回 null */
-    getServerUrl: (): Promise<string | null> =>
+    /**
+     * 获取本地 MCP Server 访问信息（URL + Bearer token），未启动时返回 null。
+     * token 仅用于注入本机 MCP 连接，禁止打日志。
+     */
+    getServerUrl: (): Promise<{ url: string; token: string } | null> =>
       ipcRenderer.invoke('mcp:getServerUrl'),
     /** 读取全部远程 MCP 配置（userData/mcp.json） */
     listConfig: (): Promise<import('../shared/mcpTypes').McpConfig> =>
@@ -503,8 +564,11 @@ const electronHandler = {
       ipcRenderer.invoke('mcp:setTools', id, patch),
   },
   localAgent: {
-    /** 获取本地 Agent 编排服务 base URL（如 "http://127.0.0.1:PORT/api/v1"），未启动时返回 null */
-    getBaseUrl: (): Promise<string | null> =>
+    /**
+     * 获取本地 Agent 编排服务 base URL + Bearer token，未启动时返回 null。
+     * token 仅用于注入本地服务请求，禁止打日志。
+     */
+    getBaseUrl: (): Promise<{ url: string; token: string } | null> =>
       ipcRenderer.invoke('localAgent:getBaseUrl'),
     /** 订阅本地 Agent 服务状态变化（starting/running/stopped/error） */
     onStatus: (

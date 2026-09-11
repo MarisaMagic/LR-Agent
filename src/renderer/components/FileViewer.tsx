@@ -9,12 +9,13 @@ import mammoth from 'mammoth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { Channels } from '../../main/preload';
+import type { RendererEventChannel } from '../../main/preload';
 import { useApp } from '../context/AppContext';
 import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
 import { basename, dirname, getExtension } from '../types/file';
 import { resolveViewerType, type ViewerType } from '../utils/fileViewerType';
 import { getLanguageForFile } from '../utils/syntaxHighlight';
+import { isSafeExternalUrl, sanitizeDocxHtml } from '../utils/sanitizeHtml';
 import { createMarkdownCodeComponents } from './markdown/markdownCodeComponents';
 import {
   getAdjacentSiblingFile,
@@ -337,7 +338,7 @@ export default function FileViewer({
   // ── Edit 菜单 IPC ──
   useEffect(() => {
     const unsubs: (() => void)[] = [];
-    const actions: Partial<Record<Channels, () => void>> = {
+    const actions: Partial<Record<RendererEventChannel, () => void>> = {
       'edit:undo': () => document.execCommand('undo'),
       'edit:redo': () => document.execCommand('redo'),
       'edit:cut': () => document.execCommand('cut'),
@@ -349,7 +350,7 @@ export default function FileViewer({
       },
     };
 
-    for (const channel of Object.keys(actions) as Channels[]) {
+    for (const channel of Object.keys(actions) as RendererEventChannel[]) {
       const fn = actions[channel];
       if (!fn) continue;
       const unsub = window.electron.ipcRenderer.on(channel, () => {
@@ -424,7 +425,8 @@ export default function FileViewer({
             arrayBuffer: buffer,
           });
           if (revoked) return;
-          setDocxHtml(result.value);
+          // mammoth 不消毒：docx 正文属不可信内容，必须净化后再注入 DOM
+          setDocxHtml(sanitizeDocxHtml(result.value));
           return;
         }
 
@@ -474,13 +476,14 @@ export default function FileViewer({
 
   // Word 预览中的超链接：阻止默认的当前窗口导航，改用系统浏览器打开
   const handleDocxLinkClick = useCallback((e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.closest('a')) {
-      const href = target.closest('a')?.getAttribute('href');
-      if (href && /^https?:\/\//i.test(href)) {
-        e.preventDefault();
-        window.electron.window.openExternal(href).catch(() => undefined);
-      }
+    const anchor = (e.target as HTMLElement).closest('a');
+    if (!anchor) return;
+    // docx 内链接触发当前窗口导航或执行脚本都有风险：
+    // 除 https 外一律阻断，仅 https 交给系统浏览器。
+    e.preventDefault();
+    const href = anchor.getAttribute('href');
+    if (isSafeExternalUrl(href)) {
+      window.electron.window.openExternal(href!).catch(() => undefined);
     }
   }, []);
 

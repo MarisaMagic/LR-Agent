@@ -1,4 +1,4 @@
-import { resolveLocalAgentBaseUrl } from '../config';
+import { localAgentFetch, resolveLocalAgentBaseUrl } from '../config';
 import type {
   AnnotationProjectSnapshot,
   BatchPrepareResult,
@@ -22,7 +22,7 @@ async function postAnnotationLlm<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   const baseUrl = await resolveLocalAgentBaseUrl();
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await localAgentFetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

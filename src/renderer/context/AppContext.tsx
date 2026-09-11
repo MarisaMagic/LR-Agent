@@ -396,7 +396,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setEditorTabs([]);
       setActiveTabId(null);
       localStorage.setItem(STORAGE_KEYS.lastWorkspace, dirPath);
-      window.electron.ipcRenderer.invoke('workspace:startWatch', dirPath);
+      window.electron.workspace.startWatch(dirPath).catch(() => undefined);
     },
     [loadDirectory],
   );

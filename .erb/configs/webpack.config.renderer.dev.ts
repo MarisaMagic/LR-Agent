@@ -12,6 +12,7 @@ import ReactRefreshWebpackPlugin from '@pmmmwh/react-refresh-webpack-plugin';
 import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
+import { buildRendererCsp, themeInitScript } from './rendererCsp';
 
 // When an ESLint server is running, we can't set the NODE_ENV so we'll check if it's
 // at the dev webpack config is not accidentally run in a production environment
@@ -224,6 +225,12 @@ const configuration: webpack.Configuration = {
         collapseWhitespace: true,
         removeAttributeQuotes: true,
         removeComments: true,
+        // 不压缩内联脚本：CSP 生产环境的 sha256 必须与脚本字节完全一致
+        minifyJS: false,
+      },
+      templateParameters: {
+        cspContent: buildRendererCsp(true),
+        themeInitScript,
       },
       isBrowser: false,
       env: process.env.NODE_ENV,

@@ -31,6 +31,42 @@ function resolveScopedTextPath(
   return { absolutePath, relativePath: rel.replace(/\\/g, '/') };
 }
 
+function normalizeForCompare(target: string): string {
+  return process.platform === 'win32' ? target.toLowerCase() : target;
+}
+
+/**
+ * 用 realpath 校验目标（或其最近的已存在祖先）真实落在授权根内，
+ * 防止工作区内的符号链接把读写重定向到根目录之外。
+ */
+async function isRealPathWithinRoot(
+  rootDir: string,
+  absolutePath: string,
+): Promise<boolean> {
+  let rootReal: string;
+  try {
+    rootReal = await fs.realpath(path.resolve(rootDir));
+  } catch {
+    return false;
+  }
+  const rootRealNorm = normalizeForCompare(rootReal);
+  let probe = path.resolve(absolutePath);
+  for (;;) {
+    try {
+      const real = await fs.realpath(probe);
+      const relToRoot = path.relative(rootRealNorm, normalizeForCompare(real));
+      return (
+        relToRoot === '' ||
+        (!relToRoot.startsWith('..') && !path.isAbsolute(relToRoot))
+      );
+    } catch {
+      const parent = path.dirname(probe);
+      if (parent === probe) return false;
+      probe = parent;
+    }
+  }
+}
+
 export async function writeScopedTextFile(
   rootDir: string,
   relativePath: string,
@@ -39,6 +75,9 @@ export async function writeScopedTextFile(
   const resolved = resolveScopedTextPath(rootDir, relativePath);
   if ('error' in resolved) {
     return { success: false, error: resolved.error };
+  }
+  if (!(await isRealPathWithinRoot(rootDir, resolved.absolutePath))) {
+    return { success: false, error: 'path_outside_root' };
   }
   await fs.ensureDir(path.dirname(resolved.absolutePath));
   await fs.writeFile(resolved.absolutePath, content, 'utf8');
@@ -58,6 +97,9 @@ export async function readScopedTextFile(
   const resolved = resolveScopedTextPath(rootDir, relativePath);
   if ('error' in resolved) {
     return { success: false, error: resolved.error };
+  }
+  if (!(await isRealPathWithinRoot(rootDir, resolved.absolutePath))) {
+    return { success: false, error: 'path_outside_root' };
   }
   try {
     const exists = await fs.pathExists(resolved.absolutePath);
@@ -91,6 +133,9 @@ export async function deleteScopedTextFile(
   const resolved = resolveScopedTextPath(rootDir, relativePath);
   if ('error' in resolved) {
     return { success: false, error: resolved.error };
+  }
+  if (!(await isRealPathWithinRoot(rootDir, resolved.absolutePath))) {
+    return { success: false, error: 'path_outside_root' };
   }
   try {
     await fs.remove(resolved.absolutePath);

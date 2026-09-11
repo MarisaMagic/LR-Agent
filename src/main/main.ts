@@ -12,6 +12,8 @@ import {
   nativeTheme,
   nativeImage,
   NativeImage,
+  session,
+  type WebContents,
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
@@ -25,19 +27,34 @@ import registerPreAnnotHandlers from './preAnnot/preAnnotHandlers';
 import { registerWorkspaceHandlers } from './workspace/workspaceHandlers';
 import registerAnnotationAgentHandlers from './annotation/agent/handlers';
 import registerQualityReportHandlers from './annotation/quality/handlers';
-import { startMcpServer, stopMcpServer, getMcpServerUrl } from './mcp/server';
+import {
+  startMcpServer,
+  stopMcpServer,
+  getMcpServerUrl,
+  getMcpServerToken,
+} from './mcp/server';
 import {
   startLocalAgentServer,
   stopLocalAgentServer,
   getLocalAgentBaseUrl,
+  getLocalAgentToken,
 } from './localAgent/serverProcess';
 import { initializeDatabase, closeDatabase } from './db/database';
+import { migrateSecrets } from './security/migrateSecrets';
 import { registerDbHandlers } from './db/handlers';
 import { registerMemoryHandlers } from './memory/handlers';
 import { registerCheckpointHandlers } from './checkpoint/handlers';
 import { registerSkillHandlers } from './skills/handlers';
 import { registerMcpHandlers } from './mcp/handlers';
 import registerEnvHandlers from './env/envHandlers';
+import { getEnvironmentConfig } from './env/envStore';
+import { buildMainCsp, EXTRA_SECURITY_HEADERS } from './security/csp';
+import {
+  authorizeRoot,
+  isWithinAuthorizedRoot,
+} from './security/authorizedRoots';
+import { isSafeExternalUrl } from './security/externalUrl';
+import { isDangerousExecutable } from '../shared/dangerousExtensions';
 import {
   getAnnotationProjects,
   removeProjectDirConfig,
@@ -269,7 +286,9 @@ function startWatchingWorkspace(rootPath: string): void {
 
 // ── IPC: 工作区文件监听控制 ──
 
-ipcMain.handle('workspace:startWatch', async (_event, rootPath: string) => {
+ipcMain.handle('workspace:startWatch', async (_event, rootPath: unknown) => {
+  if (typeof rootPath !== 'string' || !rootPath.trim()) return;
+  authorizeRoot(rootPath);
   startWatchingWorkspace(rootPath);
 });
 
@@ -286,9 +305,42 @@ function isIgnoredEntry(name: string, isDirectory: boolean): boolean {
   return DEFAULT_IGNORE_DIRS.has(name);
 }
 
-ipcMain.handle('fs:readFileBuffer', async (_event, filePath: string) => {
+/** 应用自身凭据/配置文件：禁止渲染层通过通用 fs 接口读取 */
+const BLOCKED_SECRET_BASENAMES = new Set([
+  'lr-agent.db',
+  'mcp.json',
+  'session_cache.dat',
+  'refresh_token.dat',
+  'environment.json',
+]);
+
+function isBlockedSecretRead(filePath: unknown): boolean {
+  if (typeof filePath !== 'string' || !filePath.trim()) return true;
+  let resolved: string;
   try {
-    const buffer = await fs.readFile(filePath);
+    resolved = path.resolve(filePath);
+  } catch {
+    return true;
+  }
+  const userData = path.resolve(app.getPath('userData'));
+  if (path.resolve(path.dirname(resolved)) !== userData) return false;
+  return BLOCKED_SECRET_BASENAMES.has(path.basename(resolved).toLowerCase());
+}
+
+/** 新建/重命名时的条目名必须是单一文件名，禁止路径分隔符与 .. 穿越 */
+function isSafeEntryName(name: unknown): name is string {
+  if (typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (!trimmed || trimmed === '.' || trimmed === '..') return false;
+  if (trimmed.includes('/') || trimmed.includes('\\')) return false;
+  if (trimmed.includes('\0')) return false;
+  return true;
+}
+
+ipcMain.handle('fs:readFileBuffer', async (_event, filePath: unknown) => {
+  if (isBlockedSecretRead(filePath)) return null;
+  try {
+    const buffer = await fs.readFile(filePath as string);
     return buffer.buffer.slice(
       buffer.byteOffset,
       buffer.byteOffset + buffer.byteLength,
@@ -299,7 +351,13 @@ ipcMain.handle('fs:readFileBuffer', async (_event, filePath: string) => {
   }
 });
 
-ipcMain.handle('shell:openPath', async (_event, filePath: string) => {
+ipcMain.handle('shell:openPath', async (_event, filePath: unknown) => {
+  if (typeof filePath !== 'string' || !filePath.trim()) {
+    return 'invalid_path';
+  }
+  if (isDangerousExecutable(filePath)) {
+    return 'blocked_extension';
+  }
   return shell.openPath(filePath);
 });
 
@@ -326,6 +384,9 @@ ipcMain.handle(
   'workspace:createFile',
   async (_event, dirPath: string, fileName: string) => {
     try {
+      if (!isWithinAuthorizedRoot(dirPath) || !isSafeEntryName(fileName)) {
+        return { success: false, error: 'forbidden' };
+      }
       const filePath = path.join(dirPath, fileName);
       // 检查同名文件是否已存在
       if (await fs.pathExists(filePath)) {
@@ -347,6 +408,9 @@ ipcMain.handle(
   'workspace:createFolder',
   async (_event, dirPath: string, folderName: string) => {
     try {
+      if (!isWithinAuthorizedRoot(dirPath) || !isSafeEntryName(folderName)) {
+        return { success: false, error: 'forbidden' };
+      }
       const folderPath = path.join(dirPath, folderName);
       if (await fs.pathExists(folderPath)) {
         return { success: false, error: 'folder_exists' };
@@ -364,6 +428,9 @@ ipcMain.handle(
 );
 
 ipcMain.handle('workspace:deleteEntry', async (_event, entryPath: string) => {
+  if (!isWithinAuthorizedRoot(entryPath)) {
+    return { success: false, error: 'forbidden' };
+  }
   try {
     await shell.trashItem(entryPath);
     const parentDir = path.dirname(entryPath);
@@ -380,6 +447,9 @@ ipcMain.handle('workspace:deleteEntry', async (_event, entryPath: string) => {
 ipcMain.handle(
   'workspace:renameEntry',
   async (_event, oldPath: string, newName: string) => {
+    if (!isWithinAuthorizedRoot(oldPath) || !isSafeEntryName(newName)) {
+      return { success: false, error: 'forbidden' };
+    }
     try {
       const dir = path.dirname(oldPath);
       const newPath = path.join(dir, newName);
@@ -401,6 +471,9 @@ ipcMain.handle(
 ipcMain.handle(
   'workspace:moveEntry',
   async (_event, srcPath: string, destDir: string) => {
+    if (!isWithinAuthorizedRoot(srcPath) || !isWithinAuthorizedRoot(destDir)) {
+      return { success: false, error: 'forbidden' };
+    }
     try {
       const name = path.basename(srcPath);
       const destPath = path.join(destDir, name);
@@ -421,17 +494,13 @@ ipcMain.handle(
   },
 );
 
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  console.log(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pong'));
-});
-
 ipcMain.handle('dialog:openDirectory', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory'],
   });
-  return result.filePaths[0] || null;
+  const picked = result.filePaths[0] || null;
+  authorizeRoot(picked);
+  return picked;
 });
 
 ipcMain.handle('annotation:getProjects', async () => {
@@ -448,6 +517,7 @@ ipcMain.handle(
 ipcMain.handle(
   'annotation:writeProjectConfig',
   async (_event, directoryPath: string, project: unknown) => {
+    authorizeRoot(directoryPath);
     await writeProjectDirConfig(directoryPath, project);
   },
 );
@@ -461,7 +531,8 @@ ipcMain.handle(
 
 ipcMain.handle(
   'annotation:showItemInFolder',
-  async (_event, itemPath: string) => {
+  async (_event, itemPath: unknown) => {
+    if (typeof itemPath !== 'string' || !itemPath.trim()) return;
     shell.showItemInFolder(itemPath);
   },
 );
@@ -469,6 +540,7 @@ ipcMain.handle(
 ipcMain.handle(
   'annotation:readFileAnnotationDoc',
   async (_event, projectDir: string, relativePath: string) => {
+    authorizeRoot(projectDir);
     try {
       return await readAnnotationDocJson(projectDir, relativePath);
     } catch {
@@ -486,6 +558,7 @@ ipcMain.handle(
     doc: unknown,
     sourceHint?: { mtimeMs?: number; size?: number },
   ) => {
+    authorizeRoot(projectDir);
     await writeAnnotationDocJson(projectDir, relativePath, doc, sourceHint);
   },
 );
@@ -499,15 +572,18 @@ ipcMain.handle(
 
 ipcMain.handle(
   'fs:readDir',
-  async (_event, dirPath: string): Promise<DirectoryItem[]> => {
+  async (_event, dirPath: unknown): Promise<DirectoryItem[]> => {
+    if (typeof dirPath !== 'string' || !dirPath.trim()) return [];
     try {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      const entries = await fs.readdir(dirPath as string, {
+        withFileTypes: true,
+      });
       return entries
         .filter((entry) => !isIgnoredEntry(entry.name, entry.isDirectory()))
         .map((entry) => ({
           name: entry.name,
           isDirectory: entry.isDirectory(),
-          path: normalizePath(path.join(dirPath, entry.name)),
+          path: normalizePath(path.join(dirPath as string, entry.name)),
         }));
     } catch (error) {
       console.error('Error reading directory:', error);
@@ -518,12 +594,14 @@ ipcMain.handle(
 
 ipcMain.handle(
   'fs:readFile',
-  async (_event, filePath: string): Promise<string | null> => {
+  async (_event, filePath: unknown): Promise<string | null> => {
+    if (isBlockedSecretRead(filePath)) return null;
+    const filePathStr = filePath as string;
     try {
-      const stats = await fs.stat(filePath);
+      const stats = await fs.stat(filePathStr);
       const maxPreviewBytes = 512 * 1024;
       if (stats.size > 5 * 1024 * 1024) {
-        const handle = await open(filePath, 'r');
+        const handle = await open(filePathStr, 'r');
         try {
           const buffer = Buffer.alloc(Math.min(maxPreviewBytes, stats.size));
           await handle.read(buffer, 0, buffer.length, 0);
@@ -534,7 +612,7 @@ ipcMain.handle(
           await handle.close();
         }
       }
-      return await fs.readFile(filePath, 'utf-8');
+      return await fs.readFile(filePathStr, 'utf-8');
     } catch (error) {
       console.error('Error reading file:', error);
       return null;
@@ -544,9 +622,10 @@ ipcMain.handle(
 
 ipcMain.handle(
   'fs:getFileStats',
-  async (event, filePath: string): Promise<FileStats | null> => {
+  async (_event, filePath: unknown): Promise<FileStats | null> => {
+    if (isBlockedSecretRead(filePath)) return null;
     try {
-      const stats = await fs.stat(filePath);
+      const stats = await fs.stat(filePath as string);
       return {
         size: stats.size,
         mtime: stats.mtime,
@@ -613,8 +692,27 @@ function registerWindowIpcHandlers(): void {
     return window?.isFullScreen() ?? false;
   });
 
-  ipcMain.handle('window:openExternal', async (_event, url: string) => {
-    await shell.openExternal(url);
+  ipcMain.handle('window:openExternal', async (_event, url: unknown) => {
+    if (!isSafeExternalUrl(url)) return;
+    await shell.openExternal(url as string);
+  });
+}
+
+/** 统一挂载导航/开窗守卫：仅放行应用自身路由与 https/本机 http 外链 */
+function attachNavigationGuards(contents: WebContents): void {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) {
+      shell.openExternal(url).catch(() => undefined);
+    }
+    return { action: 'deny' };
+  });
+
+  contents.on('will-navigate', (event, url) => {
+    if (isAppOwnedNavigation(url)) return;
+    event.preventDefault();
+    if (isSafeExternalUrl(url)) {
+      shell.openExternal(url).catch(() => undefined);
+    }
   });
 }
 
@@ -698,6 +796,7 @@ const createWindow = async () => {
         : path.join(__dirname, '../../.erb/dll/preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
       spellcheck: false,
     },
   });
@@ -728,23 +827,6 @@ const createWindow = async () => {
     menuBuilder.setupDevelopmentEnvironment();
   }
 
-  mainWindow.webContents.setWindowOpenHandler((edata) => {
-    shell.openExternal(edata.url);
-    return { action: 'deny' };
-  });
-
-  // 拦截当前窗口内的外部导航（如 Word 预览中的超链接、markdown 链接等），
-  // 防止应用窗口被外部网页整体替换而无法关闭。
-  // 必须按 origin / file: 判断，不能用 startsWith(index.html)：
-  // /、/auth、HMR 刷新都不以 .../index.html 开头，会被误拦并弹出系统浏览器。
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (isAppOwnedNavigation(url)) return;
-    event.preventDefault();
-    if (/^https?:\/\//i.test(url)) {
-      shell.openExternal(url).catch(() => undefined);
-    }
-  });
-
   new AppUpdater();
 };
 
@@ -754,17 +836,64 @@ app.on('window-all-closed', () => {
   }
 });
 
-// IPC: renderer 查询 MCP Server URL
-ipcMain.handle('mcp:getServerUrl', () => getMcpServerUrl());
+// IPC: renderer 查询 MCP Server URL + token
+ipcMain.handle('mcp:getServerUrl', () => {
+  const url = getMcpServerUrl();
+  const token = getMcpServerToken();
+  if (!url || !token) return null;
+  return { url, token };
+});
 
-// IPC: renderer 查询本地 Agent 服务 base URL
-ipcMain.handle('localAgent:getBaseUrl', () => getLocalAgentBaseUrl());
+// IPC: renderer 查询本地 Agent 服务 base URL + token
+ipcMain.handle('localAgent:getBaseUrl', () => {
+  const url = getLocalAgentBaseUrl();
+  const token = getLocalAgentToken();
+  if (!url || !token) return null;
+  return { url, token };
+});
+
+/** 为 http(s) 响应补充 CSP 与通用加固头；file:// 由 index.ejs 的 meta 兜底 */
+function registerSecurityHeaders(): void {
+  // 外设权限一律拒绝，仅保留剪贴板写入（复制路径/消息需要）
+  const allowedPermissions = new Set(['clipboard-sanitized-write']);
+  session.defaultSession.setPermissionRequestHandler(
+    (_webContents, permission, callback) => {
+      callback(allowedPermissions.has(permission));
+    },
+  );
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission) =>
+    allowedPermissions.has(permission),
+  );
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const csp = buildMainCsp({
+      isDevelopment: isDebug,
+      origins: [
+        getEnvironmentConfig().backendBaseUrl,
+        getLocalAgentBaseUrl(),
+        getMcpServerUrl(),
+      ],
+    });
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+        ...EXTRA_SECURITY_HEADERS,
+      },
+    });
+  });
+}
 
 app
   .whenReady()
   .then(async () => {
     if (!gotSingleInstanceLock) return;
     app.setAsDefaultProtocolClient('lr-agent');
+    registerSecurityHeaders();
+    // 覆盖未来新增的所有 webContents，统一做导航/开窗白名单
+    app.on('web-contents-created', (_event, contents) => {
+      attachNavigationGuards(contents);
+    });
 
     // 处理首次通过 lr-agent:// 链接启动（Windows/Linux 走 argv，macOS 走 open-url）
     const launchDeepLink = process.argv.find((arg) =>
@@ -776,6 +905,8 @@ app
 
     // Initialize local SQLite database
     await initializeDatabase();
+    // 幂等迁移历史明文凭据（provider key / MCP header）
+    await migrateSecrets();
 
     registerAuthHandlers();
     registerPretrainedModelHandlers();

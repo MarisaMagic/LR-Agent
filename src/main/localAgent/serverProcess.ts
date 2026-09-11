@@ -14,6 +14,7 @@
  */
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
+import { randomBytes } from 'crypto';
 import http from 'http';
 import net from 'net';
 import fs from 'fs-extra';
@@ -36,6 +37,8 @@ let processRef: ChildProcessWithoutNullStreams | null = null;
 let startingProcess: Promise<string> | null = null;
 let listenPort: number | null = null;
 let stopping = false;
+/** 本地服务访问 token（每次启动重新生成，仅注入子进程与渲染层） */
+let authToken: string | null = null;
 
 function pushLocalAgentStatus(status: LocalAgentServiceStatus): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -156,6 +159,8 @@ export async function startLocalAgentServer(): Promise<string> {
     const pythonPath = resolveLocalAgentPython();
     const spawnEnv = buildInferenceSpawnEnv(pythonPath);
     spawnEnv.LR_AGENT_LOCAL_PORT = String(port);
+    authToken = randomBytes(32).toString('hex');
+    spawnEnv.LR_AGENT_LOCAL_TOKEN = authToken;
 
     pushLocalAgentStatus({ state: 'starting', baseUrl: null });
 
@@ -185,6 +190,7 @@ export async function startLocalAgentServer(): Promise<string> {
       if (processRef === proc) {
         processRef = null;
         listenPort = null;
+        authToken = null;
       }
       const wasStopping = stopping;
       stopping = false;
@@ -232,6 +238,7 @@ export function stopLocalAgentServer(): void {
     processRef.kill();
     processRef = null;
     listenPort = null;
+    authToken = null;
   }
 }
 
@@ -239,4 +246,9 @@ export function stopLocalAgentServer(): void {
 export function getLocalAgentBaseUrl(): string | null {
   if (listenPort) return `http://127.0.0.1:${listenPort}/api/v1`;
   return null;
+}
+
+/** 获取当前服务访问 token（未启动时返回 null） */
+export function getLocalAgentToken(): string | null {
+  return authToken;
 }

@@ -21,6 +21,8 @@ export function buildClientContextPayload(options: {
   selectedAnnotationId?: string | null;
   selectedAnnotationIds?: string[];
   mcpServerUrl?: string | null;
+  /** 本地 MCP Server 访问 token（禁止打日志） */
+  mcpServerToken?: string | null;
   /** 用户启用的远程 MCP Server（含 headers，禁止打日志） */
   mcpServers?: McpRemoteServerPayload[] | null;
   /** 项目级指令（.lragent/INSTRUCTIONS.md 内容） */
@@ -71,6 +73,7 @@ export function buildClientContextPayload(options: {
       ? []
       : (options.selectedAnnotationIds ?? []),
     mcpServerUrl: options.mcpServerUrl ?? null,
+    mcpServerToken: options.mcpServerToken ?? null,
     mcpServers: options.mcpServers ?? null,
     projectInstructions: options.projectInstructions ?? null,
     memoryIndex: isEditorMode ? null : (options.memoryIndex ?? null),

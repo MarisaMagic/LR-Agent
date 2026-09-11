@@ -77,7 +77,7 @@ function configToCreateParams(config: LlmProviderConfig): CreateProviderParams {
     name: config.name,
     baseUrl: config.baseUrl,
     apiKeyEncrypted: config.apiKey,
-    encryptionKeyId: 'v0',
+    encryptionKeyId: 'v1',
     model: config.model,
     enabled: config.enabled,
     isDefault: config.isDefault,

@@ -4,24 +4,11 @@
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="script-src 'self' 'unsafe-inline'; frame-src blob: 'self'; connect-src 'self' http: ws: http://localhost:8000 http://127.0.0.1:8000; img-src 'self' data: blob: http://localhost:9000 http://127.0.0.1:9000"
+      content="<%= cspContent %>"
     />
     <title>LR-Agent</title>
-    <script>
-      (function () {
-        var KEY = 'lr-agent:colorTheme';
-        var pref = localStorage.getItem(KEY) || 'system';
-        var dark =
-          pref === 'dark' ||
-          (pref === 'system' &&
-            window.matchMedia('(prefers-color-scheme: dark)').matches);
-        var theme = dark ? 'dark' : 'light';
-        var root = document.documentElement;
-        root.dataset.theme = theme;
-        root.style.colorScheme = theme;
-        root.style.backgroundColor = dark ? '#1e1e1e' : '#ffffff';
-      })();
-    </script>
+    <!-- 主题引导脚本由 webpack 注入，内容与 CSP sha256 同源（见 .erb/configs/rendererCsp.ts） -->
+    <script><%= themeInitScript %></script>
   </head>
   <body>
     <div id="root"></div>

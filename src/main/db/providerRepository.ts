@@ -1,4 +1,9 @@
 import { getDatabase } from './database';
+import {
+  SECRET_VERSION_KEY_ID,
+  encryptSecret,
+  tryDecryptSecret,
+} from '../security/secretStore';
 
 export interface ProviderRow {
   id: string;
@@ -16,11 +21,25 @@ export interface ProviderRow {
   updated_at: number;
 }
 
+/**
+ * 对外的 ProviderRow 中 api_key_encrypted 字段一律是**明文**：
+ * 落库时加密、读出时解密，使上层（IPC、vision 探测）无需感知加密细节。
+ */
+function decryptProviderRow(row: ProviderRow): ProviderRow {
+  const decrypted = tryDecryptSecret(row.api_key_encrypted ?? '');
+  if (decrypted === null) {
+    console.error(`[providers] failed to decrypt api key for ${row.id}`);
+    return { ...row, api_key_encrypted: '' };
+  }
+  return { ...row, api_key_encrypted: decrypted };
+}
+
 export function listProviders(): ProviderRow[] {
   const db = getDatabase();
-  return db.all(
+  const rows = db.all(
     'SELECT * FROM llm_providers ORDER BY created_at ASC',
   ) as unknown as ProviderRow[];
+  return rows.map(decryptProviderRow);
 }
 
 export function createProvider(provider: {
@@ -36,6 +55,7 @@ export function createProvider(provider: {
 }): ProviderRow {
   const db = getDatabase();
   const now = Date.now();
+  const encryptedApiKey = encryptSecret(provider.apiKeyEncrypted ?? '');
 
   db.run(
     `
@@ -45,8 +65,8 @@ export function createProvider(provider: {
     provider.id,
     provider.name,
     provider.baseUrl,
-    provider.apiKeyEncrypted,
-    provider.encryptionKeyId ?? 'v0',
+    encryptedApiKey,
+    SECRET_VERSION_KEY_ID,
     provider.model,
     provider.enabled !== false ? 1 : 0,
     provider.isDefault ? 1 : 0,
@@ -55,16 +75,14 @@ export function createProvider(provider: {
     now,
   );
 
-  return db.get(
-    'SELECT * FROM llm_providers WHERE id = ?',
-    provider.id,
-  ) as unknown as ProviderRow;
+  return getProvider(provider.id)!;
 }
 
 export function getProvider(id: string): ProviderRow | undefined {
   const db = getDatabase();
-  return db.get('SELECT * FROM llm_providers WHERE id = ?', id) as
+  const row = db.get('SELECT * FROM llm_providers WHERE id = ?', id) as
     ProviderRow | undefined;
+  return row ? decryptProviderRow(row) : undefined;
 }
 
 export function updateProvider(
@@ -95,12 +113,12 @@ export function updateProvider(
     params.push(patch.baseUrl);
   }
   if (patch.apiKeyEncrypted !== undefined) {
-    sets.push('api_key_encrypted = ?');
-    params.push(patch.apiKeyEncrypted);
+    sets.push('api_key_encrypted = ?', 'encryption_key_id = ?');
+    params.push(encryptSecret(patch.apiKeyEncrypted), SECRET_VERSION_KEY_ID);
   }
   if (patch.encryptionKeyId !== undefined) {
     sets.push('encryption_key_id = ?');
-    params.push(patch.encryptionKeyId);
+    params.push(SECRET_VERSION_KEY_ID);
   }
   if (patch.model !== undefined) {
     sets.push('model = ?');
@@ -161,7 +179,8 @@ export function setDefaultProvider(id: string): ProviderRow | undefined {
 
 export function getDefaultProvider(): ProviderRow | undefined {
   const db = getDatabase();
-  return db.get(
+  const row = db.get(
     'SELECT * FROM llm_providers WHERE is_default = 1 AND enabled = 1 LIMIT 1',
   ) as ProviderRow | undefined;
+  return row ? decryptProviderRow(row) : undefined;
 }

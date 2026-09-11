@@ -98,6 +98,7 @@ class ClientContextInput(BaseModel):
     selected_annotation_ids: list[str] = Field(default_factory=list)
     annotation_project_snapshot: AnnotationProjectSnapshotInput | None = None
     mcp_server_url: str | None = None
+    mcp_server_token: str | None = None
     mcp_servers: list[McpServerInput] = Field(default_factory=list)
     project_instructions: str | None = None
     memory_index: str | None = None
