@@ -217,7 +217,10 @@ export default function MonacoTextEditor({
       attachDocumentToEditor(editorInstance, filePath, model, previousPath);
       // 磁盘重载后同步 savedText，否则 openDocument 复用旧 savedText 会把
       // tab 误标为有未保存修改
-      if (diskChanged || (previewText === undefined && diskEpoch !== diskEpochRef.current)) {
+      if (
+        diskChanged ||
+        (previewText === undefined && diskEpoch !== diskEpochRef.current)
+      ) {
         markDocumentSaved(filePath, text);
       }
       if (diskChanged) {

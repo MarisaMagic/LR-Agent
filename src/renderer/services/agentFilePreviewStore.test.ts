@@ -23,14 +23,14 @@ describe('pathsEqual', () => {
 describe('markWorkspaceTextFilesChanged / peek / consume', () => {
   it('peeks true for the tab whose absolute path ends with the relative proposal path', () => {
     markWorkspaceTextFilesChanged(['algorithm/union_find.h']);
-    expect(
-      peekChangedPath('C:\\work\\demo\\algorithm\\union_find.h'),
-    ).toBe(true);
+    expect(peekChangedPath('C:\\work\\demo\\algorithm\\union_find.h')).toBe(
+      true,
+    );
     expect(peekChangedPath('C:\\work\\demo\\other.md')).toBe(false);
     consumeChangedPath('C:/work/demo/algorithm/union_find.h');
-    expect(
-      peekChangedPath('C:\\work\\demo\\algorithm\\union_find.h'),
-    ).toBe(false);
+    expect(peekChangedPath('C:\\work\\demo\\algorithm\\union_find.h')).toBe(
+      false,
+    );
   });
 
   it('ignores ./ prefixes and slash variants when matching', () => {

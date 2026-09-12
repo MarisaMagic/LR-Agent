@@ -33,10 +33,12 @@ describe('workspacePaths', () => {
   });
 
   it('accepts an in-root drive-letter absolute path and rejects outside ones', () => {
+    expect(resolveWorkspaceAbsolutePath('C:\\ws\\a.md', null, 'C:\\ws')).toBe(
+      'C:/ws/a.md',
+    );
     expect(
-      resolveWorkspaceAbsolutePath('C:\\ws\\a.md', null, 'C:\\ws'),
-    ).toBe('C:/ws/a.md');
-    expect(resolveWorkspaceAbsolutePath('C:\\other\\a.md', null, 'C:\\ws')).toBeNull();
+      resolveWorkspaceAbsolutePath('C:\\other\\a.md', null, 'C:\\ws'),
+    ).toBeNull();
   });
 
   it('rejects the root directory itself and traversal', () => {
@@ -44,6 +46,8 @@ describe('workspacePaths', () => {
     expect(resolveWorkspaceAbsolutePath('C:\\ws\\', null, 'C:\\ws')).toBeNull();
     expect(resolveWorkspaceAbsolutePath('.', null, 'C:\\ws')).toBeNull();
     expect(resolveWorkspaceAbsolutePath('../a.md', null, 'C:\\ws')).toBeNull();
-    expect(resolveWorkspaceAbsolutePath('a/../..//b.md', null, 'C:\\ws')).toBeNull();
+    expect(
+      resolveWorkspaceAbsolutePath('a/../..//b.md', null, 'C:\\ws'),
+    ).toBeNull();
   });
 });
