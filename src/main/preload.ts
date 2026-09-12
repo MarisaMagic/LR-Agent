@@ -43,7 +43,8 @@ export type Channels =
   | 'edit:save'
   | 'dialog:confirm'
   | 'env:install:progress'
-  | 'localAgent:status';
+  | 'localAgent:status'
+  | 'agent:terminal:event';
 
 /**
  * 渲染层允许订阅的主进程事件通道白名单。
@@ -59,6 +60,7 @@ export type RendererEventChannel =
   | 'auth:resetPasswordDeepLink'
   | 'env:install:progress'
   | 'localAgent:status'
+  | 'agent:terminal:event'
   | 'menu:openFolder'
   | 'menu:toggleLeftSidebar'
   | 'menu:toggleRightSidebar'
@@ -80,6 +82,7 @@ const ALLOWED_EVENT_CHANNELS: ReadonlySet<string> =
     'auth:resetPasswordDeepLink',
     'env:install:progress',
     'localAgent:status',
+    'agent:terminal:event',
     'menu:openFolder',
     'menu:toggleLeftSidebar',
     'menu:toggleRightSidebar',
@@ -533,6 +536,44 @@ const electronHandler = {
       newPath?: string;
       error?: string;
     }> => ipcRenderer.invoke('workspace:moveEntry', srcPath, destDir),
+  },
+  terminal: {
+    /**
+     * 受限终端：用户在聊天内批准后由 agentJobRegistry 调用。
+     * start 解析于 job 结束（快照含终态与缓冲输出）；输出流经
+     * 'agent:terminal:event' 事件推送（节流合并）。
+     */
+    start: (payload: {
+      command: string;
+      args?: string[];
+      timeoutMs?: number;
+    }): Promise<
+      | { ok: true; jobId: string }
+      | { ok: false; error: string; message?: string }
+    > => ipcRenderer.invoke('agent:terminal:start', payload),
+    read: (
+      jobId: string,
+    ): Promise<{
+      ok: boolean;
+      snapshot?: {
+        jobId: string;
+        command: string;
+        args: string[];
+        status: string;
+        exitCode: number | null;
+        startedAt: number;
+        finishedAt: number | null;
+        output: string;
+        truncated: boolean;
+        droppedChars: number;
+      };
+      error?: string;
+    }> => ipcRenderer.invoke('agent:terminal:read', jobId),
+    kill: (jobId: string): Promise<boolean> =>
+      ipcRenderer.invoke('agent:terminal:kill', jobId),
+    /** 订阅输出/终态事件：{type:'output',jobId,chunk} | {type:'exit',jobId,status,exitCode} */
+    onEvent: (callback: (payload: unknown) => void): (() => void) =>
+      electronHandler.ipcRenderer.on('agent:terminal:event', callback),
   },
   mcp: {
     /**

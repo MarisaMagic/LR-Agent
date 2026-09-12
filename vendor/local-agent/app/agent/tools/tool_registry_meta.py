@@ -26,6 +26,7 @@ class ToolCapability(str, Enum):
     MOVE_FILE = "move_file"
     AUTO_ANNOTATE = "auto_annotate"
     MUTATE_ANNOTATION = "mutate_annotation_cap"
+    RUN_TERMINAL_COMMAND = "run_terminal_command"
     QUERY_CONTEXT = "query_context"
     GREP_WORKSPACE = "grep_workspace"
     GLOB_WORKSPACE = "glob_workspace"
@@ -48,6 +49,7 @@ TOOL_CAPABILITY_MAP: dict[str, ToolCapability] = {
     "move_workspace_file": ToolCapability.MOVE_FILE,
     "auto_annotate": ToolCapability.AUTO_ANNOTATE,
     "mutate_annotation": ToolCapability.MUTATE_ANNOTATION,
+    "start_terminal_command": ToolCapability.RUN_TERMINAL_COMMAND,
     "get_account_summary": ToolCapability.QUERY_CONTEXT,
     "get_lr_agent_help": ToolCapability.QUERY_CONTEXT,
     "describe_client_context": ToolCapability.QUERY_CONTEXT,
@@ -78,6 +80,8 @@ TOOL_RUNNERS: dict[str, ToolRunner] = {
     "move_workspace_file": ToolRunner.PROPOSAL,
     "auto_annotate": ToolRunner.ASYNC,
     "mutate_annotation": ToolRunner.ASYNC,
+    # 本地 MCP 的终端工具：执行前需用户聊天内批准，由 Electron pending→resume 驱动
+    "start_terminal_command": ToolRunner.ASYNC,
     "explore_readonly": ToolRunner.SYNC,
 }
 

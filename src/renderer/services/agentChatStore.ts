@@ -196,6 +196,9 @@ export function loadAgentChatState(): AgentChatPersistedState {
 
 const PERSIST_THROTTLE_MS = 500;
 
+/** 终端输出在 tool_call 块内的展示缓冲上限（字符） */
+const MAX_TERMINAL_OUTPUT_CHARS = 60_000;
+
 let statePersistTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingStatePersist: AgentChatPersistedState | null = null;
 
@@ -1052,6 +1055,46 @@ export function applyStreamEventToBlocks(
           }
         }
       }
+    }
+    return next;
+  }
+
+  // ── 终端命令 live-only 事件（渲染层合成，不持久化、不进 turnHistory）──
+  if (event.type === 'terminal_approval') {
+    const idx = next.findIndex(
+      (block) => block.type === 'tool_call' && block.id === event.toolCallId,
+    );
+    if (idx >= 0 && next[idx].type === 'tool_call') {
+      next[idx] = { ...next[idx], awaitingApproval: true };
+    }
+    return next;
+  }
+
+  if (event.type === 'terminal_approval_done') {
+    const idx = next.findIndex(
+      (block) => block.type === 'tool_call' && block.id === event.toolCallId,
+    );
+    if (idx >= 0 && next[idx].type === 'tool_call') {
+      next[idx] = { ...next[idx], awaitingApproval: false };
+    }
+    return next;
+  }
+
+  if (event.type === 'terminal_output') {
+    const idx = next.findIndex(
+      (block) => block.type === 'tool_call' && block.id === event.toolCallId,
+    );
+    if (idx >= 0 && next[idx].type === 'tool_call') {
+      const block = next[idx];
+      // 渲染层展示缓冲上限：与主进程环形缓冲独立，防止高频输出撑爆内存
+      const merged = (block.terminalOutput ?? '') + event.chunk;
+      next[idx] = {
+        ...block,
+        terminalOutput:
+          merged.length > MAX_TERMINAL_OUTPUT_CHARS
+            ? merged.slice(merged.length - MAX_TERMINAL_OUTPUT_CHARS)
+            : merged,
+      };
     }
     return next;
   }

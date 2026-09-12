@@ -25,6 +25,8 @@ import { parseResetDeepLink, setPendingResetToken } from './auth/resetDeepLink';
 import registerPretrainedModelHandlers from './pretrainedModels/pretrainedModelHandlers';
 import registerPreAnnotHandlers from './preAnnot/preAnnotHandlers';
 import { registerWorkspaceHandlers } from './workspace/workspaceHandlers';
+import { setActiveWorkspaceRoot } from './workspace/activeWorkspace';
+import { registerTerminalHandlers } from './terminal/terminalHandlers';
 import registerAnnotationAgentHandlers from './annotation/agent/handlers';
 import registerQualityReportHandlers from './annotation/quality/handlers';
 import {
@@ -289,10 +291,12 @@ function startWatchingWorkspace(rootPath: string): void {
 ipcMain.handle('workspace:startWatch', async (_event, rootPath: unknown) => {
   if (typeof rootPath !== 'string' || !rootPath.trim()) return;
   authorizeRoot(rootPath);
+  setActiveWorkspaceRoot(rootPath);
   startWatchingWorkspace(rootPath);
 });
 
 ipcMain.handle('workspace:stopWatch', async () => {
+  setActiveWorkspaceRoot(null);
   stopWatchingWorkspace();
 });
 
@@ -918,6 +922,7 @@ app
     registerMemoryHandlers();
     registerCheckpointHandlers();
     registerSkillHandlers();
+    registerTerminalHandlers();
     registerMcpHandlers();
     registerEnvHandlers();
     // 启动本地 MCP Server（异步，失败不阻断窗口创建）

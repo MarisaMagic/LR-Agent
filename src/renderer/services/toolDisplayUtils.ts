@@ -95,6 +95,29 @@ export function formatToolCallLabel(name: string, argsJson: string): string {
     return `${base}：${short}`;
   }
 
+  if (name === 'run_agent_skill_script') {
+    if (!args) return '运行 Skill 脚本';
+    const skill = String(args.skill_name ?? '').trim();
+    const script = String(args.script ?? '').trim() || '?';
+    return `运行脚本 ${skill ? `${skill}/` : ''}${script}`;
+  }
+
+  if (name === 'start_terminal_command') {
+    if (!args) return '终端命令';
+    const cmd = String(args.command ?? '').trim();
+    const cmdArgs = Array.isArray(args.args) ? args.args.join(' ') : '';
+    const label = `终端 ${cmd}${cmdArgs ? ` ${cmdArgs}` : ''}`.trim();
+    return label.length > 80 ? `${label.slice(0, 80)}…` : label || '终端命令';
+  }
+
+  if (name === 'read_terminal_output') {
+    return '读取终端输出';
+  }
+
+  if (name === 'kill_terminal_job') {
+    return '终止终端任务';
+  }
+
   return name;
 }
 
@@ -159,7 +182,9 @@ export function summarizeToolResultForDisplay(
   if (
     name === GREP_WORKSPACE ||
     name === READ_WORKSPACE_FILE ||
-    name === LIST_WORKSPACE_DIRECTORY
+    name === LIST_WORKSPACE_DIRECTORY ||
+    name === 'run_agent_skill_script' ||
+    name === 'read_terminal_output'
   ) {
     if (result.length <= MAX_TOOL_RESULT_CHARS) {
       return result;

@@ -31,6 +31,11 @@ import {
   readSkillFile,
   scanSkillsCatalog,
 } from '../skills/skillScanner';
+import { runSkillScript } from '../skills/skillScriptRunner';
+import {
+  killTerminalJob,
+  readTerminalJobFrom,
+} from '../exec/commandJobManager';
 
 type McpSession = {
   transport: StreamableHTTPServerTransport;
@@ -188,7 +193,7 @@ function createMcpServer(): McpServer {
 
   mcpServer.tool(
     'read_agent_skill',
-    'Read a text file from a user-level agent skill. Skills are listed with name and description in the available-skills block. When a user request matches a skill, first read SKILL.md (omit relative_path), follow its steps, then read bundled files it references via relative_path (e.g. "references/api.md"). Scripts may be read as source only — never executed. Pass skill_name exactly as listed (directory name).',
+    'Read a text file from a user-level agent skill. Skills are listed with name and description in the available-skills block. When a user request matches a skill, first read SKILL.md (omit relative_path), follow its steps, then read bundled files it references via relative_path (e.g. "references/api.md"). Bundled scripts under scripts/ can be executed with run_agent_skill_script. Pass skill_name exactly as listed (directory name).',
     {
       skill_name: z
         .string()
@@ -227,7 +232,7 @@ function createMcpServer(): McpServer {
 
   mcpServer.tool(
     'list_agent_skill_files',
-    'List text files bundled in a user-level agent skill directory (SKILL.md, references, templates, script sources). Use after matching a skill, or when SKILL.md points to extra files. Scripts are listed for reading only and cannot be executed. Pass skill_name exactly as listed.',
+    'List text files bundled in a user-level agent skill directory (SKILL.md, references, templates, script sources). Use after matching a skill, or when SKILL.md points to extra files. Scripts under scripts/ can be executed with run_agent_skill_script. Pass skill_name exactly as listed.',
     {
       skill_name: z
         .string()
@@ -247,6 +252,126 @@ function createMcpServer(): McpServer {
           });
         }
         return mcpJson({ ok: true, files });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return mcpJson({ ok: false, error: msg });
+      }
+    },
+  );
+
+  mcpServer.tool(
+    'run_agent_skill_script',
+    "Execute a bundled script from a user-level agent skill. Only files under the skill's scripts/ directory can run: .py scripts use the app's Python runtime, .sh scripts use bash, other types are rejected. Arguments are passed verbatim as argv (no shell interpolation), the working directory is the current workspace, and the script is force-killed after a 120s timeout. Read the skill's SKILL.md first to learn each script's interface, then pass arguments exactly as documented. Combined stdout+stderr is returned, truncated when too long.",
+    {
+      skill_name: z
+        .string()
+        .describe(
+          'Skill name as listed in the available-skills block, e.g. "pdf-extract"',
+        ),
+      script: z
+        .string()
+        .describe(
+          'Script path relative to the skill directory, e.g. "scripts/extract.py"',
+        ),
+      args: z
+        .array(z.string())
+        .max(64)
+        .optional()
+        .describe(
+          'Positional arguments passed to the script verbatim, e.g. ["input.pdf", "--pages", "1-3"]',
+        ),
+    },
+    async ({ skill_name, script, args }) => {
+      try {
+        const result = await runSkillScript(skill_name, script, args ?? []);
+        if (!result.ok) {
+          const catalog = await scanSkillsCatalog();
+          return mcpJson({
+            ok: false,
+            error: result.error,
+            message: result.message,
+            available_skills: catalog.map((s) => s.name),
+          });
+        }
+        return mcpJson(result);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return mcpJson({ ok: false, error: msg });
+      }
+    },
+  );
+
+  mcpServer.tool(
+    'start_terminal_command',
+    'Run a terminal command in the current workspace (cwd is locked to it). Runs WITHOUT a shell: no pipes, redirections or command chains — split into multiple calls instead. Every execution requires explicit user approval in the chat UI before it starts, and destructive commands are rejected outright. Returns a job id; the tool result delivered to you contains the exit code and an output tail. Use read_terminal_output for the full/incremental output and kill_terminal_job to abort a long-running job.',
+    {
+      command: z
+        .string()
+        .describe(
+          'Executable name or path, e.g. "git". Shell builtins and shell syntax (|, >, &&) are not supported',
+        ),
+      args: z
+        .array(z.string())
+        .max(128)
+        .optional()
+        .describe(
+          'Arguments passed verbatim as argv, e.g. ["status", "--short"]',
+        ),
+      timeout_ms: z
+        .number()
+        .int()
+        .positive()
+        .max(600_000)
+        .optional()
+        .describe(
+          'Kill the command after this many ms (default 300000, max 600000)',
+        ),
+    },
+    // Agent loop 以 ASYNC runner 分派本工具（TOOL_RUNNERS），不会走到这里；
+    // handler 仅在其他 MCP 客户端直调时说明真实入口。
+    async () =>
+      mcpJson({
+        ok: false,
+        error: 'approval_required',
+        message:
+          'start_terminal_command is executed by the app frontend after in-chat user approval; it is not directly callable over MCP',
+      }),
+  );
+
+  mcpServer.tool(
+    'read_terminal_output',
+    'Read incremental output of a terminal job started with start_terminal_command (use cursor from the previous call). Returns the job status, exit code, the output chunk and next_cursor.',
+    {
+      job_id: z.string().describe('Job id returned by start_terminal_command'),
+      cursor: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe(
+          'Absolute character offset from the previous read (0 = start)',
+        ),
+    },
+    async ({ job_id, cursor }) => {
+      try {
+        const result = readTerminalJobFrom(job_id, cursor ?? 0);
+        return mcpJson(result);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return mcpJson({ ok: false, error: msg });
+      }
+    },
+  );
+
+  mcpServer.tool(
+    'kill_terminal_job',
+    'Force-kill a running terminal job (process tree). No-op if the job already finished.',
+    {
+      job_id: z.string().describe('Job id returned by start_terminal_command'),
+    },
+    async ({ job_id }) => {
+      try {
+        return mcpJson({ ok: true, killed: killTerminalJob(job_id) });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return mcpJson({ ok: false, error: msg });

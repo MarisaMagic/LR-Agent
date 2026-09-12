@@ -91,3 +91,38 @@
 .agent-proposal-summary--error {
   color: var(--vscode-errorForeground, #f48771);
 }
+
+/* Terminal command approval (in-chat confirm bar, always visible) */
+.agent-terminal-approval {
+  margin-top: 4px;
+}
+
+.agent-terminal-approval-hint {
+  font-size: var(--agent-font-small);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  margin-bottom: 6px;
+}
+
+.agent-terminal-approval-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.agent-terminal-btn {
+  padding: 2px 12px;
+  border: 1px solid var(--vscode-input-border, #3c3c3c);
+  border-radius: 3px;
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #ffffff);
+  font-size: var(--agent-font-small);
+  cursor: pointer;
+}
+
+.agent-terminal-btn.reject {
+  background: transparent;
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.agent-terminal-btn:hover {
+  filter: brightness(1.15);
+}

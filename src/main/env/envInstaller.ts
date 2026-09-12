@@ -33,6 +33,7 @@ import {
 import { getEnvironmentConfig } from './envStore';
 import { trimEnvironmentValue } from './pythonDiscovery';
 import { buildInferenceSpawnEnv } from '../preAnnot/inferenceProcess';
+import { killProcessTree } from '../exec/processUtils';
 
 const MAX_LOG_LINES = 40;
 
@@ -155,26 +156,6 @@ function appendLine(text: string): void {
 
 function isFinished(stage: InstallProgress['stage']): boolean {
   return stage === 'done' || stage === 'failed' || stage === 'cancelled';
-}
-
-function killTree(child: ChildProcess): void {
-  if (!child.pid) return;
-  if (process.platform === 'win32') {
-    try {
-      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
-        stdio: 'ignore',
-        windowsHide: true,
-      });
-    } catch {
-      child.kill();
-    }
-  } else {
-    try {
-      process.kill(-child.pid, 'SIGKILL');
-    } catch {
-      child.kill('SIGKILL');
-    }
-  }
 }
 
 /** 流式执行命令，输出逐行进 job 日志；进程树可取消 */
@@ -376,7 +357,7 @@ export function cancelInstall(): boolean {
     return false;
   }
   currentInstall.canceled = true;
-  if (currentInstall.child) killTree(currentInstall.child);
+  if (currentInstall.child) killProcessTree(currentInstall.child);
   return true;
 }
 
@@ -391,6 +372,6 @@ export function getInstallProgress(): InstallProgress | null {
 
 app.on('before-quit', () => {
   if (currentInstall && currentInstall.child) {
-    killTree(currentInstall.child);
+    killProcessTree(currentInstall.child);
   }
 });

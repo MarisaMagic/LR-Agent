@@ -56,6 +56,10 @@ export type MessageBlock =
       status: 'queued' | 'running' | 'done' | 'error';
       result?: string;
       collapsed: boolean;
+      /** 终端命令等待用户聊天内批准（live-only，批准/拒绝后清除） */
+      awaitingApproval?: boolean;
+      /** 终端命令流式输出累积（live-only，随 terminal_output 事件追加） */
+      terminalOutput?: string;
     }
   | {
       type: 'annotation_proposal';
@@ -336,6 +340,22 @@ export type StreamEvent =
       type: 'awaiting_confirmation';
     }
   | {
+      /** 终端命令等待用户批准（渲染层合成，live-only，不持久化） */
+      type: 'terminal_approval';
+      toolCallId: string;
+    }
+  | {
+      /** 终端命令批准/拒绝已提交（渲染层合成，live-only） */
+      type: 'terminal_approval_done';
+      toolCallId: string;
+    }
+  | {
+      /** 终端命令输出增量（渲染层合成，live-only） */
+      type: 'terminal_output';
+      toolCallId: string;
+      chunk: string;
+    }
+  | {
       type: 'subagent_start';
       toolCallId: string;
       query: string;
@@ -371,12 +391,14 @@ export interface ClientToolCall {
 }
 
 /** 客户端工具名称枚举，与后端 CLIENT_TOOL_NAMES 保持一致。 */
-export type ClientToolName = 'auto_annotate' | 'mutate_annotation';
+export type ClientToolName =
+  'auto_annotate' | 'mutate_annotation' | 'start_terminal_command';
 
 /** 客户端异步工具集合：经 tool_pending 由前端串行执行，排队期间块状态为 queued。 */
 export const CLIENT_TOOL_NAME_SET: ReadonlySet<string> = new Set<string>([
   'auto_annotate',
   'mutate_annotation',
+  'start_terminal_command',
 ]);
 
 /** 客户端工具 → 其产出的标注流水线类型。 */

@@ -13,6 +13,28 @@ def test_get_tool_runner_batch_is_async() -> None:
     assert get_tool_runner("auto_annotate") is ToolRunner.ASYNC
 
 
+def test_get_tool_runner_terminal_is_async() -> None:
+    """本地 MCP 的 start_terminal_command 必须走 ASYNC（批准后前端执行）"""
+    assert get_tool_runner("start_terminal_command") is ToolRunner.ASYNC
+
+
+def test_split_terminal_command_goes_async_pending() -> None:
+    from app.agent.tool_invocation import ResolvedToolCall
+
+    calls = [
+        ResolvedToolCall(
+            "t9",
+            "start_terminal_command",
+            {"command": "git", "args": ["status"]},
+            "api",
+        ),
+    ]
+    split = split_resolved_calls(calls)
+    assert len(split.async_pending) == 1
+    assert split.async_pending[0].name == "start_terminal_command"
+    assert split.async_pending[0].arguments["command"] == "git"
+
+
 def test_resolve_api_only_tool_calls() -> None:
     api = [{"id": "t1", "name": "auto_annotate", "args": {"user_request": "标注"}}]
     calls = resolve_round_tool_calls(api_tool_calls=api)

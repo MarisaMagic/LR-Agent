@@ -178,7 +178,9 @@ function looksBinary(buffer: Buffer): boolean {
   return sample.includes(0);
 }
 
-function normalizeSkillRelativePath(raw: string | undefined): string | null {
+export function normalizeSkillRelativePath(
+  raw: string | undefined,
+): string | null {
   const trimmed = (raw ?? '').trim().replace(/\\/g, '/');
   if (!trimmed) return 'SKILL.md';
   const parts = trimmed.split('/').filter((part) => part && part !== '.');

@@ -16,18 +16,117 @@ jest.mock('electron', () => ({
 function request(
   url: string,
   headers: Record<string, string> = {},
-): Promise<{ status: number; body: string }> {
+): Promise<{
+  status: number;
+  body: string;
+  headers: http.IncomingHttpHeaders;
+}> {
   return new Promise((resolve, reject) => {
     const req = http.request(url, { method: 'GET', headers }, (res) => {
       let data = '';
       res.on('data', (chunk) => {
         data += chunk;
       });
-      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
+      res.on('end', () =>
+        resolve({
+          status: res.statusCode ?? 0,
+          body: data,
+          headers: res.headers,
+        }),
+      );
     });
     req.on('error', reject);
     req.end();
   });
+}
+
+/** JSON-RPC POST（Streamable HTTP 单端点） */
+function postRpc(
+  url: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Promise<{
+  status: number;
+  body: string;
+  headers: http.IncomingHttpHeaders;
+}> {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const req = http.request(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          'Content-Length': Buffer.byteLength(payload),
+          ...headers,
+        },
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () =>
+          resolve({
+            status: res.statusCode ?? 0,
+            body: data,
+            headers: res.headers,
+          }),
+        );
+      },
+    );
+    req.on('error', reject);
+    req.end(payload);
+  });
+}
+
+/** 响应可能是 JSON 或 SSE 帧（Accept 含 text/event-stream 时），统一取出 JSON-RPC payload */
+function parseRpcBody(body: string): any {
+  if (
+    body.startsWith('event:') ||
+    body.includes('\ndata:') ||
+    body.startsWith('data:')
+  ) {
+    const dataLine = body.split('\n').find((line) => line.startsWith('data:'));
+    return JSON.parse(dataLine!.slice(5).trim());
+  }
+  return JSON.parse(body);
+}
+
+/** 走完整 initialize 握手，返回带 session 头的后续请求头 */
+async function initializeSession(
+  baseUrl: string,
+): Promise<Record<string, string>> {
+  const token = getMcpServerToken();
+  const auth = { Authorization: `Bearer ${token}` };
+  const init = await postRpc(
+    `${baseUrl}/mcp`,
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-03-26',
+        capabilities: {},
+        clientInfo: { name: 'jest', version: '0.0.0' },
+      },
+    },
+    auth,
+  );
+  expect(init.status).toBe(200);
+  const sid = init.headers['mcp-session-id'];
+  expect(typeof sid).toBe('string');
+  await postRpc(
+    `${baseUrl}/mcp`,
+    {
+      jsonrpc: '2.0',
+      method: 'notifications/initialized',
+    },
+    { ...auth, 'Mcp-Session-Id': sid as string },
+  );
+  return { ...auth, 'Mcp-Session-Id': sid as string };
 }
 
 let baseUrl = '';
@@ -74,5 +173,56 @@ describe('MCP server 鉴权与请求校验', () => {
       Authorization: `Bearer ${token}`,
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('MCP server 工具注册与调用', () => {
+  it('run_agent_skill_script 已注册且 handler 可达', async () => {
+    const sessionHeaders = await initializeSession(baseUrl);
+
+    const list = await postRpc(
+      `${baseUrl}/mcp`,
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/list',
+      },
+      sessionHeaders,
+    );
+    expect(list.status).toBe(200);
+    const listedTools = parseRpcBody(list.body).result.tools as {
+      name: string;
+    }[];
+    const names = listedTools.map((tool) => tool.name);
+    expect(names).toContain('run_agent_skill_script');
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'memory_read',
+        'read_agent_skill',
+        'list_agent_skill_files',
+      ]),
+    );
+
+    // handler 真实执行：不存在的 skill 返回结构化错误 + 可用清单（证明 handler 链路通）
+    const call = await postRpc(
+      `${baseUrl}/mcp`,
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: {
+          name: 'run_agent_skill_script',
+          arguments: {
+            skill_name: 'jest-no-such-skill',
+            script: 'scripts/x.py',
+          },
+        },
+      },
+      sessionHeaders,
+    );
+    expect(call.status).toBe(200);
+    const payload = JSON.parse(parseRpcBody(call.body).result.content[0].text);
+    expect(payload).toMatchObject({ ok: false, error: 'skill_not_found' });
+    expect(Array.isArray(payload.available_skills)).toBe(true);
   });
 });

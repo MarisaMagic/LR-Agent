@@ -32,6 +32,10 @@ import {
   TurnToolHistoryAccumulator,
   mergeResumeMessages,
 } from './turnToolHistory';
+import {
+  cancelTerminalApproval,
+  requestTerminalApproval,
+} from './terminalApproval';
 
 export type JobEventListener = (event: StreamEvent) => void;
 
@@ -127,6 +131,10 @@ type ClientToolResultPayload = {
   proposal_pending?: boolean;
   /** 提案逐文件明细（路径/增删改/标签），让模型写报告时引用真实数字 */
   files?: AnnotationProposalFileStat[];
+  /** 终端命令专用：退出码 / job id / 输出尾部 */
+  exit_code?: number;
+  job_id?: string;
+  output_tail?: string;
 };
 
 function formatClientToolResult(payload: ClientToolResultPayload): string {
@@ -273,6 +281,233 @@ export function parseDetectionOverrides(
 }
 
 const ANNOTATION_CLIENT_TOOLS = new Set(['auto_annotate', 'mutate_annotation']);
+
+/** 终端桥（preload terminal 段）最小类型 */
+interface TerminalBridge {
+  start: (payload: {
+    command: string;
+    args?: string[];
+    timeoutMs?: number;
+  }) => Promise<
+    { ok: true; jobId: string } | { ok: false; error: string; message?: string }
+  >;
+  read: (jobId: string) => Promise<{
+    ok: boolean;
+    snapshot?: {
+      output: string;
+      truncated: boolean;
+      status: string;
+      exitCode: number | null;
+    };
+    error?: string;
+  }>;
+  kill: (jobId: string) => Promise<boolean>;
+  onEvent: (callback: (payload: unknown) => void) => () => void;
+}
+
+function getTerminalBridge(): TerminalBridge | null {
+  const terminal = (
+    window as unknown as { electron?: { terminal?: TerminalBridge } }
+  ).electron?.terminal;
+  return terminal ?? null;
+}
+
+/** 结果回传给模型的输出尾部上限 */
+const TERMINAL_OUTPUT_TAIL_CHARS = 4_000;
+
+function terminalStartErrorMessage(error: string, message?: string): string {
+  if (error === 'denied_command') return '命令命中安全拒绝清单，已阻止执行';
+  if (error === 'shell_syntax_unsupported') {
+    return (
+      message ?? '终端执行不经 shell，不支持管道/重定向/命令组合，请拆成多步'
+    );
+  }
+  if (error === 'no_workspace')
+    return '未打开工作区，终端命令只能在打开的工作区内执行';
+  if (error === 'too_many_jobs') return '并行终端任务已达上限，请稍后再试';
+  return message || `命令未能启动: ${error}`;
+}
+
+/**
+ * 受限终端命令：批准（聊天内确认条）→ 主进程执行 → 输出流式回显 → 终态。
+ * 批准等待发生在 loop 已暂停的 ASYNC pending 阶段；拒绝时直接以 skipped
+ * 结果 resume，不产生执行副作用。
+ */
+async function runTerminalCommandTool(
+  toolCall: ClientToolCall,
+  jobId: string,
+  signal: AbortSignal,
+  userRequest: string,
+): Promise<string> {
+  const respond = (
+    payload: Omit<ClientToolResultPayload, 'tool' | 'user_request'>,
+  ): string =>
+    formatClientToolResult({
+      tool: 'start_terminal_command',
+      user_request: userRequest,
+      ...payload,
+    });
+
+  const bridge = getTerminalBridge();
+  if (!bridge) {
+    return respond({
+      status: 'error',
+      summary: '终端执行桥接不可用',
+      message: 'terminal_bridge_unavailable',
+    });
+  }
+
+  const args = toolCall.arguments as {
+    command?: unknown;
+    args?: unknown;
+    timeout_ms?: unknown;
+  };
+  const command = typeof args.command === 'string' ? args.command.trim() : '';
+  const commandArgs = Array.isArray(args.args) ? args.args.map(String) : [];
+  const timeoutMs =
+    typeof args.timeout_ms === 'number' ? args.timeout_ms : undefined;
+  if (!command) {
+    return respond({
+      status: 'error',
+      summary: '缺少 command 参数，无法执行终端命令',
+      message: 'missing_command',
+    });
+  }
+
+  // 1. 聊天内确认（live-only 事件不持久化；job 取消时以拒绝收口防 promise 泄漏）
+  emitJobEvent(jobId, {
+    type: 'terminal_approval',
+    toolCallId: toolCall.toolCallId,
+  });
+  const onAbortApproval = () => cancelTerminalApproval(toolCall.toolCallId);
+  signal.addEventListener('abort', onAbortApproval);
+  let approved = false;
+  try {
+    approved = await requestTerminalApproval(toolCall.toolCallId);
+  } finally {
+    signal.removeEventListener('abort', onAbortApproval);
+    emitJobEvent(jobId, {
+      type: 'terminal_approval_done',
+      toolCallId: toolCall.toolCallId,
+    });
+  }
+  if (signal.aborted) {
+    return respond({
+      status: 'skipped',
+      summary: '已取消',
+      message: 'cancelled',
+    });
+  }
+  if (!approved) {
+    return respond({
+      status: 'skipped',
+      summary: '用户拒绝执行该命令',
+      message: 'terminal_command_rejected',
+    });
+  }
+
+  // 2. 先订阅事件再启动，避免终态事件与订阅竞争（activeJobId 启动成功后置位）
+  let activeJobId: string | null = null;
+  let exitResolve:
+    | ((state: {
+        status: string;
+        exitCode: number | null;
+        output: string;
+        truncated: boolean;
+      }) => void)
+    | null = null;
+  const exitPromise = new Promise<{
+    status: string;
+    exitCode: number | null;
+    output: string;
+    truncated: boolean;
+  }>((resolve) => {
+    exitResolve = resolve;
+  });
+  const unsubscribe = bridge.onEvent((payload) => {
+    const evt = payload as {
+      type?: string;
+      jobId?: string;
+      chunk?: string;
+      status?: string;
+      exitCode?: number | null;
+    };
+    if (!activeJobId || evt?.jobId !== activeJobId) return;
+    if (evt.type === 'output' && typeof evt.chunk === 'string') {
+      emitJobEvent(jobId, {
+        type: 'terminal_output',
+        toolCallId: toolCall.toolCallId,
+        chunk: evt.chunk,
+      });
+      return;
+    }
+    if (evt.type === 'exit') {
+      void bridge.read(activeJobId).then((snap) => {
+        exitResolve?.({
+          status: evt.status ?? snap.snapshot?.status ?? 'exited',
+          exitCode: evt.exitCode ?? snap.snapshot?.exitCode ?? null,
+          output: snap.snapshot?.output ?? '',
+          truncated: snap.snapshot?.truncated ?? false,
+        });
+      });
+    }
+  });
+
+  // 3. 主进程执行（门禁二次校验 + cwd 锁定 workspace + no-shell spawn）
+  let start:
+    | { ok: true; jobId: string }
+    | { ok: false; error: string; message?: string };
+  try {
+    start = await bridge.start({ command, args: commandArgs, timeoutMs });
+  } catch (err) {
+    unsubscribe();
+    return respond({
+      status: 'error',
+      summary: `终端命令启动失败: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+  if (!start.ok) {
+    unsubscribe();
+    return respond({
+      status: 'error',
+      summary: terminalStartErrorMessage(start.error, start.message),
+      message: start.error,
+    });
+  }
+  activeJobId = start.jobId;
+
+  const killOnAbort = () => {
+    void bridge.kill(start.jobId);
+  };
+  signal.addEventListener('abort', killOnAbort);
+
+  try {
+    const finalState = await exitPromise;
+    const statusText =
+      finalState.status === 'timeout'
+        ? '超时被强制终止'
+        : finalState.status === 'killed'
+          ? '已被终止'
+          : finalState.status === 'failed'
+            ? '启动失败'
+            : '已完成';
+    const tail =
+      finalState.output.length > TERMINAL_OUTPUT_TAIL_CHARS
+        ? `…（前段略）\n${finalState.output.slice(-TERMINAL_OUTPUT_TAIL_CHARS)}`
+        : finalState.output;
+    return respond({
+      status: finalState.status === 'exited' ? 'completed' : 'error',
+      summary: `${statusText}（exit ${finalState.exitCode ?? 'N/A'}）`,
+      exit_code: finalState.exitCode ?? undefined,
+      job_id: start.jobId,
+      output_tail: tail || '(无输出)',
+      message: `完整输出可用 read_terminal_output(job_id="${start.jobId}") 回读；需要中止用 kill_terminal_job`,
+    });
+  } finally {
+    unsubscribe();
+    signal.removeEventListener('abort', killOnAbort);
+  }
+}
 
 async function runClientTool(
   toolCall: ClientToolCall,
@@ -444,6 +679,10 @@ async function runClientTool(
         hasProposal: false,
       });
     }
+  }
+
+  if (toolCall.name === 'start_terminal_command') {
+    return runTerminalCommandTool(toolCall, jobId, signal, userRequest);
   }
 
   return formatClientToolResult({
