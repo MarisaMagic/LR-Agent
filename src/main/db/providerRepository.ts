@@ -17,6 +17,8 @@ export interface ProviderRow {
   supports_vision: number;
   vision_probed_at: number | null;
   vision_probe_detail: string;
+  context_window_tokens: number | null;
+  context_window_source: string;
   created_at: number;
   updated_at: number;
 }
@@ -52,6 +54,8 @@ export function createProvider(provider: {
   enabled?: boolean;
   isDefault?: boolean;
   supportsVision?: boolean;
+  contextWindowTokens?: number | null;
+  contextWindowSource?: string;
 }): ProviderRow {
   const db = getDatabase();
   const now = Date.now();
@@ -59,8 +63,8 @@ export function createProvider(provider: {
 
   db.run(
     `
-    INSERT INTO llm_providers (id, name, base_url, api_key_encrypted, encryption_key_id, model, enabled, is_default, supports_vision, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO llm_providers (id, name, base_url, api_key_encrypted, encryption_key_id, model, enabled, is_default, supports_vision, context_window_tokens, context_window_source, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     provider.id,
     provider.name,
@@ -71,6 +75,8 @@ export function createProvider(provider: {
     provider.enabled !== false ? 1 : 0,
     provider.isDefault ? 1 : 0,
     provider.supportsVision ? 1 : 0,
+    provider.contextWindowTokens ?? null,
+    provider.contextWindowSource ?? '',
     now,
     now,
   );
@@ -98,6 +104,8 @@ export function updateProvider(
     supportsVision: boolean;
     visionProbedAt: number | null;
     visionProbeDetail: string;
+    contextWindowTokens: number | null;
+    contextWindowSource: string;
   }>,
 ): ProviderRow | undefined {
   const db = getDatabase();
@@ -143,6 +151,14 @@ export function updateProvider(
   if (patch.visionProbeDetail !== undefined) {
     sets.push('vision_probe_detail = ?');
     params.push(patch.visionProbeDetail);
+  }
+  if (patch.contextWindowTokens !== undefined) {
+    sets.push('context_window_tokens = ?');
+    params.push(patch.contextWindowTokens);
+  }
+  if (patch.contextWindowSource !== undefined) {
+    sets.push('context_window_source = ?');
+    params.push(patch.contextWindowSource);
   }
 
   if (sets.length === 0) return getProvider(id);

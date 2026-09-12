@@ -20,7 +20,10 @@ import {
   resolveDefaultProvider,
   upsertLlmProvider,
 } from '../services/llmProviderService';
-import { probeLlmProviderVisionOnApi } from '../services/llmProviderApi';
+import {
+  probeLlmProviderContextOnApi,
+  probeLlmProviderVisionOnApi,
+} from '../services/llmProviderApi';
 
 interface LlmProvidersContextValue {
   providers: LlmProviderConfig[];
@@ -38,6 +41,7 @@ interface LlmProvidersContextValue {
   deleteProvider: (id: string) => Promise<void>;
   setDefaultProvider: (id: string) => Promise<void>;
   probeProviderVision: (id: string) => Promise<void>;
+  probeProviderContext: (id: string) => Promise<void>;
 }
 
 const LlmProvidersContext = createContext<LlmProvidersContextValue | null>(
@@ -138,6 +142,13 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const probeProviderContext = useCallback(async (id: string) => {
+    const updated = await probeLlmProviderContextOnApi(id);
+    setProviders((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item)),
+    );
+  }, []);
+
   const defaultProvider = useMemo(
     () =>
       providers.find((item) => item.id === defaultProviderId) ??
@@ -164,6 +175,7 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
       deleteProvider,
       setDefaultProvider,
       probeProviderVision,
+      probeProviderContext,
     }),
     [
       providers,
@@ -177,6 +189,7 @@ export function LlmProvidersProvider({ children }: { children: ReactNode }) {
       deleteProvider,
       setDefaultProvider,
       probeProviderVision,
+      probeProviderContext,
     ],
   );
 

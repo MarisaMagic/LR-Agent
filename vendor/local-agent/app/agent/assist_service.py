@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterator
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 
@@ -167,3 +167,22 @@ async def stream_assist(
             continue
 
         break
+    else:
+        # 工具轮预算耗尽兜底：照抄子代理的收尾模式，强制一次无工具的
+        # 最终回答，避免回合在工具链中途无声结束、前端只剩半截输出。
+        if await is_cancelled():
+            return
+        messages.append(
+            HumanMessage(
+                content=(
+                    "工具调用预算已用完。请基于以上进展直接给出最终回答，"
+                    "不要再调用工具。"
+                )
+            )
+        )
+        async for chunk in llm.astream(messages):
+            if await is_cancelled():
+                return
+            for event in events_from_chunk(chunk, emit_tool_chunks=False):
+                if event.type in ("text_delta", "reasoning_delta") and event.content:
+                    yield event

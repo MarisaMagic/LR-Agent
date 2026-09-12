@@ -41,9 +41,14 @@
 }
 
 .llm-provider-badge {
-  padding: 1px 6px;
+  /* inline-flex + line-height:1 让内容在胶囊内几何居中：
+     中文按 em 框居中、数字/大写字母按基线排列，混排时不显式居中会错位 */
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
   border-radius: 999px;
   font-size: var(--lr-ui-font-caption);
+  line-height: 1;
 }
 
 .llm-provider-badge-default {
@@ -64,6 +69,11 @@
 .llm-provider-badge-text-only {
   background: rgba(206, 145, 120, 0.15);
   color: #ce9178;
+}
+
+.llm-provider-badge-context {
+  background: rgba(156, 220, 254, 0.15);
+  color: #9cdcfe;
 }
 
 .llm-provider-item-meta {

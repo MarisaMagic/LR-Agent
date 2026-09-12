@@ -11,11 +11,20 @@ interface LlmProviderListProps {
   onDelete: (provider: LlmProviderConfig) => void;
   onSetDefault: (provider: LlmProviderConfig) => void;
   onProbeVision: (provider: LlmProviderConfig) => void;
+  onProbeContext: (provider: LlmProviderConfig) => void;
 }
 
 function visionBadgeLabel(provider: LlmProviderConfig): string {
   if (provider.visionProbedAt == null) return '视觉未检测';
   return provider.supportsVision ? '多模态' : '仅文本';
+}
+
+function contextBadgeLabel(provider: LlmProviderConfig): string {
+  const tokens = provider.contextWindowTokens;
+  if (tokens == null) return '窗口未检测';
+  if (tokens >= 1_000_000)
+    return `${(tokens / 1_000_000).toFixed(tokens % 1_000_000 === 0 ? 0 : 1)}M`;
+  return `${Math.round(tokens / 1000)}K`;
 }
 
 export default function LlmProviderList({
@@ -25,6 +34,7 @@ export default function LlmProviderList({
   onDelete,
   onSetDefault,
   onProbeVision,
+  onProbeContext,
 }: LlmProviderListProps) {
   const [menuProviderId, setMenuProviderId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -113,6 +123,20 @@ export default function LlmProviderList({
                     >
                       {visionBadgeLabel(provider)}
                     </span>
+                    <span
+                      className="llm-provider-badge llm-provider-badge-context"
+                      title={
+                        provider.contextWindowTokens == null
+                          ? '尚未检测上下文窗口，可在菜单中选择「检测上下文窗口」'
+                          : provider.contextWindowSource === 'manual'
+                            ? '上下文窗口（手动填写）'
+                            : provider.contextWindowSource === 'probe'
+                              ? '上下文窗口（API 探测）'
+                              : '上下文窗口（按模型名推断）'
+                      }
+                    >
+                      {contextBadgeLabel(provider)}
+                    </span>
                   </div>
                 </div>
                 <div className="llm-provider-item-meta">
@@ -163,6 +187,10 @@ export default function LlmProviderList({
           onProbeVision={() => {
             closeMenu();
             onProbeVision(menuProvider);
+          }}
+          onProbeContext={() => {
+            closeMenu();
+            onProbeContext(menuProvider);
           }}
         />
       )}

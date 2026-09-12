@@ -23,6 +23,8 @@ export function buildEmptyProvider(): LlmProviderConfig {
     supportsVision: false,
     visionProbedAt: null,
     visionProbeDetail: '',
+    contextWindowTokens: null,
+    contextWindowSource: '',
     createdAt: now,
     updatedAt: now,
   };

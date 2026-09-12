@@ -66,7 +66,6 @@ const provider = { baseUrl: 'http://test', apiKey: 'k', model: 'm' };
 
 const smallConfig: ChatContextConfig = {
   maxContextTokens: 200,
-  reserveCompletionTokens: 0,
   maxTurnsInWindow: 4,
   summarizeTriggerRatio: 0.5,
   minTurnsBeforeSummarize: 2,

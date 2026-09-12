@@ -1863,6 +1863,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             model: selectedProvider.model,
           },
           excludeMessageIds: new Set([assistantMessageId]),
+          modelContextWindowTokens: selectedProvider.contextWindowTokens,
           // 摘要真正触发时更新空窗提示（仅此时 summarizeFn 才会被调用）；
           // 配置了辅助模型时摘要走辅助模型凭据，否则跟随会话模型
           summarizeFn: (summarizeOptions) => {

@@ -29,6 +29,10 @@ export interface LlmProviderConfig {
   supportsVision: boolean;
   visionProbedAt: number | null;
   visionProbeDetail: string;
+  /** 模型上下文窗口（tokens）；null 表示未知。来源见 contextWindowSource */
+  contextWindowTokens: number | null;
+  /** '' | 'manual'（用户手填，探测不覆盖）| 'probe'（/models 探测）| 'heuristic'（名称对照表） */
+  contextWindowSource: '' | 'manual' | 'probe' | 'heuristic';
   createdAt: number;
   updatedAt: number;
 }
@@ -195,7 +199,6 @@ export interface ChatMessage {
 
 export interface ChatContextConfig {
   maxContextTokens: number;
-  reserveCompletionTokens: number;
   maxTurnsInWindow: number;
   summarizeTriggerRatio: number;
   minTurnsBeforeSummarize: number;
@@ -203,10 +206,11 @@ export interface ChatContextConfig {
 
 export const DEFAULT_CHAT_CONTEXT_CONFIG: ChatContextConfig = {
   maxContextTokens: 12_000,
-  reserveCompletionTokens: 2_048,
   maxTurnsInWindow: 20,
   summarizeTriggerRatio: 0.85,
-  minTurnsBeforeSummarize: 6,
+  // 必须 ≥ 摘要时保留的轮数（ceil(maxTurnsInWindow/2) = 10），
+  // 否则触发条件可能通过但没有可驱逐的内容，摘要永远不会执行。
+  minTurnsBeforeSummarize: 10,
 };
 
 export type AgentInteractionMode = 'chat' | 'annotation';

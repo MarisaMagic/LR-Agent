@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     # 本地服务只监听 127.0.0.1，CORS 默认放开 Electron renderer
     cors_origins: list[str] = ["http://localhost:1212"]
 
-    # Assist 工具循环
-    agent_max_tool_rounds: int = 20
-    agent_subagent_max_tool_rounds: int = 8
+    # Assist 工具循环（可用 AGENT_MAX_TOOL_ROUNDS / AGENT_SUBAGENT_MAX_TOOL_ROUNDS 覆盖）
+    agent_max_tool_rounds: int = 30
+    agent_subagent_max_tool_rounds: int = 12
     # MCP 工具发现结果缓存时长（秒）：避免每条消息都重新建连列工具
     agent_mcp_tools_ttl_seconds: float = 300.0
 

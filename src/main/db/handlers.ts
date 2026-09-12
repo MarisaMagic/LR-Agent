@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { probeAndPersistProviderVision } from '../llm/probeProviderVision';
+import { probeAndPersistProviderContext } from '../llm/probeProviderContext';
 import * as sessionRepo from './sessionRepository';
 import * as messageRepo from './messageRepository';
 import * as providerRepo from './providerRepository';
@@ -259,5 +260,12 @@ export function registerDbHandlers(): void {
       throw new Error('provider_not_found');
     }
     return probeAndPersistProviderVision(id);
+  });
+
+  ipcMain.handle('db:providers:probeContext', (_event, id: unknown) => {
+    if (typeof id !== 'string' || id.length === 0) {
+      throw new Error('provider_not_found');
+    }
+    return probeAndPersistProviderContext(id);
   });
 }

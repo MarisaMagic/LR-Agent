@@ -17,6 +17,7 @@ function getDb() {
             setDefault: (id: string) => Promise<ProviderRow>;
             getDefault: () => Promise<ProviderRow | undefined>;
             probeVision: (id: string) => Promise<ProviderRow>;
+            probeContext: (id: string) => Promise<ProviderRow>;
           };
         };
       };
@@ -36,6 +37,8 @@ interface ProviderRow {
   supports_vision: number;
   vision_probed_at: number | null;
   vision_probe_detail: string;
+  context_window_tokens: number | null;
+  context_window_source: string;
   created_at: number;
   updated_at: number;
 }
@@ -50,6 +53,8 @@ interface CreateProviderParams {
   enabled?: boolean;
   isDefault?: boolean;
   supportsVision?: boolean;
+  contextWindowTokens?: number | null;
+  contextWindowSource?: string;
 }
 
 // ── Mappers ───────────────────────────────────────────────────────
@@ -66,6 +71,10 @@ function rowToConfig(row: ProviderRow): LlmProviderConfig {
     supportsVision: row.supports_vision === 1,
     visionProbedAt: row.vision_probed_at,
     visionProbeDetail: row.vision_probe_detail ?? '',
+    contextWindowTokens: row.context_window_tokens ?? null,
+    contextWindowSource:
+      (row.context_window_source as LlmProviderConfig['contextWindowSource']) ??
+      '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -82,6 +91,8 @@ function configToCreateParams(config: LlmProviderConfig): CreateProviderParams {
     enabled: config.enabled,
     isDefault: config.isDefault,
     supportsVision: config.supportsVision,
+    contextWindowTokens: config.contextWindowTokens ?? null,
+    contextWindowSource: config.contextWindowSource ?? '',
   };
 }
 
@@ -102,6 +113,10 @@ function configToUpdatePatch(
   }
   if (config.visionProbeDetail !== undefined) {
     patch.visionProbeDetail = config.visionProbeDetail;
+  }
+  if (config.contextWindowTokens !== undefined) {
+    patch.contextWindowTokens = config.contextWindowTokens;
+    patch.contextWindowSource = config.contextWindowSource ?? '';
   }
   return patch;
 }
@@ -151,6 +166,17 @@ export async function probeLlmProviderVisionOnApi(
 ): Promise<LlmProviderConfig> {
   const db = getDb();
   const row = await db.providers.probeVision(id);
+  if (!row) {
+    throw new Error('provider_not_found');
+  }
+  return rowToConfig(row);
+}
+
+export async function probeLlmProviderContextOnApi(
+  id: string,
+): Promise<LlmProviderConfig> {
+  const db = getDb();
+  const row = await db.providers.probeContext(id);
   if (!row) {
     throw new Error('provider_not_found');
   }

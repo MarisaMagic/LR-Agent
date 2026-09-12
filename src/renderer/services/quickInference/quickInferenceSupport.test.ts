@@ -20,6 +20,8 @@ const mockProvider: LlmProviderConfig = {
   isDefault: false,
   visionProbedAt: null,
   visionProbeDetail: '',
+  contextWindowTokens: null,
+  contextWindowSource: '',
   createdAt: 0,
   updatedAt: 0,
 };

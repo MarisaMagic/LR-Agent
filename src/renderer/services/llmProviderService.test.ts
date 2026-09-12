@@ -18,6 +18,8 @@ function provider(id: string, enabled = true): LlmProviderConfig {
     supportsVision: false,
     visionProbedAt: null,
     visionProbeDetail: '',
+    contextWindowTokens: null,
+    contextWindowSource: '',
     createdAt: 0,
     updatedAt: 0,
   };

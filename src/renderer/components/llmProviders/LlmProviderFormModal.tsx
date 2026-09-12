@@ -26,10 +26,16 @@ export default function LlmProviderFormModal({
   const [form, setForm] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [contextWindowInput, setContextWindowInput] = useState('');
 
   useEffect(() => {
     if (!open) return;
     setForm(initial);
+    setContextWindowInput(
+      initial.contextWindowTokens == null
+        ? ''
+        : String(initial.contextWindowTokens),
+    );
     setError(null);
     setSubmitting(false);
   }, [open, initial]);
@@ -56,6 +62,16 @@ export default function LlmProviderFormModal({
       setError('请填写模型型号');
       return;
     }
+    const trimmedWindow = contextWindowInput.trim();
+    let contextWindowTokens: number | null = null;
+    if (trimmedWindow) {
+      const parsed = Number(trimmedWindow);
+      if (!Number.isInteger(parsed) || parsed < 1024) {
+        setError('上下文窗口需为不小于 1024 的整数（tokens）');
+        return;
+      }
+      contextWindowTokens = parsed;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -65,6 +81,13 @@ export default function LlmProviderFormModal({
         name: form.name.trim(),
         baseUrl: normalizeBaseUrl(form.baseUrl),
         model: form.model.trim(),
+        contextWindowTokens,
+        contextWindowSource:
+          contextWindowTokens != null
+            ? 'manual'
+            : form.contextWindowSource === 'manual'
+              ? ''
+              : form.contextWindowSource,
         updatedAt: Date.now(),
       });
       onClose();
@@ -125,6 +148,21 @@ export default function LlmProviderFormModal({
           value={form.model}
           onChange={(event) => update({ model: event.target.value })}
           placeholder="Qwen3.6-Plus"
+        />
+      </label>
+
+      <label className="llm-provider-field">
+        <span>上下文窗口 (tokens，可选)</span>
+        <input
+          value={contextWindowInput}
+          onChange={(event) => setContextWindowInput(event.target.value)}
+          placeholder={
+            form.contextWindowTokens != null &&
+            form.contextWindowSource !== 'manual'
+              ? `${form.contextWindowTokens}（自动检测，可覆盖）`
+              : '例如 128000，留空则未检测'
+          }
+          inputMode="numeric"
         />
       </label>
 

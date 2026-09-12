@@ -55,9 +55,28 @@ export interface PrepareChatContextOptions {
   /** 排除的消息 id（如流式中的助手占位消息） */
   excludeMessageIds?: Set<string>;
   config?: ChatContextConfig;
+  /** 模型上下文窗口（tokens）；已知时按比例推导预算，未知沿用默认配置 */
+  modelContextWindowTokens?: number | null;
   /** 可注入的摘要实现（测试用） */
   summarizeFn?: SummarizeFn;
   signal?: AbortSignal;
+}
+
+/** 从模型窗口推导会话预算：取窗口 10%，钳制在 [8K, 48K] */
+export function deriveMaxContextTokens(
+  modelContextWindowTokens: number | null | undefined,
+): number | null {
+  if (
+    typeof modelContextWindowTokens !== 'number' ||
+    !Number.isFinite(modelContextWindowTokens) ||
+    modelContextWindowTokens <= 0
+  ) {
+    return null;
+  }
+  const MIN_BUDGET_TOKENS = 8_000;
+  const MAX_BUDGET_TOKENS = 48_000;
+  const derived = Math.round(modelContextWindowTokens * 0.1);
+  return Math.min(MAX_BUDGET_TOKENS, Math.max(MIN_BUDGET_TOKENS, derived));
 }
 
 /** 摘要覆盖点之后的消息 id 列表 */
@@ -76,6 +95,12 @@ export async function prepareChatContext(
 ): Promise<PreparedChatContext> {
   const config = options.config ?? DEFAULT_CHAT_CONTEXT_CONFIG;
   const summarizeFn = options.summarizeFn ?? summarizeConversation;
+  const derivedBudget = deriveMaxContextTokens(
+    options.modelContextWindowTokens,
+  );
+  const effectiveConfig: ChatContextConfig = derivedBudget
+    ? { ...config, maxContextTokens: derivedBudget }
+    : config;
 
   const eligibleIds = eligibleIdsAfterSummary(
     options.messageIds,
@@ -116,7 +141,8 @@ export async function prepareChatContext(
   };
 
   const shouldSummarize =
-    tokenEstimate > config.maxContextTokens * config.summarizeTriggerRatio &&
+    tokenEstimate >
+      effectiveConfig.maxContextTokens * config.summarizeTriggerRatio &&
     turnCtx.lines.length >= config.minTurnsBeforeSummarize * 2;
   if (!shouldSummarize) return fallback;
 

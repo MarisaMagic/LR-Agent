@@ -839,6 +839,8 @@ const electronHandler = {
         enabled?: boolean;
         isDefault?: boolean;
         supportsVision?: boolean;
+        contextWindowTokens?: number | null;
+        contextWindowSource?: string;
       }): Promise<unknown> =>
         ipcRenderer.invoke('db:providers:create', provider),
       update: (id: string, patch: Record<string, unknown>): Promise<unknown> =>
@@ -851,6 +853,8 @@ const electronHandler = {
         ipcRenderer.invoke('db:providers:getDefault'),
       probeVision: (id: string): Promise<unknown> =>
         ipcRenderer.invoke('db:providers:probeVision', id),
+      probeContext: (id: string): Promise<unknown> =>
+        ipcRenderer.invoke('db:providers:probeContext', id),
     },
   },
 };

@@ -273,6 +273,15 @@ function runMigrations(): void {
     `CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)`,
   );
 
+  // model context window (tokens) + its source: '' | 'manual' | 'probe' | 'heuristic'
+  _addColumnIfMissing(d, 'llm_providers', 'context_window_tokens', 'INTEGER');
+  _addColumnIfMissing(
+    d,
+    'llm_providers',
+    'context_window_source',
+    "TEXT NOT NULL DEFAULT ''",
+  );
+
   console.log('[DB] Migrations completed successfully');
 }
 
