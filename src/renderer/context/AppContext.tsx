@@ -18,7 +18,10 @@ import {
   markDocumentSaved,
   syncDocumentRefCounts,
 } from '../components/editor/editorDocumentStore';
-import { clearFilePreviewIfPathChanged } from '../services/agentFilePreviewStore';
+import {
+  clearFilePreviewIfPathChanged,
+  pathsEqual,
+} from '../services/agentFilePreviewStore';
 import { getWorkModeExternal } from './workModeBridge';
 
 const STORAGE_KEYS = {
@@ -474,7 +477,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (filePath: string) => {
       clearFilePreviewIfPathChanged(filePath);
       setEditorTabs((prev) => {
-        const existing = prev.find((tab) => tab.filePath === filePath);
+        // 按归一化路径匹配：文件树打开的是反斜杠路径，提案点击解析出的
+        // 是正斜杠路径，精确比较会开出完全同名的重复 tab。
+        const existing = prev.find((tab) => pathsEqual(tab.filePath, filePath));
         if (existing) {
           setActiveTabId(existing.id);
           const next = prev.map((tab) =>
@@ -506,7 +511,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (filePath: string) => {
       clearFilePreviewIfPathChanged(filePath);
       setEditorTabs((prev) => {
-        const existing = prev.find((tab) => tab.filePath === filePath);
+        const existing = prev.find((tab) => pathsEqual(tab.filePath, filePath));
         if (existing) {
           setActiveTabId(existing.id);
           syncActiveFilePath(prev, existing.id);

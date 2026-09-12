@@ -26,6 +26,7 @@ LIGHT_TOOL_SET: frozenset[str] = frozenset({
     "write_workspace_file",
     "str_replace_workspace_file",
     "delete_workspace_file",
+    "move_workspace_file",
     "get_account_summary",
     "get_lr_agent_help",
     "describe_client_context",
@@ -44,6 +45,7 @@ FULL_TOOL_SET: frozenset[str] = frozenset({
     "write_workspace_file",
     "str_replace_workspace_file",
     "delete_workspace_file",
+    "move_workspace_file",
     "auto_annotate",
     "mutate_annotation",
     "get_account_summary",
@@ -61,6 +63,7 @@ WRITE_TOOL_NAMES: frozenset[str] = frozenset(
         "write_workspace_file",
         "str_replace_workspace_file",
         "delete_workspace_file",
+        "move_workspace_file",
     }
 )
 

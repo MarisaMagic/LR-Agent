@@ -83,3 +83,6 @@ assets/python-runtime/
 # CI 后续安装冒烟（scripts/ciInstallAndTest.mjs）
 .ci-venvs/
 .ci-pip-cache/
+
+# ZCode 会话工作区缓存
+.zcode/

@@ -16,6 +16,7 @@ import {
 import { getAnnotationWorkspaceAgentSnapshot } from './annotationAgentBridge';
 import { isAgentDocumentWriteEnabled } from './agentFeatureFlags';
 import { patchAgentMessageBlockRemote } from './agentChatApi';
+import { markWorkspaceTextFilesChanged } from './agentFilePreviewStore';
 import {
   captureProposalCheckpoint,
   discardProposalCheckpoint,
@@ -228,7 +229,12 @@ export function collectMessageChangeItems(
         path: block.suggestedRelativePath,
         kind: 'file',
         status: block.status,
-        summary: block.operation === 'delete' ? '删除文件' : '写入文件',
+        summary:
+          block.operation === 'delete'
+            ? '删除文件'
+            : block.operation === 'rename'
+              ? '移动文件'
+              : '写入文件',
         operation: block.operation ?? 'write',
         newContent: block.content,
         additions: block.additions,
@@ -268,7 +274,12 @@ export function collectPendingChangeItems(
         id: `${ref.messageId}-${ref.blockIndex}`,
         ref,
         path: block.suggestedRelativePath,
-        summary: block.operation === 'delete' ? '删除文件' : '写入文件',
+        summary:
+          block.operation === 'delete'
+            ? '删除文件'
+            : block.operation === 'rename'
+              ? '移动文件'
+              : '写入文件',
         kind: 'file',
         newContent: block.content,
         operation: block.operation ?? 'write',
@@ -445,6 +456,34 @@ async function applyFileBlock(
   if (isLrAgentRelativePath(block.suggestedRelativePath)) {
     throw new Error('禁止写入 .lr-agent 标注库目录，请使用标注工具。');
   }
+  // rename 提案：内容不变，落盘动作是把旧路径移动到新路径；
+  // checkpoint 需同时覆盖两个路径，Undo 才能既删新路径又还原旧路径。
+  if (block.operation === 'rename') {
+    const oldPath = (block.oldPath ?? '').trim();
+    if (!oldPath) throw new Error('移动提案缺少原路径');
+    if (isLrAgentRelativePath(oldPath)) {
+      throw new Error('禁止移动 .lr-agent 标注库目录内的文件。');
+    }
+    return withProposalCheckpoint(
+      {
+        checkpoint,
+        project,
+        kind: 'file',
+        filePaths: [oldPath, block.suggestedRelativePath],
+      },
+      async () => {
+        const result = await window.electron?.workspace?.moveTextFile?.({
+          rootDir: root,
+          relativePath: oldPath,
+          newRelativePath: block.suggestedRelativePath,
+        });
+        if (!result?.success) {
+          throw new Error(result?.error ?? '移动失败');
+        }
+        markWorkspaceTextFilesChanged([oldPath, block.suggestedRelativePath]);
+      },
+    );
+  }
   return withProposalCheckpoint(
     {
       checkpoint,
@@ -461,6 +500,7 @@ async function applyFileBlock(
         if (!result?.success) {
           throw new Error(result?.error ?? '删除失败');
         }
+        markWorkspaceTextFilesChanged([block.suggestedRelativePath]);
         return;
       }
       const result = await window.electron?.workspace?.writeTextFile({
@@ -471,6 +511,9 @@ async function applyFileBlock(
       if (!result?.success) {
         throw new Error(result?.error ?? '保存失败');
       }
+      // 在统一入口标记磁盘变更：无论从顶栏、卡片还是重新应用走哪条路径，
+      // 已打开的编辑器 tab 都会强制重读磁盘，避免滞留旧内容。
+      markWorkspaceTextFilesChanged([block.suggestedRelativePath]);
     },
   );
 }

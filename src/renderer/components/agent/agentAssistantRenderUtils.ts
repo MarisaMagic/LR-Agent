@@ -6,6 +6,7 @@ export const PROPOSAL_TOOL_NAMES = new Set([
   'write_workspace_file',
   'str_replace_workspace_file',
   'delete_workspace_file',
+  'move_workspace_file',
 ]);
 
 /** 会生成 pipeline / proposal 的客户端工具 */

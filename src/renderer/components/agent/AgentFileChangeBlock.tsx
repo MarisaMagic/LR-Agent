@@ -1,16 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { VscodeIcon } from '@vscode-elements/react-elements';
-import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import { basename } from '../../types/file';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useApp } from '../../context/AppContext';
-import {
-  computeLineDiff,
-  pickCollapsedDiffLines,
-  proposalAnchorId,
-} from '../../utils/fileDiffStats';
+import { computeLineDiff, proposalAnchorId } from '../../utils/fileDiffStats';
 import { readWorkspaceTextFile } from '../../utils/workspaceFileRead';
-import { AgentFileDiffLines } from './AgentFileDiffView';
+import MonacoDiffView from '../editor/MonacoDiffView';
 import './AgentReasoningBlock.css';
 import './AgentFileChangeBlock.css';
 
@@ -19,7 +14,14 @@ interface AgentFileChangeBlockProps {
   blockIndex: number;
   relativePath: string;
   newContent: string;
-  operation?: 'write' | 'delete';
+  operation?: 'write' | 'delete' | 'rename';
+  /** rename 提案的原路径 */
+  oldPath?: string;
+  /** str_replace 流式期间累积的 old_string / new_string */
+  editOld?: string;
+  editNew?: string;
+  /** 提案尚未定稿（流式中） */
+  streaming?: boolean;
 }
 
 export default function AgentFileChangeBlock({
@@ -28,14 +30,26 @@ export default function AgentFileChangeBlock({
   relativePath,
   newContent,
   operation = 'write',
+  oldPath,
+  editOld,
+  editNew,
+  streaming = false,
 }: AgentFileChangeBlockProps) {
   const { activeProject } = useAnnotation();
   const { rootPath } = useApp();
   const [oldContent, setOldContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showFullDiff, setShowFullDiff] = useState(false);
+  const [collapseUnchanged, setCollapseUnchanged] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  // 展开过一次后保持 DiffEditor 挂载（收起只隐藏），再次展开零开销
+  const [hasExpanded, setHasExpanded] = useState(false);
   const isDelete = operation === 'delete';
+  const isRename = operation === 'rename';
+  // 流式中的 str_replace：直接用 old_string → new_string 作为 diff 输入，
+  // 不依赖磁盘原文；定稿后由磁盘原文计算完整 diff。
+  const isStreamingEdit = Boolean(
+    streaming && !isDelete && (editOld !== undefined || editNew !== undefined),
+  );
 
   const anchorId = proposalAnchorId(messageId, blockIndex);
 
@@ -56,26 +70,19 @@ export default function AgentFileChangeBlock({
     };
   }, [activeProject, rootPath, relativePath]);
 
+  // diff 只用于 +/- 统计与占位判断；渲染交给 MonacoDiffView
   const diffResult = useMemo(() => {
+    if (isStreamingEdit) {
+      return computeLineDiff(editOld ?? '', editNew ?? '');
+    }
     if (oldContent === null) return null;
     return computeLineDiff(oldContent, isDelete ? '' : newContent);
-  }, [isDelete, newContent, oldContent]);
-
-  const collapsed = useMemo(() => {
-    if (!diffResult) return null;
-    return pickCollapsedDiffLines(diffResult.lines, 2);
-  }, [diffResult]);
-
-  const canExpandDiff = useMemo(() => {
-    if (isDelete || !collapsed || !diffResult) return false;
-    return (
-      collapsed.hasMore || diffResult.lines.length > collapsed.lines.length
-    );
-  }, [collapsed, diffResult, isDelete]);
+  }, [editNew, editOld, isDelete, isStreamingEdit, newContent, oldContent]);
 
   const safeRelativePath = relativePath ?? '';
   const fileName = basename(safeRelativePath) || '未命名文件';
-  const diffScrollable = showFullDiff || !canExpandDiff;
+  // 未变更区域折叠按钮：流式编辑只展示变更区域，不需要切换
+  const canToggleCollapse = !isStreamingEdit && !isDelete && !isRename;
 
   return (
     <div className="agent-tool-block" data-proposal-id={anchorId}>
@@ -83,14 +90,21 @@ export default function AgentFileChangeBlock({
         type="button"
         className="agent-block-toggle"
         aria-expanded={expanded}
-        onClick={() => setExpanded((open) => !open)}
+        onClick={() => {
+          setExpanded((open) => !open);
+          setHasExpanded(true);
+        }}
       >
         <VscodeIcon
           name={expanded ? 'chevron-down' : 'chevron-right'}
           size={12}
         />
         <span>
-          {isDelete ? 'Deleted' : 'Edited'} {fileName}
+          {isDelete ? 'Deleted' : isRename ? 'Renamed' : 'Edited'}{' '}
+          {isRename && oldPath
+            ? `${basename(oldPath) || oldPath} → ${fileName}`
+            : fileName}
+          {isStreamingEdit ? ' …' : ''}
         </span>
         {diffResult &&
         (diffResult.additions > 0 || diffResult.deletions > 0) ? (
@@ -109,51 +123,46 @@ export default function AgentFileChangeBlock({
         ) : null}
       </button>
 
-      {expanded ? (
-        <div className="agent-tool-body agent-file-change-block__body">
+      {expanded || hasExpanded ? (
+        <div
+          className={`agent-tool-body agent-file-change-block__body${
+            expanded ? '' : ' agent-file-change-block__body--hidden'
+          }`}
+        >
           {isDelete ? (
             <div className="agent-file-change-block__delete-note">
               将删除此文件
             </div>
-          ) : loading || !diffResult || !collapsed ? (
-            <div className="agent-file-change-block__loading">
-              {loading ? '加载 diff…' : '正在生成内容…'}
+          ) : isRename ? (
+            <div className="agent-file-change-block__delete-note">
+              将移动/重命名为 {safeRelativePath}（确认后执行）
             </div>
+          ) : loading && !isStreamingEdit ? (
+            <div className="agent-file-change-block__loading">加载 diff…</div>
+          ) : isStreamingEdit && diffResult?.lines.length === 0 ? (
+            <div className="agent-file-change-block__loading">正在编辑…</div>
           ) : (
-            <div
-              className={`agent-change-block__body-wrap agent-file-change-block__diff-wrap${
-                canExpandDiff && !showFullDiff
-                  ? ' agent-file-change-block__diff-wrap--clamped'
-                  : ''
-              }${canExpandDiff ? ' agent-change-block__body-wrap--expandable' : ''}${
-                showFullDiff
-                  ? ' agent-change-block__body-wrap--full agent-file-change-block__diff-wrap--full'
-                  : ''
-              }`}
-            >
-              <OverlayVerticalScrollArea
-                enabled={diffScrollable}
-                maxHeight="calc(1.5em * 24 + 8px)"
-                disabledContentClassName="agent-file-change-block__diff"
-                contentClassName="agent-file-change-block__diff"
-                observeKey={diffResult.lines.length}
-              >
-                <AgentFileDiffLines
-                  lines={diffResult.lines}
-                  relativePath={safeRelativePath}
-                />
-              </OverlayVerticalScrollArea>
-              {canExpandDiff ? (
+            <div className="agent-change-block__body-wrap agent-file-change-block__diff-wrap">
+              <MonacoDiffView
+                relativePath={safeRelativePath}
+                oldContent={
+                  isStreamingEdit ? (editOld ?? '') : (oldContent ?? '')
+                }
+                newContent={isStreamingEdit ? (editNew ?? '') : newContent}
+                collapseUnchanged={collapseUnchanged}
+                revealFirstChange={!isStreamingEdit}
+              />
+              {canToggleCollapse ? (
                 <button
                   type="button"
                   className="agent-change-block__expand"
-                  aria-expanded={showFullDiff}
-                  aria-label={showFullDiff ? '收起变更' : '展开全部变更'}
-                  title={showFullDiff ? '收起' : '展开全部变更'}
-                  onClick={() => setShowFullDiff((full) => !full)}
+                  aria-expanded={!collapseUnchanged}
+                  aria-label={collapseUnchanged ? '展开全部变更' : '收起变更'}
+                  title={collapseUnchanged ? '展开全部变更' : '收起'}
+                  onClick={() => setCollapseUnchanged((full) => !full)}
                 >
                   <VscodeIcon
-                    name={showFullDiff ? 'chevron-up' : 'chevron-down'}
+                    name={collapseUnchanged ? 'chevron-down' : 'chevron-up'}
                     size={14}
                   />
                 </button>

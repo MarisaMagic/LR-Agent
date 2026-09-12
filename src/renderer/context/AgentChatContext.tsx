@@ -77,7 +77,7 @@ import {
 import { dispatchMutationsAppliedEvent } from '../services/annotationProposalApply';
 import {
   clearFilePreviewSession,
-  dispatchWorkspaceTextFilesChanged,
+  markWorkspaceTextFilesChanged,
 } from '../services/agentFilePreviewStore';
 import {
   annotationPathsFromBlock,
@@ -2238,7 +2238,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           },
         );
       }
-      dispatchWorkspaceTextFilesChanged(restorePaths);
+      markWorkspaceTextFilesChanged(restorePaths);
       clearFilePreviewSession();
       showToast('已撤销本轮写入', { type: 'success' });
     },
@@ -2470,7 +2470,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         }
         await syncWorkspaceFactMemory(activeProject);
         clearFilePreviewSession();
-        dispatchWorkspaceTextFilesChanged(pendingFilePaths);
+        markWorkspaceTextFilesChanged(pendingFilePaths);
         // 提案已落盘：续跑因 HITL 断点暂停的 job，进入核对/报告阶段；
         // 无挂起 job（如重启后）时兜底把暂停消息落为 done
         const resumedJobId = resumeAwaitingConfirmation(sessionId);

@@ -76,9 +76,16 @@ export type MessageBlock =
       suggestedRelativePath: string;
       status: ProposalBlockStatus;
       hasCheckpoint?: boolean;
-      operation?: 'write' | 'delete';
+      operation?: 'write' | 'delete' | 'rename';
+      /** rename 提案的原路径 */
+      oldPath?: string;
       additions?: number;
       deletions?: number;
+      /** 全量 content 事件已定稿；此后同路径的 delta（无新 start 重置）应丢弃 */
+      contentFinalized?: boolean;
+      /** str_replace 流式期间累积的 old_string / new_string，定稿后清除 */
+      oldString?: string;
+      newString?: string;
     }
   | {
       /** @deprecated 历史消息兼容，加载时 normalize 为 file_proposal */
@@ -88,9 +95,14 @@ export type MessageBlock =
       suggestedRelativePath: string;
       status: ProposalBlockStatus;
       hasCheckpoint?: boolean;
-      operation?: 'write' | 'delete';
+      operation?: 'write' | 'delete' | 'rename';
+      oldPath?: string;
       additions?: number;
       deletions?: number;
+      /** 全量 content 事件已定稿；此后同路径的 delta（无新 start 重置）应丢弃 */
+      contentFinalized?: boolean;
+      oldString?: string;
+      newString?: string;
     }
   | {
       type: 'subagent';
@@ -275,7 +287,8 @@ export type StreamEvent =
       title: string;
       suggestedRelativePath: string;
       detail: string;
-      operation?: 'write' | 'delete';
+      operation?: 'write' | 'delete' | 'rename';
+      oldPath?: string;
     }
   | {
       type: 'file_proposal_delta';
@@ -284,12 +297,21 @@ export type StreamEvent =
       suggestedRelativePath?: string;
     }
   | {
+      /** str_replace 流式期间 old_string / new_string 的增量片段 */
+      type: 'file_edit_delta';
+      oldDelta?: string;
+      newDelta?: string;
+      /** 所属文件相对路径，用于匹配对应的 file_proposal 块 */
+      suggestedRelativePath?: string;
+    }
+  | {
       type: 'file_proposal';
       title: string;
       content: string;
       suggestedRelativePath: string;
       status?: ProposalBlockStatus;
-      operation?: 'write' | 'delete';
+      operation?: 'write' | 'delete' | 'rename';
+      oldPath?: string;
     }
   | {
       /** @deprecated 旧 SSE 事件 */

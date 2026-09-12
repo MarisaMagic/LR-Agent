@@ -702,3 +702,92 @@ class TestParallelExploreReadonly:
         assert [e.tool_call_id for e in results] == ["e1", "e2"]
         assert len(messages) == 3
         assert [m.tool_call_id for m in messages[1:]] == ["e1", "e2"]
+
+
+class TestProposalDismissedOnToolError:
+    """工具报错但拦截器已为该路径出卡时，必须补发 dismissed 终态收卡。"""
+
+    async def _run(self, streamed_call_id: str | None):
+        import json
+
+        from langchain_core.tools import StructuredTool
+
+        from app.agent.tools.registry import tool_fn_map
+
+        async def str_replace_stub(
+            relative_path: str = "",
+            old_string: str = "",
+            new_string: str = "",
+            replace_all: bool = False,
+        ) -> str:
+            return json.dumps(
+                {
+                    "ok": False,
+                    "tool": "str_replace_workspace_file",
+                    "status": "error",
+                    "summary": "未找到 old_string",
+                },
+                ensure_ascii=False,
+            )
+
+        tool = StructuredTool(
+            name="str_replace_workspace_file",
+            description="edit stub",
+            coroutine=str_replace_stub,
+            args_schema={
+                "type": "object",
+                "properties": {
+                    "relative_path": {"type": "string"},
+                    "old_string": {"type": "string"},
+                    "new_string": {"type": "string"},
+                    "replace_all": {"type": "boolean"},
+                },
+            },
+        )
+        fn_map = tool_fn_map([tool])
+        llm = MockChatOpenAI([])
+        loop = ToolLoopRunner(llm, [tool], fn_map, None, _never_cancel, "test")
+
+        interceptor = ProposalStreamInterceptor()
+        if streamed_call_id:
+            # 模拟流式期间拦截器已为该调用发出 file_proposal_start
+            class _StartChunk:
+                tool_call_chunks = [
+                    {
+                        "index": 0,
+                        "name": "str_replace_workspace_file",
+                        "args": '{"relative_path": "a.py"}',
+                        "id": streamed_call_id,
+                    }
+                ]
+            interceptor.on_chunk(_StartChunk())
+
+        gather = MockChunk(
+            content="",
+            tool_calls=[
+                {
+                    "id": "c1",
+                    "name": "str_replace_workspace_file",
+                    "args": {
+                        "relative_path": "a.py",
+                        "old_string": "x",
+                        "new_string": "y",
+                    },
+                }
+            ],
+        )
+        messages: list = []
+        return await _collect_events(
+            loop.execute_round(gather, "", messages, interceptor)
+        )
+
+    async def test_streamed_then_error_emits_dismissed(self):
+        events = await self._run("c1")
+        finals = [e for e in events if e.type == "file_proposal"]
+        assert len(finals) == 1
+        assert finals[0].status == "dismissed"
+        assert finals[0].image_path == "a.py"
+
+    async def test_not_streamed_error_emits_no_final(self):
+        events = await self._run(None)
+        assert [e for e in events if e.type == "file_proposal"] == []

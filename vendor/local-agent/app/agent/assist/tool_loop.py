@@ -40,6 +40,7 @@ from app.agent.tools.tool_result import (
 )
 from app.agent.tools.workspace_file_reader import (
     FILE_PROPOSAL_TOOLS,
+    STR_REPLACE_TOOL_NAME,
     VISION_TOOL_NAME,
     extract_vision_path_from_tool_result,
     extract_doc_proposal_from_tool_result,
@@ -221,6 +222,7 @@ async def _stream_tool_execution(
     settings: Settings,
     messages: list,
     omit_file_proposal_start_delta: set[str] | None = None,
+    streamed_paths_by_call_id: dict[str, str] | None = None,
     result_text: str | None = None,
 ) -> AsyncIterator[StreamEventPayload]:
     """执行单个同步工具，产出 tool_start / tool_result / file_proposal* 事件。"""
@@ -281,6 +283,21 @@ async def _stream_tool_execution(
     )
     messages.append(ToolMessage(content=display_result, tool_call_id=tool_id))
 
+    if doc_proposal is None and name in FILE_PROPOSAL_TOOLS and streamed_paths_by_call_id:
+        # 工具执行失败（如 old_string 未命中）：拦截器流式期间已为该路径出卡
+        # （pending 块 content 为空/不完整）。补发 dismissed 终态让前端收掉
+        # 悬挂卡片，否则 Keep All 会把空内容写盘。
+        streamed_path = streamed_paths_by_call_id.get(tool_id)
+        if streamed_path:
+            yield StreamEventPayload(
+                type="file_proposal",
+                summary=str(args.get("relative_path") or streamed_path),
+                content="",
+                image_path=streamed_path,
+                mode="edit" if name == STR_REPLACE_TOOL_NAME else "write",
+                status="dismissed",
+            )
+
     if doc_proposal:
         full_content = doc_proposal["content"]
         rel_path = doc_proposal["relative_path"]
@@ -313,6 +330,7 @@ async def _stream_tool_execution(
                 content=full_content,
                 image_path=rel_path,
                 mode=operation,
+                old_path=str(doc_proposal.get("old_path") or "") or None,
             )
 
     if vision_path and provider_is_vision:
@@ -595,7 +613,8 @@ class ToolLoopRunner:
             if not split.immediate and not split.async_pending:
                 return
 
-        streamed_paths = interceptor.collected_paths()
+        streamed_paths_by_call_id = interceptor.streamed_paths_by_call_id()
+        streamed_paths = set(streamed_paths_by_call_id.values())
 
         explore_calls = [
             call
@@ -632,6 +651,7 @@ class ToolLoopRunner:
                 settings=self.settings,
                 messages=messages,
                 omit_file_proposal_start_delta=streamed_paths,
+                streamed_paths_by_call_id=streamed_paths_by_call_id,
                 result_text=precomputed.get(call.tool_call_id),
             ):
                 yield event

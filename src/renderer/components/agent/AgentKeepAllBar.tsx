@@ -67,7 +67,12 @@ export default function AgentKeepAllBar() {
               workspaceRoot: rootPath,
               relativePath: item.path,
               newContent: item.newContent ?? '',
-              operation: item.operation === 'delete' ? 'delete' : 'write',
+              operation:
+                item.operation === 'delete'
+                  ? 'delete'
+                  : item.operation === 'rename'
+                    ? 'rename'
+                    : 'write',
             });
             next[item.id] = stats;
           }

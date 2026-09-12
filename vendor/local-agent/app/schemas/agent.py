@@ -175,6 +175,11 @@ class StreamEventPayload(BaseModel):
     query: str | None = None
     focus_path: str | None = None
     inner_tool_call_id: str | None = None
+    # file_edit_delta：str_replace 流式期间 old_string / new_string 的增量片段
+    old_delta: str | None = None
+    new_delta: str | None = None
+    # rename 提案：原路径（relative_path 为新路径）
+    old_path: str | None = None
 
     def to_sse_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {"type": self.type}
@@ -223,6 +228,11 @@ class StreamEventPayload(BaseModel):
                 "document_proposal",
             ):
                 data["operation"] = self.mode
+        if self.old_path is not None and self.type in (
+            "file_proposal_start",
+            "file_proposal",
+        ):
+            data["oldPath"] = self.old_path
         if self.domain is not None:
             data["domain"] = self.domain
         if self.target is not None:
@@ -235,6 +245,10 @@ class StreamEventPayload(BaseModel):
             data["focusPath"] = self.focus_path
         if self.inner_tool_call_id is not None:
             data["innerToolCallId"] = self.inner_tool_call_id
+        if self.old_delta is not None:
+            data["oldDelta"] = self.old_delta
+        if self.new_delta is not None:
+            data["newDelta"] = self.new_delta
         if self.client_tool_calls is not None:
             serialized = [
                 {

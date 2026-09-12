@@ -13,6 +13,10 @@ import {
   scheduleEditorLayout,
   waitForEditorContainer,
 } from './monacoEditorHelpers';
+import {
+  consumeChangedPath,
+  peekChangedPath,
+} from '../../services/agentFilePreviewStore';
 import './MonacoTextEditor.css';
 
 /** Align with --vscode-font-size (15px) in annotation preview. */
@@ -167,12 +171,19 @@ export default function MonacoTextEditor({
 
     const isStale = () => cancelled || generation !== loadGenerationRef.current;
     const previewText = previewContentRef.current;
-    const forceReload =
-      previewText !== undefined || diskEpoch !== diskEpochRef.current;
 
     const run = async () => {
       const editorInstance = await ensureEditor();
       if (isStale() || !editorInstance) return;
+
+      // Keep All 落盘后强制重读磁盘：事件可能在 filePath prop 为 ''（diff
+      // 预览期间）时被吞掉，此处兜底探测待处理变更。加载成功后才消费标记，
+      // 被作废的加载会把标记留给下次激活。
+      const diskChanged = peekChangedPath(filePath);
+      const forceReload =
+        previewText !== undefined ||
+        diskEpoch !== diskEpochRef.current ||
+        diskChanged;
 
       const previousPath = currentPathRef.current;
       const existingModel = getDocumentModel(filePath);
@@ -204,6 +215,14 @@ export default function MonacoTextEditor({
       if (isStale()) return;
 
       attachDocumentToEditor(editorInstance, filePath, model, previousPath);
+      // 磁盘重载后同步 savedText，否则 openDocument 复用旧 savedText 会把
+      // tab 误标为有未保存修改
+      if (diskChanged || (previewText === undefined && diskEpoch !== diskEpochRef.current)) {
+        markDocumentSaved(filePath, text);
+      }
+      if (diskChanged) {
+        consumeChangedPath(filePath);
+      }
       if (previewText !== undefined) {
         markDocumentSaved(filePath, text);
         onDirtyChangeRef.current(currentTabIdRef.current, false);

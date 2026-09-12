@@ -28,6 +28,7 @@ WORKSPACE_WRITE_TOOLS: frozenset[str] = frozenset(
         "write_workspace_file",
         "str_replace_workspace_file",
         "delete_workspace_file",
+        "move_workspace_file",
     }
 )
 

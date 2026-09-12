@@ -378,6 +378,10 @@ export default function AgentAssistantMessage({
           relativePath={block.suggestedRelativePath}
           newContent={block.content}
           operation={block.operation}
+          oldPath={block.oldPath}
+          editOld={block.oldString}
+          editNew={block.newString}
+          streaming={!block.contentFinalized}
         />
       );
     }

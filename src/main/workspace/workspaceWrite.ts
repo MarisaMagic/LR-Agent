@@ -147,3 +147,37 @@ export async function deleteScopedTextFile(
     };
   }
 }
+
+export async function moveScopedTextFile(
+  rootDir: string,
+  relativePath: string,
+  newRelativePath: string,
+): Promise<{ success: boolean; filePath?: string; error?: string }> {
+  const src = resolveScopedTextPath(rootDir, relativePath);
+  if ('error' in src) {
+    return { success: false, error: src.error };
+  }
+  const dst = resolveScopedTextPath(rootDir, newRelativePath);
+  if ('error' in dst) {
+    return { success: false, error: dst.error };
+  }
+  if (
+    !(await isRealPathWithinRoot(rootDir, src.absolutePath)) ||
+    !(await isRealPathWithinRoot(rootDir, dst.absolutePath))
+  ) {
+    return { success: false, error: 'path_outside_root' };
+  }
+  try {
+    if (await fs.pathExists(dst.absolutePath)) {
+      return { success: false, error: 'target_exists' };
+    }
+    await fs.ensureDir(path.dirname(dst.absolutePath));
+    await fs.move(src.absolutePath, dst.absolutePath);
+    return { success: true, filePath: dst.absolutePath };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'move_failed',
+    };
+  }
+}

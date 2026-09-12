@@ -32,6 +32,7 @@ from app.agent.tools.workspace_file_reader import (
     read_workspace_text_file,
     str_replace_workspace_file_tool,
     delete_workspace_file_tool,
+    move_workspace_file_tool,
     write_workspace_file_tool,
 )
 from app.agent.tools.workspace_search import (
@@ -146,6 +147,14 @@ class DeleteWorkspaceFileArgs(BaseModel):
     relative_path: str = Field(min_length=1, description="要删除的相对路径")
 
 
+class MoveWorkspaceFileArgs(BaseModel):
+    relative_path: str = Field(min_length=1, description="原相对路径")
+    new_relative_path: str = Field(
+        min_length=1,
+        description="新相对路径（同目录改名为重命名，跨目录为移动）",
+    )
+
+
 class ExploreReadonlyArgs(BaseModel):
     query: str = Field(min_length=1, description="要查阅的问题或目标")
     focus_path: str | None = Field(
@@ -207,6 +216,10 @@ def _build_all_tools(
     provider_is_vision: bool = False,
 ) -> list[StructuredTool]:
     """构建工具集：只读工具 + 写文件提案工具 + 客户端工具 schema 存根。"""
+    # 本轮请求内未落盘提案的内容接力（见 workspace_file_reader.PendingProposalContents），
+    # 工具集每次请求重建，缓存生命周期即一轮。
+    pending_proposals: dict[str, tuple[str | None, str]] = {}
+
     def account_summary() -> str:
         # 本地无状态模式（agent.py 注入匿名用户）：如实说明，不展示占位账户
         if user.username == "anonymous" and str(user.email).endswith("@local"):
@@ -342,7 +355,9 @@ def _build_all_tools(
         return read_document_file(client_context, relative_path, settings=settings)
 
     def write_file(relative_path: str, content: str) -> str:
-        return write_workspace_file_tool(client_context, relative_path, content)
+        return write_workspace_file_tool(
+            client_context, relative_path, content, pending_proposals
+        )
 
     def str_replace_file(
         relative_path: str,
@@ -356,10 +371,18 @@ def _build_all_tools(
             old_string,
             new_string,
             replace_all=replace_all,
+            pending_proposals=pending_proposals,
         )
 
     def delete_file(relative_path: str) -> str:
-        return delete_workspace_file_tool(client_context, relative_path)
+        return delete_workspace_file_tool(
+            client_context, relative_path, pending_proposals
+        )
+
+    def move_file(relative_path: str, new_relative_path: str) -> str:
+        return move_workspace_file_tool(
+            client_context, relative_path, new_relative_path, pending_proposals
+        )
 
     # Phase 1 工具集（只读 + 写文件提案）
     tools = [
@@ -454,7 +477,8 @@ def _build_all_tools(
                 "在工作区内创建或覆写文本/代码文件（如 .md .py .ts）。"
                 "生成提案，用户 Keep All 后才落盘。"
                 "只用于工作区文档与代码，不能用来保存标注。"
-                "删文件请用 delete_workspace_file，不要写入空内容。"
+                "删文件请用 delete_workspace_file，不要写入空内容；"
+                "移动/重命名文件请用 move_workspace_file。"
             ),
         ),
         StructuredTool.from_function(
@@ -475,6 +499,16 @@ def _build_all_tools(
                 "用户确认 Keep All 后才从磁盘移除。不能删除标注。"
             ),
             args_schema=DeleteWorkspaceFileArgs,
+        ),
+        StructuredTool.from_function(
+            func=move_file,
+            name="move_workspace_file",
+            description=(
+                "移动或重命名工作区内的文本/代码文件，生成移动提案。"
+                "用户确认 Keep All 后才在磁盘执行。"
+                "禁止用「读出内容再写到新路径」来移动文件。"
+            ),
+            args_schema=MoveWorkspaceFileArgs,
         ),
         # ── 客户端工具（schema 存根，实现体在前端 Electron 进程）────────────
         StructuredTool.from_function(

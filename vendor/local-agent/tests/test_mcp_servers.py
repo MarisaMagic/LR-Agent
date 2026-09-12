@@ -47,11 +47,13 @@ def _patch_client(monkeypatch):
     _FakeClient.instances = []
     _FakeClient.fail_on = set()
     _FakeClient.tools_by_server = {}
+    mcp_client.clear_mcp_tools_cache()
     monkeypatch.setattr(
         "langchain_mcp_adapters.client.MultiServerMCPClient",
         _FakeClient,
     )
     yield
+    mcp_client.clear_mcp_tools_cache()
 
 
 async def test_local_url_appends_mcp_endpoint():
@@ -165,3 +167,77 @@ async def test_disabled_tools_are_filtered_before_dedup():
     ]
     tools = await mcp_client.load_mcp_tools_from_servers(None, servers)
     assert [t.name for t in tools] == ["tavily_search"]
+
+
+# ── 工具发现 TTL 缓存 ────────────────────────────────────────────────
+
+
+async def test_cache_hit_skips_second_discovery():
+    _FakeClient.tools_by_server["lr-agent-local"] = [_tool("memory_read")]
+    first = await mcp_client.load_mcp_tools_from_servers(
+        "http://127.0.0.1:9000", []
+    )
+    assert len(_FakeClient.instances) == 1
+    second = await mcp_client.load_mcp_tools_from_servers(
+        "http://127.0.0.1:9000", []
+    )
+    # 命中缓存：不重新建连
+    assert len(_FakeClient.instances) == 1
+    assert [t.name for t in first] == ["memory_read"]
+    assert [t.name for t in second] == ["memory_read"]
+
+
+async def test_ttl_zero_bypasses_cache():
+    _FakeClient.tools_by_server["lr-agent-local"] = [_tool("memory_read")]
+    await mcp_client.load_mcp_tools_from_servers(
+        "http://127.0.0.1:9000", [], ttl_seconds=0
+    )
+    await mcp_client.load_mcp_tools_from_servers(
+        "http://127.0.0.1:9000", [], ttl_seconds=0
+    )
+    assert len(_FakeClient.instances) == 2
+
+
+async def test_different_headers_discover_separately():
+    _FakeClient.tools_by_server["mcp-remote-a"] = [_tool("tool_a")]
+    await mcp_client.load_mcp_tools_from_servers(
+        None, [_Server("a", "https://a.example.com/mcp", headers={"K": "1"})]
+    )
+    await mcp_client.load_mcp_tools_from_servers(
+        None, [_Server("a", "https://a.example.com/mcp", headers={"K": "2"})]
+    )
+    assert len(_FakeClient.instances) == 2
+
+
+async def test_disabled_tools_filter_applies_to_cached_result():
+    """缓存存原始发现结果：运行时改 disabled_tools 立即生效，无需重新建连。"""
+    _FakeClient.tools_by_server["mcp-remote-a"] = [
+        _tool("tool_a"),
+        _tool("tool_b"),
+    ]
+    tools_all = await mcp_client.load_mcp_tools_from_servers(
+        None, [_Server("a", "https://a.example.com/mcp")]
+    )
+    assert [t.name for t in tools_all] == ["tool_a", "tool_b"]
+    tools_filtered = await mcp_client.load_mcp_tools_from_servers(
+        None,
+        [_Server("a", "https://a.example.com/mcp", disabled_tools=["tool_b"])],
+    )
+    assert len(_FakeClient.instances) == 1
+    assert [t.name for t in tools_filtered] == ["tool_a"]
+
+
+async def test_failed_discovery_not_cached():
+    _FakeClient.fail_on.add("lr-agent-local")
+    first = await mcp_client.load_mcp_tools_from_servers(
+        "http://127.0.0.1:9000", []
+    )
+    assert first == []
+    _FakeClient.fail_on.clear()
+    _FakeClient.tools_by_server["lr-agent-local"] = [_tool("memory_read")]
+    second = await mcp_client.load_mcp_tools_from_servers(
+        "http://127.0.0.1:9000", []
+    )
+    # 失败不写缓存：第二次重新发现成功
+    assert len(_FakeClient.instances) == 2
+    assert [t.name for t in second] == ["memory_read"]

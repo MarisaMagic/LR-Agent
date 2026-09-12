@@ -4,6 +4,7 @@ import {
   readScopedTextFile,
   writeScopedTextFile,
   deleteScopedTextFile,
+  moveScopedTextFile,
 } from './workspaceWrite';
 import { isWithinAuthorizedRoot } from '../security/authorizedRoots';
 
@@ -53,6 +54,38 @@ export function registerWorkspaceHandlers(): void {
           win.webContents.send(
             'file-system:changed',
             path.join(payload.rootDir, path.dirname(payload.relativePath)),
+          );
+        });
+      }
+      return result;
+    },
+  );
+
+  ipcMain.handle(
+    'workspace:moveTextFile',
+    async (
+      _event,
+      payload: {
+        rootDir: string;
+        relativePath: string;
+        newRelativePath: string;
+      },
+    ) => {
+      if (!isWithinAuthorizedRoot(payload?.rootDir)) return FORBIDDEN;
+      const result = await moveScopedTextFile(
+        payload.rootDir,
+        payload.relativePath,
+        payload.newRelativePath,
+      );
+      if (result.success) {
+        BrowserWindow.getAllWindows().forEach((win) => {
+          win.webContents.send(
+            'file-system:changed',
+            path.join(payload.rootDir, path.dirname(payload.relativePath)),
+          );
+          win.webContents.send(
+            'file-system:changed',
+            path.join(payload.rootDir, path.dirname(payload.newRelativePath)),
           );
         });
       }

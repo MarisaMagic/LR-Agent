@@ -29,6 +29,7 @@ def test_light_still_has_write_workspace_file():
     assert "write_workspace_file" in LIGHT_TOOL_SET
     assert "str_replace_workspace_file" in LIGHT_TOOL_SET
     assert "delete_workspace_file" in LIGHT_TOOL_SET
+    assert "move_workspace_file" in LIGHT_TOOL_SET
     assert "glob_workspace" in LIGHT_TOOL_SET
     assert "explore_readonly" in LIGHT_TOOL_SET
     assert "auto_annotate" not in LIGHT_TOOL_SET
@@ -76,6 +77,7 @@ def test_resolve_editor_agent_is_light():
     )
     assert tools == LIGHT_TOOL_SET
     assert "write_workspace_file" in tools
+    assert "move_workspace_file" in tools
     assert "auto_annotate" not in tools
 
 

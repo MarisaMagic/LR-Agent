@@ -6,10 +6,9 @@ import { useAgentFilePreview } from '../../hooks/useAgentFilePreview';
 import { pathsEqual } from '../../services/agentFilePreviewStore';
 import { checkBinaryFile } from '../../utils/binaryFileDetect';
 import { isMonacoEditableFile } from '../../utils/editorFileTypes';
-import { computeLineDiff } from '../../utils/fileDiffStats';
 import EditorPane from './EditorPane';
 import MonacoTextEditor from './MonacoTextEditor';
-import AgentFileDiffView from '../agent/AgentFileDiffView';
+import MonacoDiffView from './MonacoDiffView';
 import './EditorWorkspace.css';
 
 export default function EditorWorkspace() {
@@ -29,10 +28,11 @@ export default function EditorWorkspace() {
     pathsEqual(filePreview.absolutePath, activeTab.filePath),
   );
 
-  const previewDiff = useMemo(() => {
-    if (!previewForActiveTab || !filePreview) return null;
-    return computeLineDiff(filePreview.oldContent, filePreview.newContent);
-  }, [filePreview, previewForActiveTab]);
+  // 预览默认只显示变更区域（Monaco hideUnchangedRegions），避免小改动也要滚完整份文件
+  const [previewCollapsed, setPreviewCollapsed] = useState(true);
+  useEffect(() => {
+    setPreviewCollapsed(true);
+  }, [filePreview]);
 
   const hasTabs = openTabs.length > 0;
   const [activeTabBinary, setActiveTabBinary] = useState(false);
@@ -70,7 +70,7 @@ export default function EditorWorkspace() {
     !previewForActiveTab,
   );
   const showFileDiffPreview = Boolean(
-    workMode === 'editor' && previewForActiveTab && previewDiff,
+    workMode === 'editor' && previewForActiveTab && filePreview,
   );
   const showOverlay = showSharedMonaco || showFileDiffPreview;
 
@@ -139,7 +139,22 @@ export default function EditorWorkspace() {
           className={`shared-monaco-layer${showOverlay ? '' : ' shared-monaco-layer--hidden'}`}
           aria-hidden={!showOverlay}
         >
-          {showFileDiffPreview && filePreview && previewDiff ? (
+          {/* 编辑器实例保持挂载，预览只是在其上层叠 diff 视图，切换不重建 */}
+          <div
+            className={`shared-monaco-host${
+              showSharedMonaco ? '' : ' shared-monaco-host--hidden'
+            }`}
+          >
+            <MonacoTextEditor
+              filePath={showSharedMonaco ? (activeTab?.filePath ?? '') : ''}
+              tabId={activeTab?.id ?? ''}
+              dirty={activeTab?.dirty ?? false}
+              readOnly={false}
+              visible={showSharedMonaco}
+              onDirtyChange={handleDirtyChange}
+            />
+          </div>
+          {showFileDiffPreview && filePreview ? (
             <>
               <div
                 className={`agent-preview-banner${
@@ -152,23 +167,24 @@ export default function EditorWorkspace() {
                 {filePreview.operation === 'delete'
                   ? '删除预览（未应用）— 红色为将删除的内容'
                   : '提案预览（未应用）— 绿色为新增，红色为删除'}
+                <button
+                  type="button"
+                  className="editor-workspace__diff-toggle"
+                  onClick={() => setPreviewCollapsed((full) => !full)}
+                >
+                  {previewCollapsed ? '展开全部变更' : '收起为变更区域'}
+                </button>
               </div>
-              <AgentFileDiffView
+              <MonacoDiffView
                 fill
-                lines={previewDiff.lines}
                 relativePath={filePreview.relativePath}
+                oldContent={filePreview.oldContent}
+                newContent={filePreview.newContent}
+                collapseUnchanged={previewCollapsed}
+                revealFirstChange
               />
             </>
-          ) : (
-            <MonacoTextEditor
-              filePath={showSharedMonaco ? (activeTab?.filePath ?? '') : ''}
-              tabId={activeTab?.id ?? ''}
-              dirty={activeTab?.dirty ?? false}
-              readOnly={false}
-              visible={showSharedMonaco}
-              onDirtyChange={handleDirtyChange}
-            />
-          )}
+          ) : null}
         </div>
       </div>
     </div>

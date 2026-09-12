@@ -13,8 +13,10 @@ export interface LineDiffResult {
   lines: DiffDisplayLine[];
 }
 
-const MAX_DIFF_LINES = 500;
-
+/**
+ * 行级 diff，主要用于 +/- 统计与占位判断；
+ * diff 的可视化渲染统一交给 MonacoDiffView（Monaco DiffEditor）。
+ */
 export function computeLineDiff(
   oldText: string,
   newText: string,
@@ -46,66 +48,7 @@ export function computeLineDiff(
     }
   }
 
-  if (lines.length > MAX_DIFF_LINES) {
-    const changed = lines.filter((l) => l.kind !== 'unchanged');
-    const head = changed.slice(0, Math.floor(MAX_DIFF_LINES / 2));
-    const tail = changed.slice(-Math.floor(MAX_DIFF_LINES / 2));
-    return {
-      additions,
-      deletions,
-      lines: [
-        ...head,
-        {
-          kind: 'unchanged',
-          text: `… 省略 ${lines.length - head.length - tail.length} 行 …`,
-        },
-        ...tail,
-      ],
-    };
-  }
-
   return { additions, deletions, lines };
-}
-
-/** 折叠视图：优先展示变更行及前后各 contextLines 行上下文。 */
-export function pickCollapsedDiffLines(
-  lines: DiffDisplayLine[],
-  contextLines = 2,
-): { lines: DiffDisplayLine[]; hasMore: boolean } {
-  if (lines.every((l) => l.kind === 'unchanged')) {
-    return { lines: lines.slice(0, 8), hasMore: lines.length > 8 };
-  }
-
-  const indices = new Set<number>();
-  lines.forEach((line, index) => {
-    if (line.kind !== 'unchanged') {
-      for (
-        let i = Math.max(0, index - contextLines);
-        i <= Math.min(lines.length - 1, index + contextLines);
-        i += 1
-      ) {
-        indices.add(i);
-      }
-    }
-  });
-
-  const sorted = [...indices].sort((a, b) => a - b);
-  const picked: DiffDisplayLine[] = [];
-  let last = -2;
-  for (const index of sorted) {
-    if (index > last + 1) {
-      picked.push({ kind: 'unchanged', text: '…' });
-    }
-    picked.push(lines[index]);
-    last = index;
-  }
-
-  return {
-    lines: picked,
-    hasMore:
-      sorted.length <
-      lines.filter((l) => l.kind !== 'unchanged').length + sorted.length,
-  };
 }
 
 export function proposalAnchorId(

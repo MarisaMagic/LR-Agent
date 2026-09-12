@@ -39,6 +39,7 @@ from app.schemas.agent import (
     ClientContextInput,
     LocalChatStreamRequest,
     McpProbeRequest,
+    StreamEventPayload,
 )
 
 logger = logging.getLogger(__name__)
@@ -214,12 +215,22 @@ async def _stream_local_chat(body: LocalChatStreamRequest, settings) -> Any:
                 (client_ctx.mcp_server_token or "").strip() if client_ctx else ""
             )
             if mcp_url or remote_mcp:
+                # 先发一个 preparing 事件，MCP 发现（建连 + 列工具）期间渲染层即有反馈
+                yield (
+                    "data: "
+                    + json.dumps(
+                        StreamEventPayload(type="preparing", stage="mcp").to_sse_dict(),
+                        ensure_ascii=False,
+                    )
+                    + "\n\n"
+                )
                 try:
                     mcp_tools = await load_mcp_tools_from_servers(
                         mcp_url or None,
                         remote_mcp,
                         local_server_token=local_mcp_token or None,
                         existing_capabilities=CANONICAL_CAPABILITIES,
+                        ttl_seconds=settings.agent_mcp_tools_ttl_seconds,
                     )
                     if mcp_tools:
                         memory_on = bool(

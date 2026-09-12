@@ -28,8 +28,12 @@ export async function computeFileProposalDiffStats(options: {
   workspaceRoot: string | null;
   relativePath: string;
   newContent: string;
-  operation?: 'write' | 'delete';
+  operation?: 'write' | 'delete' | 'rename';
 }): Promise<{ additions: number; deletions: number }> {
+  if (options.operation === 'rename') {
+    // 移动/重命名不改变文件内容，没有 +/- 行数
+    return { additions: 0, deletions: 0 };
+  }
   const { content: oldContent, exists } = await readWorkspaceTextFile({
     project: options.project,
     workspaceRoot: options.workspaceRoot,

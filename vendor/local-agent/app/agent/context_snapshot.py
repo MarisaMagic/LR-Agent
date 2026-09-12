@@ -119,11 +119,20 @@ def format_snapshot_for_prompt(snapshot: AnnotationProjectSnapshotInput) -> str:
     return "\n".join(lines)
 
 
+# 文件编辑纪律：仅在允许写工作区的模式下注入（见 build_workspace_assistant_system_prompt）
+FILE_EDIT_GUIDE = """【文件编辑纪律】
+- 修改已有文件的局部内容时，必须优先用 str_replace_workspace_file（old_string → new_string），禁止用 write_workspace_file 整文件重写来改几行。
+- 编辑前必须先 read_workspace_file 看原文；old_string 从真实原文中原样复制（含缩进与空白），禁止凭记忆编写。
+- old_string 取最小但唯一的片段：太短容易命中多处，必要时前后多带几行上下文。
+- new_string 保持与上下文一致的缩进与换行风格；替换后的全文必须是合法代码/文档。
+- 同一文件多处修改：连续多次调用 str_replace_workspace_file（提案自动累积为一份），不要为省事整文件重写。"""
+
+
 def build_workspace_assistant_system_prompt(client_context: ClientContextInput | None) -> str:
     task = WORKSPACE_ASSIST_TASK.format(vision_hint=VISION_HINT)
+    parts = [task, FILE_EDIT_GUIDE]
     if client_context is None:
-        return task
-    parts = [task]
+        return "\n".join(parts)
     if client_context.workspace_root:
         parts.append(f"\n【工作区】\n根目录: {client_context.workspace_root}")
     if client_context.active_file_path:
@@ -191,7 +200,7 @@ def build_assist_system_prompt(
             editor_note = (
                 "\n【编辑器模式】当前为编辑器 Agent：禁止调用标注读写、批量标注、标注变更相关工具；"
                 "可使用 read_workspace_file、write_workspace_file、"
-                "str_replace_workspace_file、read_document_file 等通用工具。"
+                "str_replace_workspace_file、move_workspace_file、read_document_file 等通用工具。"
             )
         else:
             editor_note = (

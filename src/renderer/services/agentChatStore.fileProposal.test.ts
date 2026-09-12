@@ -184,7 +184,9 @@ describe('resolveFileProposalOperation', () => {
     expect(blocks[1]).toMatchObject({ operation: 'delete' });
   });
 
-  it('keeps applied status and hasCheckpoint when the same file is streamed again', () => {
+  it('re-streaming the same file resets applied status so the new round can be applied again', () => {
+    // 回归：同一文件 Keep All 之后，新一轮修改提案（新的 start）必须回到
+    // pending，否则 Keep All 不再收集它，落盘静默失效。
     let blocks: MessageBlock[] = [
       {
         type: 'file_proposal',
@@ -201,10 +203,12 @@ describe('resolveFileProposalOperation', () => {
       suggestedRelativePath: 'doc.md',
       detail: '0',
     });
+    // 新一轮提案回到 pending，仅沿用上一轮的 hasCheckpoint 供 Undo 展示
     expect(blocks[0]).toMatchObject({
       type: 'file_proposal',
-      status: 'applied',
+      status: 'pending',
       hasCheckpoint: true,
+      content: '',
     });
     blocks = applyStreamEventToBlocks(blocks, {
       type: 'file_proposal',
@@ -214,9 +218,241 @@ describe('resolveFileProposalOperation', () => {
     } as unknown as StreamEvent);
     expect(blocks[0]).toMatchObject({
       type: 'file_proposal',
-      status: 'applied',
+      status: 'pending',
       hasCheckpoint: true,
       content: 'newer',
+    });
+  });
+
+  it('keeps applied status when a late final event replays without a new start', () => {
+    // 同一提案生命周期内的迟到重复 SSE 不得把已应用状态冲回 pending
+    let blocks: MessageBlock[] = [
+      {
+        type: 'file_proposal',
+        title: 'Doc',
+        content: 'kept',
+        suggestedRelativePath: 'doc.md',
+        status: 'applied',
+        hasCheckpoint: true,
+      },
+    ];
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal',
+      content: 'kept',
+      image_path: 'doc.md',
+      summary: 'Doc',
+    } as unknown as StreamEvent);
+    expect(blocks[0]).toMatchObject({
+      type: 'file_proposal',
+      status: 'applied',
+      hasCheckpoint: true,
+    });
+  });
+
+  it('merges proposal blocks whose paths only differ in spelling', () => {
+    // 回归：流式事件的原始路径与定稿事件的归一化路径（反斜杠、./ 前缀）
+    // 不应裂成两张卡片。
+    let blocks = applyStreamEventToBlocks([], {
+      type: 'file_proposal_start',
+      title: 'Doc',
+      suggestedRelativePath: './docs\\a.md',
+      detail: '0',
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal_delta',
+      content: 'hello',
+      suggestedRelativePath: 'docs\\a.md',
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal',
+      content: 'hello world',
+      image_path: 'docs/a.md',
+      summary: 'Doc',
+    } as unknown as StreamEvent);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      type: 'file_proposal',
+      suggestedRelativePath: 'docs/a.md',
+      content: 'hello world',
+    });
+  });
+
+  it('drops deltas appended after the full content event without a new start', () => {
+    // 回归：流式拦截器跨轮状态错乱时，会把另一文件的内容 delta 错标到
+    // 本路径上；全量事件已定稿的 block 不能再被追加，否则 Keep All 会把
+    // 串写的内容原样落盘。
+    let blocks = applyStreamEventToBlocks([], {
+      type: 'file_proposal_start',
+      title: 'Union Find',
+      suggestedRelativePath: 'algorithm/union_find.h',
+      detail: '0',
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal_delta',
+      content: '#ifndef UNION_FIND_H\n',
+      suggestedRelativePath: 'algorithm/union_find.h',
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal',
+      content: '#ifndef UNION_FIND_H\n#endif\n',
+      image_path: 'algorithm/union_find.h',
+      summary: 'Union Find',
+    } as unknown as StreamEvent);
+
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal_delta',
+      content: 'int main() { /* 来自 test.cpp 的串写内容 */ }',
+      suggestedRelativePath: 'algorithm/union_find.h',
+    });
+
+    expect(blocks[0]).toMatchObject({
+      type: 'file_proposal',
+      content: '#ifndef UNION_FIND_H\n#endif\n',
+    });
+  });
+
+  it('re-streaming the same file resets content so new deltas append cleanly', () => {
+    // 合法场景：新一轮推理重写同一文件，start 重置后 delta 应正常累积。
+    let blocks = applyStreamEventToBlocks([], {
+      type: 'file_proposal_start',
+      title: 'Doc',
+      suggestedRelativePath: 'doc.md',
+      detail: '0',
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal',
+      content: 'old full content',
+      image_path: 'doc.md',
+      summary: 'Doc',
+    } as unknown as StreamEvent);
+
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal_start',
+      title: 'Doc',
+      suggestedRelativePath: 'doc.md',
+      detail: '0',
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal_delta',
+      content: 'new ',
+      suggestedRelativePath: 'doc.md',
+    });
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal_delta',
+      content: 'content',
+      suggestedRelativePath: 'doc.md',
+    });
+
+    expect(blocks[0]).toMatchObject({
+      type: 'file_proposal',
+      content: 'new content',
+      contentFinalized: false,
+    });
+  });
+});
+
+describe('applyStreamEventToBlocks file_edit_delta', () => {
+  const startEvent = {
+    type: 'file_proposal_start',
+    title: 'Doc',
+    suggestedRelativePath: 'doc.md',
+    detail: '0',
+    mode: 'edit',
+  } as unknown as Parameters<typeof applyStreamEventToBlocks>[1];
+
+  it('accumulates oldString/newString from edit deltas', () => {
+    let blocks = applyStreamEventToBlocks([], startEvent);
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_edit_delta',
+      oldDelta: 'print(1)',
+      suggestedRelativePath: 'doc.md',
+    } as unknown as StreamEvent);
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_edit_delta',
+      newDelta: 'print(',
+      oldDelta: undefined,
+      suggestedRelativePath: 'doc.md',
+    } as unknown as StreamEvent);
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_edit_delta',
+      newDelta: '2)',
+      suggestedRelativePath: 'doc.md',
+    } as unknown as StreamEvent);
+
+    expect(blocks[0]).toMatchObject({
+      type: 'file_proposal',
+      oldString: 'print(1)',
+      newString: 'print(2)',
+      content: '',
+      contentFinalized: false,
+    });
+  });
+
+  it('drops late edit deltas after finalization and clears streaming fields', () => {
+    let blocks = applyStreamEventToBlocks([], startEvent);
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_edit_delta',
+      oldDelta: 'old',
+      newDelta: 'new',
+      suggestedRelativePath: 'doc.md',
+    } as unknown as StreamEvent);
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal',
+      content: 'full new content',
+      image_path: 'doc.md',
+      summary: 'Doc',
+      mode: 'edit',
+    } as unknown as StreamEvent);
+
+    expect(blocks[0]).toMatchObject({
+      type: 'file_proposal',
+      content: 'full new content',
+      contentFinalized: true,
+    });
+    expect(blocks[0]).not.toHaveProperty('oldString');
+    expect(blocks[0]).not.toHaveProperty('newString');
+
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_edit_delta',
+      oldDelta: 'stray',
+      newDelta: 'stray',
+      suggestedRelativePath: 'doc.md',
+    } as unknown as StreamEvent);
+    expect(blocks[0]).toMatchObject({ content: 'full new content' });
+  });
+
+  it('stores rename operation and oldPath from the final event', () => {
+    const blocks = applyStreamEventToBlocks([], {
+      type: 'file_proposal',
+      content: '',
+      image_path: 'docs/renamed.md',
+      old_path: 'docs/old-name.md',
+      summary: '移动 notes',
+      mode: 'rename',
+    } as unknown as StreamEvent);
+
+    expect(blocks[0]).toMatchObject({
+      type: 'file_proposal',
+      operation: 'rename',
+      suggestedRelativePath: 'docs/renamed.md',
+      oldPath: 'docs/old-name.md',
+    });
+  });
+
+  it('stores dismissed status from an error-cleanup final event', () => {
+    let blocks = applyStreamEventToBlocks([], startEvent);
+    blocks = applyStreamEventToBlocks(blocks, {
+      type: 'file_proposal',
+      content: '',
+      image_path: 'doc.md',
+      summary: 'Doc',
+      mode: 'edit',
+      status: 'dismissed',
+    } as unknown as StreamEvent);
+    expect(blocks[0]).toMatchObject({
+      type: 'file_proposal',
+      status: 'dismissed',
     });
   });
 });

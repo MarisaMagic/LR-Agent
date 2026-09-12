@@ -1,4 +1,4 @@
-import { computeLineDiff, pickCollapsedDiffLines } from './fileDiffStats';
+import { computeLineDiff } from './fileDiffStats';
 
 describe('computeLineDiff', () => {
   it('counts all lines as additions for new file', () => {
@@ -21,20 +21,5 @@ describe('computeLineDiff', () => {
     const result = computeLineDiff(text, text);
     expect(result.additions).toBe(0);
     expect(result.deletions).toBe(0);
-  });
-});
-
-describe('pickCollapsedDiffLines', () => {
-  it('includes context around changed lines', () => {
-    const lines = [
-      { kind: 'unchanged' as const, text: 'a' },
-      { kind: 'unchanged' as const, text: 'b' },
-      { kind: 'removed' as const, text: 'old' },
-      { kind: 'added' as const, text: 'new' },
-      { kind: 'unchanged' as const, text: 'c' },
-    ];
-    const picked = pickCollapsedDiffLines(lines, 1);
-    expect(picked.lines.some((l) => l.text === 'old')).toBe(true);
-    expect(picked.lines.some((l) => l.text === 'new')).toBe(true);
   });
 });

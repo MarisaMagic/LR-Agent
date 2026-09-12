@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     # Assist 工具循环
     agent_max_tool_rounds: int = 20
     agent_subagent_max_tool_rounds: int = 8
+    # MCP 工具发现结果缓存时长（秒）：避免每条消息都重新建连列工具
+    agent_mcp_tools_ttl_seconds: float = 300.0
 
     # 上下文 / 读取限制
     agent_chat_vision_max_edge: int = 1280

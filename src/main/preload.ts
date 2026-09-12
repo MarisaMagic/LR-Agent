@@ -495,6 +495,12 @@ const electronHandler = {
       relativePath: string;
     }): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke('workspace:deleteTextFile', payload),
+    moveTextFile: (payload: {
+      rootDir: string;
+      relativePath: string;
+      newRelativePath: string;
+    }): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+      ipcRenderer.invoke('workspace:moveTextFile', payload),
     createFile: (
       dirPath: string,
       fileName: string,

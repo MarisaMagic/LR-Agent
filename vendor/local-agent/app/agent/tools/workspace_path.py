@@ -40,15 +40,21 @@ def _is_lr_agent_under_root(candidate: Path, root: Path) -> bool:
 
 
 def allowed_roots(client_context: ClientContextInput | None) -> list[Path]:
-    """返回可访问的根目录列表（工作区根 + 项目目录，去重）。"""
+    """返回可访问的根目录列表（项目目录优先 + 工作区根，去重）。
+
+    顺序必须与前端 applyFileBlock 的写入根一致（project.directoryPath
+    ?? workspaceRoot）：提案的 relative_display_path 以列表第一个匹配根
+    计算，若后端 workspace 优先而前端 project 优先，Keep All 会把文件
+    写到另一个根下（历史隐患：同文件在两个根各落一份）。
+    """
     roots: list[Path] = []
     seen: set[str] = set()
     if client_context is None:
         return roots
 
     for raw in (
-        (client_context.workspace_root or "").strip(),
         (project_directory(client_context) or "").strip(),
+        (client_context.workspace_root or "").strip(),
     ):
         if not raw:
             continue
@@ -70,6 +76,37 @@ def _is_under_root(candidate: Path, root: Path) -> bool:
         return True
     except ValueError:
         return False
+
+
+def relative_display_path(
+    client_context: ClientContextInput | None,
+    resolved: Path,
+    fallback: str,
+) -> str:
+    """将已解析的绝对路径转为相对显示路径（正斜杠），不在任何根内时回退 fallback。"""
+    for root in allowed_roots(client_context):
+        try:
+            return str(resolved.relative_to(root)).replace("\\", "/")
+        except ValueError:
+            continue
+    return fallback.strip()
+
+
+def normalize_write_display_path(
+    client_context: ClientContextInput | None,
+    raw_path: str,
+) -> str:
+    """把模型给的写入路径归一为与工具结果一致的显示路径。
+
+    流式拦截器（file_proposal_start / delta）与工具结果定稿事件必须产出
+    同一条路径字符串，否则前端按路径匹配提案块时会裂成两张卡片
+    （历史 bug：模型写绝对路径或 ./ 前缀导致）。解析失败时退化为
+    normalize_relative_path，保证至少分隔符/空段是干净的。
+    """
+    resolved, _err = resolve_workspace_write_path(client_context, raw_path)
+    if resolved is None:
+        return normalize_relative_path(raw_path)
+    return relative_display_path(client_context, resolved, raw_path)
 
 
 def resolve_workspace_file(

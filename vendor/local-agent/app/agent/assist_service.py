@@ -68,7 +68,6 @@ async def stream_assist(
         client_context=client_context,
         user_content=user_content,
     )
-    interceptor = ProposalStreamInterceptor()
     loop = ToolLoopRunner(
         llm=llm,
         tools=tools,
@@ -99,6 +98,11 @@ async def stream_assist(
     for round_idx in range(max_tool_rounds + 1):
         if await is_cancelled():
             return
+
+        # 每轮使用全新拦截器：tool_call 的 tc_index 每轮都从 0 重新编号，
+        # 复用实例会把上一轮 write 调用的 rel_path / content_sent_len 残留到
+        # 本轮，导致提案 delta 错标归属路径并把别的文件内容追加进旧提案。
+        interceptor = ProposalStreamInterceptor(client_context)
 
         gathered: AIMessage | None = None
         pending_text: list[str] = []

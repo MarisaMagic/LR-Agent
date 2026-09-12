@@ -540,16 +540,24 @@ function messageHasMatchingDeleteTool(
 }
 
 function preserveDeleteOperation(
-  resolved: 'write' | 'delete',
+  resolved: 'write' | 'delete' | 'rename',
   existing: MessageBlock | undefined,
-): 'write' | 'delete' {
+): 'write' | 'delete' | 'rename' {
   if (resolved === 'delete') return 'delete';
+  if (resolved === 'rename') return 'rename';
   if (
     existing &&
     isFileProposalBlock(existing) &&
     existing.operation === 'delete'
   ) {
     return 'delete';
+  }
+  if (
+    existing &&
+    isFileProposalBlock(existing) &&
+    existing.operation === 'rename'
+  ) {
+    return 'rename';
   }
   return 'write';
 }
@@ -583,9 +591,10 @@ function preserveAppliedProposalMeta<
 export function resolveFileProposalOperation(
   event: Record<string, unknown>,
   blocks: MessageBlock[] = [],
-): 'write' | 'delete' {
+): 'write' | 'delete' | 'rename' {
   const raw = event.operation ?? event.mode;
   if (raw === 'delete') return 'delete';
+  if (raw === 'rename') return 'rename';
 
   const path = resolveFileProposalPath(event);
   if (path && messageHasMatchingDeleteTool(blocks, path)) {
@@ -602,6 +611,13 @@ export function resolveFileProposalOperation(
   }
 
   return 'write';
+}
+
+function resolveFileProposalOldPath(
+  event: Record<string, unknown>,
+): string | undefined {
+  const raw = event.oldPath ?? event.old_path;
+  return typeof raw === 'string' && raw.trim() ? raw : undefined;
 }
 
 const EXPLORE_READONLY_TOOL = 'explore_readonly';
@@ -1100,26 +1116,40 @@ export function applyStreamEventToBlocks(
     if (isLrAgentRelativePath(suggestedRelativePath)) {
       return next;
     }
+    const normalizedPath = normalizeProposalRelPath(suggestedRelativePath);
     const existingIdx = next.findIndex(
       (b) =>
         (b.type === 'file_proposal' || b.type === 'document_proposal') &&
-        b.suggestedRelativePath === suggestedRelativePath,
+        normalizeProposalRelPath(b.suggestedRelativePath) === normalizedPath,
     );
     const existing = existingIdx >= 0 ? next[existingIdx] : undefined;
-    const block = preserveAppliedProposalMeta(
-      {
-        type: 'file_proposal' as const,
-        title: resolveFileProposalTitle(raw),
-        content: '',
-        suggestedRelativePath,
-        status: 'pending' as ProposalBlockStatus,
-        operation: preserveDeleteOperation(
-          resolveFileProposalOperation(raw, next),
-          existing,
-        ),
-      },
-      existing,
-    );
+    // file_proposal_start 表示新一轮提案：同路径旧块即使已 applied /
+    // dismissed 也必须重置为 pending，否则同一文件的后续修改提案出生即
+    // applied，Keep All 不会再收集它，落盘静默失效（历史 bug）。
+    // applied 状态在 final 事件处仍受 preserveAppliedProposalMeta 保护，
+    // 防止同一提案生命周期内迟到的重复 SSE 冲掉已应用状态。
+    const previousCheckpoint =
+      existing && isFileProposalBlock(existing)
+        ? existing.hasCheckpoint
+        : undefined;
+    const block = {
+      type: 'file_proposal' as const,
+      title: resolveFileProposalTitle(raw),
+      content: '',
+      suggestedRelativePath: normalizedPath,
+      status: 'pending' as ProposalBlockStatus,
+      contentFinalized: false,
+      hasCheckpoint: previousCheckpoint,
+      oldPath:
+        resolveFileProposalOldPath(raw) ??
+        (existing && isFileProposalBlock(existing)
+          ? existing.oldPath
+          : undefined),
+      operation: preserveDeleteOperation(
+        resolveFileProposalOperation(raw, next),
+        existing,
+      ),
+    };
     if (existingIdx >= 0) {
       next[existingIdx] = block;
     } else {
@@ -1133,14 +1163,59 @@ export function applyStreamEventToBlocks(
     if (deltaPath && isLrAgentRelativePath(deltaPath)) {
       return next;
     }
+    const normalizedDelta = deltaPath
+      ? normalizeProposalRelPath(deltaPath)
+      : '';
     for (let i = 0; i < next.length; i += 1) {
       const candidate = next[i];
       if (!isFileProposalBlock(candidate)) continue;
-      // 若 delta 携带路径，精确匹配；否则匹配最后一个 file_proposal（兼容旧 SSE）
-      if (deltaPath && candidate.suggestedRelativePath !== deltaPath) continue;
+      // 若 delta 携带路径，归一化后精确匹配；否则匹配最后一个 file_proposal（兼容旧 SSE）
+      if (
+        normalizedDelta &&
+        normalizeProposalRelPath(candidate.suggestedRelativePath) !==
+          normalizedDelta
+      ) {
+        continue;
+      }
+      // 全量 content 事件已定稿后，同路径再来的 delta（中间没有新 start 重置）
+      // 是流式拦截器状态错乱的残留分片；追加会把别的文件内容串进本提案，
+      // 用户 Keep All 后原样落盘。直接丢弃，等工具结果的全量事件定稿。
+      if (candidate.contentFinalized) continue;
       next[i] = {
         ...candidate,
         content: candidate.content + (event.content ?? ''),
+      };
+      return next;
+    }
+    return next;
+  }
+
+  if (event.type === 'file_edit_delta') {
+    const raw = event as Record<string, unknown>;
+    const deltaPath = resolveFileProposalPath(raw);
+    if (deltaPath && isLrAgentRelativePath(deltaPath)) {
+      return next;
+    }
+    if (!raw.oldDelta && !raw.newDelta) return next;
+    const normalizedDelta = deltaPath
+      ? normalizeProposalRelPath(deltaPath)
+      : '';
+    for (let i = 0; i < next.length; i += 1) {
+      const candidate = next[i];
+      if (!isFileProposalBlock(candidate)) continue;
+      if (
+        normalizedDelta &&
+        normalizeProposalRelPath(candidate.suggestedRelativePath) !==
+          normalizedDelta
+      ) {
+        continue;
+      }
+      // 定稿后迟到的 edit delta 是拦截器残留分片，丢弃
+      if (candidate.contentFinalized) continue;
+      next[i] = {
+        ...candidate,
+        oldString: (candidate.oldString ?? '') + (raw.oldDelta ?? ''),
+        newString: (candidate.newString ?? '') + (raw.newDelta ?? ''),
       };
       return next;
     }
@@ -1164,27 +1239,32 @@ export function applyStreamEventToBlocks(
       }
     }
     const raw = event as Record<string, unknown>;
-    let path = resolveFileProposalPath(raw);
-    if (path && isLrAgentRelativePath(path)) {
+    const rawPath = resolveFileProposalPath(raw);
+    if (rawPath && isLrAgentRelativePath(rawPath)) {
       return next;
     }
+    let path = rawPath ? normalizeProposalRelPath(rawPath) : '';
     let existingIdx = -1;
     if (path) {
       existingIdx = next.findIndex(
         (b) =>
           (b.type === 'file_proposal' || b.type === 'document_proposal') &&
-          b.suggestedRelativePath === path,
+          normalizeProposalRelPath(b.suggestedRelativePath) === path,
       );
     } else {
       for (let i = next.length - 1; i >= 0; i -= 1) {
         const candidate = next[i];
         if (!isFileProposalBlock(candidate)) continue;
         existingIdx = i;
-        path = candidate.suggestedRelativePath;
+        path = normalizeProposalRelPath(candidate.suggestedRelativePath);
         break;
       }
     }
     const existing = existingIdx >= 0 ? next[existingIdx] : undefined;
+    const previousCheckpoint =
+      existing && isFileProposalBlock(existing)
+        ? existing.hasCheckpoint
+        : undefined;
     const block = preserveAppliedProposalMeta(
       {
         type: 'file_proposal' as const,
@@ -1192,6 +1272,13 @@ export function applyStreamEventToBlocks(
         content: event.content ?? '',
         suggestedRelativePath: path,
         status: (event.status ?? 'pending') as ProposalBlockStatus,
+        contentFinalized: true,
+        hasCheckpoint: previousCheckpoint,
+        oldPath:
+          resolveFileProposalOldPath(raw) ??
+          (existing && isFileProposalBlock(existing)
+            ? existing.oldPath
+            : undefined),
         operation: preserveDeleteOperation(
           resolveFileProposalOperation(raw, next),
           existing,

@@ -23,6 +23,7 @@ class ToolCapability(str, Enum):
     WRITE_FILE = "write_file"
     STR_REPLACE_FILE = "str_replace_file"
     DELETE_FILE = "delete_file"
+    MOVE_FILE = "move_file"
     AUTO_ANNOTATE = "auto_annotate"
     MUTATE_ANNOTATION = "mutate_annotation_cap"
     QUERY_CONTEXT = "query_context"
@@ -44,6 +45,7 @@ TOOL_CAPABILITY_MAP: dict[str, ToolCapability] = {
     "write_workspace_file": ToolCapability.WRITE_FILE,
     "str_replace_workspace_file": ToolCapability.STR_REPLACE_FILE,
     "delete_workspace_file": ToolCapability.DELETE_FILE,
+    "move_workspace_file": ToolCapability.MOVE_FILE,
     "auto_annotate": ToolCapability.AUTO_ANNOTATE,
     "mutate_annotation": ToolCapability.MUTATE_ANNOTATION,
     "get_account_summary": ToolCapability.QUERY_CONTEXT,
@@ -73,6 +75,7 @@ TOOL_RUNNERS: dict[str, ToolRunner] = {
     "write_workspace_file": ToolRunner.PROPOSAL,
     "str_replace_workspace_file": ToolRunner.PROPOSAL,
     "delete_workspace_file": ToolRunner.PROPOSAL,
+    "move_workspace_file": ToolRunner.PROPOSAL,
     "auto_annotate": ToolRunner.ASYNC,
     "mutate_annotation": ToolRunner.ASYNC,
     "explore_readonly": ToolRunner.SYNC,

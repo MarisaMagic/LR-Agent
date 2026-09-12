@@ -21,7 +21,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 
 from langchain_core.tools import StructuredTool
 
@@ -31,6 +33,32 @@ from app.agent.tools.tool_registry_meta import (
 )
 
 logger = logging.getLogger(__name__)
+
+# 工具发现 TTL 缓存：key 为连接指纹（url + transport + 排序后的 headers），
+# value 为 (原始发现的工具列表, 过期时间)。disabled_tools 过滤与跨 server 去重
+# 在缓存之后执行，运行时改配置无需失效缓存。
+_tools_cache: dict[tuple, tuple[list[StructuredTool], float]] = {}
+
+
+def _cache_key(conn: dict) -> tuple:
+    headers = conn.get("headers") or {}
+    return (
+        conn.get("url", ""),
+        conn.get("transport", ""),
+        tuple(sorted(headers.items())),
+    )
+
+
+async def _discover_tools(name: str, conn: dict) -> list[StructuredTool]:
+    from langchain_mcp_adapters.client import MultiServerMCPClient
+
+    client = MultiServerMCPClient({name: conn})
+    return await client.get_tools()
+
+
+def clear_mcp_tools_cache() -> None:
+    """清空工具发现缓存（测试或强制刷新用）。"""
+    _tools_cache.clear()
 
 
 def should_expose_mcp_tool(
@@ -123,10 +151,12 @@ async def load_mcp_tools_from_servers(
     *,
     local_server_token: str | None = None,
     existing_capabilities: set[ToolCapability] | None = None,
+    ttl_seconds: float = 300.0,
 ) -> list[StructuredTool]:
     """连接本机 + 远程 MCP Server，动态发现并按能力/名称去重后返回工具列表。
 
-    逐台建连：单台失败仅跳过该 server，不影响其他 server 与 Agent 主流程。
+    发现结果按连接指纹缓存 ttl_seconds（<=0 关闭缓存）；未命中的 server 并行
+    建连，单台失败仅跳过该 server，不影响其他 server 与 Agent 主流程。
     """
     if existing_capabilities is None:
         existing_capabilities = CANONICAL_CAPABILITIES
@@ -156,20 +186,44 @@ async def load_mcp_tools_from_servers(
             if isinstance(name, str) and name.strip()
         }
 
+    now = time.monotonic()
+    raw_by_conn: dict[str, list[StructuredTool]] = {}
+    pending: dict[str, dict] = {}
+    for name, conn in connections.items():
+        key = _cache_key(conn)
+        cached = _tools_cache.get(key)
+        if ttl_seconds > 0 and cached and cached[1] > now:
+            raw_by_conn[name] = cached[0]
+        else:
+            pending[name] = conn
+
+    if pending:
+        results = await asyncio.gather(
+            *(_discover_tools(name, conn) for name, conn in pending.items()),
+            return_exceptions=True,
+        )
+        for (name, conn), result in zip(pending.items(), results):
+            if isinstance(result, BaseException):
+                logger.warning(
+                    "MCP: 连接 %s (%s) 失败，跳过该 server：%s",
+                    name,
+                    conn.get("url"),
+                    result,
+                )
+                continue
+            raw_by_conn[name] = result
+            if ttl_seconds > 0:
+                _tools_cache[_cache_key(conn)] = (
+                    result,
+                    time.monotonic() + ttl_seconds,
+                )
+
     tools_all: list[StructuredTool] = []
     seen_names: set[str] = set()
     skipped_all: list[str] = []
-    for name, conn in connections.items():
-        try:
-            client = MultiServerMCPClient({name: conn})
-            tools = await client.get_tools()
-        except Exception as exc:
-            logger.warning(
-                "MCP: 连接 %s (%s) 失败，跳过该 server：%s",
-                name,
-                conn.get("url"),
-                exc,
-            )
+    for name in connections:
+        tools = raw_by_conn.get(name)
+        if tools is None:
             continue
         disabled = disabled_by_conn.get(name) or set()
         if disabled:
