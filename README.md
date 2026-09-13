@@ -103,7 +103,7 @@
 
 ### AI Agent
 
-> 支持在 AI Agent 对话中切换 Ask / Agent 模式。可自由输入问题，例如辅助标注、生成报告、查阅文档、编辑文件、检索内容等需求。AI Agent 通过 Tool-Use-Loop 自主调用工具完成任务。
+> 支持在 AI Agent 对话中切换 Ask / Agent 模式。可自由输入问题，例如辅助标注、查阅文档、编辑文件、检索内容、下载模型、运行命令等需求。AI Agent 通过 Tool-Use-Loop 自主调用工具完成任务。
 
 ![](./assets/LR-Agent-imgs/annotate-agent-1.png)
 ![](./assets/LR-Agent-imgs/annotate-agent-2.png)
