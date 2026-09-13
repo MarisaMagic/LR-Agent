@@ -4,7 +4,7 @@ import {
   normalizeHistoricalAssistantMessage,
 } from './agentChatStore';
 import type { MessageBlock } from '../../shared/agentTypes';
-import { isExplorationTool } from './toolDisplayUtils';
+import { isFoldableTool } from './toolDisplayUtils';
 import { buildAssistantRenderSegments } from '../components/agent/explorationRenderUtils';
 
 describe('applyStreamEventToBlocks subagent', () => {
@@ -204,8 +204,8 @@ describe('applyStreamEventToBlocks subagent', () => {
 });
 
 describe('explore_readonly stays out of exploration group', () => {
-  it('is not an exploration tool', () => {
-    expect(isExplorationTool('explore_readonly')).toBe(false);
+  it('is not foldable (subagent 行的入口必须留在主时间线)', () => {
+    expect(isFoldableTool('explore_readonly')).toBe(false);
   });
 
   it('renders subagent as its own segment', () => {

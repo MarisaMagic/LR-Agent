@@ -1,19 +1,11 @@
 import type { MessageBlock } from '../../types/agent';
 import { isFileProposalBlock } from '../../../shared/agentTypes';
 
-/** 与后端 tool_registry_meta 中 PROPOSAL runner 对齐 */
-export const PROPOSAL_TOOL_NAMES = new Set([
-  'write_workspace_file',
-  'str_replace_workspace_file',
-  'delete_workspace_file',
-  'move_workspace_file',
-]);
-
-/** 会生成 pipeline / proposal 的客户端工具 */
-export const CLIENT_PIPELINE_TOOL_NAMES = new Set([
-  'auto_annotate',
-  'mutate_annotation',
-]);
+// 工具名清单已归口到 shared/agentToolKinds；此处保留转发，兼容既有引用
+export {
+  CLIENT_PIPELINE_TOOL_NAMES,
+  PROPOSAL_TOOL_NAMES,
+} from '../../../shared/agentToolKinds';
 
 export function findFileProposalBlock(
   blocks: MessageBlock[],

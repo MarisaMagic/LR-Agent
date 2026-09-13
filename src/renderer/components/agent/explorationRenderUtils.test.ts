@@ -1,11 +1,14 @@
 import type { MessageBlock } from '../../../shared/agentTypes';
 import { buildAssistantRenderSegments } from './explorationRenderUtils';
 
+type ToolCallBlock = Extract<MessageBlock, { type: 'tool_call' }>;
+
 function toolCall(
   id: string,
   name: string,
   args: Record<string, unknown> = {},
-): MessageBlock {
+  extra: Partial<ToolCallBlock> = {},
+): ToolCallBlock {
   return {
     type: 'tool_call',
     id,
@@ -13,6 +16,7 @@ function toolCall(
     arguments: JSON.stringify(args),
     status: 'done',
     collapsed: true,
+    ...extra,
   };
 }
 
@@ -54,9 +58,9 @@ describe('buildAssistantRenderSegments', () => {
     expect(segments[2].kind).toBe('exploration');
   });
 
-  it('does not merge non-exploration tool calls', () => {
+  it('does not merge write tools (折叠区内逐行保留标签)', () => {
     const blocks: MessageBlock[] = [
-      toolCall('t1', 'describe_client_context'),
+      toolCall('t1', 'write_workspace_file', { relative_path: 'a.md' }),
       toolCall('t2', 'grep_workspace', { pattern: 'X' }),
     ];
 
@@ -64,6 +68,45 @@ describe('buildAssistantRenderSegments', () => {
     expect(segments).toHaveLength(2);
     expect(segments[0].kind).toBe('block');
     expect(segments[1].kind).toBe('exploration');
+  });
+
+  it('does not merge MCP tools either (自己一行，摘要只统计检索类)', () => {
+    const blocks: MessageBlock[] = [
+      toolCall('t1', 'tavily_search', { query: 'yolov8 下载' }),
+      toolCall('t2', 'grep_workspace', { pattern: 'yolo' }),
+      toolCall('t3', 'read_workspace_file', { relative_path: 'a.py' }),
+    ];
+
+    const segments = buildAssistantRenderSegments(blocks);
+    expect(segments.map((segment) => segment.kind)).toEqual([
+      'block',
+      'exploration',
+    ]);
+    if (segments[1].kind === 'exploration') {
+      expect(segments[1].summary).toBe('Explored 1 file, 1 search');
+    }
+  });
+
+  it('does not merge failed or unsettled tool calls (留主时间线便于诊断)', () => {
+    const failed = toolCall(
+      't1',
+      'read_workspace_file',
+      { relative_path: 'a.py' },
+      {
+        status: 'error',
+      },
+    );
+    const running = toolCall(
+      't2',
+      'grep_workspace',
+      { pattern: 'X' },
+      {
+        status: 'running',
+      },
+    );
+
+    const segments = buildAssistantRenderSegments([failed, running]);
+    expect(segments.map((segment) => segment.kind)).toEqual(['block', 'block']);
   });
 
   it('walks a custom index order for work-history slices', () => {

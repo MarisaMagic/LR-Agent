@@ -1,19 +1,18 @@
 /** 工具参数在聊天 UI 中的展示摘要（避免把整文件内容塞进 tool_call 块）。 */
 
+import { isFoldableToolName } from '../../shared/agentToolKinds';
+
 const WRITE_WORKSPACE_FILE = 'write_workspace_file';
 const READ_WORKSPACE_FILE = 'read_workspace_file';
 const GREP_WORKSPACE = 'grep_workspace';
+const GLOB_WORKSPACE = 'glob_workspace';
 const LIST_WORKSPACE_DIRECTORY = 'list_workspace_directory';
+const READ_DOCUMENT_FILE = 'read_document_file';
+const READ_IMAGE_FOR_VISION = 'read_image_for_vision';
+const READ_FILE_ANNOTATION = 'read_file_annotation';
 
-export const EXPLORATION_TOOL_NAMES = new Set([
-  READ_WORKSPACE_FILE,
-  GREP_WORKSPACE,
-  LIST_WORKSPACE_DIRECTORY,
-]);
-
-export function isExplorationTool(name: string): boolean {
-  return EXPLORATION_TOOL_NAMES.has(name);
-}
+/** 该工具名是否属于「工作过程」（可折叠进 Worked for）；清单与判定见 shared/agentToolKinds */
+export const isFoldableTool = isFoldableToolName;
 
 function parseArgs(argsJson: string): Record<string, unknown> | null {
   try {
@@ -200,11 +199,20 @@ export function buildExplorationSummary(tools: { name: string }[]): string {
   let reads = 0;
   let greps = 0;
   let lists = 0;
+  let others = 0;
 
   for (const tool of tools) {
-    if (tool.name === READ_WORKSPACE_FILE) reads += 1;
-    else if (tool.name === GREP_WORKSPACE) greps += 1;
+    if (
+      tool.name === READ_WORKSPACE_FILE ||
+      tool.name === GLOB_WORKSPACE ||
+      tool.name === READ_DOCUMENT_FILE ||
+      tool.name === READ_IMAGE_FOR_VISION ||
+      tool.name === READ_FILE_ANNOTATION
+    ) {
+      reads += 1;
+    } else if (tool.name === GREP_WORKSPACE) greps += 1;
     else if (tool.name === LIST_WORKSPACE_DIRECTORY) lists += 1;
+    else others += 1;
   }
 
   const parts: string[] = [];
@@ -216,6 +224,10 @@ export function buildExplorationSummary(tools: { name: string }[]): string {
   }
   if (lists > 0) {
     parts.push(`${lists} listing${lists === 1 ? '' : 's'}`);
+  }
+  // 兜底：合并清单里出现未登记的检索工具时，别谎报成 0
+  if (others > 0) {
+    parts.push(`${others} call${others === 1 ? '' : 's'}`);
   }
 
   if (parts.length === 0) {

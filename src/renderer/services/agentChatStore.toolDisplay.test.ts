@@ -3,18 +3,35 @@ import type { MessageBlock } from '../../shared/agentTypes';
 import type { AnnotationBatchProposal } from '../../shared/annotationAgentTypes';
 import {
   formatToolCallLabel,
-  isExplorationTool,
+  isFoldableTool,
   summarizeToolArgumentsForDisplay,
   summarizeToolResultForDisplay,
 } from './toolDisplayUtils';
 
-describe('isExplorationTool', () => {
-  it('recognizes exploration tools', () => {
-    expect(isExplorationTool('grep_workspace')).toBe(true);
-    expect(isExplorationTool('read_workspace_file')).toBe(true);
-    expect(isExplorationTool('write_workspace_file')).toBe(false);
-    expect(isExplorationTool('delete_workspace_file')).toBe(false);
-    expect(isExplorationTool('mutate_annotation')).toBe(false);
+describe('isFoldableTool（排除式判定）', () => {
+  it('folds read-only built-ins, MCP tools and terminal commands', () => {
+    expect(isFoldableTool('grep_workspace')).toBe(true);
+    expect(isFoldableTool('read_workspace_file')).toBe(true);
+    expect(isFoldableTool('glob_workspace')).toBe(true);
+    expect(isFoldableTool('read_document_file')).toBe(true);
+    expect(isFoldableTool('read_image_for_vision')).toBe(true);
+    expect(isFoldableTool('read_file_annotation')).toBe(true);
+    expect(isFoldableTool('tavily_search')).toBe(true);
+    expect(isFoldableTool('memory_read')).toBe(true);
+    expect(isFoldableTool('start_terminal_command')).toBe(true);
+  });
+
+  it('keeps side-effecting tool rows foldable too (结算后折进 Worked for)', () => {
+    expect(isFoldableTool('write_workspace_file')).toBe(true);
+    expect(isFoldableTool('str_replace_workspace_file')).toBe(true);
+    expect(isFoldableTool('delete_workspace_file')).toBe(true);
+    expect(isFoldableTool('move_workspace_file')).toBe(true);
+    expect(isFoldableTool('auto_annotate')).toBe(true);
+    expect(isFoldableTool('mutate_annotation')).toBe(true);
+  });
+
+  it('never folds the subagent entry point', () => {
+    expect(isFoldableTool('explore_readonly')).toBe(false);
   });
 });
 
