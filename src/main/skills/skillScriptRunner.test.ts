@@ -243,10 +243,9 @@ describe('runSkillScript', () => {
       // 宿主机无系统 python（如仅用嵌入式运行时）时跳过
       return;
     }
-    await fs.writeFile(
-      path.join(skillDir, 'scripts', 'greet.py'),
+    await writeFixture(
+      'scripts/greet.py',
       "import sys\nprint('hello from', sys.argv[1])",
-      'utf-8',
     );
     const result = await runSkillScript(
       'script-fixture',
