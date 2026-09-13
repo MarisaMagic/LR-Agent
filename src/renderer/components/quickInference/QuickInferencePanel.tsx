@@ -288,8 +288,10 @@ export default function QuickInferencePanel() {
 
   return (
     <div className="quick-inference-root">
+      {/* fillHost：宿主拿到 flex:1/min-height:0 才能给内层确定高度，否则内容溢出后滚不动 */}
       <OverlayVerticalScrollArea
         enabled
+        fillHost
         className="quick-inference-scroll"
         contentClassName="quick-inference-scroll-content"
       >

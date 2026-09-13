@@ -207,14 +207,6 @@
   color: var(--vscode-foreground, #cccccc);
 }
 
-/* awaiting_confirmation：暂停符不闪烁，稳定常驻表示「等待用户确认」 */
-.agent-stream-cursor--paused {
-  animation: none;
-  font-size: 10px;
-  letter-spacing: 1px;
-  color: var(--vscode-descriptionForeground, #9d9d9d);
-}
-
 .agent-awaiting-confirm {
   display: flex;
   align-items: center;

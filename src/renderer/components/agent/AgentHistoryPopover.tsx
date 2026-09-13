@@ -182,8 +182,11 @@ export default function AgentHistoryPopover({
             />
           </div>
 
+          {/* fillHost：弹层是 flex 列，宿主拿到 flex:1/min-height:0 后内层才有确定高度，
+              否则内容撑出弹层被 overflow:hidden 裁掉，滚动与「加载更多」都不会触发 */}
           <OverlayVerticalScrollArea
             className="agent-history-groups-scroll"
+            fillHost
             onScroll={(event) => {
               const el = event.currentTarget;
               if (

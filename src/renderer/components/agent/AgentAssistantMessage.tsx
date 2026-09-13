@@ -461,12 +461,8 @@ export default function AgentAssistantMessage({
           />
         ) : null}
 
+        {/* awaiting_confirmation 的暂停指示由下方 AwaitingConfirmHint 统一承担 */}
         {isStreaming && <span className="agent-stream-cursor">▍</span>}
-        {isAwaitingConfirm && (
-          <span className="agent-stream-cursor agent-stream-cursor--paused">
-            ❚❚
-          </span>
-        )}
 
         {message.status === 'stopped' && (
           <div className="agent-message-meta">已停止生成</div>
