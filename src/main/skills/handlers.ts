@@ -6,16 +6,30 @@ import {
   scanSkillsCatalog,
   scanSkillsInventory,
 } from './skillScanner';
+import { getHiddenSkills, setSkillHidden } from './skillsStore';
 
 export function registerSkillHandlers(): void {
   ipcMain.handle('agent:skills:listCatalog', () => {
-    return scanSkillsCatalog();
+    return scanSkillsCatalog(undefined, getHiddenSkills());
   });
 
   ipcMain.handle('agent:skills:listInventory', (_event, force?: unknown) => {
     if (force === true) clearSkillsCache();
-    return scanSkillsInventory();
+    return scanSkillsInventory(undefined, getHiddenSkills());
   });
+
+  ipcMain.handle(
+    'agent:skills:setHidden',
+    async (_event, dirName: unknown, hidden: unknown) => {
+      if (typeof dirName !== 'string' || !dirName.trim()) {
+        return null;
+      }
+      // 停用清单变化必须失效扫描缓存（缓存只按 rootDir 键控）
+      clearSkillsCache();
+      await setSkillHidden(dirName.trim(), hidden === true);
+      return scanSkillsInventory(undefined, getHiddenSkills());
+    },
+  );
 
   ipcMain.handle('agent:skills:openRoot', async () => {
     const root = await ensureUserSkillsRoot();

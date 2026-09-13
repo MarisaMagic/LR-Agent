@@ -29,8 +29,10 @@ import {
 import {
   listSkillFiles,
   readSkillFile,
+  resolveSkillDirName,
   scanSkillsCatalog,
 } from '../skills/skillScanner';
+import { getHiddenSkills } from '../skills/skillsStore';
 import { runSkillScript } from '../skills/skillScriptRunner';
 import {
   killTerminalJob,
@@ -156,6 +158,20 @@ function requireActiveWorkspaceMemory():
   return { ok: true, scopeKey: getActiveMemoryScope() };
 }
 
+/**
+ * 停用清单按目录名存储，而入参可能是 frontmatter name，故先反查目录名。
+ * 停用是硬禁用：技能类工具一律拒读，不只是从 prompt 清单里隐藏。
+ */
+async function isSkillDisabledForAgent(skillName: string): Promise<boolean> {
+  const name = skillName.trim();
+  if (!name) return false;
+  const hidden = getHiddenSkills();
+  if (hidden.length === 0) return false;
+  if (hidden.includes(name)) return true;
+  const dirName = await resolveSkillDirName(name);
+  return dirName !== null && hidden.includes(dirName);
+}
+
 function createMcpServer(): McpServer {
   const mcpServer = new McpServer({
     name: 'lr-agent-local',
@@ -209,9 +225,12 @@ function createMcpServer(): McpServer {
     },
     async ({ skill_name, relative_path }) => {
       try {
+        if (await isSkillDisabledForAgent(skill_name)) {
+          return mcpJson({ ok: false, error: 'skill_disabled' });
+        }
         const result = await readSkillFile(skill_name, relative_path);
         if (!result.ok) {
-          const catalog = await scanSkillsCatalog();
+          const catalog = await scanSkillsCatalog(undefined, getHiddenSkills());
           return mcpJson({
             ok: false,
             error: result.error,
@@ -242,9 +261,12 @@ function createMcpServer(): McpServer {
     },
     async ({ skill_name }) => {
       try {
+        if (await isSkillDisabledForAgent(skill_name)) {
+          return mcpJson({ ok: false, error: 'skill_disabled' });
+        }
         const files = await listSkillFiles(skill_name);
         if (files === null) {
-          const catalog = await scanSkillsCatalog();
+          const catalog = await scanSkillsCatalog(undefined, getHiddenSkills());
           return mcpJson({
             ok: false,
             error: 'skill_not_found',
@@ -283,9 +305,12 @@ function createMcpServer(): McpServer {
     },
     async ({ skill_name, script, args }) => {
       try {
+        if (await isSkillDisabledForAgent(skill_name)) {
+          return mcpJson({ ok: false, error: 'skill_disabled' });
+        }
         const result = await runSkillScript(skill_name, script, args ?? []);
         if (!result.ok) {
-          const catalog = await scanSkillsCatalog();
+          const catalog = await scanSkillsCatalog(undefined, getHiddenSkills());
           return mcpJson({
             ok: false,
             error: result.error,

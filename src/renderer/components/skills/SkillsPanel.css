@@ -157,6 +157,45 @@
   background: var(--vscode-errorForeground, #f48771);
 }
 
+/* 已在本应用停用：灰点 + 与 frontmatter 禁用的弱化层级区分开 */
+.skills-status-dot--hidden {
+  background: #c09553;
+}
+
+/* 停用开关：与 MCP 工具开关同一形态（见 McpPanel.css 的 .mcp-tool-toggle）；
+   仅多一个右边距，给绝对定位的菜单按钮让位 */
+.skills-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 18px;
+  margin: 2px 26px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #3c3c3c;
+  cursor: pointer;
+}
+
+.skills-toggle[aria-checked='true'] {
+  background: #89d185;
+}
+
+.skills-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.skills-toggle[aria-checked='true'] .skills-toggle-knob {
+  transform: translateX(14px);
+}
+
 .skills-menu-trigger {
   position: absolute;
   top: 8px;

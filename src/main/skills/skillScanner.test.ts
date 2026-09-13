@@ -364,4 +364,72 @@ describe('scanSkillsInventory', () => {
     expect(byDir['no-desc']?.status).toBe('invalid');
     expect(byDir['no-desc']?.reason).toBe('缺少 description');
   });
+
+  it('marks skills in the hidden list as hidden', async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lr-skills-'));
+    await fs.outputFile(
+      path.join(tmpDir, 'public', 'SKILL.md'),
+      '---\nname: public\ndescription: invoke me\n---\n',
+    );
+    await fs.outputFile(
+      path.join(tmpDir, 'off', 'SKILL.md'),
+      '---\nname: off\ndescription: disabled in app\n---\n',
+    );
+
+    const inventory = await scanSkillsInventory(tmpDir, ['off']);
+    const byDir = Object.fromEntries(
+      inventory.map((item) => [item.dirName, item]),
+    );
+    expect(byDir.public?.status).toBe('available');
+    expect(byDir.off?.status).toBe('hidden');
+    expect(byDir.off?.reason).toBe('已在本应用停用');
+  });
+});
+
+describe('应用内停用清单与 catalog 注入', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    clearSkillsCache();
+  });
+
+  afterEach(async () => {
+    if (tmpDir) {
+      await fs.remove(tmpDir);
+    }
+  });
+
+  it('停用项不注入 catalog，启用后又能注入（缓存需清空）', async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lr-skills-'));
+    await fs.outputFile(
+      path.join(tmpDir, 'keep', 'SKILL.md'),
+      '---\nname: keep\ndescription: stays\n---\n',
+    );
+    await fs.outputFile(
+      path.join(tmpDir, 'mute', 'SKILL.md'),
+      '---\nname: mute\ndescription: muted\n---\n',
+    );
+
+    expect(
+      (await scanSkillsCatalog(tmpDir, ['mute'])).map((s) => s.name),
+    ).toEqual(['keep']);
+
+    clearSkillsCache();
+    expect((await scanSkillsCatalog(tmpDir, [])).map((s) => s.name)).toEqual([
+      'keep',
+      'mute',
+    ]);
+  });
+
+  it('停用优先于 disable-model-invocation（面板能看到停用项）', async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lr-skills-'));
+    await fs.outputFile(
+      path.join(tmpDir, 'both', 'SKILL.md'),
+      '---\nname: both\ndescription: x\ndisable-model-invocation: true\n---\n',
+    );
+
+    const inventory = await scanSkillsInventory(tmpDir, ['both']);
+    expect(inventory[0]?.status).toBe('hidden');
+    expect(inventory[0]?.reason).toBe('已在本应用停用');
+  });
 });

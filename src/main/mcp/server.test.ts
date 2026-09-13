@@ -13,6 +13,12 @@ jest.mock('electron', () => ({
   },
 }));
 
+// 停用清单是硬禁用：技能类工具必须拒读。用可变数组替代 userData 存储，避免测试写磁盘。
+const mockHiddenSkills: string[] = [];
+jest.mock('../skills/skillsStore', () => ({
+  getHiddenSkills: () => mockHiddenSkills,
+}));
+
 function request(
   url: string,
   headers: Record<string, string> = {},
@@ -224,5 +230,36 @@ describe('MCP server 工具注册与调用', () => {
     const payload = JSON.parse(parseRpcBody(call.body).result.content[0].text);
     expect(payload).toMatchObject({ ok: false, error: 'skill_not_found' });
     expect(Array.isArray(payload.available_skills)).toBe(true);
+  });
+
+  it('停用的 skill 拒读：read_agent_skill 与 list_agent_skill_files 都返回 skill_disabled', async () => {
+    const sessionHeaders = await initializeSession(baseUrl);
+    mockHiddenSkills.push('jest-blocked-skill');
+    try {
+      for (const [name, args] of [
+        ['read_agent_skill', { skill_name: 'jest-blocked-skill' }],
+        ['list_agent_skill_files', { skill_name: 'jest-blocked-skill' }],
+        [
+          'run_agent_skill_script',
+          { skill_name: 'jest-blocked-skill', script: 'scripts/x.py' },
+        ],
+      ] as const) {
+        const res = await postRpc(
+          `${baseUrl}/mcp`,
+          {
+            jsonrpc: '2.0',
+            id: 4,
+            method: 'tools/call',
+            params: { name, arguments: args },
+          },
+          sessionHeaders,
+        );
+        expect(res.status).toBe(200);
+        const body = JSON.parse(parseRpcBody(res.body).result.content[0].text);
+        expect(body).toMatchObject({ ok: false, error: 'skill_disabled' });
+      }
+    } finally {
+      mockHiddenSkills.length = 0;
+    }
   });
 });

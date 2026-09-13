@@ -41,7 +41,7 @@ export interface AgentSkillEntry {
   scope: 'user';
 }
 
-export type AgentSkillStatus = 'available' | 'disabled' | 'invalid';
+export type AgentSkillStatus = 'available' | 'disabled' | 'hidden' | 'invalid';
 
 export interface AgentSkillInventoryItem {
   dirName: string;
@@ -418,16 +418,17 @@ export async function readSkillFile(
 
 /**
  * 扫描 skills 根目录下的全部 skill 目录，返回 catalog。
- * 仅收集含 SKILL.md、frontmatter 有效、未禁用模型调用且带 description 的目录。
+ * 仅收集含 SKILL.md、frontmatter 有效、未禁用模型调用、未在应用内停用且带 description 的目录。
  * name 始终为目录名，保证与工具参数一致。
  */
 export async function scanSkillsCatalog(
   rootDir: string = getUserSkillsRoot(),
+  hiddenSkills: readonly string[] = [],
 ): Promise<AgentSkillEntry[]> {
   const cached = readCache(catalogCache, rootDir);
   if (cached) return cached;
 
-  const inventory = await scanSkillsInventory(rootDir);
+  const inventory = await scanSkillsInventory(rootDir, hiddenSkills);
   const skills = inventory
     .filter((item) => item.status === 'available')
     .slice(0, MAX_CATALOG_ENTRIES)
@@ -442,14 +443,17 @@ export async function scanSkillsCatalog(
 }
 
 /**
- * 面板用完整清单：可用 / 已禁用 / 无效（缺 frontmatter 或 description）。
- * 无 SKILL.md 的目录不收录。
+ * 面板用完整清单：可用 / 已禁用 / 已停用 / 无效（缺 frontmatter 或 description）。
+ * 无 SKILL.md 的目录不收录。停用清单由调用方传入（见 skillsStore），
+ * 扫描层保持只读文件系统、不直接依赖 userData 存储。
  */
 export async function scanSkillsInventory(
   rootDir: string = getUserSkillsRoot(),
+  hiddenSkills: readonly string[] = [],
 ): Promise<AgentSkillInventoryItem[]> {
   const cached = readCache(inventoryCache, rootDir);
   if (cached) return cached;
+  const hidden = new Set(hiddenSkills);
 
   let entries;
   try {
@@ -485,6 +489,9 @@ export async function scanSkillsInventory(
     if (!parsed) {
       status = 'invalid';
       reason = '缺少 YAML frontmatter';
+    } else if (hidden.has(entry.name)) {
+      status = 'hidden';
+      reason = '已在本应用停用';
     } else if (parsed.disableModelInvocation) {
       status = 'disabled';
       reason = '已禁用模型调用';

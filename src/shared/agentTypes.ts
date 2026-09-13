@@ -433,7 +433,8 @@ export interface AgentSkillEntry {
   scope: 'user';
 }
 
-export type AgentSkillStatus = 'available' | 'disabled' | 'invalid';
+/** hidden：用户在本应用内停用（不注入 prompt，且技能工具拒读）；disabled：frontmatter 声明禁用模型调用 */
+export type AgentSkillStatus = 'available' | 'disabled' | 'hidden' | 'invalid';
 
 /** 面板用 Skill 清单（含未注入项与附属文件列表）。 */
 export interface AgentSkillInventoryItem {

@@ -771,6 +771,9 @@ const electronHandler = {
       ipcRenderer.invoke('agent:skills:openRoot'),
     reveal: (dirName: string): Promise<string> =>
       ipcRenderer.invoke('agent:skills:reveal', dirName),
+    /** 在本应用内停用/启用某个 skill（不改磁盘文件），返回刷新后的清单 */
+    setHidden: (dirName: string, hidden: boolean): Promise<unknown> =>
+      ipcRenderer.invoke('agent:skills:setHidden', dirName, hidden),
   },
   db: {
     // ── Session operations ──

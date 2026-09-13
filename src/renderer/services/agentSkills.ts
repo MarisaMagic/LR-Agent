@@ -18,6 +18,7 @@ type SkillsBridge = {
       listInventory?: (force?: boolean) => Promise<unknown>;
       openRoot?: () => Promise<string>;
       reveal?: (dirName: string) => Promise<string>;
+      setHidden?: (dirName: string, hidden: boolean) => Promise<unknown>;
     };
   };
 };
@@ -43,6 +44,7 @@ function isSkillEntry(value: unknown): value is AgentSkillEntry {
 const STATUSES = new Set<AgentSkillStatus>([
   'available',
   'disabled',
+  'hidden',
   'invalid',
 ]);
 
@@ -134,6 +136,25 @@ export async function revealSkill(dirName: string): Promise<void> {
   await skillsBridge()
     ?.reveal?.(dirName)
     .catch(() => undefined);
+}
+
+/**
+ * 停用 / 启用某个 skill（只写本应用的清单，不动磁盘文件）。
+ * 成功后清空本地缓存并返回主进程刷新的清单，失败返回空数组由调用方 refresh。
+ */
+export async function setSkillHidden(
+  dirName: string,
+  hidden: boolean,
+): Promise<AgentSkillInventoryItem[]> {
+  const bridge = skillsBridge();
+  if (!bridge?.setHidden) return [];
+  try {
+    const raw = await bridge.setHidden(dirName, hidden);
+    clearSkillsCatalogCache();
+    return Array.isArray(raw) ? raw.filter(isInventoryItem) : [];
+  } catch {
+    return [];
+  }
 }
 
 /** 清空缓存（测试或 skill 目录变更后调用） */

@@ -11,12 +11,16 @@ import {
   loadSkillsInventory,
   openSkillsRoot,
   revealSkill,
+  setSkillHidden,
 } from '../../services/agentSkills';
 import SkillsMenuPortal from './SkillsMenuPortal';
 import './SkillsPanel.css';
 
-function statusKind(item: AgentSkillInventoryItem): 'ok' | 'off' | 'error' {
+function statusKind(
+  item: AgentSkillInventoryItem,
+): 'ok' | 'off' | 'error' | 'hidden' {
   if (item.status === 'available') return 'ok';
+  if (item.status === 'hidden') return 'hidden';
   if (item.status === 'disabled') return 'off';
   return 'error';
 }
@@ -26,6 +30,7 @@ function statusLabel(item: AgentSkillInventoryItem): string {
     const extra = item.files.filter((file) => file !== 'SKILL.md').length;
     return extra > 0 ? `${item.files.length} 个文件` : 'SKILL.md';
   }
+  if (item.status === 'hidden') return item.reason || '已在本应用停用';
   return item.reason || (item.status === 'disabled' ? '已禁用' : '未注入');
 }
 
@@ -56,8 +61,15 @@ export default function SkillsPanel() {
     () => items.filter((item) => item.status === 'available'),
     [items],
   );
+  const hidden = useMemo(
+    () => items.filter((item) => item.status === 'hidden'),
+    [items],
+  );
   const skipped = useMemo(
-    () => items.filter((item) => item.status !== 'available'),
+    () =>
+      items.filter(
+        (item) => item.status !== 'available' && item.status !== 'hidden',
+      ),
     [items],
   );
 
@@ -90,6 +102,30 @@ export default function SkillsPanel() {
   const menuItem = menuDir
     ? (items.find((item) => item.dirName === menuDir) ?? null)
     : null;
+
+  /** 停用/启用：只写本应用清单，不改 ~/.agents/skills 里的文件 */
+  const handleToggleHidden = async (item: AgentSkillInventoryItem) => {
+    const next = item.status !== 'hidden';
+    const optimistic = items.map((entry) =>
+      entry.dirName === item.dirName
+        ? {
+            ...entry,
+            status: (next
+              ? 'hidden'
+              : 'available') as AgentSkillInventoryItem['status'],
+            reason: next ? '已在本应用停用' : undefined,
+          }
+        : entry,
+    );
+    setItems(optimistic);
+    const updated = await setSkillHidden(item.dirName, next);
+    if (updated.length === 0) await refresh(true);
+    else setItems(updated);
+  };
+
+  /** 可从面板切换的 skill：有效或已停用（frontmatter 禁用/无效项由磁盘决定，不给开关） */
+  const canToggle = (item: AgentSkillInventoryItem) =>
+    item.status === 'available' || item.status === 'hidden';
 
   const renderSkillRow = (item: AgentSkillInventoryItem) => {
     const expanded = expandedIds.has(item.dirName);
@@ -131,6 +167,23 @@ export default function SkillsPanel() {
               ) : null}
             </button>
           </div>
+          {canToggle(item) ? (
+            <button
+              type="button"
+              className="skills-toggle"
+              role="switch"
+              aria-checked={item.status !== 'hidden'}
+              aria-label={`${item.status === 'hidden' ? '启用' : '停用'} ${item.name}`}
+              title={
+                item.status === 'hidden'
+                  ? '在本应用中启用该 Skill'
+                  : '在本应用中停用该 Skill（不删除文件）'
+              }
+              onClick={() => handleToggleHidden(item)}
+            >
+              <span className="skills-toggle-knob" />
+            </button>
+          ) : null}
           <button
             type="button"
             className="skills-menu-trigger"
@@ -194,6 +247,13 @@ export default function SkillsPanel() {
             <ul className="skills-list">{available.map(renderSkillRow)}</ul>
           )}
         </section>
+
+        {!loading && hidden.length > 0 ? (
+          <section className="skills-section">
+            <h4 className="skills-section-title">已停用 {hidden.length}</h4>
+            <ul className="skills-list">{hidden.map(renderSkillRow)}</ul>
+          </section>
+        ) : null}
 
         {!loading && skipped.length > 0 ? (
           <section className="skills-section">
