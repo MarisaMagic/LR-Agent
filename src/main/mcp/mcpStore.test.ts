@@ -234,3 +234,69 @@ describe('setMcpServerTools', () => {
     expect(updated!.disabledTools).toEqual(['t2']);
   });
 });
+
+describe('大 server 阈值自动白名单', () => {
+  const bigTools = Array.from({ length: 25 }, (_, i) => `tool_${i}`);
+
+  async function createServer(
+    lastTools: string[] = [],
+    disabledTools: string[] = [],
+  ) {
+    const created = await upsertMcpServer({
+      name: 'Big',
+      url: 'https://big.example.com/mcp',
+      transport: 'streamable_http',
+      headers: {},
+      enabled: true,
+    });
+    if (lastTools.length || disabledTools.length) {
+      await setMcpServerTools(created!.id, { lastTools, disabledTools });
+    }
+    return created!.id;
+  }
+
+  it('首次探测到超过阈值的工具时全部默认关闭', async () => {
+    const id = await createServer();
+    const updated = await setMcpServerTools(id, { lastTools: bigTools });
+    expect(updated!.disabledTools).toEqual(bigTools);
+    expect(updated!.lastTools).toEqual(bigTools);
+  });
+
+  it('已有工具不被回溯禁用，只禁新发现的', async () => {
+    const id = await createServer(['tool_0', 'tool_1']);
+    const updated = await setMcpServerTools(id, {
+      lastTools: [...bigTools],
+    });
+    expect(updated!.disabledTools).toEqual(
+      bigTools.filter((n) => !['tool_0', 'tool_1'].includes(n)),
+    );
+  });
+
+  it('阈值以内的小 server 新工具保持默认开启', async () => {
+    const id = await createServer();
+    const updated = await setMcpServerTools(id, {
+      lastTools: ['t1', 't2', 't3'],
+    });
+    expect(updated!.disabledTools).toEqual([]);
+  });
+
+  it('显式传 disabledTools 时以调用方为准（全部开启按钮）', async () => {
+    const id = await createServer();
+    await setMcpServerTools(id, { lastTools: bigTools });
+    const enabledAll = await setMcpServerTools(id, {
+      lastTools: bigTools,
+      disabledTools: [],
+    });
+    expect(enabledAll!.disabledTools).toEqual([]);
+  });
+
+  it('只传 disabledTools 的调用不触发自动关闭逻辑', async () => {
+    const id = await createServer();
+    const autoDisabled = await setMcpServerTools(id, { lastTools: bigTools });
+    expect(autoDisabled!.disabledTools).toEqual(bigTools);
+
+    // 「全部开启」后再单项关闭：写入值即用户意图，不再叠加自动关闭
+    const picked = await setMcpServerTools(id, { disabledTools: ['tool_1'] });
+    expect(picked!.disabledTools).toEqual(['tool_1']);
+  });
+});

@@ -53,6 +53,45 @@ def test_project_system_prompt_routes_annotation_writes_to_tools() -> None:
     assert "查已有标注 JSON" not in prompt
 
 
+def test_annotation_call_guide_only_in_annotation_agent() -> None:
+    """自动标注填参纪律只在标注 Agent 的 prompt 里（auto_annotate 也只在那里可用）。"""
+    annotation = _build_prompt(
+        ClientContextInput(
+            workspace_root="/ws",
+            agent_mode="annotation",
+            annotation_project_snapshot=_bbox_snapshot(),
+        )
+    )
+    assert "【标注调用纪律】" in annotation
+    assert "all_files 仅在用户明确要求" in annotation
+    assert "replace_matching" in annotation
+
+    # 同一项目但 Ask（只读）：不注入
+    ask = _build_prompt(
+        ClientContextInput(
+            workspace_root="/ws",
+            annotation_project_snapshot=_bbox_snapshot(),
+        )
+    )
+    assert "【标注调用纪律】" not in ask
+
+    # 普通工作区：不注入
+    workspace = _build_prompt(ClientContextInput(workspace_root="/ws"))
+    assert "【标注调用纪律】" not in workspace
+
+
+def test_fallback_prompt_formats_vision_hint() -> None:
+    """兜底分支（无 client_context）也要格式化 vision_hint，不能漏字面量占位符。"""
+    prompt = build_assist_system_prompt(
+        None,
+        model="test-model",
+        provider_label="测试",
+        supports_vision=False,
+    )
+    assert "{vision_hint}" not in prompt
+    assert "read_image_for_vision" in prompt
+
+
 def test_proposal_ledger_appended_to_system_prompt() -> None:
     ctx = ClientContextInput(
         workspace_root="/ws",

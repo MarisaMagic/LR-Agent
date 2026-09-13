@@ -55,73 +55,80 @@ ANNOTATION_TOOL_NAMES: frozenset[str] = frozenset(
 
 
 # Pydantic args_schema for client tools — forces LLM to include user_request as a required param
-class AutoAnnotateArgs(BaseModel):
+def _strip_titles(node: Any) -> Any:
+    """递归剥掉 JSON schema 里的 title：pydantic 自动生成，键名已表达同一语义。"""
+    if isinstance(node, dict):
+        node.pop("title", None)
+        for value in node.values():
+            _strip_titles(value)
+    elif isinstance(node, list):
+        for value in node:
+            _strip_titles(value)
+    return node
+
+
+class SlimArgsModel(BaseModel):
+    """工具参数基类：schema 不带 title（每字段省 ~30 字符的工具前缀）。"""
+
+    @classmethod
+    def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict:
+        return _strip_titles(super().model_json_schema(*args, **kwargs))
+
+
+# 字段描述只写参数语义；「何时填」的行为纪律在标注模式的系统提示块里
+# （context_snapshot.ANNOTATION_CALL_GUIDE），避免为每个工具调用重复携带。
+class AutoAnnotateArgs(SlimArgsModel):
     user_request: str = Field(
         min_length=1,
-        description="本轮要执行的标注任务说明，由模型根据用户意图自行归纳",
+        description="本轮标注任务说明（按用户意图归纳）",
     )
     paths: list[str] = Field(
         default_factory=list,
-        description=(
-            "要标注的相对路径，取自 list_workspace_directory 的 relativePath。"
-            "目录用 / 后缀（如 data/）。用户指定了文件或文件夹时必须填写。"
-        ),
+        description="要标注的相对路径，取自 list_workspace_directory 的 relativePath；目录以 / 结尾",
     )
     all_files: bool = Field(
         default=False,
-        description=(
-            "仅当用户明确要求标注整个项目/全部文件时设为 true。"
-            "禁止在未确认时默认为 true。"
-        ),
+        description="是否标注整个项目全部文件（仅用户明确要求时为 true）",
     )
     write_mode: Literal["append", "replace_matching"] = Field(
         default="append",
-        description=(
-            "append：追加新标注；replace_matching：替换同类型已有标注。"
-            "用户说重写/重新标注/每文件只留一条时用 replace_matching，否则 append。"
-        ),
+        description="append 追加新标注；replace_matching 替换同类型已有标注",
     )
     scope_hint: str | None = Field(
         default=None,
-        description="兼容旧参数：逗号分隔的相对路径。优先使用 paths。未命中时不会回退到全部文件。",
+        description="兼容旧参数：逗号分隔的相对路径，优先使用 paths",
     )
     conf_threshold: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
-        description="检测置信度阈值（0-1）。仅当用户明确给出置信度时填写，否则留空用模型默认值。",
+        description="检测置信度阈值（0-1），用户明确给出时填",
     )
     iou_threshold: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
-        description="检测 NMS IoU 阈值（0-1）。仅当用户明确给出时填写。",
+        description="检测 NMS IoU 阈值（0-1），用户明确给出时填",
     )
     model_id: str | None = Field(
         default=None,
-        description=(
-            "指定检测模型 id（取自 describe_annotation_project 列出的可用检测模型）。"
-            "仅当用户点名模型时填写。"
-        ),
+        description="指定检测模型 id，仅用户点名模型时填",
     )
     include_classes: list[str] | None = Field(
         default=None,
-        description='只保留这些检测类名的框（如 ["person"]）。用户说「只标人/只要车」时填写。',
+        description='只保留这些检测类名的框（如 ["person"]）',
     )
     exclude_classes: list[str] | None = Field(
         default=None,
-        description="排除这些检测类名的框。用户说「不要行人/排除车」时填写。",
+        description="排除这些检测类名的框",
     )
     use_vision_mapping: bool | None = Field(
         default=None,
-        description=(
-            "是否用视觉模型把检测框映射到项目标签。实例/细粒度标签（球员名等）用 true；"
-            "留空由系统按标签情况决定。"
-        ),
+        description="是否用视觉模型把检测框映射到项目标签；留空由系统决定",
     )
 
 
-class MutateAnnotationArgs(BaseModel):
+class MutateAnnotationArgs(SlimArgsModel):
     user_request: str = Field(min_length=1, description="必须原样传递用户的原始请求")
     paths: list[str] | None = Field(
         default=None,
@@ -133,7 +140,7 @@ class MutateAnnotationArgs(BaseModel):
     )
 
 
-class StrReplaceArgs(BaseModel):
+class StrReplaceArgs(SlimArgsModel):
     relative_path: str = Field(min_length=1, description="要修改的相对路径")
     old_string: str = Field(min_length=1, description="文件中必须唯一出现的原文片段")
     new_string: str = Field(description="替换后的文本")
@@ -143,11 +150,11 @@ class StrReplaceArgs(BaseModel):
     )
 
 
-class DeleteWorkspaceFileArgs(BaseModel):
+class DeleteWorkspaceFileArgs(SlimArgsModel):
     relative_path: str = Field(min_length=1, description="要删除的相对路径")
 
 
-class MoveWorkspaceFileArgs(BaseModel):
+class MoveWorkspaceFileArgs(SlimArgsModel):
     relative_path: str = Field(min_length=1, description="原相对路径")
     new_relative_path: str = Field(
         min_length=1,
@@ -155,7 +162,7 @@ class MoveWorkspaceFileArgs(BaseModel):
     )
 
 
-class ExploreReadonlyArgs(BaseModel):
+class ExploreReadonlyArgs(SlimArgsModel):
     query: str = Field(min_length=1, description="要查阅的问题或目标")
     focus_path: str | None = Field(
         default=None,
@@ -515,12 +522,8 @@ def _build_all_tools(
             func=_client_tool_stub("auto_annotate"),
             name="auto_annotate",
             description=(
-                "新增或重写当前项目的自动标注（检测、预标注、生成 caption 等）。"
-                "改已有框/标签请用 mutate_annotation。"
-                "user_request 填写本轮要执行的标注任务；指定范围填 paths，全部文件才 all_files=true。"
-                "用户给出检测约束时填对应参数：conf_threshold/iou_threshold（0-1）、"
-                "model_id（可用检测模型见 describe_annotation_project）、"
-                "include_classes/exclude_classes（检测类名过滤）、use_vision_mapping。"
+                "新增或重写当前项目的自动标注（检测、预标注、生成 caption 等）；"
+                "改已有框/标签用 mutate_annotation。填参规则见系统提示的标注调用纪律。"
             ),
             args_schema=AutoAnnotateArgs,
         ),

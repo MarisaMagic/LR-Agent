@@ -13,6 +13,17 @@ def test_three_sets_include_explore_readonly():
     assert "explore_readonly" in FULL_TOOL_SET
 
 
+def test_query_context_tools_not_exposed_to_main_agent():
+    """get_account_summary / describe_client_context 退出默认工具集。
+
+    二者仍在 registry 注册（子代理内可用），但不注入主 Agent，以免白占前缀并诱发无关调用。
+    """
+    for name in ("get_account_summary", "describe_client_context"):
+        assert name not in ASK_TOOL_SET
+        assert name not in LIGHT_TOOL_SET
+        assert name not in FULL_TOOL_SET
+
+
 def test_ask_tool_set_strips_writes():
     assert WRITE_TOOL_NAMES.isdisjoint(ASK_TOOL_SET)
     assert "read_file_annotation" in ASK_TOOL_SET

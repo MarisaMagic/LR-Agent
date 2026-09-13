@@ -18,12 +18,19 @@ export const MCP_TRANSPORT_LABELS: Record<McpTransport, string> = {
   sse: 'SSE',
 };
 
-/**
- * API Key 值模板占位符：字面上的 "${KEY}"，由表单层替换为用户输入。
+/** API Key 值模板占位符：字面上的 "${KEY}"，由表单层替换为用户输入。
  * 故意在普通字符串中使用 ${}，并非模板字符串笔误。
  */
 // eslint-disable-next-line no-template-curly-in-string
 export const MCP_API_KEY_PLACEHOLDER = '${KEY}';
+
+/**
+ * 大 server 自动白名单阈值。
+ *
+ * 探测到的工具数超过该值时，**新发现**的工具默认写入 disabledTools（已有工具不受影响）：
+ * 40+ 个工具的 schema 会常驻提示前缀并大幅提高模型选错工具的概率，默认按需开启更划算。
+ */
+export const MCP_AUTO_ALLOWLIST_THRESHOLD = 20;
 
 /** 单个远程 MCP Server 配置（mcp.json 中 mcpServers 的值） */
 export interface McpServerConfig {

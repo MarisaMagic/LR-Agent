@@ -128,6 +128,20 @@ FILE_EDIT_GUIDE = """【文件编辑纪律】
 - 同一文件多处修改：连续多次调用 str_replace_workspace_file（提案自动累积为一份），不要为省事整文件重写。"""
 
 
+# 自动标注填参纪律：仅在标注模式的 Agent 里注入（auto_annotate 只在 FULL_TOOL_SET 出现）。
+# 这些「何时填」的规则从 AutoAnnotateArgs 的字段描述里搬来，集中一份、留在稳定前缀里，
+# 避免同一套纪律在 11 个字段描述里重复携带。
+ANNOTATION_CALL_GUIDE = """【标注调用纪律】(auto_annotate)
+- paths 取自 list_workspace_directory 的 relativePath，目录以 / 结尾（如 data/）；用户点了文件或文件夹必须填 paths。
+- all_files 仅在用户明确要求标注整个项目/全部文件时为 true；未确认时禁止默认为 true。
+- 用户说“重写 / 重新标注 / 每文件只留一条”用 write_mode=replace_matching，否则用 append。
+- conf_threshold / iou_threshold 仅在用户明确给出数值时填，否则留空用模型默认值。
+- model_id 仅在用户点名检测模型时填（可用模型见 describe_annotation_project）。
+- include_classes / exclude_classes 仅在用户说“只标 X / 不要 Y”时填，类名以检测模型输出为准。
+- use_vision_mapping 留空由系统按标签情况决定；标签为实例/细粒度（球员名等）时填 true。
+- 所有参数以用户本轮原话为依据，禁止凭猜测补值。"""
+
+
 def build_workspace_assistant_system_prompt(client_context: ClientContextInput | None) -> str:
     task = WORKSPACE_ASSIST_TASK.format(vision_hint=VISION_HINT)
     parts = [task, FILE_EDIT_GUIDE]
@@ -190,10 +204,13 @@ def build_assist_system_prompt(
         task = build_workspace_assistant_system_prompt(client_context)
     elif client_context and client_context.annotation_project_snapshot is not None:
         task = build_project_assistant_system_prompt(client_context)
+        # 标注 Agent 才有 auto_annotate；编辑器模式已被 registry 剥掉标注工具，无需注入。
+        if client_context.agent_mode == "annotation":
+            task = f"{task}\n\n{ANNOTATION_CALL_GUIDE}"
     elif client_context and (client_context.workspace_root or "").strip():
         task = build_workspace_assistant_system_prompt(client_context)
     else:
-        task = WORKSPACE_ASSIST_TASK
+        task = WORKSPACE_ASSIST_TASK.format(vision_hint=VISION_HINT)
     editor_note = ""
     if client_context and client_context.work_mode == "editor":
         if client_context.agent_mode == "annotation":

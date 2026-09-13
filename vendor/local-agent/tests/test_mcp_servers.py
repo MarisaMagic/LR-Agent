@@ -1,5 +1,7 @@
 """多 MCP Server（本机 + 远程）加载：连接参数、失败隔离、去重与 probe。"""
 
+import asyncio
+
 import pytest
 from langchain_core.tools import StructuredTool
 
@@ -241,3 +243,82 @@ async def test_failed_discovery_not_cached():
     # 失败不写缓存：第二次重新发现成功
     assert len(_FakeClient.instances) == 2
     assert [t.name for t in second] == ["memory_read"]
+
+
+# ── 过期缓存：stale-while-revalidate ─────────────────────────────────
+
+
+async def _flush_refreshes():
+    """等待已排期的后台刷新跑完。
+
+    每轮让出一次事件循环：task 的 done-callback（从 _refresh_tasks 摘除）靠 loop 回调执行，
+    只 await 已完成的 task 不会让出循环。
+    """
+    for _ in range(10):
+        if not mcp_client._refresh_tasks:
+            return
+        await asyncio.gather(*list(mcp_client._refresh_tasks), return_exceptions=True)
+        await asyncio.sleep(0)
+
+
+async def test_stale_cache_returns_old_tools_without_waiting():
+    """过期后本轮直接用旧列表（不重新建连），后台刷新下一轮生效。"""
+    _FakeClient.tools_by_server["lr-agent-local"] = [_tool("memory_read")]
+    await mcp_client.load_mcp_tools_from_servers("http://127.0.0.1:9000", [])
+    assert len(_FakeClient.instances) == 1
+
+    # 让缓存过期，并换成新工具列表
+    key = mcp_client._cache_key(mcp_client._local_connection("http://127.0.0.1:9000"))
+    tools_old, _ = mcp_client._tools_cache[key]
+    mcp_client._tools_cache[key] = (tools_old, 0.0)
+    _FakeClient.tools_by_server["lr-agent-local"] = [_tool("memory_write")]
+
+    stale = await mcp_client.load_mcp_tools_from_servers("http://127.0.0.1:9000", [])
+    # 本轮仍是旧列表，且没有为它同步建连
+    assert [t.name for t in stale] == ["memory_read"]
+    assert len(_FakeClient.instances) == 1
+
+    await _flush_refreshes()
+    refreshed = await mcp_client.load_mcp_tools_from_servers("http://127.0.0.1:9000", [])
+    assert [t.name for t in refreshed] == ["memory_write"]
+
+
+async def test_stale_refresh_failure_keeps_old_tools():
+    _FakeClient.tools_by_server["lr-agent-local"] = [_tool("memory_read")]
+    await mcp_client.load_mcp_tools_from_servers("http://127.0.0.1:9000", [])
+    key = mcp_client._cache_key(mcp_client._local_connection("http://127.0.0.1:9000"))
+    tools_old, _ = mcp_client._tools_cache[key]
+    mcp_client._tools_cache[key] = (tools_old, 0.0)
+
+    _FakeClient.fail_on.add("lr-agent-local")
+    assert [t.name for t in await mcp_client.load_mcp_tools_from_servers(
+        "http://127.0.0.1:9000", []
+    )] == ["memory_read"]
+    await _flush_refreshes()
+
+    # 刷新失败：旧条目仍在，下一轮仍可用
+    _FakeClient.fail_on.clear()
+    still = await mcp_client.load_mcp_tools_from_servers("http://127.0.0.1:9000", [])
+    assert [t.name for t in still] == ["memory_read"]
+
+
+async def test_no_cache_still_discovers_synchronously():
+    """首轮无缓存必须同步发现（不能返回空列表）。"""
+    _FakeClient.tools_by_server["lr-agent-local"] = [_tool("memory_read")]
+    tools = await mcp_client.load_mcp_tools_from_servers("http://127.0.0.1:9000", [])
+    assert [t.name for t in tools] == ["memory_read"]
+    assert len(_FakeClient.instances) == 1
+
+
+async def test_ttl_zero_does_not_serve_stale():
+    """ttl=0 关闭缓存：每次都重新发现，不走 stale 分支。"""
+    _FakeClient.tools_by_server["lr-agent-local"] = [_tool("memory_read")]
+    await mcp_client.load_mcp_tools_from_servers(
+        "http://127.0.0.1:9000", [], ttl_seconds=0
+    )
+    _FakeClient.tools_by_server["lr-agent-local"] = [_tool("memory_write")]
+    tools = await mcp_client.load_mcp_tools_from_servers(
+        "http://127.0.0.1:9000", [], ttl_seconds=0
+    )
+    assert [t.name for t in tools] == ["memory_write"]
+    assert len(_FakeClient.instances) == 2

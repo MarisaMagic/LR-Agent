@@ -181,6 +181,41 @@
   border-top: 1px solid var(--vscode-panel-border, #3c3c3c);
 }
 
+/* 大 server 提示条：说明新工具默认关闭，并给出批量开关 */
+.mcp-tool-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0 0 32px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.1));
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.mcp-tool-hint-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.mcp-tool-hint-actions button {
+  padding: 2px 8px;
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vscode-foreground, #ccc);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.mcp-tool-hint-actions button:hover {
+  background: var(--vscode-list-hoverBackground, rgba(127, 127, 127, 0.15));
+}
+
 .mcp-tool-row {
   display: flex;
   align-items: center;

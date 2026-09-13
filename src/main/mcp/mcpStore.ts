@@ -14,6 +14,7 @@ import {
   tryDecryptSecret,
 } from '../security/secretStore';
 import {
+  MCP_AUTO_ALLOWLIST_THRESHOLD,
   MCP_TRANSPORTS,
   type McpConfig,
   type McpServerConfig,
@@ -289,22 +290,47 @@ export async function setMcpServerTools(
   const config = getMcpConfig();
   const existing = config.mcpServers[id];
   if (!existing) return null;
+  const lastTools =
+    patch.lastTools !== undefined
+      ? sanitizeStringList(patch.lastTools)
+      : existing.lastTools;
+  // 阈值自动白名单：大 server 新探测到的工具默认关闭，已有工具与显式传参不受影响
+  // （「全部开启」按钮走 disabledTools 分支，传空数组即全开）。
+  const disabledTools =
+    patch.disabledTools !== undefined
+      ? sanitizeStringList(patch.disabledTools)
+      : resolveAutoAllowlistDisabledTools(existing, lastTools, patch.lastTools);
   const next: McpServerConfig = {
     ...existing,
-    lastTools:
-      patch.lastTools !== undefined
-        ? sanitizeStringList(patch.lastTools)
-        : existing.lastTools,
-    disabledTools:
-      patch.disabledTools !== undefined
-        ? sanitizeStringList(patch.disabledTools)
-        : existing.disabledTools,
+    lastTools,
+    disabledTools,
     updatedAt: Date.now(),
   };
   await writeMcpConfig({
     mcpServers: { ...config.mcpServers, [id]: next },
   });
   return next;
+}
+
+/**
+ * 新发现工具的默认开关状态。
+ *
+ * 只有本次带 lastTools（即 probe 结果）且工具总数超过阈值时，才把「既不在旧 lastTools
+ * 也不在 disabledTools 里」的工具追加进 disabledTools；其余情况保持原状。
+ */
+function resolveAutoAllowlistDisabledTools(
+  existing: McpServerConfig,
+  lastTools: string[],
+  patchLastTools: string[] | undefined,
+): string[] {
+  if (patchLastTools === undefined) return existing.disabledTools;
+  if (lastTools.length <= MCP_AUTO_ALLOWLIST_THRESHOLD) {
+    return existing.disabledTools;
+  }
+  const known = new Set([...existing.lastTools, ...existing.disabledTools]);
+  const discovered = lastTools.filter((name) => !known.has(name));
+  if (discovered.length === 0) return existing.disabledTools;
+  return sanitizeStringList([...existing.disabledTools, ...discovered]);
 }
 
 /** 仅测试用 */

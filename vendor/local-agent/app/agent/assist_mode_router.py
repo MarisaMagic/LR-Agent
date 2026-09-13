@@ -15,7 +15,10 @@ class AssistMode(str, Enum):
     CHAT = "chat"
 
 
-# 每种模式的工具白名单
+# 每种模式的工具白名单。
+# get_account_summary / describe_client_context 不注入主 Agent：前者在本地应用里无用，
+# 后者要的信息 system prompt 已注入，二者的 schema 只是白占前缀并诱发无关调用。
+# 两者仍在 registry 注册，子代理 explore_readonly 内部可用（见 explore_readonly.py）。
 LIGHT_TOOL_SET: frozenset[str] = frozenset({
     "read_workspace_file",
     "grep_workspace",
@@ -27,9 +30,7 @@ LIGHT_TOOL_SET: frozenset[str] = frozenset({
     "str_replace_workspace_file",
     "delete_workspace_file",
     "move_workspace_file",
-    "get_account_summary",
     "get_lr_agent_help",
-    "describe_client_context",
     "describe_annotation_project",
     "read_file_annotation",
     "explore_readonly",
@@ -48,9 +49,7 @@ FULL_TOOL_SET: frozenset[str] = frozenset({
     "move_workspace_file",
     "auto_annotate",
     "mutate_annotation",
-    "get_account_summary",
     "get_lr_agent_help",
-    "describe_client_context",
     "describe_annotation_project",
     "read_file_annotation",
     "explore_readonly",

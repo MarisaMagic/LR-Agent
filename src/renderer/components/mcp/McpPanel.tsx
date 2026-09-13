@@ -7,11 +7,12 @@ import {
 import VscodeClickableToolbarButton from '../VscodeClickableButton';
 import VscodeScrollHost from '../VscodeScrollHost';
 import ModalMotion from '../../motion/ModalMotion';
-import type {
-  McpPreset,
-  McpProbeResult,
-  McpServerConfig,
-  McpServerInput,
+import {
+  MCP_AUTO_ALLOWLIST_THRESHOLD,
+  type McpPreset,
+  type McpProbeResult,
+  type McpServerConfig,
+  type McpServerInput,
 } from '../../../shared/mcpTypes';
 import {
   deleteMcpServer,
@@ -183,6 +184,22 @@ export default function McpPanel() {
     );
   };
 
+  /** 批量开关：关闭时把当前全部工具名写进 disabledTools，开启时清空。 */
+  const handleSetAllTools = async (
+    server: McpServerConfig,
+    enabled: boolean,
+  ) => {
+    const nextDisabled = enabled ? [] : [...server.lastTools];
+    setServers((prev) =>
+      prev.map((item) =>
+        item.id === server.id ? { ...item, disabledTools: nextDisabled } : item,
+      ),
+    );
+    await setMcpServerTools(server.id, { disabledTools: nextDisabled }).catch(
+      () => refresh(),
+    );
+  };
+
   const toggleExpanded = (id: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -341,28 +358,54 @@ export default function McpPanel() {
                       </button>
                     </div>
                     {server.enabled && expanded && tools.length > 0 ? (
-                      <ul className="mcp-tool-list">
-                        {tools.map((toolName) => {
-                          const on = !server.disabledTools.includes(toolName);
-                          return (
-                            <li key={toolName} className="mcp-tool-row">
-                              <span className="mcp-tool-name">{toolName}</span>
+                      <>
+                        {tools.length > MCP_AUTO_ALLOWLIST_THRESHOLD ? (
+                          <div className="mcp-tool-hint">
+                            <span>
+                              该服务提供 {tools.length} 个工具，新工具默认关闭，
+                              请按需开启（已启用 {enabledToolCount} 个）。
+                            </span>
+                            <div className="mcp-tool-hint-actions">
                               <button
                                 type="button"
-                                className="mcp-tool-toggle"
-                                role="switch"
-                                aria-checked={on}
-                                aria-label={`${on ? '停用' : '启用'} ${toolName}`}
-                                onClick={() =>
-                                  handleToggleTool(server, toolName)
-                                }
+                                onClick={() => handleSetAllTools(server, true)}
                               >
-                                <span className="mcp-tool-toggle-knob" />
+                                全部开启
                               </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
+                              <button
+                                type="button"
+                                onClick={() => handleSetAllTools(server, false)}
+                              >
+                                全部关闭
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                        <ul className="mcp-tool-list">
+                          {tools.map((toolName) => {
+                            const on = !server.disabledTools.includes(toolName);
+                            return (
+                              <li key={toolName} className="mcp-tool-row">
+                                <span className="mcp-tool-name">
+                                  {toolName}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="mcp-tool-toggle"
+                                  role="switch"
+                                  aria-checked={on}
+                                  aria-label={`${on ? '停用' : '启用'} ${toolName}`}
+                                  onClick={() =>
+                                    handleToggleTool(server, toolName)
+                                  }
+                                >
+                                  <span className="mcp-tool-toggle-knob" />
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </>
                     ) : null}
                   </li>
                 );

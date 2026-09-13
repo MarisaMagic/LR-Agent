@@ -68,9 +68,7 @@ ALREADY_COMPLETED_SUMMARY = (
 
 PARALLEL_SYNC_TOOLS = frozenset(
     {
-        "get_account_summary",
         "get_lr_agent_help",
-        "describe_client_context",
         "describe_annotation_project",
         "read_file_annotation",
         "read_workspace_file",

@@ -39,6 +39,11 @@ logger = logging.getLogger(__name__)
 # 在缓存之后执行，运行时改配置无需失效缓存。
 _tools_cache: dict[tuple, tuple[list[StructuredTool], float]] = {}
 
+# 过期缓存的后台刷新：_refresh_tasks 持有 task 强引用（否则可能被 GC 回收），
+# _refreshing 按连接指纹去重，避免同一 server 并发重复刷新。
+_refresh_tasks: set[asyncio.Task] = set()
+_refreshing: set[tuple] = set()
+
 
 def _cache_key(conn: dict) -> tuple:
     headers = conn.get("headers") or {}
@@ -56,8 +61,47 @@ async def _discover_tools(name: str, conn: dict) -> list[StructuredTool]:
     return await client.get_tools()
 
 
+def _store_tools(key: tuple, tools: list[StructuredTool], ttl_seconds: float) -> None:
+    if ttl_seconds > 0:
+        _tools_cache[key] = (tools, time.monotonic() + ttl_seconds)
+
+
+def _schedule_refresh(name: str, conn: dict, ttl_seconds: float) -> None:
+    """后台重新发现（不阻塞本轮请求）；失败沿用旧条目。"""
+    key = _cache_key(conn)
+    if key in _refreshing:
+        return
+    _refreshing.add(key)
+
+    async def _run() -> None:
+        try:
+            tools = await _discover_tools(name, conn)
+        except Exception as exc:  # noqa: BLE001 — 任何失败都只降级为沿用旧列表
+            logger.warning(
+                "MCP: 后台刷新 %s (%s) 失败，沿用旧工具列表：%s",
+                name,
+                conn.get("url"),
+                exc,
+            )
+            return
+        finally:
+            _refreshing.discard(key)
+        _store_tools(key, tools, ttl_seconds)
+        logger.info(
+            "MCP: 后台刷新 %s 完成，%d 个工具", name, len(tools)
+        )
+
+    task = asyncio.create_task(_run())
+    _refresh_tasks.add(task)
+    task.add_done_callback(_refresh_tasks.discard)
+
+
 def clear_mcp_tools_cache() -> None:
     """清空工具发现缓存（测试或强制刷新用）。"""
+    for task in list(_refresh_tasks):
+        task.cancel()
+    _refresh_tasks.clear()
+    _refreshing.clear()
     _tools_cache.clear()
 
 
@@ -157,6 +201,8 @@ async def load_mcp_tools_from_servers(
 
     发现结果按连接指纹缓存 ttl_seconds（<=0 关闭缓存）；未命中的 server 并行
     建连，单台失败仅跳过该 server，不影响其他 server 与 Agent 主流程。
+    缓存过期时走 stale-while-revalidate：本轮用旧列表继续，后台刷新下一轮生效，
+    因此只有应用启动后的首轮请求需要同步等待发现。
     """
     if existing_capabilities is None:
         existing_capabilities = CANONICAL_CAPABILITIES
@@ -191,11 +237,15 @@ async def load_mcp_tools_from_servers(
     pending: dict[str, dict] = {}
     for name, conn in connections.items():
         key = _cache_key(conn)
-        cached = _tools_cache.get(key)
-        if ttl_seconds > 0 and cached and cached[1] > now:
-            raw_by_conn[name] = cached[0]
-        else:
+        cached = _tools_cache.get(key) if ttl_seconds > 0 else None
+        if cached is None:
+            # 无缓存（首轮）：只能同步发现
             pending[name] = conn
+            continue
+        raw_by_conn[name] = cached[0]
+        if cached[1] <= now:
+            # 过期但可用：先返回旧列表，后台刷新，别让本轮首 token 等重建连
+            _schedule_refresh(name, conn, ttl_seconds)
 
     if pending:
         results = await asyncio.gather(
@@ -212,11 +262,7 @@ async def load_mcp_tools_from_servers(
                 )
                 continue
             raw_by_conn[name] = result
-            if ttl_seconds > 0:
-                _tools_cache[_cache_key(conn)] = (
-                    result,
-                    time.monotonic() + ttl_seconds,
-                )
+            _store_tools(_cache_key(conn), result, ttl_seconds)
 
     tools_all: list[StructuredTool] = []
     seen_names: set[str] = set()
