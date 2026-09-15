@@ -12,7 +12,6 @@ import {
   poseGeometryRoughlyEqual,
   pointAnnToScene,
   sceneGeometryToPoseAnn,
-  scenePointToNorm,
 } from './fabricKeypointCoords';
 import {
   applySceneGeometryToPoseGroup,
@@ -39,15 +38,6 @@ export function getAnnotationPointCircles(
   canvas: Canvas,
 ): AnnotatedPointCircle[] {
   return canvas.getObjects().filter(isAnnotationPointCircle);
-}
-
-export function removeAllKeypointAnnotations(canvas: Canvas): void {
-  getAnnotationPoseGroups(canvas).forEach((g) => {
-    if (g._poseId) removePoseFromCanvas(canvas, g._poseId);
-  });
-  getAnnotationPointCircles(canvas).forEach((p) => {
-    if (p._pointId) removePointFromCanvas(canvas, p._pointId);
-  });
 }
 
 export function syncKeypointInteraction(
@@ -243,26 +233,6 @@ export function extractPoseFromGroup(
     createdAt: base.createdAt,
     note: base.note,
   });
-}
-
-export function extractPointFromCircle(
-  circle: AnnotatedPointCircle,
-  naturalWidth: number,
-  naturalHeight: number,
-  base: ImagePointAnnotation,
-): ImagePointAnnotation {
-  const norm = scenePointToNorm(
-    { x: circle.left ?? 0, y: circle.top ?? 0 },
-    naturalWidth,
-    naturalHeight,
-  );
-  return {
-    ...base,
-    kind: 'point',
-    updatedAt: new Date().toISOString(),
-    x: norm.x,
-    y: norm.y,
-  };
 }
 
 export function patchPoseHoverStyles(

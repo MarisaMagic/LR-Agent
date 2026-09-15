@@ -3,7 +3,6 @@
  */
 import { assertPreAnnotResult, runPreAnnot } from '../preAnnotService';
 import type {
-  AnnotationBatchChange,
   BatchAnnotationPlan,
   ImageCandidate,
 } from '../../../shared/annotationAgentTypes';
@@ -21,17 +20,6 @@ export type DetectBox = {
   width: number;
   height: number;
 };
-
-export interface SubImageToolContext {
-  boxes: DetectBox[];
-  rawCount: number;
-  keptCount: number;
-  excludedCount: number;
-  mappings: Array<{ box_index: number; label_id: string; reason?: string }>;
-  mapMethod: string;
-  mapHint: string;
-  change?: AnnotationBatchChange;
-}
 
 export async function readImageBase64(absolutePath: string): Promise<string> {
   const buf = await window.electron?.fileSystem?.readFileBuffer(absolutePath);

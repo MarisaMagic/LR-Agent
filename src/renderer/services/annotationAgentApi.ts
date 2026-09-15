@@ -1,7 +1,6 @@
 import { localAgentFetch, resolveLocalAgentBaseUrl } from '../config';
 import type {
   AnnotationProjectSnapshot,
-  BatchPrepareResult,
   ImageCandidate,
 } from '../../shared/annotationAgentTypes';
 import { parseApiError } from './authenticatedFetch';
@@ -35,74 +34,6 @@ async function postAnnotationLlm<T>(
 
   const json = (await response.json()) as ApiSuccess<T>;
   return json.data;
-}
-
-export async function prepareBatchAnnotation(
-  providerId: string,
-  options: {
-    userRequest: string;
-    /** 仅 UI 显式指定；勿用回合理解的 referenced_relative_paths */
-    preselectedPaths?: string[];
-    sessionId?: string;
-    /** 对话上下文 transcript，供 LLM 理解历史意图 */
-    conversationTranscript?: string;
-    currentRelativePath: string;
-    candidates: ImageCandidate[];
-    labelCandidates: Array<{ id: string; name: string }>;
-    detectionModels: Array<{ id: string; name: string; isDefault?: boolean }>;
-    project: AnnotationProjectSnapshot | null;
-    defaultConfThreshold?: number;
-    defaultIouThreshold?: number;
-    providerApiKey?: string;
-    providerBaseUrl?: string;
-    providerModel?: string;
-    providerSupportsVision?: boolean;
-    signal?: AbortSignal;
-  },
-): Promise<BatchPrepareResult> {
-  const body: Record<string, unknown> = {
-    provider_id: providerId,
-    api_key: options.providerApiKey ?? '',
-    base_url: options.providerBaseUrl ?? '',
-    model: options.providerModel ?? '',
-    supports_vision: options.providerSupportsVision ?? false,
-    user_request: options.userRequest,
-    session_id: options.sessionId ?? null,
-    conversation_transcript: options.conversationTranscript ?? '',
-    current_relative_path: options.currentRelativePath,
-    candidates: options.candidates.map((c) => ({
-      relative_path: c.relativePath,
-      name: c.name,
-      parent: c.parent,
-      index: c.index,
-    })),
-    label_candidates: options.labelCandidates,
-    detection_models: options.detectionModels,
-    default_conf_threshold: options.defaultConfThreshold ?? 0.7,
-    default_iou_threshold: options.defaultIouThreshold ?? 0.5,
-    project: options.project
-      ? {
-          project_id: options.project.projectId,
-          name: options.project.name,
-          modality: options.project.modality,
-          annotation_type: options.project.annotationType,
-          labels: options.project.labels.map((l) => ({
-            id: l.id,
-            name: l.name,
-            color: l.color,
-          })),
-        }
-      : null,
-  };
-  const preselected = options.preselectedPaths?.filter(Boolean) ?? [];
-  if (preselected.length) {
-    body.preselected_paths = preselected;
-  }
-  return postAnnotationLlm<BatchPrepareResult>(
-    '/agent/annotation/batch-prepare',
-    body,
-    options.signal,
-  );
 }
 
 export interface MutationPrepareResult {
@@ -243,22 +174,4 @@ export async function mapDetectionBoxesUnified(
     },
     options.signal,
   );
-}
-
-export async function mapDetectionBoxesHeuristic(
-  providerId: string,
-  options: {
-    boxes: Array<{ box_index: number; class_name: string; confidence: number }>;
-    labelCandidates: Array<{ id: string; name: string }>;
-    ocrText?: string;
-  },
-): Promise<{
-  mappings: Array<{ box_index: number; label_id: string; reason?: string }>;
-}> {
-  return postAnnotationLlm('/agent/annotation/map-heuristic', {
-    provider_id: providerId,
-    boxes: options.boxes,
-    label_candidates: options.labelCandidates,
-    ocr_text: options.ocrText ?? '',
-  });
 }

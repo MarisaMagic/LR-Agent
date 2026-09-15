@@ -552,15 +552,6 @@ export async function readAnnotationsForPath(
   return parsed?.annotations ?? [];
 }
 
-/** @deprecated use readAnnotationsForPath */
-export async function readBboxesForPath(
-  projectDir: string,
-  relativePath: string,
-): Promise<AnnotationInstance[]> {
-  const all = await readAnnotationsForPath(projectDir, relativePath);
-  return all.filter((a) => a.kind === 'bbox');
-}
-
 export function labelIdByName(
   name: string | null | undefined,
   labels: LabelDefinition[],

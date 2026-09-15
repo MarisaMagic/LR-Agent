@@ -12,22 +12,6 @@ export function isUnlabeled(labelId: string | null | undefined): boolean {
 
 export { shouldSkipForTrainingExport };
 
-export function isKnownLabel(
-  labelId: string | null | undefined,
-  labels: LabelDefinition[],
-): labelId is string {
-  if (isUnlabeled(labelId)) return false;
-  return labels.some((l) => l.id === labelId);
-}
-
-export function resolveAnnotationLabel(
-  labelId: string | null | undefined,
-  labels: LabelDefinition[],
-): LabelDefinition | null {
-  if (isUnlabeled(labelId)) return null;
-  return labels.find((l) => l.id === labelId) ?? null;
-}
-
 export function getAnnotationLabelState(
   labelId: string | null | undefined,
   labels: LabelDefinition[],

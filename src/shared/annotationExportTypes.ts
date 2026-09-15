@@ -255,17 +255,6 @@ export function isImageAnnotationType(
   );
 }
 
-export function isTextAnnotationType(value: AnnotationType): boolean {
-  return (
-    value === 'span_ner' ||
-    value === 'text_classification' ||
-    value === 'instruction' ||
-    value === 'preference' ||
-    value === 'conversation' ||
-    value === 'cot'
-  );
-}
-
 export function defaultExportFormat(
   annotationType: AnnotationType,
 ): ExportFormatId {

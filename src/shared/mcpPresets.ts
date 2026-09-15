@@ -59,7 +59,3 @@ export const MCP_PRESETS: McpPreset[] = [
     icon: 'huggingface',
   },
 ];
-
-export function getMcpPreset(id: string): McpPreset | null {
-  return MCP_PRESETS.find((preset) => preset.id === id) ?? null;
-}

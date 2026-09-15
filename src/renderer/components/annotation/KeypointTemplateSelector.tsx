@@ -81,7 +81,3 @@ export default function KeypointTemplateSelector() {
     </div>
   );
 }
-
-export function KeypointTemplateToolbarSlot() {
-  return <KeypointTemplateSelector />;
-}

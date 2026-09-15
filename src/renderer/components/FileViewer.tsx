@@ -9,7 +9,6 @@ import mammoth from 'mammoth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { RendererEventChannel } from '../../main/preload';
 import { useApp } from '../context/AppContext';
 import { useAnnotationWorkspace } from '../context/AnnotationWorkspaceContext';
 import { basename, dirname, getExtension } from '../types/file';
@@ -334,35 +333,6 @@ export default function FileViewer({
       },
     ];
   }, [hasSelection]);
-
-  // ── Edit 菜单 IPC ──
-  useEffect(() => {
-    const unsubs: (() => void)[] = [];
-    const actions: Partial<Record<RendererEventChannel, () => void>> = {
-      'edit:undo': () => document.execCommand('undo'),
-      'edit:redo': () => document.execCommand('redo'),
-      'edit:cut': () => document.execCommand('cut'),
-      'edit:copy': () => document.execCommand('copy'),
-      'edit:paste': () => document.execCommand('paste'),
-      'edit:selectAll': () => {
-        const body = viewerBodyRef.current;
-        if (body) selectAllInViewer(body);
-      },
-    };
-
-    for (const channel of Object.keys(actions) as RendererEventChannel[]) {
-      const fn = actions[channel];
-      if (!fn) continue;
-      const unsub = window.electron.ipcRenderer.on(channel, () => {
-        // 聚焦主区域
-        viewerRef.current?.focus();
-        fn();
-      });
-      unsubs.push(unsub);
-    }
-
-    return () => unsubs.forEach((u) => u());
-  }, [filePath]);
 
   const highlightLanguage = useMemo(
     () => (filePath ? getLanguageForFile(filePath) : null),

@@ -25,13 +25,6 @@ export interface TurnContext {
 
 const MAX_TRANSCRIPT_CHARS = 12_000;
 
-export function normalizeInteractionMode(
-  agentMode: AgentInteractionMode | null | undefined,
-): AgentInteractionMode {
-  if (agentMode === 'annotation') return 'annotation';
-  return 'chat';
-}
-
 function roleLabel(role: TurnRole): string {
   return role === 'user' ? '用户' : '助手';
 }

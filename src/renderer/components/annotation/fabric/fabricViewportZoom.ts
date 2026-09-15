@@ -121,18 +121,3 @@ export function applyViewportTransform(
   ]);
   return true;
 }
-
-/** Apply dimensions + viewport in one pass (non-animated updates). */
-export function applyViewportToCanvas(
-  canvas: Canvas,
-  displayZoom: number,
-  canvasWidth: number,
-  canvasHeight: number,
-): void {
-  const changed =
-    applyCanvasDimensions(canvas, canvasWidth, canvasHeight) ||
-    applyViewportTransform(canvas, displayZoom);
-  if (changed) {
-    canvas.requestRenderAll();
-  }
-}

@@ -89,26 +89,6 @@ def normalize_detection_label(label: str) -> str:
     return re.sub(r"\s+", " ", (label or "").strip().lower().replace("_", " "))
 
 
-def labels_mentioned_in_text(text: str, label_names: list[str]) -> list[str]:
-    """从文本中提取出现的项目标签名（大小写不敏感子串，按 label_names 顺序）。"""
-    raw = (text or "").lower()
-    if not raw:
-        return []
-    out: list[str] = []
-    seen: set[str] = set()
-    for name in label_names:
-        n = (name or "").strip()
-        if not n:
-            continue
-        key = n.lower()
-        if key in seen:
-            continue
-        if key in raw:
-            seen.add(key)
-            out.append(n)
-    return out
-
-
 def expand_detection_aliases(terms: list[str]) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()

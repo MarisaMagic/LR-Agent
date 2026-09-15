@@ -25,10 +25,6 @@ function readWindowFlag(
   return Boolean(value);
 }
 
-export function isAgentMutationEnabled(): boolean {
-  return readWindowFlag('__LR_AGENT_MUTATION_ENABLED__');
-}
-
 export function isAgentDocumentWriteEnabled(): boolean {
   return readWindowFlag('__LR_AGENT_DOCUMENT_WRITE_ENABLED__');
 }

@@ -108,10 +108,6 @@ class ProposalStreamInterceptor:
         # fp_states: tc_index → {args_buf, title_sent, content_sent_len, rel_path, call_id}
         self.fp_states: dict[int, dict] = {}
 
-    def reset(self) -> None:
-        """清空全部状态。tc_index 每轮从 0 重新编号，跨轮必须 reset 或换新实例。"""
-        self.fp_states.clear()
-
     @staticmethod
     def _new_state(call_id: str = "", kind: str = "write") -> dict:
         return {

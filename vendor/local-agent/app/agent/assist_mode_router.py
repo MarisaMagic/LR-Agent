@@ -6,15 +6,6 @@
   - CHAT:  纯对话，无工具（由 chat_service 处理，不经过 assist）
 """
 
-from enum import Enum
-
-
-class AssistMode(str, Enum):
-    FULL = "full"
-    LIGHT = "light"
-    CHAT = "chat"
-
-
 # 每种模式的工具白名单。
 # get_account_summary / describe_client_context 不注入主 Agent：前者在本地应用里无用，
 # 后者要的信息 system prompt 已注入，二者的 schema 只是白占前缀并诱发无关调用。

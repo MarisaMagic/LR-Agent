@@ -196,11 +196,6 @@ export function getLanguageForFile(filePath: string): string | null {
   return EXT_TO_LANGUAGE[ext] ?? null;
 }
 
-/** @deprecated 使用 getLanguageForFile */
-export function getHighlightLanguage(filePath: string): string | null {
-  return getLanguageForFile(filePath);
-}
-
 /** Monaco 语言 ID（未知时返回 plaintext） */
 export function getMonacoLanguageForFile(filePath: string): string {
   const lang = getLanguageForFile(filePath);

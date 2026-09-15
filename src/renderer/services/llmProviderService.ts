@@ -1,4 +1,4 @@
-import { createAgentId, type LlmProviderConfig } from '../../shared/agentTypes';
+import { type LlmProviderConfig } from '../../shared/agentTypes';
 import {
   createLlmProviderOnApi,
   deleteLlmProviderOnApi,
@@ -115,11 +115,4 @@ export async function markDefaultLlmProvider(
   const updated = await setDefaultLlmProviderOnApi(id);
   persistDefaultProviderId(updated.id);
   return updated;
-}
-
-/** @deprecated local-only persistence removed */
-export async function persistLlmProviders(
-  _providers: LlmProviderConfig[],
-): Promise<void> {
-  // no-op: providers are stored on the backend
 }

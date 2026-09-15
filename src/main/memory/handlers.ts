@@ -1,30 +1,17 @@
 import { ipcMain, shell } from 'electron';
 import { readProjectInstructions } from './instructionsReader';
 import {
-  assertAgentWritableTopic,
-  createMemoryTopic,
   ensureMemoryDir,
-  getActiveMemoryScope,
-  isWorkspaceMemoryActive,
   listMemoryEntries,
-  listMemoryTopics,
   readMemoryIndex,
-  readMemoryTopic,
   resolveOpenableMemoryFile,
   setWorkspaceMemoryActive,
   syncWorkspaceFactTopics,
-  writeMemoryTopic,
 } from './memoryStore';
 import {
   isMemoryOpenTarget,
   openMemoryFileWithTarget,
 } from './openMemoryTarget';
-
-function assertWritableMemoryScope(scopeKey: string): void {
-  if (!isWorkspaceMemoryActive() || getActiveMemoryScope() !== scopeKey) {
-    throw new Error('workspace_memory_inactive');
-  }
-}
 
 export function registerMemoryHandlers(): void {
   ipcMain.handle(
@@ -47,54 +34,9 @@ export function registerMemoryHandlers(): void {
     },
   );
 
-  ipcMain.handle(
-    'agent:memory:readTopic',
-    (_event, scopeKey: string, topicFile: string) => {
-      return readMemoryTopic(scopeKey, topicFile);
-    },
-  );
-
-  ipcMain.handle('agent:memory:listTopics', (_event, scopeKey: string) => {
-    return listMemoryTopics(scopeKey);
-  });
-
   ipcMain.handle('agent:memory:listEntries', (_event, scopeKey: string) => {
     return listMemoryEntries(scopeKey);
   });
-
-  ipcMain.handle(
-    'agent:memory:writeTopic',
-    (
-      _event,
-      options: {
-        scopeKey: string;
-        topicFile: string;
-        content: string;
-        indexLine?: string;
-      },
-    ) => {
-      assertWritableMemoryScope(options.scopeKey);
-      assertAgentWritableTopic(options.topicFile);
-      return writeMemoryTopic(options);
-    },
-  );
-
-  ipcMain.handle(
-    'agent:memory:createTopic',
-    (
-      _event,
-      options: {
-        scopeKey: string;
-        topicFile: string;
-        content: string;
-        indexLine?: string;
-      },
-    ) => {
-      assertWritableMemoryScope(options.scopeKey);
-      assertAgentWritableTopic(options.topicFile);
-      return createMemoryTopic(options);
-    },
-  );
 
   ipcMain.handle(
     'agent:memory:syncFacts',

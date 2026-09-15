@@ -46,8 +46,3 @@ export async function loadProjectInstructions(
     return null;
   }
 }
-
-/** 清空缓存（测试或指令文件被编辑后调用） */
-export function clearProjectInstructionsCache(): void {
-  cache.clear();
-}

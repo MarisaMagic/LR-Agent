@@ -277,17 +277,6 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
     window.electron.annotation.showItemInFolder(project.directoryPath);
   }, []);
 
-  useEffect(() => {
-    if (!window.electron) return undefined;
-    const unsub = window.electron.ipcRenderer.on(
-      'menu:createAnnotationProject',
-      () => {
-        openCreateWizard();
-      },
-    );
-    return unsub;
-  }, [openCreateWizard]);
-
   const value = useMemo<AnnotationContextValue>(
     () => ({
       projects,

@@ -8,19 +8,11 @@
 import uuid
 from collections.abc import AsyncIterator, Callable
 
-from langchain_core.messages import AIMessage, ToolMessage
-
 from app.agent.assist_vision import (
     can_bootstrap_vision,
     pick_vision_relative_path,
     stream_vision_tool_execution,
     vision_relative_from_user_text,
-)
-from app.agent.chat_message_builder import build_multimodal_user_message
-from app.agent.tools.workspace_file_reader import (
-    VISION_TOOL_NAME,
-    extract_vision_path_from_tool_result,
-    format_vision_tool_result_for_display,
 )
 from app.core.config import Settings
 from app.schemas.agent import ClientContextInput, StreamEventPayload

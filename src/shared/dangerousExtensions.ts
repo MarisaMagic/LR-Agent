@@ -54,9 +54,3 @@ function extensionOf(filePath: string): string {
 export function isDangerousExecutable(filePath: string): boolean {
   return DANGEROUS_EXTENSIONS.has(extensionOf(filePath));
 }
-
-export function isDangerousExtension(ext: string): boolean {
-  return DANGEROUS_EXTENSIONS.has(ext.replace(/^\./, '').toLowerCase());
-}
-
-export const DANGEROUS_EXTENSION_LIST = DANGEROUS_EXTENSIONS;

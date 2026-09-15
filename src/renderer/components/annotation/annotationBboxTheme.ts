@@ -39,20 +39,3 @@ export function pxToNormX(px: number, displayWidthPx: number): number {
   if (displayWidthPx <= 0) return 0;
   return px / displayWidthPx;
 }
-
-export function pxToNormY(px: number, displayHeightPx: number): number {
-  if (displayHeightPx <= 0) return 0;
-  return px / displayHeightPx;
-}
-
-export function estimateLabelBarWidthNorm(
-  labelName: string,
-  displayWidthPx: number,
-  maxNormWidth: number,
-): number {
-  const px = Math.max(
-    BBOX_THEME.labelMinWidthPx,
-    labelName.length * BBOX_THEME.labelCharWidthPx + BBOX_THEME.labelPaddingPx,
-  );
-  return Math.min(maxNormWidth, pxToNormX(px, displayWidthPx));
-}

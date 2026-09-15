@@ -39,12 +39,6 @@ export async function loadAnnotationProjects(): Promise<AnnotationProject[]> {
   return parseProjects(raw);
 }
 
-export async function saveAnnotationProjectList(
-  projects: AnnotationProject[],
-): Promise<void> {
-  await persistProjects(projects);
-}
-
 export async function createAnnotationProject(
   input: CreateAnnotationProjectInput,
 ): Promise<AnnotationProject> {

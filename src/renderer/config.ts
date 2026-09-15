@@ -25,11 +25,6 @@ export function setApiBaseUrlOverride(url: string | null): void {
   apiBaseUrlOverride = url?.trim() || null;
 }
 
-/** 清除后端地址运行时覆盖（测试用） */
-export function resetApiBaseUrlOverride(): void {
-  apiBaseUrlOverride = null;
-}
-
 /** Resolve API base URL; uses page hostname for LAN/mobile verify flows. */
 export function resolveApiBaseUrl(): string {
   if (apiBaseUrlOverride) {
@@ -46,12 +41,6 @@ export function resolveApiBaseUrl(): string {
 
 let cachedLocalAgentBaseUrl: string | null = null;
 let cachedLocalAgentToken: string | null = null;
-
-/** 供测试或强制刷新时清除缓存 */
-export function resetLocalAgentBaseUrlCache(): void {
-  cachedLocalAgentBaseUrl = null;
-  cachedLocalAgentToken = null;
-}
 
 async function queryLocalAgentEndpoint(): Promise<{
   url: string;

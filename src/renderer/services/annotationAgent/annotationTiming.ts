@@ -6,37 +6,6 @@ export function formatDurationMs(ms: number): string {
   return `${(n / 1000).toFixed(1)}s`;
 }
 
-export function appendTimingDetail(
-  base: string | undefined,
-  ms: number,
-): string {
-  const suffix = `耗时 ${formatDurationMs(ms)}`;
-  const trimmed = base?.trim();
-  return trimmed ? `${trimmed} · ${suffix}` : suffix;
-}
-
-export class AnnotationStageTimer {
-  private readonly t0 = performance.now();
-
-  private readonly marks = new Map<string, number>();
-
-  mark(key: string): void {
-    this.marks.set(key, performance.now());
-  }
-
-  /** 从 mark(key) 到此刻的毫秒数 */
-  lap(key: string): number {
-    const start = this.marks.get(key);
-    if (start == null) return 0;
-    return performance.now() - start;
-  }
-
-  /** 从整批开始到此刻 */
-  total(): number {
-    return performance.now() - this.t0;
-  }
-}
-
 export interface SubImageTimingBreakdown {
   total_ms: number;
   read_image_ms?: number;

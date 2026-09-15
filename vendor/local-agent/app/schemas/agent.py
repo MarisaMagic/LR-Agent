@@ -1,19 +1,6 @@
-from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-
-
-class JobState(str, Enum):
-    """Agent 任务生命周期状态。"""
-
-    REGISTERED = "registered"
-    STREAMING = "streaming"
-    TOOL_PENDING = "tool_pending"
-    RESUMING = "resuming"
-    DONE = "done"
-    ERROR = "error"
-    CANCELLED = "cancelled"
 
 
 class ChatToolCallInput(BaseModel):

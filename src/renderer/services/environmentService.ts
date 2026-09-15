@@ -17,16 +17,6 @@ export async function loadEnvironmentStatus(): Promise<EnvironmentStatus | null>
   }
 }
 
-export async function loadEnvSettings(): Promise<EnvSettings | null> {
-  try {
-    return window.electron?.env
-      ? await window.electron.env.getSettings()
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function saveEnvSettings(
   patch: Partial<EnvSettings>,
 ): Promise<EnvSettings | null> {

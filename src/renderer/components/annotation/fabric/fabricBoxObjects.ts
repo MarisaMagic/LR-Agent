@@ -47,17 +47,6 @@ export function isAnnotationBoxRect(
   return Boolean(obj && (obj as AnnotatedBoxRect).lrAnnotationBox);
 }
 
-export function getAnnotationBoxMeta(
-  obj: FabricObject,
-): AnnotationBoxData | null {
-  if (!isAnnotationBoxRect(obj)) return null;
-  if (obj.data?.boxId) return obj.data;
-  if (obj._boxId) {
-    return { boxId: obj._boxId, labelId: obj.data?.labelId ?? '' };
-  }
-  return null;
-}
-
 export function getBoxRectStyle(labelColor: string) {
   return {
     originX: 'left' as const,
@@ -177,70 +166,4 @@ export function updateBoxRectStyle(
     syncLabelFromBoxRect(rect);
   }
   rect.setCoords();
-}
-
-export function removeBoxFromCanvas(canvas: Canvas, boxId: string): void {
-  const rect = canvas
-    .getObjects()
-    .find(
-      (o) => isAnnotationBoxRect(o) && (o as AnnotatedBoxRect)._boxId === boxId,
-    ) as AnnotatedBoxRect | undefined;
-  if (rect) {
-    if (rect._labelObj) {
-      canvas.remove(rect._labelObj);
-      rect._labelObj = undefined;
-    }
-    canvas.remove(rect);
-  }
-  const orphanLabel = canvas
-    .getObjects()
-    .find(
-      (o) =>
-        (o as AnnotatedLabelText).lrAnnotationLabel &&
-        (o as AnnotatedLabelText)._labelForBoxId === boxId,
-    );
-  if (orphanLabel) canvas.remove(orphanLabel);
-}
-
-/** Promote in-progress draft rect to a committed annotation box on canvas. */
-export function promoteDraftToBox(
-  canvas: Canvas,
-  draft: Rect,
-  options: {
-    boxId: string;
-    labelId: string | null;
-    labelName: string;
-    labelColor: string;
-    tool: 'draw' | 'select';
-  },
-): AnnotatedBoxRect {
-  const { boxId, labelId, labelName, labelColor, tool } = options;
-  const selectable = tool === 'select';
-
-  draft.set({
-    ...getBoxRectStyle(labelColor),
-    selectable,
-    evented: selectable,
-    scaleX: 1,
-    scaleY: 1,
-  });
-
-  const boxRect = draft as AnnotatedBoxRect;
-  boxRect.lrAnnotationBox = true;
-  boxRect._boxId = boxId;
-  boxRect.data = { boxId, labelId };
-
-  const scene = {
-    left: boxRect.left ?? 0,
-    top: boxRect.top ?? 0,
-    width: (boxRect.width ?? 0) * (boxRect.scaleX ?? 1),
-    height: (boxRect.height ?? 0) * (boxRect.scaleY ?? 1),
-  };
-  const label = createLabelForBox(labelName, scene);
-  (label as AnnotatedLabelText)._labelForBoxId = boxId;
-  boxRect._labelObj = label;
-  canvas.add(label);
-  boxRect.setCoords();
-  label.setCoords();
-  return boxRect;
 }

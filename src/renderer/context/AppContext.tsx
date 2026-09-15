@@ -795,30 +795,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [loadWorkspace]);
 
-  useEffect(() => {
-    if (!window.electron) return undefined;
-    const unsubOpen = window.electron.ipcRenderer.on('menu:openFolder', () => {
-      openFolder();
-    });
-    const unsubLeft = window.electron.ipcRenderer.on(
-      'menu:toggleLeftSidebar',
-      () => {
-        toggleLeftSidebar();
-      },
-    );
-    const unsubRight = window.electron.ipcRenderer.on(
-      'menu:toggleRightSidebar',
-      () => {
-        toggleRightSidebar();
-      },
-    );
-    return () => {
-      unsubOpen();
-      unsubLeft();
-      unsubRight();
-    };
-  }, [openFolder, toggleLeftSidebar, toggleRightSidebar]);
-
   const value = useMemo<AppContextValue>(
     () => ({
       layout,

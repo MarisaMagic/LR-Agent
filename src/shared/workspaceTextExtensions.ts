@@ -52,9 +52,6 @@ const BINARY_OR_RICH_EXTENSIONS = new Set([
   '.otf',
 ]);
 
-/** @deprecated 语义已改为「非文本预览」黑名单，请用 isSpecialPreviewFile */
-export const TEXT_WRITE_BLOCKLIST = BINARY_OR_RICH_EXTENSIONS;
-
 /** FileViewer 专用特殊预览扩展名（明确的二进制/富媒体）。 */
 export const SPECIAL_PREVIEW_EXTENSIONS = BINARY_OR_RICH_EXTENSIONS;
 
@@ -193,11 +190,6 @@ export function isTextEditableFile(filePath: string): boolean {
   return isAllowedTextWriteExtension(fileExtension(filePath));
 }
 
-/** @deprecated 使用 isTextEditableFile / isBlockedTextExtension */
-export function isAllowedTextFileExtension(ext: string): boolean {
-  return isAllowedTextWriteExtension(ext);
-}
-
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown']);
 
 export function isMarkdownExtension(ext: string): boolean {
@@ -231,8 +223,4 @@ export function isPdfPreviewFile(filePath: string): boolean {
 export function isDocxPreviewFile(filePath: string): boolean {
   const ext = fileExtension(filePath);
   return ext === 'docx' || ext === 'doc';
-}
-
-export function getFileBaseName(filePath: string): string {
-  return fileBaseName(filePath);
 }

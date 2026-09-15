@@ -35,13 +35,3 @@ export function isWithinAuthorizedRoot(target: unknown): boolean {
   }
   return false;
 }
-
-/** 是否有任何已授权根（供测试或降级判断） */
-export function hasAuthorizedRoots(): boolean {
-  return authorizedRoots.size > 0;
-}
-
-/** 仅测试用 */
-export function resetAuthorizedRoots(): void {
-  authorizedRoots.clear();
-}

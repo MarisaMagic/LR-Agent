@@ -50,15 +50,6 @@ ASSISTANT_TASK_BASE = """【任务】在 LR-Agent 内完成问答、标注、分
 - 报告与汇总中的每个数字必须来自工具返回或提案明细，禁止估算或凭印象填写。
 - 用简洁中文回复；调用工具前用一两句说明下一步。"""
 
-# 向后兼容保留旧常量引用（如有外部引用）
-WRITE_TOOL_GUIDE = ""
-TOOL_DISCIPLINE = ""
-VISION_RULES = ""
-EXECUTION_TOOL_GUIDE = ""
-PLANNING_GUIDE = ""
-FILE_WRITE_INTEGRITY = ""
-
-
 def format_runtime_identity_block(
     *,
     model: str,

@@ -137,12 +137,6 @@ export async function setWorkspaceMemoryActive(
   }
 }
 
-/** 打开记忆目录（文件管理器） */
-export async function openMemoryDir(scopeKey: string): Promise<void> {
-  const bridge = getBridge();
-  await bridge?.openDir?.(scopeKey);
-}
-
 export async function listMemoryEntries(
   scopeKey: string,
 ): Promise<MemoryEntry[]> {

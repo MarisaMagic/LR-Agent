@@ -4,7 +4,6 @@ import type {
   PreAnnotRequest,
   PreAnnotResult,
   PreAnnotRunResponse,
-  PreAnnotRuntimeInfo,
 } from '../../shared/preAnnotTypes';
 import type {
   PretrainedModelConfig,
@@ -13,13 +12,6 @@ import type {
 
 function createJobId(): string {
   return `preannot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-export async function checkPreAnnotRuntime(): Promise<PreAnnotRuntimeInfo> {
-  if (!window.electron?.preAnnot) {
-    return { pythonOk: false, error: '预标注 API 不可用（非 Electron 环境）' };
-  }
-  return window.electron.preAnnot.checkRuntime();
 }
 
 export async function runPreAnnot(
@@ -47,11 +39,6 @@ export async function runPreAnnot(
   };
 
   return window.electron.preAnnot.run(request);
-}
-
-export async function cancelPreAnnot(): Promise<void> {
-  if (!window.electron?.preAnnot) return;
-  await window.electron.preAnnot.cancel();
 }
 
 export function assertPreAnnotResult<T extends PreAnnotResult>(

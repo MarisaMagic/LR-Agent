@@ -7,10 +7,6 @@ import type {
 
 export type SubagentBlock = Extract<MessageBlock, { type: 'subagent' }>;
 
-export function isSubagentBlock(block: MessageBlock): block is SubagentBlock {
-  return block.type === 'subagent';
-}
-
 export function panelTabKey(tab: AgentPanelTab): string {
   return tab.kind === 'session'
     ? `session:${tab.sessionId}`

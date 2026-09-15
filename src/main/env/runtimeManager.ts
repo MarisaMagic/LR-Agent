@@ -68,11 +68,6 @@ export async function ensureRuntimeExtracted(
   return fs.existsSync(pythonPath) ? pythonPath : null;
 }
 
-/** 嵌入式运行时是否已被复制到 userData */
-export function isRuntimeExtracted(version: 'py312'): boolean {
-  return fs.existsSync(getEmbeddedRuntimePythonPath(version));
-}
-
 export function getVenvDir(target: InstallTarget): string {
   return path.join(getRuntimesDir(), `${target}-venv`);
 }
@@ -106,13 +101,6 @@ export async function readInstallMarker(
   } catch {
     return null;
   }
-}
-
-export function isDepsMatch(
-  marker: InstallMarker | null,
-  hash: string,
-): boolean {
-  return Boolean(marker && marker.requirementsHash === hash);
 }
 
 export async function writeInstallMarker(

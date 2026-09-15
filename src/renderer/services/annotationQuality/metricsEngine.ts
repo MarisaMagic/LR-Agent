@@ -21,12 +21,3 @@ export function runQualityMetricsEngine(
   const { metrics, findings } = plugin.compute(snapshot);
   return { snapshot, metrics, findings };
 }
-
-export function registerQualityMetricPlugin(plugin: QualityMetricPlugin): void {
-  const idx = plugins.findIndex((p) => p.id === plugin.id);
-  if (idx >= 0) {
-    plugins[idx] = plugin;
-  } else {
-    plugins.push(plugin);
-  }
-}

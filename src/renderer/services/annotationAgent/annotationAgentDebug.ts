@@ -67,24 +67,6 @@ export function logAnnotationDebug(
   }
 }
 
-export function logAnnotationDebugPlan(plan: {
-  use_vision_mapping?: boolean;
-  label_strategy?: string;
-  intent_summary?: string;
-  annotation_scope?: Record<string, unknown>;
-  detection_hints?: Record<string, unknown>;
-  sub_agent_constraints?: Record<string, unknown>;
-}): void {
-  logAnnotationDebug('plan', '批量计划摘要', {
-    use_vision_mapping: plan.use_vision_mapping,
-    label_strategy: plan.label_strategy,
-    intent_summary: plan.intent_summary,
-    annotation_scope: plan.annotation_scope,
-    detection_hints: plan.detection_hints,
-    sub_agent_constraints: plan.sub_agent_constraints,
-  });
-}
-
 export function logAnnotationDebugLabelPool(
   relativePath: string,
   pool: LabelPoolDebugInfo | undefined,

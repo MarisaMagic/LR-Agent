@@ -295,11 +295,6 @@ ipcMain.handle('workspace:startWatch', async (_event, rootPath: unknown) => {
   startWatchingWorkspace(rootPath);
 });
 
-ipcMain.handle('workspace:stopWatch', async () => {
-  setActiveWorkspaceRoot(null);
-  stopWatchingWorkspace();
-});
-
 function normalizePath(filePath: string): string {
   return path.normalize(filePath);
 }

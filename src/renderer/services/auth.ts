@@ -174,11 +174,4 @@ export async function restoreSession(): Promise<RestoreSessionResult> {
   }
 }
 
-export async function revokeAllSessions(): Promise<void> {
-  await apiFetch<MessageResponse>('/auth/revoke-all-sessions', {
-    method: 'POST',
-  });
-  await clearSession();
-}
-
 export { clearSession };

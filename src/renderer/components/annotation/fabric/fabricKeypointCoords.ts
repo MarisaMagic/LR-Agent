@@ -1,6 +1,5 @@
 import type {
   PoseAnnotation,
-  PoseKeypoint,
   ImagePointAnnotation,
 } from '../../../types/annotationDocument';
 import type { KeypointTemplate } from '../../../types/keypointTemplate';
@@ -182,60 +181,12 @@ export function sceneKeypointsToLocal(
   });
 }
 
-/** Convert local keypoint offsets back to absolute scene coordinates */
-export function localKeypointsToScene(
-  localKps: { x: number; y: number; visibility: 0 | 1 | 2 }[],
-  scene: Pick<PoseSceneGeometry, 'cx' | 'cy' | 'angle'>,
-): (ScenePoint & { visibility: 0 | 1 | 2 })[] {
-  const rad = (scene.angle * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  return localKps.map((kp) => ({
-    x: scene.cx + kp.x * cos - kp.y * sin,
-    y: scene.cy + kp.x * sin + kp.y * cos,
-    visibility: kp.visibility,
-  }));
-}
-
 export function pointAnnToScene(
   ann: ImagePointAnnotation,
   naturalWidth: number,
   naturalHeight: number,
 ): ScenePoint {
   return normPointToScene(ann.x, ann.y, naturalWidth, naturalHeight);
-}
-
-export function sceneToPointAnn(
-  pt: ScenePoint,
-  naturalWidth: number,
-  naturalHeight: number,
-  base: Pick<ImagePointAnnotation, 'id' | 'labelId' | 'createdAt' | 'note'>,
-): ImagePointAnnotation {
-  const norm = scenePointToNorm(pt, naturalWidth, naturalHeight);
-  return {
-    ...base,
-    kind: 'point',
-    updatedAt: new Date().toISOString(),
-    x: norm.x,
-    y: norm.y,
-  };
-}
-
-export function poseKeypointsEqual(
-  a: PoseKeypoint[],
-  b: PoseKeypoint[],
-): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (
-      Math.abs(a[i].x - b[i].x) > 1e-5 ||
-      Math.abs(a[i].y - b[i].y) > 1e-5 ||
-      a[i].visibility !== b[i].visibility
-    ) {
-      return false;
-    }
-  }
-  return true;
 }
 
 export function poseGeometryRoughlyEqual(

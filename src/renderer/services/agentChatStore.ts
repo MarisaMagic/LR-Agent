@@ -160,12 +160,6 @@ export function persistAgentChatUiState(state: AgentChatUiStateV2): void {
   }, PERSIST_THROTTLE_MS);
 }
 
-/** @deprecated use AgentChatUiStateV2 */
-export interface AgentChatUiState {
-  openTabIds: string[];
-  activeSessionId: string | null;
-}
-
 export function createEmptyChatState(): AgentChatPersistedState {
   return {
     sessions: {},
@@ -1352,29 +1346,6 @@ export function getUserTextFromMessage(message: ChatMessage): string {
 }
 
 export { resolveUserMessageIdForJob } from './userMessageIdForJob';
-
-export function buildApiMessages(
-  messageIds: string[],
-  messages: Record<string, ChatMessage>,
-): Array<{ role: string; content: string }> {
-  return messageIds
-    .map((id) => messages[id])
-    .filter((message): message is ChatMessage => Boolean(message))
-    .filter(
-      (message) => message.role === 'user' || message.role === 'assistant',
-    )
-    .map((message) => {
-      const text = message.blocks
-        .filter(
-          (block): block is Extract<MessageBlock, { type: 'text' }> =>
-            block.type === 'text',
-        )
-        .map((block) => block.content)
-        .join('\n');
-      return { role: message.role, content: text };
-    })
-    .filter((message) => message.content.trim());
-}
 
 export function sessionHasHistoryContent(
   sessionId: string,

@@ -104,12 +104,6 @@ export function getKeypointTemplate(id: string): KeypointTemplate | undefined {
   return KEYPOINT_TEMPLATES.find((t) => t.id === id);
 }
 
-export function getKeypointTemplateByName(
-  name: string,
-): KeypointTemplate | undefined {
-  return KEYPOINT_TEMPLATES.find((t) => t.name === name);
-}
-
 export function resolveLabelIdForTemplate(
   template: KeypointTemplate,
   labels: LabelDefinition[],

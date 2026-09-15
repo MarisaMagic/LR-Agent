@@ -121,16 +121,3 @@ export function getSetiFileIconSvg(filePath: string): string {
 export function getSetiFolderIconSvg(isOpen: boolean): string {
   return isOpen ? FOLDER_SVG['folder-open'] : FOLDER_SVG.folder;
 }
-
-/** @deprecated 使用内联 SVG；保留供非树场景 */
-export function getSetiFileIcon(filePath: string): string {
-  return `data:image/svg+xml,${encodeURIComponent(getSetiFileIconSvg(filePath))}`;
-}
-
-export function getSetiFolderIconUrl(
-  _folderName: string,
-  options: { isOpen?: boolean; isRoot?: boolean } = {},
-): string {
-  const { isOpen = false } = options;
-  return `data:image/svg+xml,${encodeURIComponent(getSetiFolderIconSvg(isOpen))}`;
-}

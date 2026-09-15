@@ -31,17 +31,6 @@ export function findAnnotationPolygonById(
   return getAnnotationPolygons(canvas).find((o) => o._polygonId === polygonId);
 }
 
-export function removeAllAnnotationPolygons(canvas: Canvas): void {
-  const toRemove = canvas
-    .getObjects()
-    .filter(
-      (o) =>
-        isAnnotationPolygon(o) ||
-        (o as FabricObject & { lrAnnotationLabel?: boolean }).lrAnnotationLabel,
-    );
-  toRemove.forEach((o) => canvas.remove(o));
-}
-
 export function syncPolygonInteraction(
   canvas: Canvas,
   tool: ImageCanvasTool,
@@ -183,18 +172,4 @@ export function patchAnnotationPolygonStyles(
     poly.data = { polygonId: ann.id, labelId: ann.labelId };
   });
   canvas.requestRenderAll();
-}
-
-export function applyNormPointsToPolygonObject(
-  poly: AnnotatedPolygon,
-  normPoints: { x: number; y: number }[],
-  naturalWidth: number,
-  naturalHeight: number,
-): void {
-  const scenePoints = normToScenePoints(
-    { points: normPoints },
-    naturalWidth,
-    naturalHeight,
-  );
-  applyScenePointsToPolygon(poly, scenePoints);
 }

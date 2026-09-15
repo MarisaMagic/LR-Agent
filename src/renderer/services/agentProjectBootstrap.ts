@@ -9,9 +9,6 @@ import {
   mergeSessionFromRemote,
   sessionBelongsToProject,
   sessionHasHistoryContent,
-  type AgentChatUiStateV2,
-  getProjectUi,
-  setProjectUi,
 } from './agentChatStore';
 
 export function mergeProjectSessionsIntoState(
@@ -101,19 +98,4 @@ export function createDraftSession(
     createdAt: now,
     updatedAt: now,
   };
-}
-
-export function saveUiForProject(
-  agentUi: AgentChatUiStateV2,
-  annotationProjectId: string | null | undefined,
-  slice: ReturnType<typeof createEmptyProjectUi>,
-): AgentChatUiStateV2 {
-  return setProjectUi(agentUi, annotationProjectId, slice);
-}
-
-export function loadUiForProject(
-  agentUi: AgentChatUiStateV2,
-  annotationProjectId: string | null | undefined,
-) {
-  return getProjectUi(agentUi, annotationProjectId);
 }

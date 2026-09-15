@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "LR-Agent Local"
-    app_env: Literal["development", "staging", "production", "testing"] = "development"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
 
@@ -45,7 +44,6 @@ class Settings(BaseSettings):
 
     # 功能开关
     agent_mutation_enabled: bool = True
-    agent_document_write_enabled: bool = True
 
     # 标注 LLM
     annotation_llm_temperature: float = 0.0
@@ -58,13 +56,6 @@ class Settings(BaseSettings):
     annotation_vision_map_max_retries: int = 1
     annotation_label_pool_preflight: Literal["off", "auto", "always"] = "auto"
     annotation_label_pool_preflight_min_extra: int = 2
-
-    # 允许 http 协议的 LLM base_url（本地代理场景）
-    llm_base_url_allow_http: bool = False
-
-    @property
-    def is_development(self) -> bool:
-        return self.app_env == "development"
 
 
 @lru_cache

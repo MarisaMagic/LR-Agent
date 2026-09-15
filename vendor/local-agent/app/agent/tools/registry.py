@@ -14,10 +14,7 @@ from typing import Any, Literal
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-# 客户端工具名称集合（向后兼容）：由 tool_registry_meta 统一定义
 from app.agent.tools.tool_registry_meta import (
-    ASYNC_TOOL_NAMES,
-    CLIENT_TOOL_NAMES,
     TOOL_CAPABILITY_MAP,
     ToolCapability,
 )

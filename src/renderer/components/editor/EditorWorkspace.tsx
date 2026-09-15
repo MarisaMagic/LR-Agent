@@ -90,13 +90,6 @@ export default function EditorWorkspace() {
   }, [previewForActiveTab, saveActiveTab, refreshTree]);
 
   useEffect(() => {
-    const unsub = window.electron.ipcRenderer.on('edit:save', () => {
-      handleSave().catch(() => undefined);
-    });
-    return unsub;
-  }, [handleSave]);
-
-  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey)) return;
       if (event.key.toLowerCase() !== 's') return;

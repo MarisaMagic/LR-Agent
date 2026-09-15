@@ -249,15 +249,6 @@ export interface AgentSession {
   updatedAt: number;
 }
 
-export interface AgentJob {
-  id: string;
-  sessionId: string;
-  messageId: string;
-  status: 'running' | 'done' | 'stopped' | 'error';
-  startedAt: number;
-  finishedAt?: number;
-}
-
 export type StreamEvent =
   | { type: 'text_delta'; content: string }
   | { type: 'reasoning_delta'; content: string }
@@ -389,10 +380,6 @@ export interface ClientToolCall {
   name: string;
   arguments: Record<string, unknown>;
 }
-
-/** 客户端工具名称枚举，与后端 CLIENT_TOOL_NAMES 保持一致。 */
-export type ClientToolName =
-  'auto_annotate' | 'mutate_annotation' | 'start_terminal_command';
 
 /** 客户端异步工具集合：经 tool_pending 由前端串行执行，排队期间块状态为 queued。 */
 export const CLIENT_TOOL_NAME_SET: ReadonlySet<string> = new Set<string>([

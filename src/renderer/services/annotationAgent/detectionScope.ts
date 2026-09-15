@@ -1,78 +1,7 @@
-import type {
-  AnnotationScopePayload,
-  BatchAnnotationPlan,
-} from '../../../shared/annotationAgentTypes';
+import type { AnnotationScopePayload } from '../../../shared/annotationAgentTypes';
 
 function normList(items: string[] | undefined): string[] {
   return (items ?? []).map((s) => s.trim().toLowerCase()).filter(Boolean);
-}
-
-/** 合并 batch-prepare 任务范围与计划范围；不在代码里推断任务类型 */
-export function mergeEffectiveDetectionScope(
-  taskScope: AnnotationScopePayload | undefined,
-  planScope: AnnotationScopePayload | undefined,
-): AnnotationScopePayload {
-  const include = [
-    ...new Set([
-      ...normList(taskScope?.include_detection_labels),
-      ...normList(planScope?.include_detection_labels),
-    ]),
-  ];
-
-  const exclude = [
-    ...new Set([
-      ...normList(taskScope?.exclude_detection_labels),
-      ...normList(planScope?.exclude_detection_labels),
-    ]),
-  ];
-
-  const includeLabelNames = [
-    ...new Set([
-      ...(taskScope?.include_label_names ?? [])
-        .map((s) => s.trim())
-        .filter(Boolean),
-      ...(planScope?.include_label_names ?? [])
-        .map((s) => s.trim())
-        .filter(Boolean),
-    ]),
-  ];
-
-  const excludeLabelNames = [
-    ...new Set([
-      ...(taskScope?.exclude_label_names ?? [])
-        .map((s) => s.trim())
-        .filter(Boolean),
-      ...(planScope?.exclude_label_names ?? [])
-        .map((s) => s.trim())
-        .filter(Boolean),
-    ]),
-  ];
-
-  const scopeSummary =
-    (planScope?.scope_summary || taskScope?.scope_summary || '').trim() ||
-    (include.length ? `检测类白名单：${include.join(', ')}` : '') ||
-    (exclude.length ? `检测类排除：${exclude.join(', ')}` : '');
-
-  return {
-    scope_summary: scopeSummary,
-    include_detection_labels: include,
-    exclude_detection_labels: exclude,
-    include_label_names: includeLabelNames,
-    exclude_label_names: excludeLabelNames,
-  };
-}
-
-export function applyScopeToPlan(
-  plan: BatchAnnotationPlan,
-  effectiveScope: AnnotationScopePayload,
-): BatchAnnotationPlan {
-  return {
-    ...plan,
-    annotation_scope: {
-      ...plan.annotation_scope,
-      ...effectiveScope,
-    },
-  };
 }
 
 function detectionLabelMatches(label: string, patterns: string[]): boolean {

@@ -87,15 +87,6 @@ export function filterDocsForTrainingExport(docs: LoadedImageDoc[]): {
   return { docs: filtered, skippedUnlabeled };
 }
 
-function fmtNum(
-  value: number,
-  mode: AnnotationExportOptions['coordinateMode'],
-  size: number,
-): number {
-  if (mode === 'normalized') return Math.round(value * 1000000) / 1000000;
-  return toPixel(value, size);
-}
-
 function fmtCoordPair(
   x: number,
   y: number,

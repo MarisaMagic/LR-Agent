@@ -25,13 +25,3 @@ export function resolveLabelIdForPoseTemplate(
 ): string | null {
   return resolveLabelIdForTemplate(template, labels);
 }
-
-export function summarizeUnmappedClasses(
-  classNames: string[],
-  labels: LabelDefinition[],
-  model: PretrainedModelConfig,
-): string[] {
-  return classNames.filter(
-    (name) => !resolveLabelIdByClassName(name, labels, model),
-  );
-}

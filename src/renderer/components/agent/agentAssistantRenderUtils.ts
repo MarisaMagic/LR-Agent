@@ -28,14 +28,6 @@ export function shouldHideToolCallInChat(
   return false;
 }
 
-/** @deprecated 使用 shouldHideToolCallInChat */
-export function shouldHideClientToolCall(
-  block: Extract<MessageBlock, { type: 'tool_call' }>,
-  blocks: MessageBlock[],
-): boolean {
-  return shouldHideToolCallInChat(block, blocks);
-}
-
 /** file_proposal 已存在时，跳过与文件正文高度重合的 text 块。 */
 export function shouldSkipRedundantFileText(
   content: string,

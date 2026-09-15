@@ -1,13 +1,11 @@
 import { localAgentFetch, resolveLocalAgentBaseUrl } from '../config';
 import type {
-  AgentSession,
   ChatContextConfig,
   ChatMessage,
   ClientContextPayload,
   ClientToolResult,
   StreamEvent,
 } from '../../shared/agentTypes';
-import { DEFAULT_CHAT_CONTEXT_CONFIG as defaultContextConfig } from '../../shared/agentTypes';
 import { buildApiClientContext } from './agentClientContext';
 import type { TurnHistoryMessage } from './turnToolHistory';
 
@@ -190,16 +188,6 @@ export function serializeBackendMessages(
     }
     return payload;
   });
-}
-
-export function sessionContextPayload(
-  session: AgentSession,
-): BackendChatRequest['context'] {
-  return {
-    summary: session.contextSummary,
-    summaryUpToMessageId: session.summaryUpToMessageId,
-    config: defaultContextConfig,
-  };
 }
 
 function parseSseBuffer(buffer: string): {

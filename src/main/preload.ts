@@ -1,51 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
-export type Channels =
-  | 'dialog:openDirectory'
-  | 'fs:readDir'
-  | 'fs:readFile'
-  | 'fs:readFileBuffer'
-  | 'fs:getFileStats'
-  | 'shell:openPath'
-  | 'menu:openFolder'
-  | 'menu:toggleLeftSidebar'
-  | 'menu:toggleRightSidebar'
-  | 'auth:getRefreshToken'
-  | 'auth:setRefreshToken'
-  | 'auth:clearRefreshToken'
-  | 'auth:getSessionCache'
-  | 'auth:setSessionCache'
-  | 'auth:clearSessionCache'
-  | 'auth:resetPasswordDeepLink'
-  | 'window:minimize'
-  | 'window:maximize'
-  | 'window:close'
-  | 'window:reload'
-  | 'window:toggleDevTools'
-  | 'window:toggleFullScreen'
-  | 'window:maximize-change'
-  | 'window:fullscreen-change'
-  | 'menu:createAnnotationProject'
-  | 'theme:systemChanged'
-  | 'theme:notifyEffectiveTheme'
-  | 'file-system:changed'
-  | 'workspace:createFile'
-  | 'workspace:createFolder'
-  | 'workspace:deleteEntry'
-  | 'workspace:renameEntry'
-  | 'workspace:moveEntry'
-  | 'edit:undo'
-  | 'edit:redo'
-  | 'edit:cut'
-  | 'edit:copy'
-  | 'edit:paste'
-  | 'edit:selectAll'
-  | 'edit:save'
-  | 'dialog:confirm'
-  | 'env:install:progress'
-  | 'localAgent:status'
-  | 'agent:terminal:event';
-
 /**
  * 渲染层允许订阅的主进程事件通道白名单。
  *
@@ -60,18 +14,7 @@ export type RendererEventChannel =
   | 'auth:resetPasswordDeepLink'
   | 'env:install:progress'
   | 'localAgent:status'
-  | 'agent:terminal:event'
-  | 'menu:openFolder'
-  | 'menu:toggleLeftSidebar'
-  | 'menu:toggleRightSidebar'
-  | 'menu:createAnnotationProject'
-  | 'edit:undo'
-  | 'edit:redo'
-  | 'edit:cut'
-  | 'edit:copy'
-  | 'edit:paste'
-  | 'edit:selectAll'
-  | 'edit:save';
+  | 'agent:terminal:event';
 
 const ALLOWED_EVENT_CHANNELS: ReadonlySet<string> =
   new Set<RendererEventChannel>([
@@ -83,17 +26,6 @@ const ALLOWED_EVENT_CHANNELS: ReadonlySet<string> =
     'env:install:progress',
     'localAgent:status',
     'agent:terminal:event',
-    'menu:openFolder',
-    'menu:toggleLeftSidebar',
-    'menu:toggleRightSidebar',
-    'menu:createAnnotationProject',
-    'edit:undo',
-    'edit:redo',
-    'edit:cut',
-    'edit:copy',
-    'edit:paste',
-    'edit:selectAll',
-    'edit:save',
   ]);
 
 function assertEventChannel(channel: string): void {
@@ -353,42 +285,6 @@ const electronHandler = {
         index: number;
       }>
     > => ipcRenderer.invoke('annotationAgent:listImages', projectDir, maxFiles),
-    globImages: (
-      projectDir: string,
-      options?: {
-        parentFolder?: string;
-        namePattern?: string;
-        limit?: number;
-      },
-    ): Promise<{
-      count: number;
-      images: Array<{
-        relativePath: string;
-        name: string;
-        parent: string;
-        absolutePath: string;
-        index: number;
-      }>;
-    }> => ipcRenderer.invoke('annotationAgent:globImages', projectDir, options),
-    listDirectory: (
-      projectDir: string,
-      relativeDir?: string,
-      maxEntries?: number,
-    ): Promise<{
-      relativeDir: string;
-      entries: Array<{
-        name: string;
-        relativePath: string;
-        kind: 'file' | 'directory';
-        isImage: boolean;
-      }>;
-    }> =>
-      ipcRenderer.invoke(
-        'annotationAgent:listDirectory',
-        projectDir,
-        relativeDir,
-        maxEntries,
-      ),
     listTextFiles: (
       projectDir: string,
       maxFiles?: number,
@@ -475,8 +371,6 @@ const electronHandler = {
     /** 开始监听工作区文件变化（chokidar） */
     startWatch: (rootPath: string): Promise<void> =>
       ipcRenderer.invoke('workspace:startWatch', rootPath),
-    /** 停止监听工作区文件变化 */
-    stopWatch: (): Promise<void> => ipcRenderer.invoke('workspace:stopWatch'),
     writeTextFile: (payload: {
       rootDir: string;
       relativePath: string;
@@ -676,24 +570,6 @@ const electronHandler = {
       ipcRenderer.invoke('agent:memory:readIndex', scopeKey),
     setActive: (enabled: boolean, scopeKey?: string): Promise<void> =>
       ipcRenderer.invoke('agent:memory:setActive', enabled, scopeKey),
-    readTopic: (scopeKey: string, topicFile: string): Promise<string | null> =>
-      ipcRenderer.invoke('agent:memory:readTopic', scopeKey, topicFile),
-    listTopics: (scopeKey: string): Promise<string[]> =>
-      ipcRenderer.invoke('agent:memory:listTopics', scopeKey),
-    writeTopic: (options: {
-      scopeKey: string;
-      topicFile: string;
-      content: string;
-      indexLine?: string;
-    }): Promise<{ topicPath: string }> =>
-      ipcRenderer.invoke('agent:memory:writeTopic', options),
-    createTopic: (options: {
-      scopeKey: string;
-      topicFile: string;
-      content: string;
-      indexLine?: string;
-    }): Promise<{ topicPath: string }> =>
-      ipcRenderer.invoke('agent:memory:createTopic', options),
     /** 打开记忆目录（文件管理器） */
     openDir: (scopeKey: string): Promise<string> =>
       ipcRenderer.invoke('agent:memory:openDir', scopeKey),
