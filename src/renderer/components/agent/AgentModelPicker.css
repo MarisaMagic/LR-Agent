@@ -62,13 +62,33 @@
 .agent-model-picker-menu {
   min-width: 220px;
   max-width: min(320px, calc(100vw - 16px));
-  max-height: min(320px, calc(100vh - 16px));
-  padding: 4px;
+  /* 原 padding: 4px 下移到 .agent-model-picker-menu-list，
+     否则滑块离右边缘会多出 4px，与历史会话弹层不一致 */
+  padding: 0;
   border-radius: 8px;
   border: 1px solid var(--vscode-widget-border, #454545);
   background: var(--vscode-dropdown-background, #3c3c3c);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  overflow-y: auto;
+  /* 替代原先的 overflow-y: auto（滚动交给 OverlayVerticalScrollArea），仅负责圆角裁剪 */
+  overflow: hidden;
+
+  /* 菜单被 portal 到 body，拿不到 .agent-panel-root 上的这套变量，需在此重复声明 */
+  --agent-overlay-scrollbar-size: 6px;
+  --agent-overlay-scrollbar-inset: 3px;
+  --agent-overlay-scrollbar-thumb: rgba(255, 255, 255, 0.22);
+  --agent-overlay-scrollbar-thumb-hover: rgba(255, 255, 255, 0.36);
+  --agent-font-small: var(--lr-ui-font-small);
+  --agent-font-meta: var(--lr-ui-font-meta);
+}
+
+[data-theme='light'] .agent-model-picker-menu {
+  --agent-overlay-scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --agent-overlay-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+
+.agent-model-picker-menu-list {
+  padding: 4px;
 }
 
 .agent-model-picker-menu--portal {
