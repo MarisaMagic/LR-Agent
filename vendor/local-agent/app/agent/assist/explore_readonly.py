@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 from collections.abc import AsyncIterator
@@ -129,9 +130,14 @@ async def _invoke_inner(name: str, args: dict, fn_map: dict[str, object]) -> str
                 status="error",
                 summary=f"未知工具: {name}",
             )
-        raw = fn(**args)
-        if inspect.isawaitable(raw):
-            raw = await raw
+        if asyncio.iscoroutinefunction(fn):
+            raw = await fn(**args)
+        else:
+            # 同主循环 _invoke_tool_fn：同步内层工具走线程池，
+            # 否则子代理里的 grep / 读文件同样会卡住事件循环。
+            raw = await asyncio.to_thread(fn, **args)
+            if inspect.isawaitable(raw):
+                raw = await raw
         return stringify_tool_output(raw)
     except Exception as exc:
         return build_tool_result(

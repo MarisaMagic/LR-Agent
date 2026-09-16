@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -75,7 +76,8 @@ async def stream_vision_tool_execution(
     )
 
     try:
-        result_text = str(vision_fn(**args))
+        # read_image_for_vision 要开图读尺寸（同步 IO），走线程池避免阻塞事件循环
+        result_text = str(await asyncio.to_thread(vision_fn, **args))
     except Exception as exc:
         result_text = f"工具执行失败: {exc}"
 
@@ -93,7 +95,7 @@ async def stream_vision_tool_execution(
 
     if vision_path and provider_is_vision:
         messages.append(
-            build_multimodal_user_message(
+            await build_multimodal_user_message(
                 "【附图】请根据上图回答用户关于该图片的问题。",
                 image_absolute_path=vision_path,
                 max_edge=settings.agent_chat_vision_max_edge,

@@ -472,7 +472,10 @@ async def map_detection_boxes_to_labels_unified(
         )
 
         normalized = _coords_are_normalized(normalized_boxes)
-        regions = _crop_boxes_from_image_bytes(
+        # 裁剪 + 缩放到 768 + JPEG 编码 + base64 是同步 CPU 重活，
+        # 一批图可能有上千个框；走线程池避免阻塞事件循环。
+        regions = await asyncio.to_thread(
+            _crop_boxes_from_image_bytes,
             image_bytes,
             normalized_boxes,
             normalized=normalized,

@@ -88,9 +88,14 @@ async def _invoke_tool_fn(name: str, args: dict, fn_map: dict[str, object]) -> s
                 {"ok": False, "tool": name, "status": "error", "summary": f"未知工具: {name}"},
                 ensure_ascii=False,
             )
-        raw = fn(**args)
-        if inspect.isawaitable(raw):
-            raw = await raw
+        if asyncio.iscoroutinefunction(fn):
+            raw = await fn(**args)
+        else:
+            # 同步工具丢线程池：既不阻塞事件循环（大范围 grep 会卡住整个服务的
+            # SSE / 健康检查），又让并行白名单里的多个只读工具真正重叠执行。
+            raw = await asyncio.to_thread(fn, **args)
+            if inspect.isawaitable(raw):
+                raw = await raw
         return stringify_tool_output(raw)
     except Exception as exc:
         return json.dumps(
@@ -333,7 +338,7 @@ async def _stream_tool_execution(
 
     if vision_path and provider_is_vision:
         messages.append(
-            build_multimodal_user_message(
+            await build_multimodal_user_message(
                 "【附图】请根据上图回答用户关于该图片的问题。",
                 image_absolute_path=vision_path,
                 max_edge=settings.agent_chat_vision_max_edge,
