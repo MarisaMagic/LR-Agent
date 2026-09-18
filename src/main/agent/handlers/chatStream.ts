@@ -18,6 +18,7 @@ import { LlmClient } from '../llm/client';
 import { DONE_FRAME, encodeSseFrame, sse, toSseDict } from '../sse';
 import { buildToolSpecs } from '../tools/registry';
 import { toolRegistry, resolveImageService, type RuntimeDeps } from './deps';
+import { loadMcpToolsFromServers, shouldExposeMcpTool } from '../mcp/client';
 import { deriveTaskPhase } from '../loop/taskPhase';
 import { resolveAssistToolSet } from '../loop/modeRouter';
 import { streamAssist } from '../loop/assistLoop';
@@ -141,14 +142,57 @@ async function* streamFrames(
       });
 
       const clientCtx = body.clientContext;
-      const toolSet = resolveAssistToolSet({
-        hasProjectSnapshot: Boolean(clientCtx?.annotationProjectSnapshot),
-        agentMode: clientCtx?.agentMode ?? null,
-        isEditor: clientCtx?.workMode === 'editor',
-        hasWorkspace: Boolean((clientCtx?.workspaceRoot ?? '').trim()),
-      });
+      const toolSet = new Set(
+        resolveAssistToolSet({
+          hasProjectSnapshot: Boolean(clientCtx?.annotationProjectSnapshot),
+          agentMode: clientCtx?.agentMode ?? null,
+          isEditor: clientCtx?.workMode === 'editor',
+          hasWorkspace: Boolean((clientCtx?.workspaceRoot ?? '').trim()),
+        }),
+      );
 
-      const tools = toolRegistry();
+      const tools = new Map(toolRegistry());
+
+      // MCP 工具发现：仅在配置了 MCP server 时进行。
+      // 先发一条 preparing(stage="mcp")，让渲染层在建连期间就有反馈。
+      const mcpUrl = (clientCtx?.mcpServerUrl ?? '').trim();
+      const remoteMcp = clientCtx?.mcpServers ?? [];
+      if (mcpUrl || remoteMcp.length > 0) {
+        yield encodeSseFrame(toSseDict(sse.preparing('mcp')));
+        try {
+          const mcpTools = await loadMcpToolsFromServers({
+            localServerUrl: mcpUrl || null,
+            localServerToken: clientCtx?.mcpServerToken ?? null,
+            remoteServers: remoteMcp,
+            ttlSeconds: deps.settings.mcpToolsTtlSeconds,
+            onLog: (level, message) => {
+              if (level === 'warn') console.warn(`[agentRuntime] ${message}`);
+            },
+          });
+          const memoryOn = Boolean(clientCtx?.workspaceMemoryEnabled);
+          for (const tool of mcpTools) {
+            // 与内置工具重名时不注入；记忆工具按开关与模式过滤
+            if (tools.has(tool.name)) continue;
+            if (
+              !shouldExposeMcpTool(tool.name, {
+                workspaceMemoryEnabled: memoryOn,
+                agentMode: clientCtx?.agentMode ?? null,
+              })
+            ) {
+              continue;
+            }
+            tools.set(tool.name, tool);
+            toolSet.add(tool.name);
+          }
+        } catch (err) {
+          // MCP 发现失败不影响主流程（与 Python 一致：只告警不降级）
+          console.warn(
+            `[agentRuntime] MCP 工具加载失败：${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
+      // 工具声明按名称排序后固定：避免破坏 LLM 前缀缓存
       const toolSpecs = buildToolSpecs(toolSet, tools);
 
       events = streamAssist({

@@ -73,6 +73,13 @@ export interface ToolDefinition {
   /** 参数校验器；同时用于生成 LLM 侧 JSON Schema。 */
   argsSchema: z.ZodType;
   /**
+   * 已有的 JSON Schema。
+   *
+   * MCP 动态发现的工具自带 schema，直接透传比经 zod 往返更保真
+   * （zod 无法无损表达 JSON Schema 的任意组合）。
+   */
+  rawParameters?: Record<string, unknown>;
+  /**
    * 执行体。`proposal` 与 `async` 类工具没有执行体——前者由调度层生成提案，
    * 后者交给 Electron 执行。
    */
@@ -114,7 +121,11 @@ export function toToolSpec(tool: ToolDefinition): ToolSpec {
     function: {
       name: tool.name,
       description: tool.description,
-      parameters: toParametersSchema(tool.argsSchema),
+      // MCP 动态工具自带 schema，直接透传
+      parameters:
+        tool.rawParameters !== undefined
+          ? tool.rawParameters
+          : toParametersSchema(tool.argsSchema),
     },
   };
 }

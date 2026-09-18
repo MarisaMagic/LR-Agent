@@ -32,6 +32,7 @@ import {
   type ToolContext,
   type ToolDefinition,
   type ToolKind,
+  toToolSpec,
 } from '../tools/registry';
 import {
   buildToolResult,
@@ -49,6 +50,13 @@ import { ProposalStreamInterceptor } from './proposalStreamer';
 import { isLrAgentRelative } from '../tools/workspacePath';
 import { pythonJsonDumps } from '../json';
 import { VisionAutoLoader } from '../vision/autoLoader';
+import {
+  EXPLORE_READONLY_FORBIDDEN_INNER,
+  EXPLORE_READONLY_TOOL_NAME,
+  resolveExploreInnerNames,
+  shouldIncludeAnnotationReads,
+  streamExploreReadonly,
+} from '../subagent/exploreReadonly';
 import {
   buildMultimodalUserMessage,
   VISION_ATTACHMENT_TEXT,
@@ -298,6 +306,7 @@ export async function* streamAssist(
       toolSpecs: params.toolSpecs,
       interceptor,
       visionState,
+      settings,
     });
 
     if (outcome.kind === 'pending') {
@@ -360,6 +369,7 @@ interface ExecuteRoundParams {
   interceptor: ProposalStreamInterceptor;
   /** 「本请求是否已处理过视觉图」——由调用方持有，跨轮次共享。 */
   visionState: { bootstrapped: boolean };
+  settings: AgentSettings;
 }
 
 /**
@@ -391,6 +401,7 @@ async function* executeRound(
     signal,
     interceptor,
   } = params;
+  const { settings } = toolContext;
 
   let resolved = resolveRoundToolCalls({
     apiToolCalls,
@@ -561,12 +572,20 @@ async function* executeRound(
     kindOf(tools, name),
   );
 
+  // explore_readonly 单独成路：它由子代理 runner 接管，且事件形态不同
+  // （工具自身不执行，改由 subagent_* 事件族表达）
+  const exploreCalls = immediate.filter(
+    (call) => call.name === EXPLORE_READONLY_TOOL_NAME,
+  );
+  const otherImmediate = immediate.filter(
+    (call) => call.name !== EXPLORE_READONLY_TOOL_NAME,
+  );
+
   // 并行预取只读工具（事件仍按顺序发出）
   const prefetched = new Map<string, string>();
-  const parallelCalls = immediate.filter(
+  const parallelCalls = otherImmediate.filter(
     (call) =>
       PARALLEL_SYNC_TOOLS.has(call.name) &&
-      call.name !== 'explore_readonly' &&
       typeof tools.get(call.name)?.execute === 'function',
   );
   if (parallelCalls.length > 0) {
@@ -578,7 +597,7 @@ async function* executeRound(
     });
   }
 
-  for (const call of immediate) {
+  for (const call of otherImmediate) {
     if (isCancelled()) return;
     yield* streamToolExecution({
       call,
@@ -593,6 +612,48 @@ async function* executeRound(
     // 模型真实调用过视觉工具后，兜底不应再触发（对齐 Python 的 vision_bootstrapped）
     if (call.name === 'read_image_for_vision') {
       params.visionState.bootstrapped = true;
+    }
+  }
+
+  // explore 调用：允许多个并行（事件交错），完成后统一补 tool_result
+  if (exploreCalls.length > 0) {
+    const finals = new Map<string, { summary: string; status: 'done' | 'error' }>();
+    const streams = exploreCalls.map((call) =>
+      trackedExplore({
+        call,
+        tools,
+        toolSet,
+        toolContext,
+        settings,
+        llm,
+        isCancelled,
+        signal,
+        finals,
+      }),
+    );
+    yield* mergeAsyncIterators(streams);
+
+    for (const call of exploreCalls) {
+      const final = finals.get(call.toolCallId) ?? {
+        summary: '查阅失败',
+        status: 'error' as const,
+      };
+      // 父级 tool_result 的 result 是「摘要」——_explore_result_text 产出带 summary 的
+      // JSON，再经显示格式化折叠为 summary 文本
+      const display = formatToolResultForDisplay(
+        buildToolResult({
+          ok: final.status === 'done',
+          tool: EXPLORE_READONLY_TOOL_NAME,
+          status: final.status === 'done' ? 'ok' : 'error',
+          summary: final.summary || '（无摘要）',
+        }),
+      );
+      yield sse.toolResult(call.toolCallId, display);
+      messages.push({
+        role: 'tool',
+        content: display,
+        toolCallId: call.toolCallId,
+      });
     }
   }
 
@@ -616,6 +677,173 @@ async function* executeRound(
 
 function toChatToolCall(call: ResolvedToolCall): ChatToolCall {
   return { id: call.toolCallId, name: call.name, args: call.arguments };
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** 构造子代理可用的内层工具（按白名单与父级工具集求交）。 */
+function buildInnerExploreTools(params: {
+  tools: Map<string, ToolDefinition>;
+  toolSet: ReadonlySet<string>;
+  clientContext: ClientContextLike | null;
+}): Map<string, ToolDefinition> {
+  const includeAnnotations = shouldIncludeAnnotationReads(
+    params.clientContext as { workMode?: string | null } | null,
+    params.toolSet,
+  );
+  const allowed = resolveExploreInnerNames(includeAnnotations);
+
+  const inner = new Map<string, ToolDefinition>();
+  for (const [name, tool] of params.tools) {
+    // 与 Python 一致：必须是「父级工具集内的」且在白名单内
+    if (!params.toolSet.has(name)) continue;
+    if (!allowed.has(name)) continue;
+    if (EXPLORE_READONLY_FORBIDDEN_INNER.has(name)) continue;
+    inner.set(name, tool);
+  }
+  return inner;
+}
+
+interface TrackedExploreParams {
+  call: ResolvedToolCall;
+  tools: Map<string, ToolDefinition>;
+  toolSet: ReadonlySet<string>;
+  toolContext: ToolContext;
+  settings: AgentSettings;
+  llm: LlmClient;
+  isCancelled: () => boolean;
+  signal?: AbortSignal;
+  finals: Map<string, { summary: string; status: 'done' | 'error' }>;
+}
+
+/**
+ * 包装一次子代理执行。
+ *
+ * 先发父级 `tool_start`（与基线一致，只发一次），再跑子代理循环，
+ * 最后把 summary/status 记入 `finals` 供调用方补 `tool_result`。
+ */
+async function* trackedExplore(
+  params: TrackedExploreParams,
+): AsyncGenerator<StreamEventPayload> {
+  const { call, finals } = params;
+
+  yield sse.toolStart(call.toolCallId, call.name, call.arguments);
+
+  let summary = '';
+  let status: 'done' | 'error' = 'error';
+
+  try {
+    const innerTools = buildInnerExploreTools({
+      tools: params.tools,
+      toolSet: params.toolSet,
+      clientContext: params.toolContext.clientContext,
+    });
+    const innerToolSpecs = [...innerTools.values()]
+      .map(toToolSpec)
+      .sort((a, b) => (a.function.name < b.function.name ? -1 : 1));
+
+    const focusRaw = call.arguments?.focus_path;
+    const focusPath =
+      typeof focusRaw === 'string' && focusRaw.trim() ? focusRaw.trim() : null;
+
+    for await (const event of streamExploreReadonly(
+      {
+        llm: params.llm,
+        settings: params.settings,
+        isCancelled: params.isCancelled,
+        signal: params.signal,
+        innerTools,
+        innerToolSpecs,
+        toolContext: params.toolContext,
+      },
+      {
+        query: String(call.arguments?.query ?? ''),
+        focusPath,
+        parentToolId: call.toolCallId,
+      },
+    )) {
+      if (event.type === 'subagent_done') {
+        summary = event.summary ?? '';
+        status = event.status === 'done' ? 'done' : 'error';
+      }
+      yield event;
+    }
+  } catch (err) {
+    summary = `查阅失败：${errMessage(err)}`;
+    status = 'error';
+    yield sse.subagentDone({
+      toolCallId: call.toolCallId,
+      summary,
+      status: 'error',
+    });
+  }
+
+  finals.set(call.toolCallId, { summary, status });
+}
+
+/**
+ * 合并多个异步事件流（交错产出）。
+ *
+ * 对应 Python 的 `_merge_async_iterators`：用于多个 explore_readonly 并行时的
+ * 事件交错。调用方应保证 `streams` 非空。
+ */
+export async function* mergeAsyncIterators<T>(
+  streams: Array<AsyncGenerator<T>>,
+): AsyncGenerator<T> {
+  if (streams.length === 0) return;
+  if (streams.length === 1) {
+    yield* streams[0];
+    return;
+  }
+
+  // 每个流一个消费任务，把事件投递到共享队列；流结束时投递 null 作为结束标记
+  type Item = { value: T } | null;
+  const queue: Item[] = [];
+  let notify: (() => void) | null = null;
+  let remaining = streams.length;
+  let failure: unknown = null;
+
+  const push = (item: Item): void => {
+    queue.push(item);
+    if (notify) {
+      const fn = notify;
+      notify = null;
+      fn();
+    }
+  };
+
+  const pumps = streams.map(async (stream) => {
+    try {
+      for await (const value of stream) push({ value });
+    } catch (err) {
+      failure = err;
+    } finally {
+      remaining -= 1;
+      push(null);
+    }
+  });
+
+  try {
+    while (remaining > 0 || queue.length > 0) {
+      if (queue.length === 0) {
+        // 等待下一个事件
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise<void>((resolve) => {
+          notify = resolve;
+        });
+        continue;
+      }
+      const item = queue.shift() as Item;
+      if (item === null) continue;
+      yield item.value;
+    }
+    if (failure) throw failure;
+  } finally {
+    // 调用方提前退出（如取消）时，确保所有 pump 被回收
+    await Promise.allSettled(pumps);
+  }
 }
 
 /** 执行单个工具并返回原始结果字符串。 */
