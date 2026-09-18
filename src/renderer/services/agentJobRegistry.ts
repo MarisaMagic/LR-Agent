@@ -205,6 +205,7 @@ function pendingToolCallsFromEvent(
   event: StreamEvent,
 ): ClientToolCall[] | null {
   if (event.type === 'tool_pending') {
+    // 运行时同时发送 clientToolCalls 与 toolCalls；snake_case 为历史数据兜底
     const e = event as Record<string, unknown>;
     return (e.toolCalls ?? e.client_tool_calls) as ClientToolCall[] | null;
   }

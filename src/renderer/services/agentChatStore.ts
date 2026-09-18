@@ -486,7 +486,13 @@ export function mergeMessagesFromRemote(
   return merged;
 }
 
-/** 兼容 model_dump 与 to_sse_dict 两种 SSE 字段名。 */
+/**
+ * 取提案事件的显示路径。
+ *
+ * 主字段是 `suggestedRelativePath`（`to_sse_dict` 的 camelCase 契约，也就是运行时
+ * 实际发送的字段）。其余分支是历史 `model_dump` snake_case 形态的**防御性兜底**：
+ * 运行时不会产出它们，保留是为了让旧的历史 SSE 数据仍能正确渲染。
+ */
 export function resolveFileProposalPath(
   event: Record<string, unknown>,
 ): string {
@@ -620,6 +626,7 @@ function resolveFileProposalOldPath(
 const EXPLORE_READONLY_TOOL = 'explore_readonly';
 
 function eventToolCallId(event: StreamEvent | Record<string, unknown>): string {
+  // 主字段为 camelCase；snake_case 为历史数据的防御性兜底（运行时不会产出）
   const rec = event as Record<string, unknown>;
   return (
     (rec.toolCallId as string | undefined) ??

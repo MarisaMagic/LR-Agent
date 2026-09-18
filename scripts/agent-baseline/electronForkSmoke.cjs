@@ -175,7 +175,7 @@ app.whenReady().then(async () => {
   }
 
   try {
-    // /chat/cancel 是 POST 路由；用 POST 才能到达骨架并返回 501
+    // /chat/cancel 现已实现：应返回 200 {ok:true}
     const withAuth = await get(
       port,
       '/api/v1/agent/chat/cancel',
@@ -183,9 +183,14 @@ app.whenReady().then(async () => {
       'POST',
     );
     check(
-      withAuth.status === 501,
-      '带 token 通过鉴权并到达路由骨架 (501)',
+      withAuth.status === 200,
+      '带 token 通过鉴权并到达已实现路由 (200)',
       `got ${withAuth.status}`,
+    );
+    check(
+      JSON.parse(withAuth.body || '{}').ok === true,
+      '/chat/cancel 返回 {ok:true}',
+      withAuth.body,
     );
   } catch (err) {
     check(false, '带 token 访问业务路由', err.message);

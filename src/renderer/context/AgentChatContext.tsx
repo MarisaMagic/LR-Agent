@@ -1129,6 +1129,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
               [sessionId]: {
                 ...session,
                 contextSummary: event.summary,
+                // 主字段为 camelCase；snake_case 为历史数据兜底
                 summaryUpToMessageId:
                   ((event as Record<string, unknown>).summaryUpToMessageId as
                     string | undefined) ??
