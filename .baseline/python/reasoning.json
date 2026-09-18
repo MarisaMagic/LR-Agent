@@ -1,0 +1,21 @@
+[
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "content": "你好，我是运行在",
+    "type": "text_delta"
+  },
+  {
+    "content": " LR-Agen",
+    "type": "text_delta"
+  },
+  {
+    "content": "t 内的模型。",
+    "type": "text_delta"
+  },
+  {
+    "type": "done"
+  }
+]

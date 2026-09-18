@@ -93,3 +93,13 @@ assets/python-runtime/
 
 # ZCode 会话工作区缓存
 .zcode/
+
+# 文档目录默认不入库；仅 Agent 协议契约例外（它是代码必须遵循的单一真源）
+docs/*
+!docs/agent-protocol.md
+
+# Agent 协议基线：.baseline/python 是迁移前冻结的参考序列，必须入库
+# （vendor/local-agent 删除后无法重新生成），其余为可再生产物
+.baseline/fixture-workspace/
+.baseline/node/
+.baseline/tampered/

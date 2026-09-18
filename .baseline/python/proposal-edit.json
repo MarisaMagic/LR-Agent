@@ -1,0 +1,180 @@
+[
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "content": "我改一下这段配置",
+    "type": "text_delta"
+  },
+  {
+    "content": "。",
+    "type": "text_delta"
+  },
+  {
+    "detail": "0",
+    "mode": "edit",
+    "operation": "edit",
+    "suggestedRelativePath": "config/app.json",
+    "summary": "config/app.json",
+    "title": "config/app.json",
+    "type": "file_proposal_start"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": "  ",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": "\"t",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": "ime",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": "out",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": "\":",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": " 30",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": ",\n",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": "  \\",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": "re",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": "tri",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": "es\\",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": ": ",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "oldDelta": "1\n",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": "  ",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": "\"t",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": "ime",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": "out",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": "\":",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": " 12",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": "0,\\",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": "  ",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": "\"r",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": "etr",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": "ies",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": "\":",
+    "type": "file_edit_delta"
+  },
+  {
+    "imagePath": "config/app.json",
+    "newDelta": " 3\\",
+    "type": "file_edit_delta"
+  },
+  {
+    "arguments": "{\n  \"relative_path\": \"config/app.json\",\n  \"old_string\": \"  \\\"timeout\\\": 30,\\n  \\\"retries\\\": 1\\n\",\n  \"new_string\": \"  \\\"timeout\\\": 120,\\n  \\\"retries\\\": 3\\n\"\n}",
+    "name": "str_replace_workspace_file",
+    "toolCallId": "<tc:0>",
+    "type": "tool_start"
+  },
+  {
+    "result": "已生成补丁提案：config/app.json（替换 1 处）。文件尚未写入磁盘；用户确认（Keep All）后才会落盘。",
+    "toolCallId": "<tc:0>",
+    "type": "tool_result"
+  },
+  {
+    "content": "{\n  \"timeout\": 120,\n  \"retries\": 3\n}\n",
+    "mode": "write",
+    "operation": "write",
+    "suggestedRelativePath": "config/app.json",
+    "summary": "App",
+    "title": "App",
+    "type": "file_proposal"
+  },
+  {
+    "content": "替换提案已生成。",
+    "type": "text_delta"
+  },
+  {
+    "type": "done"
+  }
+]

@@ -1,0 +1,69 @@
+[
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "content": "我来发起自动标注",
+    "type": "text_delta"
+  },
+  {
+    "content": "。",
+    "type": "text_delta"
+  },
+  {
+    "arguments": "{\n  \"user_request\": \"标注 data 下所有图片\",\n  \"paths\": [\n    \"data/\"\n  ]\n}",
+    "name": "auto_annotate",
+    "toolCallId": "<tc:0>",
+    "type": "tool_start"
+  },
+  {
+    "clientToolCalls": [
+      {
+        "arguments": {
+          "paths": [
+            "data/"
+          ],
+          "user_request": "标注 data 下所有图片"
+        },
+        "name": "auto_annotate",
+        "toolCallId": "<tc:0>"
+      }
+    ],
+    "toolCalls": [
+      {
+        "arguments": {
+          "paths": [
+            "data/"
+          ],
+          "user_request": "标注 data 下所有图片"
+        },
+        "name": "auto_annotate",
+        "toolCallId": "<tc:0>"
+      }
+    ],
+    "type": "tool_pending"
+  },
+  {
+    "type": "done"
+  },
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "content": "标注提案已生成，",
+    "type": "text_delta"
+  },
+  {
+    "content": "请检查后 Kee",
+    "type": "text_delta"
+  },
+  {
+    "content": "p All。",
+    "type": "text_delta"
+  },
+  {
+    "type": "done"
+  }
+]

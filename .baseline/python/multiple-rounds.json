@@ -1,0 +1,39 @@
+[
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "arguments": "{}",
+    "name": "describe_client_context",
+    "toolCallId": "<tc:0>",
+    "type": "tool_start"
+  },
+  {
+    "result": "未知工具: describe_client_context",
+    "toolCallId": "<tc:0>",
+    "type": "tool_result"
+  },
+  {
+    "arguments": "{\n  \"topic\": \"标注\"\n}",
+    "name": "get_lr_agent_help",
+    "toolCallId": "<tc:1>",
+    "type": "tool_start"
+  },
+  {
+    "result": "标注任务在左侧活动栏「标注任务」中创建。 **Ask**：分析与建议，不修改文件、不执行批量标注。**标注 Agent**：新增/重写用 auto_annotate，改已有标注用 mutate_annotation。**编辑器 Agent**：只改代码/文档，不能标注。",
+    "toolCallId": "<tc:1>",
+    "type": "tool_result"
+  },
+  {
+    "content": "两轮工具都完成了",
+    "type": "text_delta"
+  },
+  {
+    "content": "。",
+    "type": "text_delta"
+  },
+  {
+    "type": "done"
+  }
+]

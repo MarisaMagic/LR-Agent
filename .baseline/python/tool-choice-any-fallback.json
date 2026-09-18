@@ -1,0 +1,33 @@
+[
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "content": "我会调用 aut",
+    "type": "text_delta"
+  },
+  {
+    "content": "o_annota",
+    "type": "text_delta"
+  },
+  {
+    "content": "te(paths",
+    "type": "text_delta"
+  },
+  {
+    "content": "=[\"data/",
+    "type": "text_delta"
+  },
+  {
+    "content": "\"]) 来完成标",
+    "type": "text_delta"
+  },
+  {
+    "content": "注。",
+    "type": "text_delta"
+  },
+  {
+    "type": "done"
+  }
+]

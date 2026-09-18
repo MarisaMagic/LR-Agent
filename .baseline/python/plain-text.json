@@ -1,0 +1,17 @@
+[
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "content": "你好，这是纯文本",
+    "type": "text_delta"
+  },
+  {
+    "content": "回复。",
+    "type": "text_delta"
+  },
+  {
+    "type": "done"
+  }
+]
