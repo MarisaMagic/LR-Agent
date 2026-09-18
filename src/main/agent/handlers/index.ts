@@ -12,6 +12,7 @@ import { mcpProbeHandler } from './mcpProbe';
 import {
   ANNOTATION_HANDLER_KEYS,
   createLlmGenerateHandler,
+  createMapDetectionBoxesHandler,
   createMutationPrepareHandler,
   createQualityComposeHandler,
 } from './annotation';
@@ -28,6 +29,8 @@ export function buildImplementedRoutes(
     [ANNOTATION_HANDLER_KEYS.llmGenerate]: createLlmGenerateHandler(deps),
     [ANNOTATION_HANDLER_KEYS.mutationPrepare]:
       createMutationPrepareHandler(deps),
+    [ANNOTATION_HANDLER_KEYS.mapDetectionBoxes]:
+      createMapDetectionBoxesHandler(deps),
     [ANNOTATION_HANDLER_KEYS.qualityCompose]:
       createQualityComposeHandler(deps),
   });

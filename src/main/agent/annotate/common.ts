@@ -219,3 +219,61 @@ export function requireCredentials(params: {
     throw new AnnotateHttpError(400, 'provider_credentials_required');
   }
 }
+
+// ── Python repr 等价实现 ────────────────────────────────────────────
+
+/**
+ * 等价于 Python 的 `repr(str)`。
+ *
+ * 存在意义：多处错误文案与映射理由用 `{name!r}` 插值（如
+ * `检测类名 'car' 与标签匹配`），这些字符串会**回传给前端展示**，
+ * 因此引号风格与转义必须一致。
+ *
+ * Python 的规则：优先单引号；若串内有单引号而无双引号则改用双引号；
+ * 两者都有时用单引号并转义内部单引号。控制字符转义为 `\n` / `\t` 等。
+ */
+export function pyRepr(value: unknown): string {
+  if (value === null || value === undefined) return 'None';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+
+  const text = String(value);
+  const hasSingle = text.includes("'");
+  const hasDouble = text.includes('"');
+  const quote = hasSingle && !hasDouble ? '"' : "'";
+
+  let body = '';
+  for (const ch of text) {
+    switch (ch) {
+      case '\\':
+        body += '\\\\';
+        break;
+      case '\n':
+        body += '\\n';
+        break;
+      case '\r':
+        body += '\\r';
+        break;
+      case '\t':
+        body += '\\t';
+        break;
+      case '"':
+        body += quote === '"' ? '\\"' : '"';
+        break;
+      case "'":
+        body += quote === "'" ? "\\'" : "'";
+        break;
+      default:
+        body += ch;
+        break;
+    }
+  }
+  return `${quote}${body}${quote}`;
+}
+
+/** 等价于 Python 对 list[int] 的 `repr`（元素间为 `, ` 带空格）。 */
+export function pyIntListRepr(values: number[]): string {
+  return `[${values.join(', ')}]`;
+}
+
+/** 等价于 Python `json.dumps(value, ensure_ascii=False)`（紧凑、带分隔空格）。 */
+export { pythonJsonDumps } from '../json';

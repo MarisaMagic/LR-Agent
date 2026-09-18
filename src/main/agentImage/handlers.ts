@@ -299,16 +299,16 @@ export function cropImageBatch(params: {
 
   const images: string[] = [];
   for (const box of params.boxes) {
-    const left = Math.max(0, Math.min(width, Math.floor(box.left)));
-    const top = Math.max(0, Math.min(height, Math.floor(box.top)));
-    const right = Math.max(left, Math.min(width, Math.ceil(box.right)));
-    const bottom = Math.max(top, Math.min(height, Math.ceil(box.bottom)));
+    // 与 Python `_crop_boxes_from_image_bytes` 的钳位完全一致：
+    //   left = max(0, min(int(x), iw - 1))
+    //   right = max(left + 1, min(int(x + w), iw))
+    // 注意 `max(left + 1, ...)` 保证裁剪区域至少 1px 宽/高。
+    const left = Math.max(0, Math.min(Math.floor(box.left), width - 1));
+    const top = Math.max(0, Math.min(Math.floor(box.top), height - 1));
+    const right = Math.max(left + 1, Math.min(Math.floor(box.right), width));
+    const bottom = Math.max(top + 1, Math.min(Math.floor(box.bottom), height));
     const cropWidth = right - left;
     const cropHeight = bottom - top;
-    if (cropWidth <= 0 || cropHeight <= 0) {
-      images.push('');
-      continue;
-    }
 
     let cropped = image.crop({
       x: left,

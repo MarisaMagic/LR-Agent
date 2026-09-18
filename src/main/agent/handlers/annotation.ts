@@ -21,9 +21,11 @@ import {
 import {
   formatZodError,
   LlmGenerateRequestSchema,
+  MapDetectionBoxesRequestSchema,
   MutationPrepareRequestSchema,
   QualityReportComposeRequestSchema,
 } from '../annotate/schemas';
+import { mapDetectionBoxesToLabelsUnified } from '../annotate/mapLabels';
 import {
   labelNamesOf,
   prepareMutationAnnotation,
@@ -203,9 +205,72 @@ export function createQualityComposeHandler(deps: RuntimeDeps): RouteHandler {
   };
 }
 
+/** `POST /agent/annotation/map-detection-boxes` */
+export function createMapDetectionBoxesHandler(deps: RuntimeDeps): RouteHandler {
+  return async (req) => {
+    let body;
+    try {
+      body = MapDetectionBoxesRequestSchema.parse(JSON.parse(req.rawBody || '{}'));
+    } catch (err) {
+      return {
+        kind: 'json',
+        status: 400,
+        body: { detail: formatZodError(err as never) },
+      };
+    }
+
+    try {
+      // 视觉映射才需要 LLM；且需要 provider 通过视觉探针
+      const useVision = Boolean(body.use_vision) && body.supports_vision;
+      let llm: LlmClient | null = null;
+      if (useVision) {
+        requireCredentials(body);
+        llm = makeLlm({
+          deps,
+          apiKey: body.api_key,
+          baseUrl: body.base_url,
+          model: body.model,
+          temperature: deps.settings.annotationLlmTemperature,
+        });
+      }
+
+      const imageService = resolveImageService(deps);
+      // 图像可读性：探测一次（与 Python 的 load_image_bytes 真值判断对齐）
+      const probed = await imageService.probe({
+        absolutePath: body.image_absolute_path.trim() || undefined,
+        base64: body.image_base64.trim() || undefined,
+      });
+
+      const result = await mapDetectionBoxesToLabelsUnified({
+        llm,
+        userRequest: body.user_request,
+        intentSummary: body.intent_summary,
+        labelCandidates: body.label_candidates,
+        boxes: body.boxes,
+        useVision,
+        ocrText: body.ocr_text,
+        scope: body.annotation_scope,
+        labelStrategy: body.label_strategy,
+        singleLabelId: body.single_label_id ?? null,
+        imageAbsolutePath: body.image_absolute_path,
+        imageBase64: body.image_base64,
+        mimeType: body.mime_type,
+        settings: deps.settings,
+        imageService,
+        imageAvailable: probed.ok,
+      });
+
+      return { kind: 'json', body: { data: result } };
+    } catch (err) {
+      return toErrorResult(httpFromLlmError(err));
+    }
+  };
+}
+
 /** 路由键（供装配使用）。 */
 export const ANNOTATION_HANDLER_KEYS = {
   llmGenerate: `POST ${AGENT_ROUTE_PATHS.annotationLlmGenerate}`,
   mutationPrepare: `POST ${AGENT_ROUTE_PATHS.annotationMutationPrepare}`,
+  mapDetectionBoxes: `POST ${AGENT_ROUTE_PATHS.annotationMapDetectionBoxes}`,
   qualityCompose: `POST ${AGENT_ROUTE_PATHS.qualityReportComposeStream}`,
 } as const;
