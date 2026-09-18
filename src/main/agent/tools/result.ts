@@ -12,6 +12,8 @@
  * 不经 `buildToolResult` 包装；此时 `formatToolResultForDisplay` 原样返回。
  */
 
+import { pythonJsonDumps } from '../json';
+
 /** 生成统一工具结果 JSON。`file_written` / `proposal_pending` 默认 false。 */
 export function buildToolResult(params: {
   ok: boolean;
@@ -32,7 +34,8 @@ export function buildToolResult(params: {
   delete rest.file_written;
   delete rest.proposal_pending;
   Object.assign(payload, rest);
-  return JSON.stringify(payload);
+  // 用 Python 的 json.dumps 语义（分隔符带空格），否则原样回灌的完整 JSON 会与基准不一致
+  return pythonJsonDumps(payload);
 }
 
 /**

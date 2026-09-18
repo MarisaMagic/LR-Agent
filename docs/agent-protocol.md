@@ -621,6 +621,35 @@ is_editor || has_workspace  →  LIGHT_TOOL_SET
 
 **易错点**：主循环回灌用**显示文本**；子代理内部回灌用**原文**。二者不一致，不要统一。
 
+**分支赋值语义**（容易写错）：`display_result` 的初值是**原始结果文本**，只有特定分支才覆盖它：
+
+| 工具类别 | 条件 | display |
+|---|---|---|
+| `read_image_for_vision` | 提取到图片路径 | 剥离内部标记后格式化 |
+| `read_image_for_vision` | 未提取到路径 | **原始文本** |
+| `FILE_PROPOSAL_TOOLS` | 提取到 `__doc_proposal__` | 格式化（实际等于 `summary`） |
+| `FILE_PROPOSAL_TOOLS` | 未提取到（工具报错） | **原始完整 JSON** |
+| 其它 | — | 格式化 |
+
+关键在第 4 行：提案工具失败时回灌的是**完整 JSON**而非 `summary`。因为 Python 的 `elif`
+分支只在 `doc_proposal` 存在时才赋值 `display_result`，否则沿用初值。
+
+**JSON 序列化必须用 Python 的 `json.dumps` 语义**：默认分隔符是 `(', ', ': ')`（逗号与冒号
+后都有空格），而 JavaScript 的 `JSON.stringify` 不插空格：
+
+```
+Python: {"ok": false, "tool": "x"}
+JS    : {"ok":false,"tool":"x"}
+```
+
+多数情况下该差异会被 `format_tool_result_for_display` 折叠掉（只取 `summary`），但上面第 4 行
+那条路径会**原样暴露**，导致 `result` 字段与基准不一致。实现见 `src/main/agent/json.ts` 的
+`pythonJsonDumps`。
+
+注意：带缩进（`indent=2`）时 Python 的元素分隔符变成 `,`（无空格），键分隔符仍是 `': '`——
+这与 `JSON.stringify(value, null, 2)` **一致**，故缩进场景（如 `tool_start.arguments`）
+可直接用 `JSON.stringify`，只有紧凑场景需要 `pythonJsonDumps`。
+
 **关键规则：工具可执行性以「工具集」为准，而非「注册表」。**
 
 `describe_client_context` 与 `get_account_summary` 在注册表中存在，但被模式路由刻意排除在主
@@ -783,6 +812,15 @@ else:
 ---
 
 ## 7. 提案流式拦截
+
+### 7.0 状态计数按**码点**而非 UTF-16 码元
+
+Python 的字符串索引单位是码点（code point）。若实现时用 JavaScript 的 UTF-16 码元计数，
+含 emoji 的文件内容会把增量切在代理对中间，产出半个代理对（渲染成替换字符 `\ufffd`），
+且分片边界与 Python 不一致。
+
+实现见 `src/main/agent/loop/proposalStreamer.ts`：所有长度比较与切片都经
+`Array.from(str)`（码点数组）完成。
 
 ### 7.1 目标
 

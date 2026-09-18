@@ -39,6 +39,15 @@ import {
   formatToolResultForDisplay,
   stripInternalMarkers,
 } from '../tools/result';
+import {
+  extractDocProposalFromToolResult,
+  FILE_PROPOSAL_TOOLS,
+  STR_REPLACE_TOOL_NAME,
+  type PendingProposalContents,
+} from '../tools/fileProposal';
+import { ProposalStreamInterceptor } from './proposalStreamer';
+import { isLrAgentRelative } from '../tools/workspacePath';
+import { pythonJsonDumps } from '../json';
 import type { ClientContextLike } from '../tools/workspacePath';
 import type { AgentSettings } from '../config';
 import {
@@ -87,7 +96,7 @@ const ALREADY_COMPLETED_SUMMARY =
  * Agent），此时即使工具在注册表中存在，也必须按「未知工具」拒绝。
  */
 export function unknownToolResult(name: string): string {
-  return JSON.stringify({
+  return pythonJsonDumps({
     ok: false,
     tool: name,
     status: 'error',
@@ -98,7 +107,7 @@ export function unknownToolResult(name: string): string {
 /** 工具执行抛异常时的失败结果（同样是裸 JSON，对齐 Python）。 */
 export function toolErrorResult(name: string, err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
-  return JSON.stringify({
+  return pythonJsonDumps({
     ok: false,
     tool: name,
     status: 'error',
@@ -199,6 +208,8 @@ export async function* streamAssist(
     settings,
     providerIsVision: params.providerIsVision,
     userContent: params.userContent,
+    // 请求级提案缓存：让同轮对同一文件的多次 str_replace 累积到同一份提案
+    pendingProposals: new Map() as PendingProposalContents,
   };
 
   let budgetExhausted = true;
@@ -207,6 +218,8 @@ export async function* streamAssist(
     if (isCancelled()) return;
 
     const accumulator = new ToolCallAccumulator();
+    // 拦截器必须**每轮新建**：tc_index 每轮从 0 重新编号
+    const interceptor = new ProposalStreamInterceptor(params.clientContext);
     let pendingText = '';
     let gatheredAny = false;
 
@@ -230,6 +243,10 @@ export async function* streamAssist(
       if (delta.toolCallChunks?.length) {
         accumulator.push(delta.toolCallChunks);
         gatheredAny = true;
+        // 流式拦截：在 chunk 期间实时发出提案 start / delta 事件
+        for (const event of interceptor.onChunk(delta.toolCallChunks)) {
+          yield event;
+        }
       }
     }
 
@@ -259,6 +276,7 @@ export async function* streamAssist(
       accumulatedText: pendingText,
       isResume,
       toolSpecs: params.toolSpecs,
+      interceptor,
     });
 
     if (outcome.kind === 'pending') {
@@ -306,6 +324,7 @@ interface ExecuteRoundParams {
   signal?: AbortSignal;
   accumulatedText: string;
   isResume: boolean;
+  interceptor: ProposalStreamInterceptor;
 }
 
 /**
@@ -335,6 +354,7 @@ async function* executeRound(
     llm,
     isCancelled,
     signal,
+    interceptor,
   } = params;
 
   let resolved = resolveRoundToolCalls({
@@ -497,6 +517,11 @@ async function* executeRound(
   }
 
   // ── 分类执行 ──────────────────────────────────────────────
+  // 拦截器已流式出卡的路径：定稿时用来抑制重复的 start/delta，
+  // 工具报错时用来补发 dismissed 终态
+  const streamedPathsByCallId = interceptor.streamedPathsByCallId();
+  const streamedPaths = new Set(streamedPathsByCallId.values());
+
   const { immediate, asyncPending } = splitResolvedCalls(executable, (name) =>
     kindOf(tools, name),
   );
@@ -527,6 +552,8 @@ async function* executeRound(
       toolContext,
       messages,
       prefetchedResult: prefetched.get(call.toolCallId),
+      streamedPaths,
+      streamedPathsByCallId,
     });
   }
 
@@ -582,6 +609,10 @@ interface StreamToolExecutionParams {
   messages: ChatMessage[];
   /** 并行预取好的结果；未预取时现场执行。 */
   prefetchedResult?: string;
+  /** 拦截器已流式出卡的显示路径集合。 */
+  streamedPaths?: ReadonlySet<string>;
+  /** callId → 已流式出卡的显示路径。 */
+  streamedPathsByCallId?: Map<string, string>;
 }
 
 /**
@@ -589,11 +620,26 @@ interface StreamToolExecutionParams {
  *
  * `tool_start` 的 `arguments` 是 pretty JSON 字符串；回灌给模型的 ToolMessage 用
  * **显示文本**（`formatToolResultForDisplay`），与子代理内部回灌原文的做法不同。
+ *
+ * 提案类工具（`FILE_PROPOSAL_TOOLS`）额外做两件事：
+ *   - 从结果里提取 `__doc_proposal__`，发出定稿的 `file_proposal`（若该路径已在流式
+ *     期间出过卡，则跳过重复的 start/delta burst）
+ *   - 提取失败（工具报错，如 `old_string` 未命中）时，为已出卡的路径补发
+ *     `status="dismissed"` 终态，否则前端会留下悬挂卡片、Keep All 可能把空内容写盘
  */
 async function* streamToolExecution(
   params: StreamToolExecutionParams,
 ): AsyncGenerator<StreamEventPayload> {
-  const { call, tools, toolSet, toolContext, messages, prefetchedResult } = params;
+  const {
+    call,
+    tools,
+    toolSet,
+    toolContext,
+    messages,
+    prefetchedResult,
+    streamedPaths,
+    streamedPathsByCallId,
+  } = params;
 
   yield sse.toolStart(call.toolCallId, call.name, call.arguments);
 
@@ -601,9 +647,22 @@ async function* streamToolExecution(
     prefetchedResult ?? (await invokeTool(call, tools, toolSet, toolContext));
 
   // read_image_for_vision 的结果含内部标记，需剥离后再展示
-  let display = formatToolResultForDisplay(
-    call.name === 'read_image_for_vision' ? stripInternalMarkers(raw) : raw,
-  );
+  let display: string;
+  let visionPath = '';
+  let docProposal: ReturnType<typeof extractDocProposalFromToolResult> = null;
+
+  if (call.name === 'read_image_for_vision') {
+    visionPath = extractVisionPath(raw);
+    // 提取到路径才剥离内部标记；否则保持原样（对齐 Python 的分支写法）
+    display = visionPath ? formatToolResultForDisplay(stripInternalMarkers(raw)) : raw;
+  } else if (FILE_PROPOSAL_TOOLS.has(call.name)) {
+    docProposal = extractDocProposalFromToolResult(call.name, raw);
+    // 只有拿到提案数据才走显示文本；工具报错时**保持完整 JSON 原样回灌**
+    // （Python 的 elif 分支只在 doc_proposal 存在时赋值 display_result）
+    display = docProposal ? formatToolResultForDisplay(raw) : raw;
+  } else {
+    display = formatToolResultForDisplay(raw);
+  }
 
   yield sse.toolResult(call.toolCallId, display);
   messages.push({
@@ -612,18 +671,68 @@ async function* streamToolExecution(
     toolCallId: call.toolCallId,
   });
 
-  // 视觉附图注入在阶段 4/5 接入：这里先提取路径以便后续使用
-  if (call.name === 'read_image_for_vision') {
-    const visionPath = extractVisionPath(raw);
-    if (visionPath && toolContext.providerIsVision) {
-      // TODO(阶段5): 追加多模态 HumanMessage（需 nativeImage 生成 data URL）
-      void visionPath;
+  // ── 提案失败兜底：补发 dismissed 终态 ──────────────────────
+  if (
+    docProposal === null &&
+    FILE_PROPOSAL_TOOLS.has(call.name) &&
+    streamedPathsByCallId &&
+    streamedPathsByCallId.size > 0
+  ) {
+    const streamedPath = streamedPathsByCallId.get(call.toolCallId);
+    if (streamedPath) {
+      yield sse.fileProposal({
+        summary: String(call.arguments.relative_path ?? streamedPath) || streamedPath,
+        content: '',
+        relativePath: streamedPath,
+        mode: call.name === STR_REPLACE_TOOL_NAME ? 'edit' : 'write',
+        status: 'dismissed',
+      });
     }
   }
 
-  // 提案工具（PROPOSAL）在阶段 3 接入：解析 __doc_proposal__ 并发出
-  // file_proposal_start / delta / file_proposal
-  void display;
+  // ── 提案定稿 ──────────────────────────────────────────────
+  if (docProposal) {
+    const fullContent = docProposal.content;
+    const relPath = docProposal.relativePath;
+
+    // 注意：`.lr-agent` 路径的终态事件**仍然发射**（与流式拦截的 suppress 不同）
+    if (!isLrAgentRelative(relPath)) {
+      const operation = docProposal.operation;
+      const omitForPath = streamedPaths?.has(relPath) ?? false;
+
+      if (operation !== 'delete' && !omitForPath) {
+        yield sse.fileProposalStart({
+          summary: docProposal.title,
+          relativePath: relPath,
+          detail: String(fullContent.length),
+          mode: operation,
+        });
+        // 定稿补齐时分 200 字符一片
+        const CHUNK_SIZE = 200;
+        for (let offset = 0; offset < fullContent.length; offset += CHUNK_SIZE) {
+          yield sse.fileProposalDelta({
+            content: fullContent.slice(offset, offset + CHUNK_SIZE),
+            relativePath: relPath,
+            mode: operation,
+          });
+        }
+      }
+
+      yield sse.fileProposal({
+        summary: docProposal.title,
+        content: fullContent,
+        relativePath: relPath,
+        mode: operation,
+        oldPath: docProposal.oldPath || null,
+      });
+    }
+  }
+
+  // 视觉附图注入在阶段 4/5 接入：这里先提取路径以便后续使用
+  if (visionPath && toolContext.providerIsVision) {
+    // TODO(阶段5): 追加多模态 HumanMessage（需 nativeImage 生成 data URL）
+    void visionPath;
+  }
 }
 
 interface ForceToolCallParams {

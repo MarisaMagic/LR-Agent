@@ -22,6 +22,13 @@ import { z } from 'zod';
 import type { ToolSpec } from '../llm/client';
 import { buildToolResult } from './result';
 import {
+  deleteWorkspaceFileTool,
+  moveWorkspaceFileTool,
+  strReplaceWorkspaceFileTool,
+  writeWorkspaceFileTool,
+  type PendingProposalContents,
+} from './fileProposal';
+import {
   globWorkspace,
   grepWorkspace,
   listWorkspaceDirectory,
@@ -44,6 +51,13 @@ export interface ToolContext {
   providerIsVision: boolean;
   /** 当前轮的用户文本（部分工具需要）。 */
   userContent: string;
+  /**
+   * 请求级提案内容缓存（路径 → (磁盘快照 | null, 提案内容)）。
+   *
+   * 让同轮对同一文件的多次 `str_replace` 累积到同一份提案上。必须是**请求级**的
+   * （Python 侧在每次请求重建工具集时创建闭包缓存），因此由调用方注入而非模块级单例。
+   */
+  pendingProposals: PendingProposalContents;
 }
 
 export interface ToolDefinition {
@@ -459,6 +473,13 @@ export function buildTools(): ToolDefinition[] {
         '移动/重命名文件请用 move_workspace_file。',
       kind: 'proposal',
       argsSchema: WriteFileArgs,
+      execute: (args, ctx) =>
+        writeWorkspaceFileTool(
+          ctx.clientContext,
+          String(args.relative_path ?? ''),
+          String(args.content ?? ''),
+          ctx.pendingProposals,
+        ),
     },
     {
       name: 'str_replace_workspace_file',
@@ -468,6 +489,15 @@ export function buildTools(): ToolDefinition[] {
         '改局部代码时优先用本工具。不能用来改标注。',
       kind: 'proposal',
       argsSchema: StrReplaceArgs,
+      execute: (args, ctx) =>
+        strReplaceWorkspaceFileTool(
+          ctx.clientContext,
+          String(args.relative_path ?? ''),
+          String(args.old_string ?? ''),
+          String(args.new_string ?? ''),
+          Boolean(args.replace_all),
+          ctx.pendingProposals,
+        ),
     },
     {
       name: 'delete_workspace_file',
@@ -476,6 +506,12 @@ export function buildTools(): ToolDefinition[] {
         '用户确认 Keep All 后才从磁盘移除。不能删除标注。',
       kind: 'proposal',
       argsSchema: DeleteFileArgs,
+      execute: (args, ctx) =>
+        deleteWorkspaceFileTool(
+          ctx.clientContext,
+          String(args.relative_path ?? ''),
+          ctx.pendingProposals,
+        ),
     },
     {
       name: 'move_workspace_file',
@@ -485,6 +521,13 @@ export function buildTools(): ToolDefinition[] {
         '禁止用「读出内容再写到新路径」来移动文件。',
       kind: 'proposal',
       argsSchema: MoveFileArgs,
+      execute: (args, ctx) =>
+        moveWorkspaceFileTool(
+          ctx.clientContext,
+          String(args.relative_path ?? ''),
+          String(args.new_relative_path ?? ''),
+          ctx.pendingProposals,
+        ),
     },
     {
       name: 'auto_annotate',
