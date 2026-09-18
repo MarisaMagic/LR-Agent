@@ -26,6 +26,8 @@ const configuration: webpack.Configuration = {
   entry: {
     main: path.join(webpackPaths.srcMainPath, 'main.ts'),
     preload: path.join(webpackPaths.srcMainPath, 'preload.ts'),
+    // Agent 运行时：由主进程 utilityProcess.fork 启动，需独立产物
+    agentRuntime: path.join(webpackPaths.srcMainPath, 'agent', 'runtime.ts'),
   },
 
   output: {

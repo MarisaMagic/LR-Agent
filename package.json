@@ -47,7 +47,8 @@
     "baseline:mock": "node scripts/agent-baseline/mockLlmServer.mjs",
     "baseline:selftest": "node scripts/agent-baseline/selftest.mjs",
     "baseline:capture": "node scripts/agent-baseline/captureSse.mjs",
-    "baseline:diff": "node scripts/agent-baseline/diffSse.mjs"
+    "baseline:diff": "node scripts/agent-baseline/diffSse.mjs",
+    "baseline:fork-smoke": "electron scripts/agent-baseline/electronForkSmoke.cjs"
   },
   "browserslist": [
     "extends browserslist-config-erb"

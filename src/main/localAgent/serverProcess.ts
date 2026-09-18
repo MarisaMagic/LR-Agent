@@ -32,6 +32,28 @@ import {
 import { getEnvironmentConfig } from '../env/envStore';
 import { getVenvPythonPath } from '../env/runtimeManager';
 import { buildInferenceSpawnEnv } from '../preAnnot/inferenceProcess';
+import {
+  getAgentRuntimeBaseUrl,
+  getAgentRuntimeToken,
+  startAgentRuntime,
+  stopAgentRuntime,
+} from '../agent/host';
+
+/**
+ * Agent 编排的运行时实现。
+ *
+ * 迁移期间两者并存：`python` 走 vendor/local-agent（既有实现），`node` 走
+ * utilityProcess 内的 Node 运行时。默认 `python`——Node 运行时在阶段 2 之前
+ * 只提供路由骨架，直接切过去会让业务请求全部 501。
+ *
+ * 通过环境变量 `LR_AGENT_RUNTIME=node` 启用 Node 运行时，用于开发对拍与灰度验证。
+ * 阶段 8 删除 Python 实现后，本开关及其 Python 分支一并移除。
+ */
+export type LocalAgentRuntimeKind = 'python' | 'node';
+
+export function resolveLocalAgentRuntimeKind(): LocalAgentRuntimeKind {
+  return process.env.LR_AGENT_RUNTIME === 'node' ? 'node' : 'python';
+}
 
 let processRef: ChildProcessWithoutNullStreams | null = null;
 let startingProcess: Promise<string> | null = null;
@@ -141,6 +163,9 @@ async function waitForHealthy(port: number): Promise<void> {
 
 /** 启动本地 Agent 服务，返回 API base URL（含 /api/v1 前缀） */
 export async function startLocalAgentServer(): Promise<string> {
+  if (resolveLocalAgentRuntimeKind() === 'node') {
+    return startAgentRuntime();
+  }
   if (processRef && listenPort) {
     return `http://127.0.0.1:${listenPort}/api/v1`;
   }
@@ -233,6 +258,10 @@ export async function startLocalAgentServer(): Promise<string> {
 
 /** 停止本地 Agent 服务 */
 export function stopLocalAgentServer(): void {
+  if (resolveLocalAgentRuntimeKind() === 'node') {
+    stopAgentRuntime();
+    return;
+  }
   if (processRef) {
     stopping = true;
     processRef.kill();
@@ -244,11 +273,17 @@ export function stopLocalAgentServer(): void {
 
 /** 获取当前服务 base URL（未启动时返回 null） */
 export function getLocalAgentBaseUrl(): string | null {
+  if (resolveLocalAgentRuntimeKind() === 'node') {
+    return getAgentRuntimeBaseUrl();
+  }
   if (listenPort) return `http://127.0.0.1:${listenPort}/api/v1`;
   return null;
 }
 
 /** 获取当前服务访问 token（未启动时返回 null） */
 export function getLocalAgentToken(): string | null {
+  if (resolveLocalAgentRuntimeKind() === 'node') {
+    return getAgentRuntimeToken();
+  }
   return authToken;
 }
