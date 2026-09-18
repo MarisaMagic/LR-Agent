@@ -85,3 +85,27 @@ node scripts/agent-baseline/diffSse.mjs \
   `captureSse.mjs` 会伪造与渲染层同结构的 `client_tool_results` 触发 resume，从而覆盖
   resume 消息注入路径。
 - 若某个场景在候选侧报错，会写出 `<id>.error.json`；diff 时该场景计为失败。
+
+## 已记录的差异
+
+`diffSse.mjs` 里有 `KNOWN_DIVERGENCES` 表，用于记录**有意保留**的行为差异。
+它只豁免明确列出的**事件类型**，其余任何偏差仍会导致 gate 失败——避免「整场景跳过」
+让这个 gate 失效。
+
+当前记录：
+
+| 场景 | 豁免的事件类型 | 原因 |
+|---|---|---|
+| `reasoning` | 候选侧多出的 `reasoning_delta` | Python 的 `langchain-openai` 1.2.2 不把 provider 的 `reasoning_content` 透出到 `additional_kwargs`，故从不发该事件；Node 直接读原始 delta，属能力增强，前端已完整消费 |
+
+新增豁免时必须同时更新 `docs/agent-protocol.md` 的「已记录的差异」小节，并在 PR 说明中给出理由。
+
+## 场景与实现阶段的对应
+
+抓取覆盖 11 个场景。迁移过程中某些场景会因对应阶段尚未实现而失败，属预期：
+
+| 场景 | 依赖 |
+|---|---|
+| `plain-text` / `reasoning` / `single-tool` / `parallel-readonly` / `multiple-rounds` / `client-tool-pending` / `tool-choice-any-fallback` | 阶段 2（循环主干 + 只读工具 + 异步客户端工具） |
+| `proposal-write` / `proposal-edit` / `proposal-lr-agent-suppressed` | 阶段 3（提案流式拦截 + 写入类工具） |
+| `subagent` | 阶段 6（`explore_readonly` 子代理） |

@@ -35,6 +35,8 @@ export interface RouteRequest {
 
 export type RouteResult =
   | { kind: 'json'; status?: number; body: unknown }
+  /** SSE 流：由服务设置响应头后逐帧写入，帧内容由调用方编码。 */
+  | { kind: 'sse'; frames: AsyncGenerator<string> }
   | { kind: 'not_implemented' }
   | { kind: 'method_not_allowed' };
 
@@ -209,6 +211,10 @@ export async function startAgentServer(
       sendJson(res, 405, { detail: 'method_not_allowed' });
       return;
     }
+    if (result.kind === 'sse') {
+      await pipeSse(res, result.frames);
+      return;
+    }
     sendJson(res, result.status ?? 200, result.body);
   }
 
@@ -241,4 +247,43 @@ function sendJson(res: http.ServerResponse, status: number, body: unknown): void
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Content-Length', Buffer.byteLength(payload));
   res.end(payload);
+}
+
+/**
+ * 以 SSE 逐帧写出。
+ *
+ * 客户端断开（`res` 被销毁）时停止拉取，避免生成器继续空转。
+ * 不设置 Content-Length；使用 chunked 传输。
+ */
+async function pipeSse(
+  res: http.ServerResponse,
+  frames: AsyncGenerator<string>,
+): Promise<void> {
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  // 关闭 Nagle 以降低小帧延迟
+  res.socket?.setNoDelay(true);
+
+  let closed = false;
+  const onClose = (): void => {
+    closed = true;
+  };
+  res.on('close', onClose);
+
+  try {
+    for await (const frame of frames) {
+      if (closed) break;
+      res.write(frame);
+    }
+  } catch {
+    // 流中断：交由客户端合成 error 事件（运行时从不主动发 error）
+  } finally {
+    res.off('close', onClose);
+    void frames.return?.(undefined).catch(() => {
+      /* 生成器清理失败不阻塞响应收尾 */
+    });
+    if (!closed) res.end();
+  }
 }

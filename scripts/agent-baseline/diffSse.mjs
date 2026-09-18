@@ -38,6 +38,39 @@ const ONLY = argOf('--only', '')
   .map((s) => s.trim())
   .filter(Boolean);
 
+/**
+ * 已记录的、有意为之的差异。
+ *
+ * 只豁免**明确列出的**事件类型，其余任何偏差仍会导致失败——避免这个 gate
+ * 因为「整场景跳过」而失效。
+ *
+ * `reasoning`：Python 侧（langchain-openai 1.2.2）不会把 provider 的
+ * `reasoning_content` 透出到 `additional_kwargs`，因此从不发 `reasoning_delta`；
+ * Node 侧直接读原始 delta，会正常透出。这是**能力增强**（前端 `agentChatStore`
+ * 已完整消费该事件），保留而不回退。
+ */
+const KNOWN_DIVERGENCES = {
+  reasoning: {
+    /** 允许候选侧多出（基准侧没有）的事件类型。 */
+    extraEventTypes: ['reasoning_delta'],
+    note: 'Node 正常透出 reasoning_content；Python 受 langchain-openai 限制未透出',
+  },
+};
+
+/** 按已记录的豁免过滤候选事件（仅移除明确列出的类型）。 */
+function applyKnownDivergences(id, baseline, candidate) {
+  const rule = KNOWN_DIVERGENCES[id];
+  if (!rule) return { candidate, applied: null };
+  const before = candidate.length;
+  const filtered = candidate.filter(
+    (event) => !rule.extraEventTypes.includes(event?.type),
+  );
+  return {
+    candidate: filtered,
+    applied: before === filtered.length ? null : `${rule.note}（移除 ${before - filtered.length} 条）`,
+  };
+}
+
 function readScenarios(dir) {
   if (!fs.existsSync(dir)) throw new Error(`目录不存在: ${dir}`);
   const out = new Map();
@@ -133,10 +166,18 @@ function main() {
       failed += 1;
       continue;
     }
-    const diffs = diffScenario(id, a, b);
+    const { candidate: bFiltered, applied: appliedNote } = applyKnownDivergences(
+      id,
+      a,
+      b,
+    );
+    const diffs = diffScenario(id, a, bFiltered);
     if (diffs.length === 0) {
       passed += 1;
-      if (!QUIET) console.log(`✓ ${id}  (${a.length} events)`);
+      if (!QUIET) {
+        const suffix = appliedNote ? `  [已记录差异: ${appliedNote}]` : '';
+        console.log(`✓ ${id}  (${a.length} events)${suffix}`);
+      }
     } else {
       failed += 1;
       console.log(`\n✗ ${id}  (${a.length} → ${b.length} events)`);

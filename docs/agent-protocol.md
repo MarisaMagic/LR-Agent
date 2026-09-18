@@ -621,6 +621,32 @@ is_editor || has_workspace  →  LIGHT_TOOL_SET
 
 **易错点**：主循环回灌用**显示文本**；子代理内部回灌用**原文**。二者不一致，不要统一。
 
+**关键规则：工具可执行性以「工具集」为准，而非「注册表」。**
+
+`describe_client_context` 与 `get_account_summary` 在注册表中存在，但被模式路由刻意排除在主
+Agent 工具集之外（理由见 §5.3 注释）。Python 侧 `fn_map` 只包含**筛选后**的工具，因此越界调用
+返回：
+
+```json
+{"ok": false, "tool": "<name>", "status": "error", "summary": "未知工具: <name>"}
+```
+
+注意这是**裸 JSON**，不经 `buildToolResult`，因此不含 `file_written` / `proposal_pending`。
+
+若实现时误用全量注册表，会同时造成两处偏差：
+
+1. 越界调用从「未知工具」变成真实执行
+2. `tool_choice="any"` 兜底**错误触发**——它的前置条件之一正是「该工具在当前工具集内」
+
+### 6.0 已记录的差异
+
+以下差异是**有意保留**的，不属于回归。`scripts/agent-baseline/diffSse.mjs` 的
+`KNOWN_DIVERGENCES` 只豁免明确列出的**事件类型**，其余任何偏差仍会导致 gate 失败。
+
+| 场景 | 差异 | 原因 |
+|---|---|---|
+| `reasoning` | 运行时会发出 `reasoning_delta`，Python 侧不发 | Python 用的 `langchain-openai` 1.2.2 不把 provider 的 `reasoning_content` 透出到 `additional_kwargs`，因此 `stream_adapter.py` 的该分支从不触发。Node 侧直接读原始 delta，正常透出。这是**能力增强**（前端 `agentChatStore` 已完整消费该事件），保留而不回退 |
+
 ---
 
 ## 6. 工具循环行为

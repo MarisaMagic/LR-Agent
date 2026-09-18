@@ -1,0 +1,685 @@
+/**
+ * Assist 工具循环主干。
+ *
+ * 移植自 `vendor/local-agent/app/agent/assist_service.py` 的 `stream_assist`
+ * 与 `app/agent/assist/tool_loop.py` 的 `execute_round`。
+ *
+ * 单轮结构（与协议文档 §6.2 一致）：
+ *
+ *   阶段 A：一次 astream，产出 text_delta / reasoning_delta，并把 tool_call 分片
+ *          累积成完整的 assistant 消息。**tool_start 不在此阶段发**。
+ *   阶段 B：execute_round —— 五道过滤后分类执行工具，产出 tool_start / tool_result，
+ *          并回灌 ToolMessage。ASYNC 工具在此产出 tool_pending 并结束本轮。
+ *   阶段 C：本轮无 tool call → 视觉兜底（阶段 5）或结束循环。
+ *
+ * 轮次预算耗尽时追加一条「不要再调用工具」的提示，再跑一次不带工具的调用产出最终回答。
+ */
+
+import {
+  ToolCallAccumulator,
+  type ChatMessage,
+  type ChatToolCall,
+  type LlmClient,
+  type ToolSpec,
+} from '../llm/client';
+import {
+  DONE_FRAME,
+  sse,
+  type ClientToolCallPayload,
+  type StreamEventPayload,
+} from '../sse';
+import {
+  type ToolContext,
+  type ToolDefinition,
+  type ToolKind,
+} from '../tools/registry';
+import {
+  buildToolResult,
+  extractVisionPath,
+  formatToolResultForDisplay,
+  stripInternalMarkers,
+} from '../tools/result';
+import type { ClientContextLike } from '../tools/workspacePath';
+import type { AgentSettings } from '../config';
+import {
+  appendClientToolResultsToMessages,
+  type ClientToolResultInput,
+} from '../context/contextService';
+import {
+  checkCallAllowed,
+  gatingEnabled,
+  type TaskPhaseContext,
+} from './taskPhase';
+import {
+  ASYNC_TOOL_NAMES,
+  asyncDedupeKey,
+  clientToolMentionedInText,
+  resolveRoundToolCalls,
+  splitResolvedCalls,
+  type ResolvedToolCall,
+} from './toolInvocation';
+
+/** 同轮含标注写入时，被顺延的工作区写入工具的反馈文案。 */
+const SAME_ROUND_BLOCKED_SUMMARY =
+  '同一轮中已有标注写入调用，工作区写入需在标注提案确认后再进行。';
+
+/** 被门禁拦下的调用反馈。 */
+const PHASE_BLOCKED_STATUS = 'phase_blocked';
+
+/** 重复调用去重的反馈文案。 */
+const DUPLICATE_CALL_SUMMARY = '该工具本轮已用相同参数调用，已跳过重复调用。';
+
+/** 同轮多个 auto_annotate 被合并后的反馈。 */
+const COALESCED_SUMMARY = '同一轮中的多个 auto_annotate 已合并为一次批量调用，本调用已跳过。';
+
+/** 已执行过的调用被重复发起时的反馈文案。 */
+const ALREADY_COMPLETED_SUMMARY =
+  '该工具本轮已执行，请勿重复调用。请总结，勿重跑标注工具。';
+
+/**
+ * 未知工具的失败结果。
+ *
+ * 与 Python `_invoke_tool_fn` 一致：这里是**裸 JSON**，不经 `buildToolResult`，
+ * 因此不含 `file_written` / `proposal_pending` 两个键。
+ *
+ * 触发场景：模型调用了不在**当前工具集**内的工具。工具集由 `resolveAssistToolSet`
+ * 按模式裁剪（例如 `describe_client_context` / `get_account_summary` 刻意不注入主
+ * Agent），此时即使工具在注册表中存在，也必须按「未知工具」拒绝。
+ */
+export function unknownToolResult(name: string): string {
+  return JSON.stringify({
+    ok: false,
+    tool: name,
+    status: 'error',
+    summary: `未知工具: ${name}`,
+  });
+}
+
+/** 工具执行抛异常时的失败结果（同样是裸 JSON，对齐 Python）。 */
+export function toolErrorResult(name: string, err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return JSON.stringify({
+    ok: false,
+    tool: name,
+    status: 'error',
+    summary: `工具执行失败: ${message}`,
+  });
+}
+
+/**
+ * 并行预取的只读工具白名单。
+ *
+ * 这些工具无副作用且相互独立，先并发取结果再按原顺序发事件——
+ * **事件顺序仍是串行的**，只有实际执行被并行化。
+ */
+export const PARALLEL_SYNC_TOOLS: ReadonlySet<string> = new Set([
+  'get_lr_agent_help',
+  'describe_annotation_project',
+  'read_file_annotation',
+  'read_workspace_file',
+  'grep_workspace',
+  'glob_workspace',
+  'list_workspace_directory',
+  'read_document_file',
+]);
+
+export interface AssistLoopParams {
+  llm: LlmClient;
+  messages: ChatMessage[];
+  toolSpecs: ToolSpec[];
+  tools: Map<string, ToolDefinition>;
+  /**
+   * 当前模式下允许调用的工具名集合。
+   *
+   * **必须用它来判定可执行性**，而不是 `tools` 的键——`tools` 是全量注册表，
+   * 而工具集经模式裁剪（`describe_client_context` 等刻意不注入主 Agent）。
+   * Python 侧 `fn_map` 只包含筛选后的工具，越界调用返回「未知工具」。
+   */
+  toolSet: ReadonlySet<string>;
+  settings: AgentSettings;
+  clientContext: ClientContextLike | null;
+  providerIsVision: boolean;
+  userContent: string;
+  clientToolResults?: ClientToolResultInput[];
+  taskPhaseContext: TaskPhaseContext | null;
+  isCancelled: () => boolean;
+  signal?: AbortSignal;
+}
+
+/** 单轮执行结果，用于驱动外层循环。 */
+type RoundOutcome =
+  | { kind: 'continued' }
+  | { kind: 'finished' }
+  | { kind: 'pending' };
+
+/**
+ * 可变的轮次结果容器。
+ *
+ * 异步生成器无法通过返回值向外传递控制信号（`for await` 会丢弃 return 值），
+ * 因此用一个调用方持有的对象回传。
+ */
+interface RoundOutcomeHolder {
+  kind: 'continued' | 'finished' | 'pending';
+}
+
+function kindOf(tools: Map<string, ToolDefinition>, name: string): ToolKind {
+  return tools.get(name)?.kind ?? 'sync';
+}
+
+/**
+ * 运行 Assist 工具循环，产出 SSE 事件序列。
+ *
+ * 调用方负责把事件序列化为 SSE 帧，并在流末尾追加 `done` 帧。
+ */
+export async function* streamAssist(
+  params: AssistLoopParams,
+): AsyncGenerator<StreamEventPayload> {
+  const { llm, tools, settings, isCancelled, signal } = params;
+
+  yield sse.preparing('streaming');
+
+  const messages: ChatMessage[] = [...params.messages];
+  const completedTools = new Set<string>();
+  const clientToolResults = params.clientToolResults ?? [];
+  const isResume = clientToolResults.length > 0;
+
+  // 阶段为 verify 表示用户已 Keep All、提案已落盘
+  const proposalsApplied = params.taskPhaseContext?.phase === 'verify';
+
+  if (isResume) {
+    for (const result of clientToolResults) completedTools.add(result.toolCallId);
+    appendClientToolResultsToMessages(messages, clientToolResults, {
+      userContent: params.userContent,
+      proposalsApplied,
+    });
+  }
+
+  const toolContext: ToolContext = {
+    clientContext: params.clientContext,
+    settings,
+    providerIsVision: params.providerIsVision,
+    userContent: params.userContent,
+  };
+
+  let budgetExhausted = true;
+
+  for (let roundIdx = 0; roundIdx <= settings.maxToolRounds; roundIdx += 1) {
+    if (isCancelled()) return;
+
+    const accumulator = new ToolCallAccumulator();
+    let pendingText = '';
+    let gatheredAny = false;
+
+    // ── 阶段 A：单次 astream ────────────────────────────────
+    for await (const delta of llm.streamChat({
+      messages,
+      tools: params.toolSpecs,
+      toolChoice: 'auto',
+      signal,
+    })) {
+      if (isCancelled()) return;
+      if (delta.content) {
+        pendingText += delta.content;
+        yield sse.textDelta(delta.content);
+        gatheredAny = true;
+      }
+      if (delta.reasoning) {
+        yield sse.reasoningDelta(delta.reasoning);
+        gatheredAny = true;
+      }
+      if (delta.toolCallChunks?.length) {
+        accumulator.push(delta.toolCallChunks);
+        gatheredAny = true;
+      }
+    }
+
+    if (!gatheredAny) {
+      // 空轮：无任何产出，结束循环（视为已完成，不再走预算耗尽分支）
+      budgetExhausted = false;
+      break;
+    }
+
+    const apiToolCalls = accumulator.resolve();
+    const outcome: RoundOutcomeHolder = { kind: 'finished' };
+
+    // ── 阶段 B：执行本轮 ────────────────────────────────────
+    yield* executeRound({
+      apiToolCalls,
+      fullText: pendingText,
+      messages,
+      tools,
+      toolSet: params.toolSet,
+      toolContext,
+      completedTools,
+      taskPhaseContext: params.taskPhaseContext,
+      outcome,
+      llm,
+      isCancelled,
+      signal,
+      accumulatedText: pendingText,
+      isResume,
+      toolSpecs: params.toolSpecs,
+    });
+
+    if (outcome.kind === 'pending') {
+      // tool_pending 已发出：本轮 HTTP 结束，等待客户端执行后 resume
+      return;
+    }
+    if (outcome.kind === 'continued') {
+      budgetExhausted = true;
+      continue;
+    }
+
+    // ── 阶段 C：本轮无 tool call ────────────────────────────
+    // 视觉自动兜底在阶段 5 接入；当前直接结束循环
+    budgetExhausted = false;
+    break;
+  }
+
+  // ── 轮次预算耗尽：强制一次不带工具的最终回答 ────────────────
+  if (budgetExhausted) {
+    messages.push({
+      role: 'user',
+      content: '工具调用预算已用完。请基于以上进展直接给出最终回答，不要再调用工具。',
+    });
+    for await (const delta of llm.streamChat({ messages, signal })) {
+      if (isCancelled()) return;
+      if (delta.content) yield sse.textDelta(delta.content);
+      if (delta.reasoning) yield sse.reasoningDelta(delta.reasoning);
+    }
+  }
+}
+
+interface ExecuteRoundParams {
+  apiToolCalls: ChatToolCall[];
+  fullText: string;
+  messages: ChatMessage[];
+  tools: Map<string, ToolDefinition>;
+  toolSet: ReadonlySet<string>;
+  toolSpecs: ToolSpec[];
+  toolContext: ToolContext;
+  completedTools: Set<string>;
+  taskPhaseContext: TaskPhaseContext | null;
+  outcome: RoundOutcomeHolder;
+  llm: LlmClient;
+  isCancelled: () => boolean;
+  signal?: AbortSignal;
+  accumulatedText: string;
+  isResume: boolean;
+}
+
+/**
+ * 执行一轮的 tool_calls。
+ *
+ * 五道过滤（顺序与 Python 一致）：
+ *   1. 调用规整化（丢弃空名与已完成 id）
+ *   2. 同轮顺序不变量（标注写入与工作区写入不能同轮）
+ *   3. 阶段门禁
+ *   4. 同轮多 auto_annotate 合并
+ *   5. 同批异步去重
+ */
+async function* executeRound(
+  params: ExecuteRoundParams,
+): AsyncGenerator<StreamEventPayload> {
+  const {
+    apiToolCalls,
+    fullText,
+    messages,
+    tools,
+    toolSet,
+    toolSpecs,
+    toolContext,
+    completedTools,
+    taskPhaseContext,
+    outcome,
+    llm,
+    isCancelled,
+    signal,
+  } = params;
+
+  let resolved = resolveRoundToolCalls({
+    apiToolCalls,
+    completedTools,
+  });
+
+  // 部分模型会在正文里写工具伪代码而不真正发起 tool_call：用 tool_choice="any"
+  // 非流式强制一次。条件是本轮没有真实调用、正文命中了 ASYNC 工具名、门禁允许。
+  if (resolved.length === 0 && apiToolCalls.length === 0) {
+    const forced = await forceToolCallOnce({
+      fullText,
+      messages,
+      tools,
+      toolSet,
+      toolSpecs,
+      taskPhaseContext,
+      llm,
+      signal,
+    });
+    if (forced) resolved = forced;
+  }
+
+  if (resolved.length === 0) {
+    if (apiToolCalls.length === 0) {
+      outcome.kind = 'finished';
+      return;
+    }
+    // 所有调用都因「已完成」被丢弃：补 ToolMessage 让模型自己总结，继续下一轮
+    messages.push({
+      role: 'assistant',
+      content: fullText,
+      toolCalls: apiToolCalls,
+    });
+    for (const call of apiToolCalls) {
+      const payload = buildToolResult({
+        ok: false,
+        tool: call.name,
+        status: 'already_completed',
+        summary: ALREADY_COMPLETED_SUMMARY,
+      });
+      messages.push({
+        role: 'tool',
+        content: payload,
+        toolCallId: call.id,
+      });
+    }
+    outcome.kind = 'continued';
+    return;
+  }
+
+  // 先记录 assistant 轮次（含全部 tool_calls），后续为每个调用补 ToolMessage
+  messages.push({
+    role: 'assistant',
+    content: fullText,
+    toolCalls: apiToolCalls.length ? apiToolCalls : resolved.map(toChatToolCall),
+  });
+
+  /** 被拦下的调用：发 tool_start + tool_result 并回灌 ToolMessage。 */
+  async function* blocked(
+    call: ResolvedToolCall,
+    status: string,
+    summary: string,
+  ): AsyncGenerator<StreamEventPayload> {
+    yield sse.toolStart(call.toolCallId, call.name, call.arguments);
+    const payload = buildToolResult({
+      ok: false,
+      tool: call.name,
+      status,
+      summary,
+    });
+    const display = formatToolResultForDisplay(payload);
+    yield sse.toolResult(call.toolCallId, display);
+    messages.push({
+      role: 'tool',
+      content: display,
+      toolCallId: call.toolCallId,
+    });
+  }
+
+  // ── 过滤 2：同轮顺序不变量 ────────────────────────────────
+  const hasAnnotationWrite = resolved.some((call) =>
+    ['auto_annotate', 'mutate_annotation'].includes(call.name),
+  );
+  const deferred = new Set<string>();
+  if (hasAnnotationWrite) {
+    for (const call of resolved) {
+      if (['write_workspace_file', 'str_replace_workspace_file', 'delete_workspace_file', 'move_workspace_file'].includes(call.name)) {
+        deferred.add(call.toolCallId);
+      }
+    }
+  }
+  for (const call of resolved) {
+    if (deferred.has(call.toolCallId)) {
+      yield* blocked(call, PHASE_BLOCKED_STATUS, SAME_ROUND_BLOCKED_SUMMARY);
+    }
+  }
+
+  // ── 过滤 3：阶段门禁 ──────────────────────────────────────
+  const gatedOut = new Set<string>();
+  if (gatingEnabled(taskPhaseContext)) {
+    for (const call of resolved) {
+      if (deferred.has(call.toolCallId)) continue;
+      const reason = checkCallAllowed(call.name, call.arguments, taskPhaseContext);
+      if (reason) {
+        gatedOut.add(call.toolCallId);
+        yield* blocked(call, PHASE_BLOCKED_STATUS, reason);
+      }
+    }
+  }
+
+  // ── 过滤 4：同轮多个 auto_annotate 合并 ───────────────────
+  const coalescedOut = new Set<string>();
+  const autoCalls = resolved.filter(
+    (call) =>
+      call.name === 'auto_annotate' &&
+      !deferred.has(call.toolCallId) &&
+      !gatedOut.has(call.toolCallId),
+  );
+  if (autoCalls.length > 1) {
+    // 保留第一个，其余合并进去
+    for (const call of autoCalls.slice(1)) {
+      coalescedOut.add(call.toolCallId);
+      yield* blocked(call, 'coalesced', COALESCED_SUMMARY);
+    }
+  }
+
+  // ── 过滤 5：同批异步去重 ──────────────────────────────────
+  const duplicateOut = new Set<string>();
+  const seenKeys = new Set<string>();
+  for (const call of resolved) {
+    if (
+      deferred.has(call.toolCallId) ||
+      gatedOut.has(call.toolCallId) ||
+      coalescedOut.has(call.toolCallId)
+    ) {
+      continue;
+    }
+    if (kindOf(tools, call.name) !== 'async') continue;
+    const key = asyncDedupeKey(call);
+    if (seenKeys.has(key)) {
+      duplicateOut.add(call.toolCallId);
+      yield* blocked(call, 'duplicate_call', DUPLICATE_CALL_SUMMARY);
+      continue;
+    }
+    seenKeys.add(key);
+  }
+
+  const executable = resolved.filter(
+    (call) =>
+      !deferred.has(call.toolCallId) &&
+      !gatedOut.has(call.toolCallId) &&
+      !coalescedOut.has(call.toolCallId) &&
+      !duplicateOut.has(call.toolCallId),
+  );
+
+  if (executable.length === 0) {
+    outcome.kind = 'continued';
+    return;
+  }
+
+  // ── 分类执行 ──────────────────────────────────────────────
+  const { immediate, asyncPending } = splitResolvedCalls(executable, (name) =>
+    kindOf(tools, name),
+  );
+
+  // 并行预取只读工具（事件仍按顺序发出）
+  const prefetched = new Map<string, string>();
+  const parallelCalls = immediate.filter(
+    (call) =>
+      PARALLEL_SYNC_TOOLS.has(call.name) &&
+      call.name !== 'explore_readonly' &&
+      typeof tools.get(call.name)?.execute === 'function',
+  );
+  if (parallelCalls.length > 0) {
+    const results = await Promise.all(
+      parallelCalls.map((call) => invokeTool(call, tools, toolSet, toolContext)),
+    );
+    parallelCalls.forEach((call, index) => {
+      prefetched.set(call.toolCallId, results[index]);
+    });
+  }
+
+  for (const call of immediate) {
+    if (isCancelled()) return;
+    yield* streamToolExecution({
+      call,
+      tools,
+      toolSet,
+      toolContext,
+      messages,
+      prefetchedResult: prefetched.get(call.toolCallId),
+    });
+  }
+
+  if (asyncPending.length > 0) {
+    // 派发前为每个调用各发一条 tool_start，再发 tool_pending 结束本轮
+    for (const call of asyncPending) {
+      yield sse.toolStart(call.toolCallId, call.name, call.arguments);
+    }
+    const payloads: ClientToolCallPayload[] = asyncPending.map((call) => ({
+      toolCallId: call.toolCallId,
+      name: call.name,
+      arguments: call.arguments,
+    }));
+    yield sse.toolPending(payloads);
+    outcome.kind = 'pending';
+    return;
+  }
+
+  outcome.kind = 'continued';
+}
+
+function toChatToolCall(call: ResolvedToolCall): ChatToolCall {
+  return { id: call.toolCallId, name: call.name, args: call.arguments };
+}
+
+/** 执行单个工具并返回原始结果字符串。 */
+async function invokeTool(
+  call: ResolvedToolCall,
+  tools: Map<string, ToolDefinition>,
+  toolSet: ReadonlySet<string>,
+  ctx: ToolContext,
+): Promise<string> {
+  // 越界调用按「未知工具」拒绝——工具集是模式裁剪后的结果，
+  // 注册表里存在但不在集合内的一律不可执行（与 Python fn_map 语义一致）
+  if (!toolSet.has(call.name)) return unknownToolResult(call.name);
+
+  const tool = tools.get(call.name);
+  if (!tool || typeof tool.execute !== 'function') {
+    return unknownToolResult(call.name);
+  }
+  try {
+    return await tool.execute(call.arguments, ctx);
+  } catch (err) {
+    return toolErrorResult(call.name, err);
+  }
+}
+
+interface StreamToolExecutionParams {
+  call: ResolvedToolCall;
+  tools: Map<string, ToolDefinition>;
+  toolSet: ReadonlySet<string>;
+  toolContext: ToolContext;
+  messages: ChatMessage[];
+  /** 并行预取好的结果；未预取时现场执行。 */
+  prefetchedResult?: string;
+}
+
+/**
+ * 执行单个工具并产出事件。
+ *
+ * `tool_start` 的 `arguments` 是 pretty JSON 字符串；回灌给模型的 ToolMessage 用
+ * **显示文本**（`formatToolResultForDisplay`），与子代理内部回灌原文的做法不同。
+ */
+async function* streamToolExecution(
+  params: StreamToolExecutionParams,
+): AsyncGenerator<StreamEventPayload> {
+  const { call, tools, toolSet, toolContext, messages, prefetchedResult } = params;
+
+  yield sse.toolStart(call.toolCallId, call.name, call.arguments);
+
+  const raw =
+    prefetchedResult ?? (await invokeTool(call, tools, toolSet, toolContext));
+
+  // read_image_for_vision 的结果含内部标记，需剥离后再展示
+  let display = formatToolResultForDisplay(
+    call.name === 'read_image_for_vision' ? stripInternalMarkers(raw) : raw,
+  );
+
+  yield sse.toolResult(call.toolCallId, display);
+  messages.push({
+    role: 'tool',
+    content: display,
+    toolCallId: call.toolCallId,
+  });
+
+  // 视觉附图注入在阶段 4/5 接入：这里先提取路径以便后续使用
+  if (call.name === 'read_image_for_vision') {
+    const visionPath = extractVisionPath(raw);
+    if (visionPath && toolContext.providerIsVision) {
+      // TODO(阶段5): 追加多模态 HumanMessage（需 nativeImage 生成 data URL）
+      void visionPath;
+    }
+  }
+
+  // 提案工具（PROPOSAL）在阶段 3 接入：解析 __doc_proposal__ 并发出
+  // file_proposal_start / delta / file_proposal
+  void display;
+}
+
+interface ForceToolCallParams {
+  fullText: string;
+  messages: ChatMessage[];
+  tools: Map<string, ToolDefinition>;
+  toolSet: ReadonlySet<string>;
+  toolSpecs: ToolSpec[];
+  taskPhaseContext: TaskPhaseContext | null;
+  llm: LlmClient;
+  signal?: AbortSignal;
+}
+
+/**
+ * 用 `tool_choice="any"` 强制模型真正发起 tool_call。
+ *
+ * 触发条件（须全部满足，与 Python `_maybe_force_tool_call` 一致）：
+ *   1. 正文命中某个 ASYNC 工具名
+ *   2. 该工具**在当前工具集内**（而非仅在注册表中）
+ *   3. 门禁允许
+ *
+ * 注意必须把工具声明传下去，否则模型没有可调用的工具。
+ */
+async function forceToolCallOnce(
+  params: ForceToolCallParams,
+): Promise<ResolvedToolCall[] | null> {
+  const mentioned = clientToolMentionedInText(params.fullText);
+  if (!mentioned) return null;
+
+  // 必须是当前模式下可用的工具：注册表里有但被模式裁剪掉的不算
+  if (!params.toolSet.has(mentioned)) return null;
+  if (!ASYNC_TOOL_NAMES.has(mentioned)) return null;
+
+  // 门禁预检：若该工具会被拦下，不浪费一次额外调用
+  const probe = checkCallAllowed(mentioned, {}, params.taskPhaseContext);
+  if (probe) return null;
+
+  try {
+    const turn = await params.llm.completeChat({
+      messages: params.messages,
+      tools: params.toolSpecs,
+      toolChoice: 'any',
+      signal: params.signal,
+    });
+    const calls = turn.toolCalls.filter((call) => call.name === mentioned);
+    if (calls.length === 0) return null;
+    return calls.map((call) => ({
+      toolCallId: call.id,
+      name: call.name,
+      arguments: call.args,
+      source: 'api' as const,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/** 供路由层在流末尾追加收尾帧。 */
+export { DONE_FRAME };
