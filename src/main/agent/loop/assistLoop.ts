@@ -48,6 +48,11 @@ import {
 import { ProposalStreamInterceptor } from './proposalStreamer';
 import { isLrAgentRelative } from '../tools/workspacePath';
 import { pythonJsonDumps } from '../json';
+import { VisionAutoLoader } from '../vision/autoLoader';
+import {
+  buildMultimodalUserMessage,
+  VISION_ATTACHMENT_TEXT,
+} from '../context/multimodal';
 import type { ClientContextLike } from '../tools/workspacePath';
 import type { AgentSettings } from '../config';
 import {
@@ -216,6 +221,17 @@ export async function* streamAssist(
     imageService: params.imageService,
   };
 
+  // 视觉兜底加载器：只在首轮无 tool call 时尝试一次
+  const visionLoader = new VisionAutoLoader({
+    settings,
+    clientContext: params.clientContext,
+    providerIsVision: params.providerIsVision,
+    userContent: params.userContent,
+    imageService: params.imageService,
+  });
+  // 可变容器：跨生成器传递「本请求是否已处理过视觉图」
+  const visionState = { bootstrapped: false };
+
   let budgetExhausted = true;
 
   for (let roundIdx = 0; roundIdx <= settings.maxToolRounds; roundIdx += 1) {
@@ -281,6 +297,7 @@ export async function* streamAssist(
       isResume,
       toolSpecs: params.toolSpecs,
       interceptor,
+      visionState,
     });
 
     if (outcome.kind === 'pending') {
@@ -293,7 +310,19 @@ export async function* streamAssist(
     }
 
     // ── 阶段 C：本轮无 tool call ────────────────────────────
-    // 视觉自动兜底在阶段 5 接入；当前直接结束循环
+    // 弱模型首轮未调用任何工具时的视觉兜底（正常路径由模型自己调
+    // read_image_for_vision）。触发后置标记并进入下一轮，避免重复注入。
+    if (
+      roundIdx === 0 &&
+      !isResume &&
+      visionLoader.shouldLoad(isResume) &&
+      !visionState.bootstrapped
+    ) {
+      visionState.bootstrapped = true;
+      yield* visionLoader.tryFallback(messages);
+      budgetExhausted = true;
+      continue;
+    }
     budgetExhausted = false;
     break;
   }
@@ -329,6 +358,8 @@ interface ExecuteRoundParams {
   accumulatedText: string;
   isResume: boolean;
   interceptor: ProposalStreamInterceptor;
+  /** 「本请求是否已处理过视觉图」——由调用方持有，跨轮次共享。 */
+  visionState: { bootstrapped: boolean };
 }
 
 /**
@@ -559,6 +590,10 @@ async function* executeRound(
       streamedPaths,
       streamedPathsByCallId,
     });
+    // 模型真实调用过视觉工具后，兜底不应再触发（对齐 Python 的 vision_bootstrapped）
+    if (call.name === 'read_image_for_vision') {
+      params.visionState.bootstrapped = true;
+    }
   }
 
   if (asyncPending.length > 0) {
@@ -657,8 +692,9 @@ async function* streamToolExecution(
 
   if (call.name === 'read_image_for_vision') {
     visionPath = extractVisionPath(raw);
-    // 提取到路径才剥离内部标记；否则保持原样（对齐 Python 的分支写法）
-    display = visionPath ? formatToolResultForDisplay(stripInternalMarkers(raw)) : raw;
+    // 提取到路径才剥离内部标记（输出完整缩进 JSON，而非 summary）；
+    // 否则保持原样——对齐 Python 的分支写法
+    display = visionPath ? stripInternalMarkers(raw) : raw;
   } else if (FILE_PROPOSAL_TOOLS.has(call.name)) {
     docProposal = extractDocProposalFromToolResult(call.name, raw);
     // 只有拿到提案数据才走显示文本；工具报错时**保持完整 JSON 原样回灌**
@@ -732,10 +768,19 @@ async function* streamToolExecution(
     }
   }
 
-  // 视觉附图注入在阶段 4/5 接入：这里先提取路径以便后续使用
+  // 视觉附图注入：在对应 ToolMessage 之后追加一条多模态 HumanMessage
   if (visionPath && toolContext.providerIsVision) {
-    // TODO(阶段5): 追加多模态 HumanMessage（需 nativeImage 生成 data URL）
-    void visionPath;
+    messages.push(
+      await buildMultimodalUserMessage(
+        VISION_ATTACHMENT_TEXT,
+        {
+          imageAbsolutePath: visionPath,
+          maxEdge: toolContext.settings.chatVisionMaxEdge,
+          jpegQuality: toolContext.settings.chatVisionJpegQuality,
+        },
+        toolContext.imageService,
+      ),
+    );
   }
 }
 
