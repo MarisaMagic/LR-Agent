@@ -19,6 +19,7 @@ import { createBridge, type Bridge, type MessageEndpoint } from './bridge';
 import { startAgentServer, type AgentServer } from './server';
 import { buildImplementedRoutes } from './handlers';
 import { createDefaultDeps } from './handlers/deps';
+import { createImageService } from './services/imageService';
 import {
   AGENT_CHANNELS,
   AGENT_DEBUG_ENV,
@@ -113,7 +114,12 @@ async function main(): Promise<void> {
       port: desiredPort,
       token,
       corsOrigins: DEFAULT_CORS_ORIGINS,
-      routes: buildImplementedRoutes(createDefaultDeps()),
+      routes: buildImplementedRoutes({
+        ...createDefaultDeps(),
+        // utilityProcess 模式下注入经 RPC 的图像服务（具备 nativeImage 编码能力）；
+        // 独立模式 bridge 为 null，退化为仅能探测尺寸/格式
+        imageService: createImageService(bridge),
+      }),
       onLog: (level, message) => log(level, message),
     });
   } catch (err) {

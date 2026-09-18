@@ -18,6 +18,12 @@ import {
   readWorkspaceTextFile,
   writeWorkspaceTextFile,
 } from '../workspace/workspaceOperations';
+import {
+  cropImageBatch,
+  imageToJpegDataUrl,
+  probeImage,
+  type CropBox,
+} from '../agentImage/handlers';
 
 /** 断言 payload 是对象，避免 undefined 解构崩溃。 */
 function asRecord(payload: unknown, channel: string): Record<string, unknown> {
@@ -35,6 +41,24 @@ function requireString(
   const value = obj[key];
   if (typeof value !== 'string') {
     throw new RpcError(channel, `字段 ${key} 必须是字符串`);
+  }
+  return value;
+}
+
+/** 可选字符串：undefined / null 返回 null，其它非字符串值报错。 */
+function optionalString(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  return typeof value === 'string' ? value : null;
+}
+
+function requireNumber(
+  obj: Record<string, unknown>,
+  key: string,
+  channel: string,
+): number {
+  const value = obj[key];
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new RpcError(channel, `字段 ${key} 必须是有限数字`);
   }
   return value;
 }
@@ -85,6 +109,52 @@ export function createMainRpcHandlers(): RpcHandlers {
       rootDir: requireString(obj, 'rootDir', ch),
       relativePath: requireString(obj, 'relativePath', ch),
       newRelativePath: requireString(obj, 'newRelativePath', ch),
+    });
+  };
+
+  // ── 图像能力（nativeImage；运行时内不可用，必须走这里）──────────
+  handlers[AGENT_CHANNELS.imageProbe] = (payload) => {
+    const ch = AGENT_CHANNELS.imageProbe;
+    const obj = asRecord(payload, ch);
+    return probeImage({
+      absolutePath: optionalString(obj.absolutePath) ?? undefined,
+      base64: optionalString(obj.base64) ?? undefined,
+    });
+  };
+
+  handlers[AGENT_CHANNELS.imageDataUrl] = (payload) => {
+    const ch = AGENT_CHANNELS.imageDataUrl;
+    const obj = asRecord(payload, ch);
+    return imageToJpegDataUrl({
+      absolutePath: optionalString(obj.absolutePath) ?? undefined,
+      base64: optionalString(obj.base64) ?? undefined,
+      maxEdge: requireNumber(obj, 'maxEdge', ch),
+      quality: requireNumber(obj, 'quality', ch),
+    });
+  };
+
+  handlers[AGENT_CHANNELS.imageCropBatch] = (payload) => {
+    const ch = AGENT_CHANNELS.imageCropBatch;
+    const obj = asRecord(payload, ch);
+    if (!Array.isArray(obj.boxes)) {
+      throw new RpcError(ch, '字段 boxes 必须是数组');
+    }
+    const boxes: CropBox[] = obj.boxes.map((item, index) => {
+      const box = asRecord(item, ch);
+      if (!box) throw new RpcError(ch, `boxes[${index}] 必须是对象`);
+      return {
+        left: requireNumber(box, 'left', ch),
+        top: requireNumber(box, 'top', ch),
+        right: requireNumber(box, 'right', ch),
+        bottom: requireNumber(box, 'bottom', ch),
+      };
+    });
+    return cropImageBatch({
+      absolutePath: optionalString(obj.absolutePath) ?? undefined,
+      base64: optionalString(obj.base64) ?? undefined,
+      boxes,
+      maxEdge: requireNumber(obj, 'maxEdge', ch),
+      quality: requireNumber(obj, 'quality', ch),
     });
   };
 

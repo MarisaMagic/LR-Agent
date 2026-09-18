@@ -34,6 +34,10 @@ import {
   listWorkspaceDirectory,
 } from './fileSearch';
 import { readWorkspaceTextFile } from './fileReader';
+import { readFileAnnotationTool } from './annotationDoc';
+import { readDocumentFile } from './documentReader';
+import { readImageForVisionTool } from './vision';
+import type { ImageService } from '../services/imageService';
 import {
   formatRuntimeIdentityBlock,
   formatSnapshotForPrompt,
@@ -58,6 +62,8 @@ export interface ToolContext {
    * （Python 侧在每次请求重建工具集时创建闭包缓存），因此由调用方注入而非模块级单例。
    */
   pendingProposals: PendingProposalContents;
+  /** 图像服务（探测纯本地；编码经 RPC 走主进程的 nativeImage）。 */
+  imageService: ImageService;
 }
 
 export interface ToolDefinition {
@@ -379,7 +385,15 @@ export function buildTools(): ToolDefinition[] {
         '只读查询，不要用写文件工具回写。',
       kind: 'sync',
       argsSchema: ReadFileAnnotationArgs,
-      // 阶段 4 实现（需要 .lr-agent 标注文档读写）
+      execute: (args, ctx) =>
+        readFileAnnotationTool(
+          ctx.clientContext,
+          String(args.relative_path ?? ''),
+          {
+            offset: asInt(args.annotation_offset, 0),
+            limit: asInt(args.annotation_limit, 200),
+          },
+        ),
     },
     {
       name: 'read_workspace_file',
@@ -453,7 +467,11 @@ export function buildTools(): ToolDefinition[] {
         '需视觉探针通过；查已有标注请用 read_file_annotation，勿用本工具代替。',
       kind: 'sync',
       argsSchema: ReadImageArgs,
-      // 阶段 4 实现（需要主进程 nativeImage 读尺寸 + 附图注入）
+      execute: (args, ctx) =>
+        readImageForVisionTool(ctx.clientContext, String(args.relative_path ?? ''), {
+          providerIsVision: ctx.providerIsVision,
+          imageService: ctx.imageService,
+        }),
     },
     {
       name: 'read_document_file',
@@ -461,7 +479,11 @@ export function buildTools(): ToolDefinition[] {
         '提取 PDF 或 DOCX 文档正文。relative_path 为空时使用当前打开的文件。',
       kind: 'sync',
       argsSchema: ReadDocumentArgs,
-      // 阶段 4 实现（需要 PDF/DOCX 解析）
+      execute: (args, ctx) =>
+        readDocumentFile(ctx.clientContext, String(args.relative_path ?? ''), {
+          maxPages: ctx.settings.readDocumentMaxPages,
+          maxChars: ctx.settings.readFileMaxBytes,
+        }),
     },
     {
       name: 'write_workspace_file',
@@ -580,4 +602,14 @@ export function buildToolSpecs(
 /** 构造统一失败结果（供调度层复用）。 */
 export function toolFailure(tool: string, status: string, summary: string): string {
   return buildToolResult({ ok: false, tool, status, summary });
+}
+
+/** 宽松的整数取值：非数字时回退默认值（模型可能传字符串或省略）。 */
+function asInt(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return Math.trunc(parsed);
+  }
+  return fallback;
 }

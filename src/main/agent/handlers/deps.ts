@@ -9,6 +9,10 @@
 
 import { loadAgentSettings, type AgentSettings } from '../config';
 import { buildTools, type ToolDefinition } from '../tools/registry';
+import {
+  createStandaloneImageService,
+  type ImageService,
+} from '../services/imageService';
 
 export interface RuntimeDeps {
   settings: AgentSettings;
@@ -16,6 +20,18 @@ export interface RuntimeDeps {
   fetchImpl?: typeof fetch;
   /** LLM 请求超时（默认 120s，对齐 Python）。 */
   llmTimeoutMs?: number;
+  /**
+   * 图像服务。
+   *
+   * utilityProcess 模式下由 `runtime.ts` 用 RPC 桥构造（编码能力可用）；
+   * 独立模式下用 `createStandaloneImageService()`（仅探测能力）。测试可注入替身。
+   */
+  imageService?: ImageService;
+}
+
+/** 解析出可用的图像服务；未注入时退化为独立模式（仅探测）。 */
+export function resolveImageService(deps: RuntimeDeps): ImageService {
+  return deps.imageService ?? createStandaloneImageService();
 }
 
 let cachedTools: Map<string, ToolDefinition> | null = null;

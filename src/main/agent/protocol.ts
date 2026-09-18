@@ -83,6 +83,14 @@ export const AGENT_CHANNELS = {
   workspaceReadTextFile: 'workspace:readTextFile',
   workspaceDeleteTextFile: 'workspace:deleteTextFile',
   workspaceMoveTextFile: 'workspace:moveTextFile',
+  /** 读图片尺寸与格式（替代 Pillow 的 Image.open(...).size / .format）。 */
+  imageProbe: 'image:probe',
+  /** 等比缩放并编码为 JPEG data URL（替代 Pillow 的 resize + JPEG 编码）。 */
+  imageDataUrl: 'image:dataUrl',
+  /** 批量裁剪 + 缩放 + 编码（替代视觉映射的逐框裁剪）。 */
+  imageCropBatch: 'image:cropBatch',
+  /** 读取项目内某文件的标注文档（.lr-agent/annotations/files/<sha256>.json）。 */
+  annotationReadDoc: 'annotation:readFileDoc',
 } as const;
 
 export type AgentChannel = (typeof AGENT_CHANNELS)[keyof typeof AGENT_CHANNELS];

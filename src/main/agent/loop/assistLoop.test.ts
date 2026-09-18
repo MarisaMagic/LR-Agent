@@ -8,6 +8,7 @@ import { describe, expect, it } from '@jest/globals';
 import { LlmClient, type ToolSpec } from '../llm/client';
 import { buildTools, toToolSpec } from '../tools/registry';
 import { DEFAULT_AGENT_SETTINGS } from '../config';
+import { createStandaloneImageService } from '../services/imageService';
 import { deriveTaskPhase } from './taskPhase';
 import { FULL_TOOL_SET, LIGHT_TOOL_SET, resolveAssistToolSet } from './modeRouter';
 import { streamAssist } from './assistLoop';
@@ -131,6 +132,8 @@ const baseParams = {
   userContent: '测试',
   taskPhaseContext: null,
   isCancelled: () => false,
+  // 独立模式图像服务：探测走文件头解析，编码不可用
+  imageService: createStandaloneImageService(),
 };
 
 describe('Assist 循环：纯文本', () => {

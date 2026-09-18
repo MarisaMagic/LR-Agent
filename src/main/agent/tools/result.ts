@@ -12,6 +12,7 @@
  * 不经 `buildToolResult` 包装；此时 `formatToolResultForDisplay` 原样返回。
  */
 
+import fs from 'fs-extra';
 import { pythonJsonDumps } from '../json';
 
 /** 生成统一工具结果 JSON。`file_written` / `proposal_pending` 默认 false。 */
@@ -78,18 +79,29 @@ export const DOC_PROPOSAL_MARKER = '__doc_proposal__';
  * 剥离内部标记字段，得到可发给前端的显示文本。
  *
  * 仅 `read_image_for_vision` 用到 `VISION_PATH_MARKER`；其余工具无标记，原样返回。
+ * 序列化用 `indent=2`——与 Python 的 `json.dumps(display, ensure_ascii=False, indent=2)` 一致。
  */
 export function stripInternalMarkers(resultText: string): string {
   const parsed = parseToolResult(resultText);
   if (!parsed) return resultText;
   if (!(VISION_PATH_MARKER in parsed)) return resultText;
   const { [VISION_PATH_MARKER]: _removed, ...rest } = parsed;
-  return JSON.stringify(rest);
+  return JSON.stringify(rest, null, 2);
 }
 
-/** 从视觉工具结果中提取图片绝对路径；无标记时返回空串。 */
+/**
+ * 从视觉工具结果中提取图片绝对路径；无标记或文件不存在时返回空串。
+ *
+ * 与 Python 一致地校验 `is_file()`——避免把已删除的路径注入成附图。
+ */
 export function extractVisionPath(resultText: string): string {
   const parsed = parseToolResult(resultText);
-  const value = parsed?.[VISION_PATH_MARKER];
-  return typeof value === 'string' ? value : '';
+  if (!parsed || parsed.ok !== true) return '';
+  const value = parsed[VISION_PATH_MARKER];
+  if (typeof value !== 'string' || !value.trim()) return '';
+  try {
+    return fs.statSync(value).isFile() ? value : '';
+  } catch {
+    return '';
+  }
 }

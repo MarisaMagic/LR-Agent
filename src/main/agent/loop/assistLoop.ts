@@ -54,6 +54,7 @@ import {
   appendClientToolResultsToMessages,
   type ClientToolResultInput,
 } from '../context/contextService';
+import type { ImageService } from '../services/imageService';
 import {
   checkCallAllowed,
   gatingEnabled,
@@ -153,6 +154,8 @@ export interface AssistLoopParams {
   taskPhaseContext: TaskPhaseContext | null;
   isCancelled: () => boolean;
   signal?: AbortSignal;
+  /** 图像服务（探测纯本地；编码经 RPC 走主进程 nativeImage）。 */
+  imageService: ImageService;
 }
 
 /** 单轮执行结果，用于驱动外层循环。 */
@@ -210,6 +213,7 @@ export async function* streamAssist(
     userContent: params.userContent,
     // 请求级提案缓存：让同轮对同一文件的多次 str_replace 累积到同一份提案
     pendingProposals: new Map() as PendingProposalContents,
+    imageService: params.imageService,
   };
 
   let budgetExhausted = true;

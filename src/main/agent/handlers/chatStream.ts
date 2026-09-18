@@ -17,7 +17,7 @@
 import { LlmClient } from '../llm/client';
 import { DONE_FRAME, encodeSseFrame, sse, toSseDict } from '../sse';
 import { buildToolSpecs } from '../tools/registry';
-import { toolRegistry, type RuntimeDeps } from './deps';
+import { toolRegistry, resolveImageService, type RuntimeDeps } from './deps';
 import { deriveTaskPhase } from '../loop/taskPhase';
 import { resolveAssistToolSet } from '../loop/modeRouter';
 import { streamAssist } from '../loop/assistLoop';
@@ -165,6 +165,7 @@ async function* streamFrames(
         taskPhaseContext,
         isCancelled: params.isCancelled,
         signal: params.signal,
+        imageService: resolveImageService(deps),
       });
     } else {
       const systemPrompt = buildChatSystemPrompt(body.systemPrompt);
