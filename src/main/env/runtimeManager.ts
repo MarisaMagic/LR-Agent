@@ -1,12 +1,13 @@
 /**
  * 嵌入式 Python 运行时与 venv 管理。
  *
- * 运行时资产随安装包分发（resources/python-runtime/py312，由
- * scripts/fetchPythonRuntimes.mjs 准备），首启复制到
- * <userData>/runtimes/（resources 目录可能只读），再为其上的
- * local-agent / inference 创建 venv；依赖安装结果通过
- * <userData>/runtimes/<target>-installed.json 记录 requirements hash，
- * 依赖文件变化时据此提示重装。
+ * **注意**：Agent 编排已迁到 Node 运行时，不再需要 Python；嵌入式运行时亦已移除。
+ * 本模块现在只服务于**可选的**预标注推理（`vendor/inference`），且
+ * `ensureRuntimeExtracted` 在无资产时返回 `null`，由调用方给出「请自行准备
+ * conda 环境」的指引（见 `envInstaller.ts`）。
+ *
+ * venv 与安装标记路径保留，用于识别用户此前已创建的 `inference` venv
+ * （`<userData>/runtimes/inference-venv`）。
  */
 import crypto from 'crypto';
 import path from 'path';
@@ -15,7 +16,6 @@ import { app } from 'electron';
 import type { InstallTarget } from '../../shared/envTypes';
 
 export const TARGET_PYTHON_VERSION: Record<InstallTarget, 'py312'> = {
-  'local-agent': 'py312',
   inference: 'py312',
 };
 

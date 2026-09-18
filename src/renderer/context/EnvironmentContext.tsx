@@ -100,11 +100,9 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
   /** 保存手动 Python 解释器覆盖（清空即恢复自动检测），随后重新检测 */
   const savePythonOverride = useCallback(
     async (target: InstallTarget, pythonPath: string) => {
-      const patch =
-        target === 'local-agent'
-          ? { localAgentPythonOverride: pythonPath.trim() }
-          : { inferencePythonOverride: pythonPath.trim() };
-      await saveEnvSettings(patch);
+      // 目前仅剩 inference 一个安装/覆盖目标（Agent 编排已迁到 Node，无需 Python）
+      void target;
+      await saveEnvSettings({ inferencePythonOverride: pythonPath.trim() });
       await refresh();
     },
     [refresh],

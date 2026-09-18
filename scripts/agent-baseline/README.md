@@ -18,34 +18,34 @@
 
 ## 使用
 
-### 1. 抓取基准（迁移前的 Python 实现）
+### 1. 基准（已冻结，无需重新抓取）
+
+`.baseline/python/` 是**迁移前从 Python 实现抓取并已入库的冻结基准**。
+原 Python 实现（`vendor/local-agent`）已随迁移完成而删除，因此这份基准**无法重新生成**——
+这正是它在阶段 0 就被提交入库的原因。
+
+不要删除或改动 `.baseline/python/`；它是判断协议是否漂移的唯一参照。
+
+### 2. 抓取候选（当前的 Node 实现）
 
 ```bash
 # 起 mock LLM
 node scripts/agent-baseline/mockLlmServer.mjs --port 8799
 
-# 另一个终端：起 Python 服务（固定端口，便于被抓取）
-cd vendor/local-agent
-LR_AGENT_LOCAL_PORT=8765 python local_main.py
+# 另一个终端：起 Node 运行时（独立模式，无需 Electron）
+LR_AGENT_LOCAL_TOKEN=baseline-token LR_AGENT_LOCAL_PORT=8765 \
+  npx ts-node src/main/agent/runtime.ts
 
 # 再一个终端：抓取
 node scripts/agent-baseline/captureSse.mjs \
   --target http://127.0.0.1:8765/api/v1 \
-  --label python \
-  --out .baseline/python
+  --token baseline-token \
+  --label node \
+  --out .baseline/node
 ```
 
 > `captureSse.mjs` 会在缺少 `--mock` 时自动拉起 mock LLM 并在结束时关闭；
 > 若你已手动起了 mock，传 `--mock http://127.0.0.1:8799` 复用它。
-
-### 2. 抓取候选（迁移后的 Node 实现）
-
-```bash
-node scripts/agent-baseline/captureSse.mjs \
-  --target http://127.0.0.1:<node-port>/api/v1 \
-  --label node \
-  --out .baseline/node
-```
 
 ### 3. 对比
 

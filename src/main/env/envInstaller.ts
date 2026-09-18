@@ -48,7 +48,6 @@ const TORCH_CPU_INDEX = 'https://download.pytorch.org/whl/cpu';
 
 /** 验证阶段要 import 的模块（import 成功即视为核心依赖可用） */
 const VERIFY_IMPORTS: Record<InstallTarget, string> = {
-  'local-agent': 'fastapi, uvicorn, langchain_core',
   inference: 'torch, torchvision, ultralytics, cv2, PIL, sam2',
 };
 
@@ -66,12 +65,7 @@ let currentInstall: InstallJob | null = null;
 class InstallCanceledError extends Error {}
 
 function rootOf(target: InstallTarget): string {
-  if (target === 'local-agent') {
-    if (app.isPackaged) {
-      return path.join(process.resourcesPath, 'local-agent');
-    }
-    return path.resolve(app.getAppPath(), 'vendor', 'local-agent');
-  }
+  void target;
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'inference');
   }
@@ -83,10 +77,7 @@ async function requirementsPathOf(
   variant: InferenceVariant,
 ): Promise<string> {
   const root = rootOf(target);
-  const file =
-    target === 'local-agent'
-      ? 'requirements.txt'
-      : `requirements-${variant}.txt`;
+  const file = `requirements-${variant}.txt`;
   const requirementsPath = path.join(root, file);
   if (!(await fs.pathExists(requirementsPath))) {
     throw new Error(`依赖清单不存在: ${requirementsPath}`);
@@ -205,8 +196,11 @@ async function runInstall(job: InstallJob): Promise<void> {
     const runtimePython = await ensureRuntimeExtracted(version);
     if (!runtimePython) {
       throw new Error(
-        `嵌入式运行时 ${version} 未就绪。开发模式请先运行 npm run fetch-python-runtimes；` +
-          `打包产物缺失请重新构建安装包。`,
+        '应用不再内置 Python 运行时（Agent 编排已迁到 Node）。' +
+          '请自行准备预标注推理环境：' +
+          'conda create -n lr-agent-inference python=3.12 -y，' +
+          '然后 pip install -r vendor/inference/requirements-cpu.txt（或 -gpu.txt），' +
+          '完成后回到本向导点击「重新检测」。',
       );
     }
     appendLine(`使用嵌入式运行时: ${runtimePython}`);
@@ -310,8 +304,7 @@ export async function startInstall(
     return { ok: false, error: '已有安装任务进行中' };
   }
 
-  const variant =
-    target === 'inference' ? await detectInferenceVariant() : 'cpu';
+  const variant = await detectInferenceVariant();
 
   const requirementsPath = await requirementsPathOf(target, variant);
   const content = sanitizeRequirements(
@@ -324,7 +317,7 @@ export async function startInstall(
   if (
     marker &&
     marker.requirementsHash === hash &&
-    (target === 'local-agent' || marker.variant === variant) &&
+    marker.variant === variant &&
     venvReady
   ) {
     return { ok: true, alreadyInstalled: true };
@@ -338,7 +331,7 @@ export async function startInstall(
     child: null,
     progress: {
       target,
-      variant: target === 'inference' ? variant : undefined,
+      variant,
       stage: 'pending',
       lines: [],
       startedAt: Date.now(),

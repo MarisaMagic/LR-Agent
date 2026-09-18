@@ -416,10 +416,7 @@ export default function EnvironmentWizard(): ReactElement | null {
     setSavingOverride(true);
     setError(null);
     try {
-      await savePythonOverride(
-        target,
-        target === 'local-agent' ? overrideLocal : overrideInference,
-      );
+      await savePythonOverride(target, overrideInference);
     } catch (saveError) {
       setError(
         saveError instanceof Error ? saveError.message : String(saveError),
@@ -444,14 +441,6 @@ export default function EnvironmentWizard(): ReactElement | null {
 
   const installActive = isInstallActive(install);
 
-  const localInfo = status
-    ? {
-        pythonPath: status.localAgent.pythonPath,
-        pythonOk: status.localAgent.pythonOk,
-        pythonFromVenv: status.localAgent.pythonFromVenv,
-        depsInstalled: status.localAgent.depsInstalled,
-      }
-    : null;
   const inference = status?.inference ?? null;
 
   return (
@@ -574,74 +563,26 @@ export default function EnvironmentWizard(): ReactElement | null {
         </div>
       )}
 
-      {step === 2 && localInfo && (
+      {step === 2 && status && (
         <div className="env-wizard-body">
           <div className="env-wizard-status-row">
-            <span className="env-wizard-status-label">Python 解释器</span>
-            {localInfo.pythonOk ? (
-              <StatusBadge ok label="已找到" />
-            ) : (
-              <StatusBadge ok={false} label="未找到" />
-            )}
-          </div>
-          {localInfo.pythonPath && (
-            <div className="env-wizard-mono" title={localInfo.pythonPath}>
-              {localInfo.pythonPath}
-            </div>
-          )}
-          <PythonOverrideField
-            id="env-local-python-override"
-            value={overrideLocal}
-            placeholder="例如 D:\\anaconda3\\envs\\lr-agent-local\\python.exe"
-            saving={savingOverride}
-            onChange={setOverrideLocal}
-            onSave={() => handleSaveOverride('local-agent')}
-          />
-          <div className="env-wizard-status-row">
-            <span className="env-wizard-status-label">依赖环境</span>
-            {!localInfo.pythonOk ? (
-              <StatusBadge ok={false} label="未检测到" />
-            ) : localInfo.pythonFromVenv ? (
-              localInfo.depsInstalled ? (
-                <StatusBadge ok label="已安装（嵌入式运行时）" />
-              ) : (
-                <StatusBadge ok={false} label="未安装" />
-              )
-            ) : (
-              <StatusBadge ok label="由当前解释器提供" />
-            )}
-          </div>
-          <div className="env-wizard-status-row">
-            <span className="env-wizard-status-label">服务状态</span>
-            {status?.localAgent.serviceRunning ? (
+            <span className="env-wizard-status-label">Agent 编排服务</span>
+            {status.localAgent.serviceRunning ? (
               <StatusBadge ok label="运行中" />
             ) : (
               <StatusBadge ok={false} label="未运行" />
             )}
           </div>
-
-          <div className="env-wizard-hint">
-            Agent 编排服务（Assist 工具循环 / 标注与质量报告编排）由本机 Python
-            环境运行。检测到开发用 conda
-            环境时无需安装；缺失时可一键安装到内置运行时
-            （约几分钟，不影响现有开发环境）。
-          </div>
-
-          {installFor('local-agent') && (
-            <InstallPanel
-              progress={installFor('local-agent')!}
-              onCancel={handleCancelInstall}
-            />
-          )}
-          {!isInstallActive(installFor('local-agent')) && (
-            <div className="env-wizard-actions-inline">
-              <InstallActionButton
-                installed={localInfo.depsInstalled}
-                disabled={installActive}
-                onClick={() => handleInstall('local-agent')}
-              />
+          {status.localAgent.serviceUrl && (
+            <div className="env-wizard-mono" title={status.localAgent.serviceUrl}>
+              {status.localAgent.serviceUrl}
             </div>
           )}
+
+          <div className="env-wizard-hint">
+            Agent 编排（Assist 工具循环、标注与质量报告编排、Skills 与 MCP 调用）
+            已内置在应用中，随主程序一起启动，无需安装 Python 或额外依赖。
+          </div>
         </div>
       )}
 

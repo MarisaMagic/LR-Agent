@@ -8,7 +8,7 @@
 
 ## 项目简介
 
-基于 Electron + React + FastAPI + LangChain 的多模态 AI 智能标注平台。
+基于 Electron + React 的多模态 AI 智能标注平台（Agent 编排内置于应用）。
 
 支持矩形框、旋转框、多边形、关键点、图像/文本分类、Caption、指令遵循、思维链与实体识别等标注场景，以及支持多轮对话、长短期记忆、MCP 工具使用、Agent Skills 使用。
 
@@ -139,7 +139,9 @@
 ### 前置环境
 
 - Node.js ≥ 18，npm ≥ 7
-- Conda（本机 Agent 编排、预标注推理）
+
+Agent 编排已内置在应用中（Node 运行时），**无需安装 Python**。
+仅当需要使用「预训练模型标注」时才需要自行准备推理环境（可选）。
 
 ### 安装前端依赖
 
@@ -148,19 +150,7 @@
 npm install
 ```
 
-### 本机 Python 环境依赖
-
-Electron 会自己拉起 AI Agent 编排、预训练模型标注两个服务，一般不用手动开进程。如果没有自己预先安装，可以在启动项目时根据向导安装 Agent 编排、预训练模型标注所需环境。
-
-### local-agent（AI Agent 编排）
-
-```bash
-conda create -n lr-agent-local python=3.12 -y
-conda activate lr-agent-local
-pip install -r vendor/local-agent/requirements.txt
-```
-
-### inference（预训练模型标注，可选）
+### 推理环境（可选）
 
 源码在 `vendor/inference`。有 NVIDIA 显卡用 GPU 清单，否则用 CPU。
 
@@ -170,6 +160,8 @@ conda activate lr-agent-inference
 pip install -r vendor/inference/requirements-gpu.txt
 # 或：pip install -r vendor/inference/requirements-cpu.txt
 ```
+
+未安装时应用与 Agent 编排仍可正常使用，仅「预训练模型标注」不可用。
 
 ---
 

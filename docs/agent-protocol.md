@@ -6,10 +6,19 @@
 > 渲染层静默降级——`src/renderer/services/backendChatClient.ts` 的 SSE 解析对畸形分片是
 > `catch { // ignore }`，协议对不上不会报错，只会「没有反应」，排查成本极高。
 >
-> 本文档描述的是**迁移前 Python 实现（`vendor/local-agent`）的既成行为**。迁移完成后，
+> 本文档描述的是**从 Python 实现迁移前的既成行为**（原 `vendor/local-agent`，已移除）。
 > 它仍是对外契约的权威描述，不再指向具体实现语言。
 >
 > 变更本文档需要同时更新 `scripts/agent-baseline/` 下的 golden 用例。
+>
+> 各契约在代码中的落点：
+> - SSE 序列化规则 → `src/main/agent/sse.ts` 的 `toSseDict`
+> - 请求体/消息解析 → `src/main/agent/schemas.ts`
+> - 工具循环 → `src/main/agent/loop/assistLoop.ts`
+> - 提案流式拦截 → `src/main/agent/loop/proposalStreamer.ts`
+> - 子代理 → `src/main/agent/subagent/exploreReadonly.ts`
+> - 标注编排 → `src/main/agent/annotate/*`
+> - system prompt 组装 → `src/main/agent/context/systemPrompt.ts`
 
 ---
 

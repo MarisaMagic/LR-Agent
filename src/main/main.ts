@@ -36,11 +36,11 @@ import {
   getMcpServerToken,
 } from './mcp/server';
 import {
-  startLocalAgentServer,
-  stopLocalAgentServer,
-  getLocalAgentBaseUrl,
-  getLocalAgentToken,
-} from './localAgent/serverProcess';
+  startAgentRuntime as startLocalAgentServer,
+  stopAgentRuntime as stopLocalAgentServer,
+  getAgentRuntimeBaseUrl as getLocalAgentBaseUrl,
+  getAgentRuntimeToken as getLocalAgentToken,
+} from './agent/host';
 import { initializeDatabase, closeDatabase } from './db/database';
 import { migrateSecrets } from './security/migrateSecrets';
 import { registerDbHandlers } from './db/handlers';

@@ -28,14 +28,12 @@ jest.mock('electron', () => ({
   },
 }));
 
-/** 与 runner 的解释器分派保持一致的可用性探测；不可用时跳过整套用例 */
+/**
+ * 与 runner 的解释器分派保持一致的可用性探测；不可用时跳过整套用例。
+ *
+ * 嵌入式 Python 运行时已随 Agent 编排迁移移除，因此这里只探测**系统 Python**。
+ */
 function hasUsablePython(): boolean {
-  try {
-    const venv = getVenvPythonPath('local-agent');
-    if (fs.existsSync(venv)) return true;
-  } catch {
-    // 运行时未就绪
-  }
   const probe = spawnSync(process.platform === 'win32' ? 'python' : 'python3', [
     '--version',
   ]);
@@ -108,15 +106,8 @@ describe('docx-demo skill 工作流（生成 → 修改 → 读回）', () => {
   it('生成的 docx 是合法 zip（OOXML 包结构）', async () => {
     if (!PYTHON_AVAILABLE) return; // 宿主机无可用 python 时跳过
     const docxPath = path.join(workspace, 'report.docx');
-    // 用 venv python 旁路校验（系统 'python' 可能是 WindowsApps 占位符）
-    let pythonPath: string | null = null;
-    try {
-      const venv = getVenvPythonPath('local-agent');
-      if (fs.existsSync(venv)) pythonPath = venv;
-    } catch {
-      // 运行时未就绪
-    }
-    if (!pythonPath) return;
+    // 嵌入式 venv 已移除，直接用系统解释器校验
+    const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
     const probe = spawnSync(pythonPath, [
       '-c',
       'import zipfile,sys; zf=zipfile.ZipFile(sys.argv[1]); ' +

@@ -16,7 +16,6 @@ import fs from 'fs-extra';
 import path from 'path';
 import { killProcessTree, buildAgentSpawnEnv } from '../exec/processUtils';
 import { getActiveWorkspaceRoot } from '../workspace/activeWorkspace';
-import { getVenvPythonPath } from '../env/runtimeManager';
 import {
   normalizeSkillRelativePath,
   resolveSkillDirPath,
@@ -67,14 +66,13 @@ export interface SkillScriptRunOptions {
   rootDir?: string;
 }
 
-/** .py 解释器：优先应用自带 local-agent venv（安装向导产物，必有可用依赖），退化系统 python */
+/**
+ * `.py` 脚本的解释器。
+ *
+ * 原先优先用应用自带的 `local-agent` venv；该嵌入式运行时已随 Agent 编排迁移而移除，
+ * 因此 Python skill 脚本**降级为需要系统 Python**（不再保证开箱可用）。
+ */
 function resolvePythonInterpreter(): string {
-  try {
-    const venvPython = getVenvPythonPath('local-agent');
-    if (venvPython && fs.existsSync(venvPython)) return venvPython;
-  } catch {
-    // 运行时未就绪（如开发模式未 fetch runtime），走系统解释器
-  }
   return process.platform === 'win32' ? 'python' : 'python3';
 }
 
