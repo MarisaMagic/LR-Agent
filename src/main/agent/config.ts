@@ -34,6 +34,24 @@ export interface AgentSettings {
   mcpToolsTtlSeconds: number;
   /** 标注变更功能开关。 */
   mutationEnabled: boolean;
+  /** 标注 LLM 温度（视觉映射等）。 */
+  annotationLlmTemperature: number;
+  /** 标注准备阶段温度（mutation-prepare 等）。 */
+  annotationPrepareTemperature: number;
+  /** 生成类标注送 LLM 的图片最长边。 */
+  annotationLlmImageMaxEdge: number;
+  /** 生成类标注图片 JPEG 质量。 */
+  annotationLlmImageJpegQuality: number;
+  /** 视觉映射并发度。 */
+  annotationVisionMapConcurrency: number;
+  /** 视觉映射是否校验。 */
+  annotationVisionMapValidate: boolean;
+  /** 视觉映射重试次数。 */
+  annotationVisionMapMaxRetries: number;
+  /** 标签池预检模式（off / auto / always）。 */
+  annotationLabelPoolPreflight: 'off' | 'auto' | 'always';
+  /** 标签池预检最小额外标签数。 */
+  annotationLabelPoolPreflightMinExtra: number;
 }
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
@@ -49,6 +67,15 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   chatVisionJpegQuality: 85,
   mcpToolsTtlSeconds: 1800,
   mutationEnabled: true,
+  annotationLlmTemperature: 0.0,
+  annotationPrepareTemperature: 0.1,
+  annotationLlmImageMaxEdge: 1280,
+  annotationLlmImageJpegQuality: 85,
+  annotationVisionMapConcurrency: 3,
+  annotationVisionMapValidate: true,
+  annotationVisionMapMaxRetries: 1,
+  annotationLabelPoolPreflight: 'auto',
+  annotationLabelPoolPreflightMinExtra: 2,
 };
 
 /** 运行时可覆盖的配置（环境变量 → 覆盖默认值），便于对拍与调试。 */

@@ -180,8 +180,10 @@ export class LlmClient {
     tools?: ToolSpec[];
     toolChoice?: 'auto' | 'any' | 'none';
     signal?: AbortSignal;
+    maxTokens?: number;
+    temperature?: number;
   }): AsyncGenerator<LlmDelta> {
-    const body = this.buildBody({ ...params, stream: true });
+    const body = this.buildBody({ ...params, stream: true, maxTokens: params.maxTokens, temperature: params.temperature });
     const res = await this.post(body, params.signal);
     const bodyStream = res.body;
     if (!bodyStream) throw new Error('LLM 响应没有 body');
@@ -233,8 +235,15 @@ export class LlmClient {
     tools?: ToolSpec[];
     toolChoice?: 'auto' | 'any' | 'none';
     signal?: AbortSignal;
+    maxTokens?: number;
+    temperature?: number;
   }): Promise<AssistantTurn> {
-    const body = this.buildBody({ ...params, stream: false });
+    const body = this.buildBody({
+      ...params,
+      stream: false,
+      maxTokens: params.maxTokens,
+      temperature: params.temperature,
+    });
     const res = await this.post(body, params.signal);
     const json = (await res.json()) as unknown;
     return parseCompletion(json);
