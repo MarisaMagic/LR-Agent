@@ -188,12 +188,25 @@ export class AnnotateHttpError extends Error {
  *   - 错误信息含 `response_format` / `json_schema` → 400 + 中文提示
  *     （说明该模型不支持结构化输出）
  *   - 其它 → 502，信息截断到 500 字符
+ *
+ * 额外保证：**已是 `AnnotateHttpError` 的错误原样透传**。
+ * 否则 `requireCredentials` 抛出的 400 `provider_credentials_required` 会落进
+ * 502 兜底分支——把「凭据没填」误报成「上游坏了」，前端拿到的错误语义就错了。
  */
 export function httpFromLlmError(err: unknown, status?: number): AnnotateHttpError {
+  if (err instanceof AnnotateHttpError) return err;
+
   const message = err instanceof Error ? err.message : String(err);
   const lower = message.toLowerCase();
 
-  if (status !== undefined && status >= 400 && status < 500) {
+  // 上游 LLM 的 4xx（`LlmRequestError` 自带 status）语义是「请求有问题」，统一转 400；
+  // 5xx 与网络错误走 502。
+  const upstreamStatus = status ?? readStatusCode(err);
+  if (
+    upstreamStatus !== undefined &&
+    upstreamStatus >= 400 &&
+    upstreamStatus < 500
+  ) {
     return new AnnotateHttpError(400, message || 'llm_bad_request');
   }
   if (lower.includes('response_format') || lower.includes('json_schema')) {
@@ -203,6 +216,13 @@ export function httpFromLlmError(err: unknown, status?: number): AnnotateHttpErr
     );
   }
   return new AnnotateHttpError(502, message.slice(0, 500) || 'llm_invoke_failed');
+}
+
+/** 读取错误对象上的数字状态码（`LlmRequestError` 与 `AnnotateHttpError` 都有）。 */
+function readStatusCode(err: unknown): number | undefined {
+  if (!err || typeof err !== 'object') return undefined;
+  const value = (err as { status?: unknown }).status;
+  return typeof value === 'number' ? value : undefined;
 }
 
 /** 校验 provider 凭据是否齐全（对齐 `_require_direct_llm` 的前置检查）。 */

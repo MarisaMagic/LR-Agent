@@ -52,7 +52,14 @@ export async function readFileAnnotationTool(
     return '标注文件格式无效。';
   }
 
-  const record = doc as Record<string, unknown>;
+  let record = doc as Record<string, unknown>;
+  // 文档内的 `filePath` 是冗余字段（权威归属由存储键决定，即入参 rel）。
+  // 历史数据可能因旧的防抖错配残留错误值；这里强制对齐，避免把脏数据
+  // 当作「工具返回字段错位」反馈给模型与用户。
+  if (record.filePath !== rel) {
+    record = { ...record, filePath: rel };
+  }
+
   let note = '';
 
   const annotations = record.annotations;

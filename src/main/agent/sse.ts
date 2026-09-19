@@ -182,6 +182,17 @@ export const DONE_FRAME = 'data: {"type": "done"}\n\n';
 /** 便于构造事件的辅助函数（只覆盖运行时会发射的类型）。 */
 export const sse = {
   preparing: (stage: string): StreamEventPayload => ({ type: 'preparing', stage }),
+  /**
+   * 流中途失败。
+   *
+   * 渲染层对 `error` 事件的处理是完整的（`agentJobRegistry` 置 job 为 Error、
+   * `AgentChatContext` 置消息 status='error' 并显示 `translateError(message)`），
+   * 因此运行时不发该事件会让失败**静默退化为正常结束**：
+   * SSE 层吞掉异常 → 客户端读到 EOF → 合成 `done` → 用户只看到回复被截断、零提示。
+   *
+   * 只在**非取消**的真实故障时发射；取消由渲染层按 Cancelled 处理，不应报错。
+   */
+  error: (message: string): StreamEventPayload => ({ type: 'error', message }),
   textDelta: (content: string): StreamEventPayload => ({
     type: 'text_delta',
     content,

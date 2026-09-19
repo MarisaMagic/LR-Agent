@@ -195,8 +195,38 @@ function kindOf(tools: Map<string, ToolDefinition>, name: string): ToolKind {
  * 运行 Assist 工具循环，产出 SSE 事件序列。
  *
  * 调用方负责把事件序列化为 SSE 帧，并在流末尾追加 `done` 帧。
+ *
+ * 本函数是**故障兜底外壳**：内层循环抛出的异常（最典型是 LLM 请求失败）
+ * 会被转成一条 `error` 事件。若不这样做，异常会被 SSE 层吞掉、客户端读到 EOF
+ * 后合成 `done`，用户只会看到回复被截断而没有任何提示。
+ *
+ * 用户主动取消（`isCancelled()` 为真）不算故障，静默结束即可——渲染层会按
+ * Cancelled 处理，报错反而会出现「点了停止却弹错误」的干扰。
  */
 export async function* streamAssist(
+  params: AssistLoopParams,
+): AsyncGenerator<StreamEventPayload> {
+  try {
+    yield* streamAssistInner(params);
+  } catch (err) {
+    if (params.isCancelled() || isAbortError(err)) return;
+    console.error(
+      '[agentRuntime] Assist 循环异常终止:',
+      err instanceof Error ? (err.stack ?? err.message) : String(err),
+    );
+    yield sse.error(err instanceof Error ? err.message : '模型请求失败');
+  }
+}
+
+/** abort（取消）导致的异常不应被当作故障上报。 */
+function isAbortError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const name = (err as { name?: unknown }).name;
+  return name === 'AbortError';
+}
+
+/** 工具循环主体（异常由 `streamAssist` 统一兜底）。 */
+async function* streamAssistInner(
   params: AssistLoopParams,
 ): AsyncGenerator<StreamEventPayload> {
   const { llm, tools, settings, isCancelled, signal } = params;
