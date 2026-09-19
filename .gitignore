@@ -86,10 +86,6 @@ __pycache__/
 
 # 嵌入式 Python 运行时已移除（Agent 编排迁到 Node，不再需要）
 
-# CI 后续安装冒烟（scripts/ciInstallAndTest.mjs）
-.ci-venvs/
-.ci-pip-cache/
-
 # ZCode 会话工作区缓存
 .zcode/
 

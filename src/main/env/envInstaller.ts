@@ -1,8 +1,8 @@
 /**
- * 环境一键安装器。
+ * 环境一键安装器（仅预标注推理：`vendor/inference`）。
  *
- * 使用嵌入式 Python 运行时（python-build-standalone）为 local-agent / inference
- * 创建独立 venv 并安装依赖，阶段推进：
+ * Agent 编排已迁到 Node 运行时，不再需要 Python 环境；嵌入式 Python 运行时
+ * 亦已移除，因此这里只为用户自行准备的解释器创建 venv 并安装依赖，阶段推进：
  *   prepare-runtime → create-venv → install-deps → verify → done/failed/cancelled
  *
  * 安装全程仅由用户在向导中手动触发（无静默安装），进度通过
