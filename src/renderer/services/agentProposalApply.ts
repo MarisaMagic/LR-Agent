@@ -17,6 +17,7 @@ import { getAnnotationWorkspaceAgentSnapshot } from './annotationAgentBridge';
 import { isAgentDocumentWriteEnabled } from './agentFeatureFlags';
 import { patchAgentMessageBlockRemote } from './agentChatApi';
 import { markWorkspaceTextFilesChanged } from './agentFilePreviewStore';
+import { inferAnnotationProposalKind } from './annotationAgent/pipelineKinds';
 import {
   captureProposalCheckpoint,
   discardProposalCheckpoint,
@@ -312,6 +313,108 @@ export function countPendingProposals(messages: ChatMessage[]): number {
   return collectPendingProposals(messages).length;
 }
 
+/**
+ * 筛选出**可以自动应用**的待确认提案（免确认改造）。
+ *
+ * 分层的依据是「结果可审阅性 × 错误代价」，而不是「是否文件改写」：
+ *
+ *   - `file_proposal`（工作区文件写入/替换/删除/移动）：diff 可扫读、指令明确、
+ *     错误代价低 → 直接落盘，用户事后可撤销。
+ *   - `annotation_proposal` 且 `sourceKind === 'mutation'`（标注编辑）：同样是指令
+ *     明确的定点修改，且有 checkpoint 兜底 → 直接落盘。
+ *   - `annotation_proposal` 且来源为批量标注（`batch` 或未设置）：**必须保留确认**。
+ *     它由预训练模型推理产出，审阅需逐框看图、`replace_matching` 还会覆盖已有标注，
+ *     错误代价最高。
+ *
+ * 返回的 refs 可直接交给 `applyProposalRefs` —— 它已支持在一个循环里同时处理两类，
+ * 且内部保证「捕获改前快照 → 写盘 → 记录 afterHash」的顺序。
+ */
+export function selectAutoApplicableProposals(
+  messages: ChatMessage[],
+  /**
+   * 可选的跳过谓词。用于排除「已尝试自动应用但失败」的提案，
+   * 避免流式期间每次状态变化都重试并重复弹错。
+   */
+  isSkipped?: (ref: PendingProposalRef) => boolean,
+): PendingProposalRef[] {
+  const refs: PendingProposalRef[] = [];
+  for (const msg of messages) {
+    if (msg.role !== 'assistant') continue;
+    msg.blocks.forEach((block, blockIndex) => {
+      if (block.type === 'annotation_proposal' && block.status === 'pending') {
+        // 仅标注编辑自动落盘。`sourceKind` 优先；历史数据缺失该字段时
+        // 按提案内容回退推断（只含 delete/patch 即标注编辑），
+        // 与 `agentChatStore` 设置 sourceKind 的判据保持同一份实现。
+        const kind =
+          block.sourceKind ?? inferAnnotationProposalKind(block.proposal);
+        if (kind !== 'mutation') return;
+        const ref: PendingProposalRef = {
+          messageId: msg.id,
+          blockIndex,
+          kind: 'annotation',
+        };
+        if (isSkipped?.(ref)) return;
+        refs.push(ref);
+      } else if (isFileProposalBlock(block) && block.status === 'pending') {
+        // 必须等 content 定稿：`file_proposal_start` 阶段 content 尚为空串且
+        // `contentFinalized` 为 false，此时落盘会写入空内容 / 半截内容。
+        // 缺失该字段的历史数据一律视为未定稿（保守），留给用户手动确认。
+        if (!block.contentFinalized) return;
+        const ref: PendingProposalRef = {
+          messageId: msg.id,
+          blockIndex,
+          kind: 'file',
+        };
+        if (isSkipped?.(ref)) return;
+        refs.push(ref);
+      }
+    });
+  }
+  return refs;
+}
+
+/** 是否存在需要自动应用的提案（供触发侧做廉价的空判断）。 */
+export function hasAutoApplicableProposals(messages: ChatMessage[]): boolean {
+  return selectAutoApplicableProposals(messages).length > 0;
+}
+
+/**
+ * 自动应用可免确认的提案。
+ *
+ * 与 `applyAllPendingProposals` 的区别：只挑选 `selectAutoApplicableProposals`
+ * 认定的子集，不触碰等用户确认的批量标注提案。
+ *
+ * 失败时**不吞异常**：调用方需要据此保持 block 为 pending 并提示用户，
+ * 避免「以为已落盘、实际没写」的静默错误。
+ */
+export async function applyAutoApplicableProposals(options: {
+  sessionId: string;
+  messages: ChatMessage[];
+  project: AnnotationProject | null;
+  workspaceRoot?: string | null;
+  updateBlock: (
+    messageId: string,
+    blockIndex: number,
+    patch: Partial<MessageBlock>,
+  ) => void;
+  onSyncWarning?: (message: string) => void;
+  /** 跳过谓词，透传给 `selectAutoApplicableProposals`。 */
+  isSkipped?: (ref: PendingProposalRef) => boolean;
+}): Promise<{
+  applied: number;
+  errors: string[];
+  missingCheckpoints: number;
+}> {
+  const refs = selectAutoApplicableProposals(
+    options.messages,
+    options.isSkipped,
+  );
+  if (refs.length === 0) {
+    return { applied: 0, errors: [], missingCheckpoints: 0 };
+  }
+  return applyProposalRefs({ ...options, refs });
+}
+
 export function dismissPendingProposals(options: {
   sessionId: string;
   messages: ChatMessage[];
@@ -381,13 +484,22 @@ async function withProposalCheckpoint<T>(
   }
   try {
     const value = await write();
-    let hasCheckpoint = false;
+    // 只要**捕获**成功就算「有快照」，可回滚：还原依赖 `beforeMissing` + blob，
+    // `afterHash`（由 recordAfter 写入）只用于脏检查，缺失时可走强制还原。
+    // 若这里以 recordAfter 成败为准，一次瞬时失败就会让 Undo 入口永久消失。
+    const hasCheckpoint = captured;
     if (captured && checkpoint) {
-      hasCheckpoint = await recordProposalCheckpointAfter({
+      const recorded = await recordProposalCheckpointAfter({
         ref: checkpoint,
         project: options.project,
         workspaceRoot: checkpoint.workspaceRoot,
       });
+      if (!recorded) {
+        console.warn(
+          '[checkpoint] 改后哈希未记录，回滚将跳过脏检查',
+          checkpoint,
+        );
+      }
     }
     return { value, hasCheckpoint };
   } catch (err) {

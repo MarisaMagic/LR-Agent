@@ -6,6 +6,7 @@ import {
 } from '../../services/toolDisplayUtils';
 import type { ToolCallBlock } from './explorationRenderUtils';
 import AgentScrollablePre from './AgentScrollablePre';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './AgentReasoningBlock.css';
 
 interface AgentExplorationBlockProps {
@@ -47,7 +48,19 @@ export default function AgentExplorationBlock({
         <span>{label}</span>
       </button>
       {!collapsed && (
-        <div className="agent-reasoning-body">
+        <OverlayVerticalScrollArea
+          maxHeight="var(--agent-collapsible-max-height, 280px)"
+          hoverMode="edge"
+          observeKey={tools
+            .map(
+              (tool) =>
+                `${tool.id}:${tool.status}:${tool.arguments.length}:${
+                  tool.result?.length ?? 0
+                }`,
+            )
+            .join('|')}
+          contentClassName="agent-reasoning-body agent-collapsible-scroll"
+        >
           {tools.map((tool) => {
             const toolLabel = formatToolCallLabel(tool.name, tool.arguments);
             const toolExpanded = expandedToolIds[tool.id] ?? false;
@@ -90,7 +103,7 @@ export default function AgentExplorationBlock({
               </div>
             );
           })}
-        </div>
+        </OverlayVerticalScrollArea>
       )}
     </div>
   );

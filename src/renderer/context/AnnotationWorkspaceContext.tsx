@@ -811,6 +811,23 @@ export function AnnotationWorkspaceProvider({
       const ann = annotationsRef.current;
       let meta = loadedMetaRef.current;
 
+      // 一致性守卫：`relPath` 与 `meta.filePath` 必须指向同一文件。
+      //
+      // 二者分别来自 `currentPairRef` 与 `loadedMetaRef`。加载流水线切换文件时，
+      // 这两个 ref 与 `dirtyRef` 是被分开赋值的，因此存在「新 rel + 旧 meta」的
+      // 短暂时序窗口；若防抖保存恰好落在窗口内，会把 A 的文档写进 B 的槽位，
+      // 造成 filePath / source / annotations 全部错位（静默损坏用户标注数据）。
+      //
+      // 这里选择**跳过这次保存**而不是写入：脏数据仍留在内存中，用户继续操作会
+      // 重新触发保存；而下一次加载完成时 ref 已同步，不会再误判。
+      if (meta.filePath !== relPath) {
+        console.warn('[annotation] 跳过保存：文档归属路径与当前文件不一致', {
+          metaFilePath: meta.filePath,
+          relPath,
+        });
+        return;
+      }
+
       setSaving(true);
       try {
         const hintPath = opts?.statsPathOverride ?? currentPairRef.current.abs;
@@ -1254,6 +1271,13 @@ export function AnnotationWorkspaceProvider({
     const runLoadPipeline = async () => {
       setLoadError(null);
 
+      // 取消前一文件遗留的防抖保存：否则它可能在本文件加载完成后触发，
+      // 用写死闭包里的旧 rel 覆盖新文件（或反之）。
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = undefined;
+      }
+
       const prev = currentPairRef.current;
       if (
         dirtyRef.current &&
@@ -1280,7 +1304,19 @@ export function AnnotationWorkspaceProvider({
         if (cancelled) return;
 
         if (parsed) {
-          const { annotations: ann, ...meta } = parsed;
+          const { annotations: ann, ...parsedMeta } = parsed;
+
+          // 权威归属路径由请求决定（存储键即相对路径的 hash），文档内的 `filePath`
+          // 只是冗余字段。历史数据可能因防抖错配残留错误的 filePath；这里就地修正，
+          // 既避免下面的「一致性守卫」永久跳过该文件的保存，也让下次保存顺手修好磁盘。
+          let meta = parsedMeta;
+          if (meta.filePath !== rel) {
+            console.warn('[annotation] 修正文档归属路径', {
+              docFilePath: meta.filePath,
+              actualRelPath: rel,
+            });
+            meta = { ...meta, filePath: rel };
+          }
 
           let stale = false;
           if (
@@ -1301,6 +1337,11 @@ export function AnnotationWorkspaceProvider({
           clearHistory();
           setDirty(false);
           setSourceStale(stale);
+          // 同步写 ref（与 currentPairRef 同一时刻生效），闭合「React 异步提交期间
+          // persistFromRefs 读到新 rel + 旧 meta/annotations」的时序窗口。
+          loadedMetaRef.current = meta;
+          annotationsRef.current = ann;
+          dirtyRef.current = false;
           currentPairRef.current = { rel, abs: activeFilePath };
           applyPendingAgentNavigation(rel, parsed, stats);
         } else {
@@ -1310,6 +1351,9 @@ export function AnnotationWorkspaceProvider({
           clearHistory();
           setDirty(false);
           setSourceStale(false);
+          loadedMetaRef.current = meta;
+          annotationsRef.current = [];
+          dirtyRef.current = false;
           currentPairRef.current = { rel, abs: activeFilePath };
           applyPendingAgentNavigation(rel, null, stats);
         }
@@ -1319,6 +1363,9 @@ export function AnnotationWorkspaceProvider({
           setAnnotations([]);
           setLoadedDocMeta(null);
           clearHistory();
+          loadedMetaRef.current = null;
+          annotationsRef.current = [];
+          dirtyRef.current = false;
           currentPairRef.current = { rel, abs: activeFilePath };
           setDirty(false);
         }

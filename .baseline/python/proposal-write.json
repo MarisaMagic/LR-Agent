@@ -1,0 +1,112 @@
+[
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "content": "我来创建报告文件",
+    "type": "text_delta"
+  },
+  {
+    "content": "。",
+    "type": "text_delta"
+  },
+  {
+    "detail": "0",
+    "suggestedRelativePath": "reports/summary.md",
+    "summary": "reports/summary.md",
+    "title": "reports/summary.md",
+    "type": "file_proposal_start"
+  },
+  {
+    "content": "# 汇总报告\\",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "content": "\n- 共检",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "content": "查 12 个文",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "content": "件\n- 发现",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "content": " 3 处待处理",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "content": "项\n\n##",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "content": " 详情\n\n",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "content": "第一项需要补充",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "content": "说明。\n第二",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "content": "项需要复核标注",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "content": "。\n第三项已",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "content": "完成。\n",
+    "suggestedRelativePath": "reports/summary.md",
+    "type": "file_proposal_delta"
+  },
+  {
+    "arguments": "{\n  \"relative_path\": \"reports/summary.md\",\n  \"content\": \"# 汇总报告\\n\\n- 共检查 12 个文件\\n- 发现 3 处待处理项\\n\\n## 详情\\n\\n第一项需要补充说明。\\n第二项需要复核标注。\\n第三项已完成。\\n\"\n}",
+    "name": "write_workspace_file",
+    "toolCallId": "<tc:0>",
+    "type": "tool_start"
+  },
+  {
+    "result": "已生成文件提案：reports/summary.md。文件尚未写入磁盘；用户确认（Keep All）后才会落盘。请勿在回复中声称文件已创建或已保存。",
+    "toolCallId": "<tc:0>",
+    "type": "tool_result"
+  },
+  {
+    "content": "# 汇总报告\n\n- 共检查 12 个文件\n- 发现 3 处待处理项\n\n## 详情\n\n第一项需要补充说明。\n第二项需要复核标注。\n第三项已完成。\n",
+    "mode": "write",
+    "operation": "write",
+    "suggestedRelativePath": "reports/summary.md",
+    "summary": "Summary",
+    "title": "Summary",
+    "type": "file_proposal"
+  },
+  {
+    "content": "报告提案已生成，",
+    "type": "text_delta"
+  },
+  {
+    "content": "请确认。",
+    "type": "text_delta"
+  },
+  {
+    "type": "done"
+  }
+]

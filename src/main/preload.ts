@@ -172,6 +172,7 @@ const electronHandler = {
         | 'modelType'
         | 'checkpointPath'
         | 'configPath'
+        | 'detectionMode'
         | 'keypointBackend'
         | 'keypointTemplateIds'
         | 'auxiliaryPaths'
@@ -253,6 +254,16 @@ const electronHandler = {
         projectDir,
         relativePath,
       ),
+    /**
+     * 修复标注文档内陈旧的 `filePath`（归属真源是存储键）。
+     * 幂等，返回修复明细；已一致时不写盘。
+     */
+    repairDocFilePaths: (
+      projectDir: string,
+    ): Promise<{
+      scanned: number;
+      repaired: Array<{ relativePath: string; storedFilePath: string | null }>;
+    }> => ipcRenderer.invoke('annotation:repairDocFilePaths', projectDir),
     writeFileAnnotationDoc: (
       projectDir: string,
       relativePath: string,
@@ -619,6 +630,8 @@ const electronHandler = {
       blockIndex: number;
       projectDir?: string;
       workspaceRoot?: string;
+      /** true 时跳过「快照完整 / 未被后续改动」两道检查，用于用户确认覆盖 */
+      force?: boolean;
     }): Promise<{
       ok: boolean;
       restoredPaths?: string[];

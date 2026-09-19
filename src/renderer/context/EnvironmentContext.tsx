@@ -20,7 +20,7 @@ import {
   saveEnvSettings,
   startEnvironmentInstall,
 } from '../services/environmentService';
-import { setApiBaseUrlOverride } from '../config';
+import { invalidateLocalAgentAuth, setApiBaseUrlOverride } from '../config';
 
 interface EnvironmentContextValue {
   status: EnvironmentStatus | null;
@@ -67,11 +67,14 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
     refresh().catch(() => undefined);
   }, [refresh]);
 
-  // 订阅本地 Agent 服务状态（启动/退出推送）
+  // 订阅本地 Agent 服务状态（启动/退出/重启推送）
   useEffect(() => {
     if (!window.electron?.localAgent?.onStatus) return undefined;
     const unsubscribe = window.electron.localAgent.onStatus((next) => {
       setLocalAgentService(next);
+      // 运行时每次启动都会换随机端口与新 token，因此任何状态变更都要
+      // 丢弃渲染层缓存的地址与凭据 —— 否则重启后会一直打向已死端口。
+      invalidateLocalAgentAuth();
     });
     return unsubscribe;
   }, []);
@@ -100,11 +103,9 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
   /** 保存手动 Python 解释器覆盖（清空即恢复自动检测），随后重新检测 */
   const savePythonOverride = useCallback(
     async (target: InstallTarget, pythonPath: string) => {
-      const patch =
-        target === 'local-agent'
-          ? { localAgentPythonOverride: pythonPath.trim() }
-          : { inferencePythonOverride: pythonPath.trim() };
-      await saveEnvSettings(patch);
+      // 目前仅剩 inference 一个安装/覆盖目标（Agent 编排已迁到 Node，无需 Python）
+      void target;
+      await saveEnvSettings({ inferencePythonOverride: pythonPath.trim() });
       await refresh();
     },
     [refresh],

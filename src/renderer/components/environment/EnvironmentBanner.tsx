@@ -26,8 +26,7 @@ export default function EnvironmentBanner() {
     return null;
   }
 
-  const localAgentMissing =
-    !status.localAgent.pythonOk && !status.localAgent.depsInstalled;
+  const localAgentMissing = !status.localAgent.serviceRunning;
   const inferenceMissing = !status.inference.pythonOk;
 
   if (!localAgentMissing && !inferenceMissing) return null;

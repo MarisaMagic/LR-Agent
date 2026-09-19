@@ -12,6 +12,7 @@ import {
   type ObjectDetectionMode,
 } from '../../types/pretrainedModel';
 import { KEYPOINT_TEMPLATES } from '../../types/keypointTemplate';
+import { describeDetectionModeMismatch } from '../../../shared/preAnnotTypes';
 import {
   pickModelFile,
   pickSam2RootDirectory,
@@ -289,6 +290,7 @@ export default function PretrainedModelFormModal({
       modelType: form.modelType,
       checkpointPath: form.checkpointPath,
       configPath: form.configPath,
+      detectionMode: form.detectionMode,
       keypointBackend: form.keypointBackend,
       keypointTemplateIds: form.keypointTemplateIds,
       auxiliaryPaths: form.auxiliaryPaths,
@@ -333,6 +335,15 @@ export default function PretrainedModelFormModal({
   const backendHint =
     form.modelType === 'keypoint_estimation' && form.keypointBackend
       ? KEYPOINT_BACKEND_PRESETS[form.keypointBackend].hint
+      : null;
+
+  // 检测模式写错会让模型在标注界面静默消失，故在保存前就实时提示
+  const detectionModeWarning =
+    form.modelType === 'object_detection'
+      ? describeDetectionModeMismatch({
+          detectionMode: form.detectionMode,
+          checkpointPath: form.checkpointPath,
+        })
       : null;
 
   const checkpointLabel =
@@ -603,6 +614,11 @@ export default function PretrainedModelFormModal({
               </label>
             ))}
           </div>
+          {detectionModeWarning ? (
+            <p className="pretrained-model-form-warning" role="status">
+              {detectionModeWarning}
+            </p>
+          ) : null}
         </div>
       )}
 

@@ -32,7 +32,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # vendor/local-agent 是核心业务逻辑（FastAPI + agent），必须纳入扫描
+        # javascript：Electron 主/渲染进程 + Node 版 Agent 运行时（编排逻辑）。
+        # python：仅覆盖 vendor/inference 预标注推理服务；编排侧的 vendor/local-agent
+        # 已随迁移删除，不再有 FastAPI 业务代码。
         language: [ 'javascript', 'python' ]
         # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby' ]
         # Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
@@ -46,6 +48,9 @@ jobs:
       uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
+        # 只用于排除已确认的误报（按 query id），不改动查询集；
+        # 每条排除的理由与依据见该文件内的注释。
+        config-file: ./.github/codeql/codeql-config.yml
         # If you wish to specify custom queries, you can do so here or in a config file.
         # By default, queries listed here will override any specified in a config file.
         # Prefix the list here with "+" to use these queries and those in the config file.

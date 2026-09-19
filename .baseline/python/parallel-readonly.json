@@ -1,0 +1,39 @@
+[
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "content": "我同时看几处。",
+    "type": "text_delta"
+  },
+  {
+    "arguments": "{\n  \"relative_path\": \"README.md\"\n}",
+    "name": "read_workspace_file",
+    "toolCallId": "<tc:0>",
+    "type": "tool_start"
+  },
+  {
+    "result": "文件：README.md\n大小：54 字节\n---\n     1|# 夹具工作区\n     2|\n     3|用于 Agent 协议基线抓取。",
+    "toolCallId": "<tc:0>",
+    "type": "tool_result"
+  },
+  {
+    "arguments": "{\n  \"glob_pattern\": \"**/*.json\"\n}",
+    "name": "glob_workspace",
+    "toolCallId": "<tc:1>",
+    "type": "tool_start"
+  },
+  {
+    "result": "glob：**/*.json\n范围：.\n条目数：1\n---\nconfig/app.json",
+    "toolCallId": "<tc:1>",
+    "type": "tool_result"
+  },
+  {
+    "content": "两处都看完了。",
+    "type": "text_delta"
+  },
+  {
+    "type": "done"
+  }
+]

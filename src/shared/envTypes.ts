@@ -23,11 +23,12 @@ export interface BackendEnvStatus {
 }
 
 export interface LocalAgentEnvStatus {
-  pythonPath: string | null;
-  pythonOk: boolean;
-  /** 解释器是否来自嵌入式运行时 venv（决定「依赖环境」是否按一键安装口径展示） */
-  pythonFromVenv: boolean;
-  depsInstalled: boolean;
+  /**
+   * Agent 编排服务是否在运行。
+   *
+   * 该服务已迁到 Node 运行时（utilityProcess），**不再依赖 Python 解释器**，
+   * 因此这里没有 `pythonPath` / `pythonOk` / `depsInstalled` 之类的字段。
+   */
   serviceRunning: boolean;
   serviceUrl: string | null;
   error?: string;
@@ -59,7 +60,13 @@ export interface EnvironmentStatus {
   models: ModelGroupStatus[];
 }
 
-export type InstallTarget = 'local-agent' | 'inference';
+/**
+ * 环境安装目标。
+ *
+ * 原先还有 `'local-agent'`——Agent 编排已迁到 Node 运行时，不再需要 Python 环境，
+ * 因此只剩预标注推理一项（且它是**可选**能力，用户自装 conda 环境即可）。
+ */
+export type InstallTarget = 'inference';
 export type InferenceVariant = 'gpu' | 'cpu';
 
 /** 「手动指定 Python 解释器」路径的真实校验结果（执行 --version 得到） */

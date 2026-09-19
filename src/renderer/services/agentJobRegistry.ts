@@ -115,6 +115,18 @@ export interface ClientToolContext {
   conversationTranscript?: string;
   /** 当前会话未 Keep All 的标注提案 changes，供 mutate 叠到磁盘工作集 */
   pendingAnnotationChanges?: AnnotationBatchChange[];
+  /**
+   * 立即落盘「免确认」提案（文件写入 + 标注编辑），并返回实际应用条数。
+   *
+   * 由 `AgentChatContext` 提供。**客户端工具产出提案后必须 await 它**，原因有二：
+   *
+   *   1. **正确性**：resume 前会同步构建 `client_context.proposal_states`，
+   *      若提案此时仍是 `pending`，阶段机会误判为 AWAIT_CONFIRM 并拦掉后续
+   *      `auto_annotate`（表现为「删除已落盘，但重新标注被拒」）。
+   *   2. **诚实性**：工具结果里的 `proposal_pending` / `file_written` 必须反映
+   *      真实落盘结果，不能在写盘之前就声称「已应用」。
+   */
+  applyAutoApplicable?: () => Promise<{ applied: number; errors: string[] }>;
 }
 
 /**
@@ -160,12 +172,40 @@ export function formatAnnotationToolResult(options: {
   fileStats?: AnnotationProposalFileStat[];
   omittedCount?: number;
   omittedPaths?: string[];
+  /**
+   * 提案已由前端**成功**直接落盘，不进入用户确认流程（免确认改造）。
+   *
+   * 标注编辑（`mutate_annotation`）走这条路径：调用方在产出提案后
+   * **await 落盘**，成功才传 true。
+   *
+   * 标注生成（`auto_annotate`）**不传本项**——它仍需用户审阅后 Keep All。
+   */
+  autoApplied?: boolean;
+  /**
+   * 尝试自动落盘但失败，提案已保留为待用户确认。
+   *
+   * 必须与 `autoApplied` 区分：此时**不能**声称已写盘（否则是谎报），
+   * 而应如实告知失败并让用户手动处理——`proposal_pending` 保持 true，
+   * job 会停在 AwaitingConfirm 断点等用户确认。
+   */
+  autoApplyFailed?: boolean;
 }): string {
-  const pendingNote = options.hasProposal
-    ? '已生成待确认提案（未写盘）。'
-    : options.tool === 'mutate_annotation'
-      ? '未生成提案，不要对用户说已删除或已修改。'
-      : '未生成提案，不要对用户说已标注完成。';
+  // 只有真的产出了提案才谈得上「已应用/待确认」
+  const { hasProposal } = options;
+  const autoApplied = Boolean(options.autoApplied && hasProposal);
+  const autoApplyFailed = Boolean(
+    options.autoApplyFailed && hasProposal && !autoApplied,
+  );
+
+  const pendingNote = autoApplied
+    ? '已生成变更并直接应用。'
+    : autoApplyFailed
+      ? '自动落盘失败，提案已保留待用户确认（未写盘）。'
+      : hasProposal
+        ? '已生成待确认提案（未写盘）。'
+        : options.tool === 'mutate_annotation'
+          ? '未生成提案，不要对用户说已删除或已修改。'
+          : '未生成提案，不要对用户说已标注完成。';
   const fileStatsText = options.fileStats?.length
     ? ` ${formatFileStatsText(options.fileStats)}。`
     : '';
@@ -175,7 +215,7 @@ export function formatAnnotationToolResult(options: {
     ANNOTATION_BATCH_MAX_FILES,
   );
   const truncationText = truncationNote ? ` ${truncationNote}` : '';
-  const summary = options.hasProposal
+  const summary = hasProposal
     ? `${pendingNote}${options.summary}${fileStatsText}${truncationText}`
     : `${options.summary} ${pendingNote}${truncationText}`;
   return formatClientToolResult({
@@ -184,8 +224,8 @@ export function formatAnnotationToolResult(options: {
     user_request: options.userRequest,
     summary: summary.trim(),
     message: summary.trim(),
-    file_written: false,
-    proposal_pending: options.hasProposal,
+    file_written: autoApplied,
+    proposal_pending: autoApplied ? false : hasProposal,
     files: options.fileStats,
   });
 }
@@ -205,6 +245,7 @@ function pendingToolCallsFromEvent(
   event: StreamEvent,
 ): ClientToolCall[] | null {
   if (event.type === 'tool_pending') {
+    // 运行时同时发送 clientToolCalls 与 toolCalls；snake_case 为历史数据兜底
     const e = event as Record<string, unknown>;
     return (e.toolCalls ?? e.client_tool_calls) as ClientToolCall[] | null;
   }
@@ -659,6 +700,37 @@ async function runClientTool(
         providerBaseUrl,
         providerModel,
       });
+
+      // 免确认：提案产出后**立即落盘**，再据实汇报结果。
+      //
+      // 必须在 resume 之前完成：resume 时会同步构建 `proposal_states`，
+      // 若此刻仍是 pending，阶段机会误判为 AWAIT_CONFIRM，把紧接着的
+      // auto_annotate（重新标注）拦掉。
+      const canAutoApply = typeof ctx.applyAutoApplicable === 'function';
+      let autoApplied = false;
+      let autoApplyFailed = false;
+      if (mutateResult.hasProposal) {
+        if (canAutoApply) {
+          try {
+            const flush = await ctx.applyAutoApplicable!();
+            autoApplied = flush.applied > 0;
+            autoApplyFailed = !autoApplied;
+            if (autoApplyFailed && flush.errors.length > 0) {
+              console.warn(
+                '[LR-Agent] 标注编辑自动落盘失败：',
+                flush.errors[0],
+              );
+            }
+          } catch (err) {
+            autoApplyFailed = true;
+            console.warn('[LR-Agent] 标注编辑自动落盘异常：', err);
+          }
+        } else {
+          // 没有落盘通道（理论上不会发生）：保守保留为待确认，绝不谎报已写盘
+          autoApplyFailed = true;
+        }
+      }
+
       return formatAnnotationToolResult({
         status:
           mutateResult.status === 'completed'
@@ -669,6 +741,8 @@ async function runClientTool(
         summary: mutateResult.summary,
         hasProposal: mutateResult.hasProposal,
         fileStats: mutateResult.fileStats,
+        autoApplied,
+        autoApplyFailed,
       });
     } catch {
       return formatAnnotationToolResult({

@@ -159,6 +159,10 @@ export function buildEmptyModel(
     isDefault: false,
     checkpointPath: '',
     configPath: modelType === 'image_segmentation' ? '' : undefined,
+    // 必须显式初始化：表单以 `form.detectionMode ?? 'detect'` 渲染选中态，
+    // 若这里留空则 UI 显示「普通矩形框」而落盘为 undefined，之后由文件名
+    // 推断接管（文件名含 obb 就变 OBB），导致显示态与生效态不一致。
+    detectionMode: modelType === 'object_detection' ? 'detect' : undefined,
     keypointBackend:
       modelType === 'keypoint_estimation' ? keypointBackend : undefined,
     keypointTemplateIds:

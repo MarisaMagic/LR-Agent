@@ -3,11 +3,13 @@ import type { AnnotationBatchProposal } from '../../shared/annotationAgentTypes'
 import {
   annotationChangeDiffStats,
   applyAllPendingProposals,
+  applyAutoApplicableProposals,
   collectMessageChangeItems,
   collectPendingChangeItems,
   collectPendingProposals,
   countPendingProposals,
   dismissPendingProposals,
+  selectAutoApplicableProposals,
 } from './agentProposalApply';
 import { patchAgentMessageBlockRemote } from './agentChatApi';
 
@@ -369,5 +371,195 @@ describe('dismissPendingProposals', () => {
       blockIndex: 0,
       patch: { status: 'dismissed' },
     });
+  });
+});
+
+/**
+ * 免确认改造：只有「文件写入/删除/移动」与「标注编辑（mutation）」自动落盘，
+ * 标注生成（batch）仍需用户确认。
+ */
+describe('selectAutoApplicableProposals', () => {
+  const fileBlock = (overrides: Record<string, unknown> = {}) =>
+    ({
+      type: 'file_proposal',
+      title: 'A',
+      content: 'hello',
+      suggestedRelativePath: 'a.txt',
+      status: 'pending',
+      contentFinalized: true,
+      ...overrides,
+    }) as ChatMessage['blocks'][number];
+
+  const annotationBlock = (sourceKind?: string) =>
+    ({
+      type: 'annotation_proposal',
+      status: 'pending',
+      sourceKind,
+      proposal: {
+        id: 'prop-1',
+        projectId: 'p1',
+        summary: 's',
+        changes: [
+          { relativePath: 'data/1.jpg', operation: 'delete', deleteIds: ['a'] },
+        ],
+      },
+    }) as unknown as ChatMessage['blocks'][number];
+
+  it('选中内容已定稿的文件提案', () => {
+    const refs = selectAutoApplicableProposals([
+      assistantMessage('msg-1', [fileBlock()]),
+    ]);
+    expect(refs).toEqual([{ messageId: 'msg-1', blockIndex: 0, kind: 'file' }]);
+  });
+
+  it('跳过尚未定稿的文件提案（避免写入空内容）', () => {
+    const refs = selectAutoApplicableProposals([
+      assistantMessage('msg-1', [fileBlock({ contentFinalized: false })]),
+    ]);
+    expect(refs).toEqual([]);
+  });
+
+  it('跳过缺失 contentFinalized 的旧数据（保守处理）', () => {
+    const refs = selectAutoApplicableProposals([
+      assistantMessage('msg-1', [fileBlock({ contentFinalized: undefined })]),
+    ]);
+    expect(refs).toEqual([]);
+  });
+
+  it('选中 sourceKind=mutation 的标注提案', () => {
+    const refs = selectAutoApplicableProposals([
+      assistantMessage('msg-1', [annotationBlock('mutation')]),
+    ]);
+    expect(refs).toEqual([
+      { messageId: 'msg-1', blockIndex: 0, kind: 'annotation' },
+    ]);
+  });
+
+  it('跳过 sourceKind=batch 的标注提案（标注生成仍需确认）', () => {
+    const refs = selectAutoApplicableProposals([
+      assistantMessage('msg-1', [annotationBlock('batch')]),
+    ]);
+    expect(refs).toEqual([]);
+  });
+
+  it('sourceKind 缺失时按内容推断：仅 delete/patch 视为标注编辑', () => {
+    const refs = selectAutoApplicableProposals([
+      assistantMessage('msg-1', [annotationBlock(undefined)]),
+    ]);
+    expect(refs).toEqual([
+      { messageId: 'msg-1', blockIndex: 0, kind: 'annotation' },
+    ]);
+  });
+
+  it('非 pending 的提案一律跳过', () => {
+    const refs = selectAutoApplicableProposals([
+      assistantMessage('msg-1', [
+        fileBlock({ status: 'applied' }),
+        fileBlock({ status: 'dismissed' }),
+      ]),
+    ]);
+    expect(refs).toEqual([]);
+  });
+
+  it('忽略非 assistant 消息', () => {
+    const userMessage = {
+      ...assistantMessage('msg-1', [fileBlock()]),
+      role: 'user' as const,
+    };
+    expect(selectAutoApplicableProposals([userMessage])).toEqual([]);
+  });
+
+  it('isSkipped 谓词可排除已失败的提案', () => {
+    const refs = selectAutoApplicableProposals(
+      [assistantMessage('msg-1', [fileBlock()])],
+      (ref) => ref.blockIndex === 0,
+    );
+    expect(refs).toEqual([]);
+  });
+});
+
+describe('applyAutoApplicableProposals', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('只应用免确认的子集，不触碰标注生成提案', async () => {
+    const messages = [
+      assistantMessage('msg-1', [
+        {
+          type: 'file_proposal',
+          title: 'A',
+          content: 'hello',
+          suggestedRelativePath: 'a.txt',
+          status: 'pending',
+          contentFinalized: true,
+        },
+        {
+          type: 'annotation_proposal',
+          status: 'pending',
+          sourceKind: 'batch',
+          proposal: {
+            id: 'prop-1',
+            projectId: 'p1',
+            summary: 's',
+            changes: [
+              {
+                relativePath: 'data/1.jpg',
+                operation: 'append',
+                annotations: [{}],
+              },
+            ],
+          },
+        },
+      ] as unknown as ChatMessage['blocks']),
+    ];
+
+    const updateBlock = jest.fn();
+    const result = await applyAutoApplicableProposals({
+      sessionId: 'sess-1',
+      messages,
+      project: null,
+      workspaceRoot: '/tmp/project',
+      updateBlock,
+    });
+
+    expect(result.applied).toBe(1);
+    // 只更新了文件提案那一条，标注生成仍保持 pending
+    expect(updateBlock).toHaveBeenCalledTimes(1);
+    expect(updateBlock.mock.calls[0][1]).toBe(0);
+  });
+
+  it('无可自动应用提案时不写盘', async () => {
+    const messages = [
+      assistantMessage('msg-1', [
+        {
+          type: 'annotation_proposal',
+          status: 'pending',
+          sourceKind: 'batch',
+          proposal: {
+            id: 'prop-1',
+            projectId: 'p1',
+            summary: 's',
+            changes: [
+              {
+                relativePath: 'data/1.jpg',
+                operation: 'append',
+                annotations: [{}],
+              },
+            ],
+          },
+        },
+      ] as unknown as ChatMessage['blocks']),
+    ];
+
+    const result = await applyAutoApplicableProposals({
+      sessionId: 'sess-1',
+      messages,
+      project: null,
+      workspaceRoot: '/tmp/project',
+      updateBlock: jest.fn(),
+    });
+
+    expect(result).toEqual({ applied: 0, errors: [], missingCheckpoints: 0 });
   });
 });

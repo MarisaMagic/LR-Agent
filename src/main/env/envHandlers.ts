@@ -42,7 +42,7 @@ function registerEnvHandlers(): void {
   );
 
   ipcMain.handle('env:install:start', async (_event, target: InstallTarget) => {
-    if (target !== 'local-agent' && target !== 'inference') {
+    if (target !== 'inference') {
       return { ok: false, error: `未知安装目标: ${String(target)}` };
     }
     try {

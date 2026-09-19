@@ -352,8 +352,8 @@ function createMcpServer(): McpServer {
           'Kill the command after this many ms (default 300000, max 600000)',
         ),
     },
-    // Agent loop 以 ASYNC runner 分派本工具（TOOL_RUNNERS），不会走到这里；
-    // handler 仅在其他 MCP 客户端直调时说明真实入口。
+    // 内部 Agent 通过内置 async 工具（registry.ts 的 start_terminal_command）走
+    // tool_pending → 前端批准链路，不会走到这里；此 handler 仅拦截外部 MCP 客户端直调。
     async () =>
       mcpJson({
         ok: false,

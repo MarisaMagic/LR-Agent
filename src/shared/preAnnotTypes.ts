@@ -130,3 +130,49 @@ export function inferDetectionMode(
   const base = model.checkpointPath.replace(/\\/g, '/').split('/').pop() ?? '';
   return /obb/i.test(base) ? 'obb' : 'detect';
 }
+
+function checkpointBasename(filePath: string | undefined): string {
+  return (filePath ?? '').replace(/\\/g, '/').split('/').pop() ?? '';
+}
+
+/**
+ * 路径中是否存在 obb 证据（作为独立词元，避免 "bobby" 之类的误判）。
+ *
+ * 用完整路径而非仅文件名：自训练权重常命名为 `best.pt`，其 OBB 身份只体现在
+ * 目录上（如 ultralytics 的 `runs/obb/train/weights/`）。
+ */
+function pathLooksObb(filePath: string | undefined): boolean {
+  return /\bobb\b/i.test(filePath ?? '');
+}
+
+/**
+ * 检测模式声明与路径证据是否矛盾。
+ *
+ * `detectionMode` 决定模型出现在「矩形框」还是「旋转框」预标注下拉框
+ * （见 `getEligiblePreAnnotModels`）。一旦与权重类型不符，模型会在标注界面
+ * 静默消失（下拉框只显示「无可用模型」），而配置列表看不出异常 —— 极难自查。
+ *
+ * 返回告警文案；一致或信息不足时返回 null。配置表单内联提示与保存校验共用
+ * 此判据，避免两处逻辑漂移。注意这不构成硬错误：权重命名不受约束，故只作提醒、
+ * 不阻断保存。
+ */
+export function describeDetectionModeMismatch(model: {
+  detectionMode?: ObjectDetectionMode;
+  checkpointPath?: string;
+}): string | null {
+  const declared = model.detectionMode;
+  if (declared !== 'detect' && declared !== 'obb') return null;
+  if (!checkpointBasename(model.checkpointPath)) return null;
+
+  const looksObb = pathLooksObb(model.checkpointPath);
+  if (declared === 'obb' && !looksObb) {
+    return (
+      '检测模式为旋转框 (OBB)，但文件名与路径都不含 obb。若这是普通检测权重，' +
+      '需改选「普通矩形框 (Detect)」，否则该模型不会出现在矩形框标注的模型列表里。'
+    );
+  }
+  if (declared === 'detect' && looksObb) {
+    return '文件名或路径含 obb，但检测模式选的是「普通矩形框 (Detect)」，请确认是否选错。';
+  }
+  return null;
+}

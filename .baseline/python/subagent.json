@@ -1,0 +1,87 @@
+[
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "arguments": "{\n  \"query\": \"项目里有哪些配置文件\",\n  \"focus_path\": \"config\"\n}",
+    "name": "explore_readonly",
+    "toolCallId": "<tc:0>",
+    "type": "tool_start"
+  },
+  {
+    "focusPath": "config",
+    "query": "项目里有哪些配置文件",
+    "toolCallId": "<tc:0>",
+    "type": "subagent_start"
+  },
+  {
+    "content": "我先看 conf",
+    "toolCallId": "<tc:0>",
+    "type": "subagent_text_delta"
+  },
+  {
+    "content": "ig 目录。",
+    "toolCallId": "<tc:0>",
+    "type": "subagent_text_delta"
+  },
+  {
+    "arguments": "{\n  \"glob_pattern\": \"*.json\",\n  \"relative_dir\": \"config\"\n}",
+    "innerToolCallId": "<tc:1>",
+    "name": "glob_workspace",
+    "toolCallId": "<tc:0>",
+    "type": "subagent_tool_start"
+  },
+  {
+    "innerToolCallId": "<tc:1>",
+    "result": "glob：*.json\n范围：config\n条目数：1\n---\nconfig/app.json",
+    "status": "done",
+    "toolCallId": "<tc:0>",
+    "type": "subagent_tool_result"
+  },
+  {
+    "content": "config 下",
+    "toolCallId": "<tc:0>",
+    "type": "subagent_text_delta"
+  },
+  {
+    "content": "有一个 app.",
+    "toolCallId": "<tc:0>",
+    "type": "subagent_text_delta"
+  },
+  {
+    "content": "json。",
+    "toolCallId": "<tc:0>",
+    "type": "subagent_text_delta"
+  },
+  {
+    "status": "done",
+    "summary": "config 下有一个 app.json。",
+    "toolCallId": "<tc:0>",
+    "type": "subagent_done"
+  },
+  {
+    "result": "config 下有一个 app.json。",
+    "toolCallId": "<tc:0>",
+    "type": "tool_result"
+  },
+  {
+    "content": "查阅完成：配置文",
+    "type": "text_delta"
+  },
+  {
+    "content": "件只有 conf",
+    "type": "text_delta"
+  },
+  {
+    "content": "ig/app.j",
+    "type": "text_delta"
+  },
+  {
+    "content": "son。",
+    "type": "text_delta"
+  },
+  {
+    "type": "done"
+  }
+]

@@ -22,6 +22,7 @@ import {
   isPoseResult,
 } from '../../../shared/preAnnotTypes';
 import {
+  describeNoEligibleModelReason,
   getEligiblePreAnnotModels,
   loadSavedPreAnnotModelId,
   pickDefaultPreAnnotModel,
@@ -104,6 +105,19 @@ export default function PreAnnotToolbarSection({
   const selectedModel = useMemo(
     () => eligibleModels.find((m) => m.id === selectedModelId) ?? null,
     [eligibleModels, selectedModelId],
+  );
+
+  // 仅在空态时计算，避免每次渲染都扫全量模型
+  const noModelReason = useMemo(
+    () =>
+      eligibleModels.length === 0
+        ? describeNoEligibleModelReason(
+            annotationType,
+            models,
+            mode === 'keypoint' ? activeTemplateId : undefined,
+          )
+        : null,
+    [annotationType, eligibleModels.length, models, mode, activeTemplateId],
   );
 
   useEffect(() => {
@@ -319,6 +333,7 @@ export default function PreAnnotToolbarSection({
           value={selectedModelId}
           disabled={controlsDisabled || eligibleModels.length === 0}
           aria-label="选择预训练模型"
+          title={noModelReason ?? undefined}
           onChange={(event) => {
             const target = event.target as HTMLElement & { value?: string };
             if (typeof target.value === 'string') {
@@ -338,6 +353,12 @@ export default function PreAnnotToolbarSection({
             ))
           )}
         </VscodeSingleSelect>
+
+        {noModelReason ? (
+          <span className="preannot-model-hint" role="status">
+            {noModelReason}
+          </span>
+        ) : null}
 
         {running ? <VscodeProgressRing /> : null}
 

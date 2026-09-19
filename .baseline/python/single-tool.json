@@ -1,0 +1,36 @@
+[
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "content": "我先看一下工作区",
+    "type": "text_delta"
+  },
+  {
+    "content": "结构。",
+    "type": "text_delta"
+  },
+  {
+    "arguments": "{\n  \"relative_dir\": \"\"\n}",
+    "name": "list_workspace_directory",
+    "toolCallId": "<tc:0>",
+    "type": "tool_start"
+  },
+  {
+    "result": "目录：.\n条目数：3\n---\nconfig | directory | config\ndata | directory | data\nREADME.md | file | README.md",
+    "toolCallId": "<tc:0>",
+    "type": "tool_result"
+  },
+  {
+    "content": "工作区已检查完毕",
+    "type": "text_delta"
+  },
+  {
+    "content": "。",
+    "type": "text_delta"
+  },
+  {
+    "type": "done"
+  }
+]

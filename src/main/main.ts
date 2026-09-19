@@ -36,11 +36,11 @@ import {
   getMcpServerToken,
 } from './mcp/server';
 import {
-  startLocalAgentServer,
-  stopLocalAgentServer,
-  getLocalAgentBaseUrl,
-  getLocalAgentToken,
-} from './localAgent/serverProcess';
+  startAgentRuntime as startLocalAgentServer,
+  stopAgentRuntime as stopLocalAgentServer,
+  getAgentRuntimeBaseUrl as getLocalAgentBaseUrl,
+  getAgentRuntimeToken as getLocalAgentToken,
+} from './agent/host';
 import { initializeDatabase, closeDatabase } from './db/database';
 import { migrateSecrets } from './security/migrateSecrets';
 import { registerDbHandlers } from './db/handlers';
@@ -65,6 +65,7 @@ import {
 } from './annotation/annotationStore';
 import {
   readAnnotationDocJson,
+  repairAnnotationDocFilePaths,
   writeAnnotationDocJson,
 } from './annotation/annotationDataStore';
 import { runAnnotationExport } from './annotation/annotationExportEngine';
@@ -544,6 +545,19 @@ ipcMain.handle(
       return await readAnnotationDocJson(projectDir, relativePath);
     } catch {
       return null;
+    }
+  },
+);
+
+ipcMain.handle(
+  'annotation:repairDocFilePaths',
+  async (_event, projectDir: string) => {
+    authorizeRoot(projectDir);
+    try {
+      return await repairAnnotationDocFilePaths(projectDir);
+    } catch (err) {
+      console.error('[annotation] 修复文档归属路径失败:', err);
+      return { scanned: 0, repaired: [] };
     }
   },
 );

@@ -1,0 +1,263 @@
+/**
+ * 阶段 0 行为基线：golden SSE 序列 diff。
+ *
+ * 比较两份抓取结果（如 `.baseline/python` 与 `.baseline/node`），逐场景逐事件报告差异。
+ * 差异存在时以非零码退出，可直接用作迁移的硬性验收 gate。
+ *
+ * 用法：
+ *   node scripts/agent-baseline/diffSse.mjs --baseline .baseline/python --candidate .baseline/node
+ *
+ * 参数：
+ *   --baseline   基准目录（迁移前 Python 抓取）
+ *   --candidate  候选目录（迁移后 Node 抓取）
+ *   --only       逗号分隔的场景 id 白名单
+ *   --max-diffs  每个场景最多展示的差异条数（默认 8）
+ *   --quiet      只输出总结
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(here, '..', '..');
+
+const argv = process.argv.slice(2);
+function argOf(flag, fallback) {
+  const i = argv.indexOf(flag);
+  return i >= 0 && argv[i + 1] ? argv[i + 1] : fallback;
+}
+const hasFlag = (flag) => argv.includes(flag);
+
+const BASELINE = path.resolve(repoRoot, argOf('--baseline', '.baseline/python'));
+const CANDIDATE = path.resolve(repoRoot, argOf('--candidate', '.baseline/node'));
+const MAX_DIFFS = Number(argOf('--max-diffs', '8'));
+const QUIET = hasFlag('--quiet');
+const ONLY = argOf('--only', '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+/**
+ * 已记录的、有意为之的差异。
+ *
+ * 支持两种粒度的豁免，且**只豁免明确列出的内容**，其余任何偏差仍会导致失败
+ * —— 避免这个 gate 因为「整场景跳过」而失效。
+ *
+ * 1. `extraEventTypes`：允许候选侧多出（基准侧没有）的事件类型。
+ * 2. `fieldOverrides`：某事件类型下**指定字段**的差异被忽略（其余字段仍严格比对）。
+ *
+ * - `reasoning`：Python 侧（langchain-openai 1.2.2）不会把 provider 的
+ *   `reasoning_content` 透出到 `additional_kwargs`，因此从不发 `reasoning_delta`；
+ *   Node 侧直接读原始 delta，会正常透出。这是**能力增强**（前端 `agentChatStore`
+ *   已完整消费该事件），保留而不回退。
+ * - `proposal-write` / `proposal-edit`：提案免确认改造后，文件写入由「等用户
+ *   Keep All 才落盘」改为「直接落盘 + 可撤销」，因此工具结果里的文案从
+ *   「文件尚未写入磁盘；用户确认（Keep All）后才会落盘」改为「已直接写入磁盘
+ *   （无需确认）…可撤销」。事件类型、顺序、条数与其余字段仍逐字校验。
+ */
+const KNOWN_DIVERGENCES = {
+  reasoning: {
+    /** 允许候选侧多出（基准侧没有）的事件类型。 */
+    extraEventTypes: ['reasoning_delta'],
+    note: 'Node 正常透出 reasoning_content；Python 受 langchain-openai 限制未透出',
+  },
+  'proposal-write': {
+    fieldOverrides: [
+      {
+        type: 'tool_result',
+        field: 'result',
+        note: '免确认改造：文件写入工具结果文案改为「已直接落盘、可撤销」',
+      },
+    ],
+  },
+  'proposal-edit': {
+    fieldOverrides: [
+      {
+        type: 'tool_result',
+        field: 'result',
+        note: '免确认改造：文件写入工具结果文案改为「已直接落盘、可撤销」',
+      },
+    ],
+  },
+};
+
+/** 按已记录的豁免过滤候选事件（仅移除明确列出的类型）。 */
+function applyKnownDivergences(id, baseline, candidate) {
+  const rule = KNOWN_DIVERGENCES[id];
+  if (!rule) return { candidate, applied: null };
+  const extraTypes = rule.extraEventTypes ?? [];
+  if (extraTypes.length === 0) return { candidate, applied: null };
+  const before = candidate.length;
+  const filtered = candidate.filter((event) => !extraTypes.includes(event?.type));
+  return {
+    candidate: filtered,
+    applied:
+      before === filtered.length
+        ? null
+        : `${rule.note}（移除 ${before - filtered.length} 条）`,
+  };
+}
+
+/** 某场景下指定事件类型的豁免字段。 */
+function exemptedFields(id, eventType) {
+  const rule = KNOWN_DIVERGENCES[id];
+  if (!rule?.fieldOverrides) return [];
+  return rule.fieldOverrides
+    .filter((o) => o.type === eventType)
+    .map((o) => o.field);
+}
+
+/**
+ * 剔除已豁免的字段（两侧同时剔除后再比较），使其余字段仍受严格校验。
+ *
+ * @returns `{ events, note }`；有字段被剔除时 note 非空
+ */
+function stripExemptedFields(id, events) {
+  const notes = new Set();
+  const stripped = events.map((event) => {
+    const fields = exemptedFields(id, event?.type);
+    if (fields.length === 0) return event;
+    const copy = { ...event };
+    for (const field of fields) delete copy[field];
+    for (const override of KNOWN_DIVERGENCES[id].fieldOverrides) {
+      if (override.type === event?.type) notes.add(override.note);
+    }
+    return copy;
+  });
+  return {
+    events: stripped,
+    note: notes.size > 0 ? [...notes].join('；') : null,
+  };
+}
+
+function readScenarios(dir) {
+  if (!fs.existsSync(dir)) throw new Error(`目录不存在: ${dir}`);
+  const out = new Map();
+  for (const file of fs.readdirSync(dir)) {
+    if (!file.endsWith('.json') || file === 'meta.json') continue;
+    if (file.endsWith('.error.json')) continue;
+    const id = file.replace(/\.json$/, '');
+    out.set(id, JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')));
+  }
+  return out;
+}
+
+/** 取事件的可读摘要，用于差异上下文。 */
+function brief(event) {
+  const t = event.type ?? '?';
+  if (event.content !== undefined) return `${t} content=${JSON.stringify(String(event.content).slice(0, 40))}`;
+  if (event.name !== undefined) return `${t} name=${event.name}`;
+  if (event.summary !== undefined) return `${t} summary=${JSON.stringify(String(event.summary).slice(0, 40))}`;
+  if (event.stage !== undefined) return `${t} stage=${event.stage}`;
+  if (event.status !== undefined) return `${t} status=${event.status}`;
+  return t;
+}
+
+function canonical(event) {
+  return JSON.stringify(event);
+}
+
+/** 逐字段比较两个事件，返回字段级差异描述。 */
+function fieldDiffs(a, b) {
+  const diffs = [];
+  const keys = new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})]);
+  for (const key of [...keys].sort()) {
+    const va = JSON.stringify(a?.[key]);
+    const vb = JSON.stringify(b?.[key]);
+    if (va !== vb) diffs.push(`${key}: ${va} → ${vb}`);
+  }
+  return diffs;
+}
+
+function diffScenario(id, base, cand) {
+  if (!Array.isArray(base) || !Array.isArray(cand)) {
+    return [`非事件数组（baseline=${typeof base}, candidate=${typeof cand}）`];
+  }
+  const diffs = [];
+  const max = Math.max(base.length, cand.length);
+
+  for (let i = 0; i < max; i += 1) {
+    const a = base[i];
+    const b = cand[i];
+    if (!a) {
+      diffs.push(`[${i}] 候选多出事件: ${brief(b)}`);
+      continue;
+    }
+    if (!b) {
+      diffs.push(`[${i}] 候选缺少事件: ${brief(a)}`);
+      continue;
+    }
+    if (canonical(a) !== canonical(b)) {
+      const fd = fieldDiffs(a, b);
+      const head = a.type !== b.type
+        ? `事件类型不同: ${a.type} → ${b.type}`
+        : `事件内容不同: ${brief(a)}`;
+      diffs.push(`[${i}] ${head}\n      ${fd.join('\n      ')}`);
+    }
+    if (diffs.length >= MAX_DIFFS) {
+      diffs.push('…（已达展示上限）');
+      break;
+    }
+  }
+  return diffs;
+}
+
+function main() {
+  const base = readScenarios(BASELINE);
+  const cand = readScenarios(CANDIDATE);
+
+  let ids = [...new Set([...base.keys(), ...cand.keys()])].sort();
+  if (ONLY.length) ids = ids.filter((id) => ONLY.includes(id));
+
+  let failed = 0;
+  let passed = 0;
+
+  for (const id of ids) {
+    const a = base.get(id);
+    const b = cand.get(id);
+    if (!a) {
+      console.log(`\n✗ ${id}  基准缺失（候选有，基准无）`);
+      failed += 1;
+      continue;
+    }
+    if (!b) {
+      console.log(`\n✗ ${id}  候选缺失`);
+      failed += 1;
+      continue;
+    }
+    const { candidate: bFiltered, applied: appliedNote } = applyKnownDivergences(
+      id,
+      a,
+      b,
+    );
+    // 字段级豁免：两侧同时剔除后再比较，其余字段仍严格校验
+    const aStripped = stripExemptedFields(id, a);
+    const bStripped = stripExemptedFields(id, bFiltered);
+    const diffs = diffScenario(id, aStripped.events, bStripped.events);
+    if (diffs.length === 0) {
+      passed += 1;
+      if (!QUIET) {
+        const note = appliedNote ?? bStripped.note ?? aStripped.note;
+        const suffix = note ? `  [已记录差异: ${note}]` : '';
+        console.log(`✓ ${id}  (${a.length} events)${suffix}`);
+      }
+    } else {
+      failed += 1;
+      console.log(`\n✗ ${id}  (${a.length} → ${b.length} events)`);
+      for (const d of diffs) console.log(`    ${d}`);
+    }
+  }
+
+  console.log(`\n[diff] 通过 ${passed} / 失败 ${failed} / 共 ${ids.length}`);
+  console.log(`       基准: ${BASELINE}`);
+  console.log(`       候选: ${CANDIDATE}`);
+  if (failed) process.exitCode = 1;
+}
+
+try {
+  main();
+} catch (err) {
+  console.error(`[diff] ${err instanceof Error ? err.message : err}`);
+  process.exitCode = 2;
+}

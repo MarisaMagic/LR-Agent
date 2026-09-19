@@ -6,6 +6,7 @@ import {
 } from '../../services/toolDisplayUtils';
 import { resolveTerminalApproval } from '../../services/terminalApproval';
 import AgentScrollablePre from './AgentScrollablePre';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './AgentReasoningBlock.css'; /* shared tool + reasoning tokens */
 
 interface AgentToolCallBlockProps {
@@ -69,7 +70,12 @@ export default function AgentToolCallBlock({
         </div>
       )}
       {!block.collapsed && (
-        <div className="agent-tool-body">
+        <OverlayVerticalScrollArea
+          maxHeight="var(--agent-collapsible-max-height, 280px)"
+          hoverMode="edge"
+          observeKey={block.result ?? block.terminalOutput ?? block.arguments}
+          contentClassName="agent-tool-body agent-collapsible-scroll"
+        >
           <div className="agent-tool-section">
             <div className="agent-tool-label">参数</div>
             <AgentScrollablePre>{block.arguments || '{}'}</AgentScrollablePre>
@@ -86,7 +92,7 @@ export default function AgentToolCallBlock({
               <AgentScrollablePre>{displayResult}</AgentScrollablePre>
             </div>
           )}
-        </div>
+        </OverlayVerticalScrollArea>
       )}
     </div>
   );

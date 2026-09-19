@@ -30,10 +30,9 @@
     "build:main": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.main.prod.ts",
     "build:renderer": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.renderer.prod.ts",
     "postinstall": "ts-node .erb/scripts/check-native-dep.js && electron-builder install-app-deps && npm run build:dll",
-    "fetch-python-runtimes": "node scripts/fetchPythonRuntimes.mjs",
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "package": "ts-node ./.erb/scripts/clean.js dist && npm run fetch-python-runtimes && npm run build && electron-builder build --publish never && npm run build:dll",
+    "package": "ts-node ./.erb/scripts/clean.js dist && npm run build && electron-builder build --publish never && npm run build:dll",
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
     "dev": "cross-env NODE_ENV=development SKIP_DEVTOOLS=1 npm run start:renderer",
     "dev:open": "node .erb/scripts/dev-fast.js",
@@ -43,7 +42,12 @@
     "start:main": "concurrently -k -P \"cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --watch --config ./.erb/configs/webpack.config.main.dev.ts\" \"electronmon . -- {@}\" --",
     "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
     "start:renderer": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
-    "test": "jest"
+    "test": "jest",
+    "baseline:mock": "node scripts/agent-baseline/mockLlmServer.mjs",
+    "baseline:selftest": "node scripts/agent-baseline/selftest.mjs",
+    "baseline:capture": "node scripts/agent-baseline/captureSse.mjs",
+    "baseline:diff": "node scripts/agent-baseline/diffSse.mjs",
+    "baseline:fork-smoke": "electron scripts/agent-baseline/electronForkSmoke.cjs"
   },
   "browserslist": [
     "extends browserslist-config-erb"
@@ -143,7 +147,8 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "seti-icons": "^0.0.4",
-    "sql.js": "^1.14.1"
+    "sql.js": "^1.14.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.1",
@@ -281,17 +286,6 @@
     "extraResources": [
       "./assets/**",
       {
-        "from": "vendor/local-agent",
-        "to": "local-agent",
-        "filter": [
-          "**/*",
-          "!**/__pycache__/**",
-          "!**/.pytest_cache/**",
-          "!**/tests/**",
-          "!**/.env"
-        ]
-      },
-      {
         "from": "vendor/inference",
         "to": "inference",
         "filter": [
@@ -299,14 +293,6 @@
           "!**/__pycache__/**",
           "!scripts/**",
           "!**/.env"
-        ]
-      },
-      {
-        "from": "assets/python-runtime",
-        "to": "python-runtime",
-        "filter": [
-          "**/*",
-          "!**/*.pdb"
         ]
       }
     ],

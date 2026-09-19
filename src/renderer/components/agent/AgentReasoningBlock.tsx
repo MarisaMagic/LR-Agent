@@ -1,6 +1,7 @@
 import { VscodeIcon } from '@vscode-elements/react-elements';
 import type { MessageBlock } from '../../types/agent';
 import AgentMarkdown from './AgentMarkdown';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './AgentReasoningBlock.css';
 
 interface AgentReasoningBlockProps {
@@ -34,9 +35,14 @@ export default function AgentReasoningBlock({
         <span>{label}</span>
       </button>
       {!block.collapsed && block.content.trim() && (
-        <div className="agent-reasoning-body">
+        <OverlayVerticalScrollArea
+          maxHeight="var(--agent-collapsible-max-height, 280px)"
+          hoverMode="edge"
+          observeKey={block.content}
+          contentClassName="agent-reasoning-body agent-collapsible-scroll"
+        >
           <AgentMarkdown content={block.content} />
-        </div>
+        </OverlayVerticalScrollArea>
       )}
     </div>
   );

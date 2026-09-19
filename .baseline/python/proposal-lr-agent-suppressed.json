@@ -1,0 +1,24 @@
+[
+  {
+    "stage": "streaming",
+    "type": "preparing"
+  },
+  {
+    "arguments": "{\n  \"relative_path\": \".lr-agent/scratch.md\",\n  \"content\": \"内部草稿\"\n}",
+    "name": "write_workspace_file",
+    "toolCallId": "<tc:0>",
+    "type": "tool_start"
+  },
+  {
+    "result": "{\"ok\": false, \"tool\": \"write_workspace_file\", \"status\": \"error\", \"summary\": \"无法写入文件：不能用本工具写入标注。新增/重写请调用 auto_annotate，修改请调用 mutate_annotation。\", \"file_written\": false, \"proposal_pending\": false}",
+    "toolCallId": "<tc:0>",
+    "type": "tool_result"
+  },
+  {
+    "content": "内部草稿已处理。",
+    "type": "text_delta"
+  },
+  {
+    "type": "done"
+  }
+]

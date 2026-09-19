@@ -15,10 +15,7 @@ import {
 } from '../../shared/envTypes';
 import { getEnvironmentConfig } from './envStore';
 import { getVenvPythonPath, readInstallMarker } from './runtimeManager';
-import {
-  resolveLocalAgentPython,
-  getLocalAgentBaseUrl,
-} from '../localAgent/serverProcess';
+import { getAgentRuntimeBaseUrl } from '../agent/host';
 import {
   checkInferenceRuntime,
   resolvePythonExecutable,
@@ -36,10 +33,7 @@ function isUsablePython(pythonPath: string | null): boolean {
   }
 }
 
-function isVenvPath(
-  target: 'local-agent' | 'inference',
-  pythonPath: string | null,
-): boolean {
+function isVenvPath(target: 'inference', pythonPath: string | null): boolean {
   if (!pythonPath) return false;
   const venv = getVenvPythonPath(target);
   return (
@@ -48,9 +42,7 @@ function isVenvPath(
   );
 }
 
-async function hasInstalledVenv(
-  target: 'local-agent' | 'inference',
-): Promise<boolean> {
+async function hasInstalledVenv(target: 'inference'): Promise<boolean> {
   return (
     isUsablePython(getVenvPythonPath(target)) &&
     (await readInstallMarker(target)) !== null
@@ -86,14 +78,10 @@ async function probeBackend(baseUrl: string): Promise<BackendEnvStatus> {
 }
 
 async function localAgentStatus(): Promise<LocalAgentEnvStatus> {
-  const pythonPath = resolveLocalAgentPython();
-  const pythonUsable = isUsablePython(pythonPath);
-  const serviceUrl = getLocalAgentBaseUrl();
+  // Agent 编排已迁到 Node 运行时（utilityProcess），不再依赖 Python 解释器。
+  // 这里只需报告服务是否在跑。
+  const serviceUrl = getAgentRuntimeBaseUrl();
   return {
-    pythonPath: pythonUsable ? pythonPath : null,
-    pythonOk: pythonUsable,
-    pythonFromVenv: isVenvPath('local-agent', pythonUsable ? pythonPath : null),
-    depsInstalled: await hasInstalledVenv('local-agent'),
     serviceRunning: Boolean(serviceUrl),
     serviceUrl,
   };

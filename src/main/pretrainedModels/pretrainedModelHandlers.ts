@@ -28,6 +28,7 @@ export default function registerPretrainedModelHandlers(): void {
         | 'modelType'
         | 'checkpointPath'
         | 'configPath'
+        | 'detectionMode'
         | 'keypointBackend'
         | 'keypointTemplateIds'
         | 'auxiliaryPaths'

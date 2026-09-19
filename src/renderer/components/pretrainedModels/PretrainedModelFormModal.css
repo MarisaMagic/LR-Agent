@@ -70,6 +70,15 @@
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
+.pretrained-model-form-warning {
+  margin: 8px 0 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--vscode-editorWarning-foreground, #cca700);
+  font-size: var(--lr-ui-font-caption);
+  line-height: 1.45;
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
 .pretrained-model-type-options {
   display: flex;
   flex-direction: column;

@@ -80,16 +80,21 @@ ehthumbs.db
 *.safetensors
 *.ckpt
 
-# Python (vendor/local-agent, vendor/inference)
+# Python（vendor/inference）
 __pycache__/
 .pytest_cache/
 
-# 嵌入式 Python 运行时（scripts/fetchPythonRuntimes.mjs 产物，打包前自动下载）
-assets/python-runtime/
-
-# CI 后续安装冒烟（scripts/ciInstallAndTest.mjs）
-.ci-venvs/
-.ci-pip-cache/
+# 嵌入式 Python 运行时已移除（Agent 编排迁到 Node，不再需要）
 
 # ZCode 会话工作区缓存
 .zcode/
+
+# 文档目录默认不入库；仅 Agent 协议契约例外（它是代码必须遵循的单一真源）
+docs/*
+!docs/agent-protocol.md
+
+# Agent 协议基线：.baseline/python 是迁移前冻结的参考序列，必须入库
+# （vendor/local-agent 删除后无法重新生成），其余为可再生产物
+.baseline/fixture-workspace/
+.baseline/node/
+.baseline/tampered/
