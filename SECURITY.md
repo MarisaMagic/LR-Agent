@@ -56,6 +56,9 @@
   Python 版保持同一失败关闭语义）。
   渲染层所有发往本地 Agent 的请求统一经 `src/renderer/config.ts#localAgentFetch` 携带 Bearer token。
 - CORS 启动校验：`allow_credentials=True` 时禁止 `cors_origins` 含 `*`。
+- 错误详情不外泄：路由 handler 抛出未预期异常时，响应体只回
+  `{ detail: 'internal_error' }`，**不回传 `err.message`**（异常消息常夹带绝对路径与
+  依赖库内部片段）。完整消息只进服务端日志（`onLog` → 主进程），需要细节时看日志。
 
 ### 5. 文件写入策略
 
@@ -112,3 +115,13 @@
 - 后续政策：新增模型加载必须使用 `torch.load(..., weights_only=True)` 或 `safetensors`，
   禁止加载不可信 checkpoint；引入前需补 CodeQL 扫描（`python` 语言矩阵当前即用于覆盖
   `vendor/inference`）。
+
+### CodeQL 误报排除
+
+- `.github/codeql/codeql-config.yml` 里按 query id 排除了两条**已确认的误报**：
+  `js/cors-misconfiguration-for-credentials`（本仓库的 CORS 实现正是该查询文档给出的
+  「GOOD」写法：显式白名单 + 启动期拒绝 `*`，CodeQL 无法看穿 `resolveCorsOrigin` 这层
+  helper）与 `js/clear-text-logging`（唯一命中点是本地冒烟脚本
+  `scripts/agent-baseline/electronForkSmoke.cjs`，被判定"敏感"的只有 HTTP 状态码）。
+- 该文件只做排除、不改查询集；每条排除都附理由与依据链接。若代码结构调整后不再误报，
+  应删除对应条目。

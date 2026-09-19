@@ -1,0 +1,30 @@
+# CodeQL 配置（由 .github/workflows/codeql-analysis.yml 的 config-file 引用）。
+#
+# 这里只按 query id 排除**已确认的误报**，不动查询集——保持 GitHub 默认的
+# code-scanning suite，避免「顺手放宽扫描面」这种隐性降级。
+#
+# 每条排除都必须写明理由与依据链接。若将来代码结构调整使查询不再误报，
+# 应删掉对应条目，而不是让它常年躺着。
+name: "LR-Agent CodeQL 配置"
+
+query-filters:
+  # 误报：CORS 凭据传输配置
+  #
+  # src/main/agent/server.ts 的实现正是该查询官方文档给出的「GOOD」写法：
+  # 请求 Origin 必须命中显式白名单才回显（`resolveCorsOrigin`：未命中返回
+  # null，连 ACAO 头都不设），并且 `assertCorsConfig` 在服务启动阶段就拒绝
+  # 含 '*' 的配置，因此不存在「反射任意 Origin + Allow-Credentials: true」。
+  # CodeQL 无法看穿 resolveCorsOrigin 这层 helper，仍按反射请求值上报。
+  # https://codeql.github.com/codeql-query-help/javascript/js-cors-misconfiguration-for-credentials/
+  - exclude:
+      id: js/cors-misconfiguration-for-credentials
+
+  # 误报：明文记录敏感信息
+  #
+  # 唯一命中点是 scripts/agent-baseline/electronForkSmoke.cjs——本地冒烟脚本，
+  # 不参与打包（见 package.json 的 extraResources）。被判定为「敏感数据」的
+  # 实际只有 HTTP 状态码与 {"ok":true} 这类响应体；CodeQL 把「带 Authorization
+  # 头的请求的响应对象」整体视为凭据源，连带其状态码一并算作敏感。
+  # https://codeql.github.com/codeql-query-help/javascript/js-clear-text-logging/
+  - exclude:
+      id: js/clear-text-logging

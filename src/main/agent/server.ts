@@ -196,8 +196,11 @@ export async function startAgentServer(
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      // 完整信息只进服务端日志：异常消息常夹带绝对路径、依赖库内部片段等，
+      // 回传给调用方属于信息暴露（CodeQL js/stack-trace-exposure）。
+      // 开发期需要细节时看运行时日志（onLog → 主进程 / 终端），不要经 HTTP 回传。
       log('error', `路由 ${method} ${path} 抛出异常: ${message}`);
-      sendJson(res, 500, { detail: 'internal_error', message });
+      sendJson(res, 500, { detail: 'internal_error' });
       return;
     }
 

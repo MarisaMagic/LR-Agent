@@ -55,12 +55,16 @@ const started: AgentServer[] = [];
 
 async function boot(
   overrides: Record<string, RouteHandler> = {},
+  options: {
+    onLog?: (level: 'info' | 'warn' | 'error', message: string) => void;
+  } = {},
 ): Promise<number> {
   const server = await startAgentServer({
     host: '127.0.0.1',
     port: 0,
     token: TOKEN,
     corsOrigins: ['http://localhost:1212'],
+    onLog: options.onLog,
     routes: {
       'POST /api/v1/agent/echo': (req) => ({
         kind: 'json',
@@ -159,18 +163,28 @@ describe('agent runtime HTTP server', () => {
       expect(res.status).toBe(405);
     });
 
-    it('handler 抛异常返回 500 而不是崩溃', async () => {
-      const port = await boot({
-        'POST /api/v1/agent/boom': () => {
-          throw new Error('boom');
+    it('handler 抛异常返回 500 而不是崩溃，且不回传异常消息', async () => {
+      const logs: string[] = [];
+      const port = await boot(
+        {
+          'POST /api/v1/agent/boom': () => {
+            throw new Error('/secret/abs/path: 内部细节');
+          },
         },
-      });
+        { onLog: (_level, message) => logs.push(message) },
+      );
       const res = await request(port, '/api/v1/agent/boom', {
         method: 'POST',
         headers: { Authorization: `Bearer ${TOKEN}` },
       });
       expect(res.status).toBe(500);
-      expect(JSON.parse(res.body).message).toBe('boom');
+      const body = JSON.parse(res.body);
+      expect(body.detail).toBe('internal_error');
+      expect(body.message).toBeUndefined();
+      // 不把内部细节写进响应体
+      expect(res.body).not.toContain('内部细节');
+      // 但运维侧信息不丢：完整消息仍在服务端日志里
+      expect(logs.some((line) => line.includes('内部细节'))).toBe(true);
     });
   });
 
