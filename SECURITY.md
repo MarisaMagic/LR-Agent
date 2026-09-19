@@ -1,6 +1,6 @@
 # 安全说明与加固记录
 
-本文件记录 LR-Agent 桌面端（Electron + 本地 `vendor/local-agent`）的安全加固措施、
+本文件记录 LR-Agent 桌面端（Electron + Node 版 Agent 运行时）的安全加固措施、
 残余风险以及尚未闭环的运维事项。改动代码时请同步维护本文件。
 
 ## 已实施加固
@@ -49,16 +49,17 @@
 
 - 本地 MCP Server（`src/main/mcp/server.ts`）：每次启动生成随机 token，`/mcp` 校验
   `Authorization: Bearer`，并校验 `Host` 仅为本机、拒绝带 `Origin` 的跨源请求；`/health` 保持开放。
-- 本地 Agent（`vendor/local-agent`）：Electron 主进程通过环境变量 `LR_AGENT_LOCAL_TOKEN`
-  注入随机 token，FastAPI 侧 `app/core/deps.py#require_local_token` 对全部 `/api/v1` 路由做
-  常量时间校验；未配置 token 时失败关闭（仅 `/health` 可用）。
+- 本地 Agent 运行时（`src/main/agent/`）：Electron 主进程以 `utilityProcess.fork` 启动
+  `agentRuntime.js`（`host.ts`），生成随机 token 并经环境变量 `LR_AGENT_LOCAL_TOKEN`
+  注入，同时绑定随机端口。服务侧 `server.ts` 对除 `/health` 外的全部路由做常量时间
+  Bearer 校验；**未配置 token 时拒绝启动**，不对外提供服务（`runtime.ts`，与迁移前的
+  Python 版保持同一失败关闭语义）。
   渲染层所有发往本地 Agent 的请求统一经 `src/renderer/config.ts#localAgentFetch` 携带 Bearer token。
 - CORS 启动校验：`allow_credentials=True` 时禁止 `cors_origins` 含 `*`。
 
 ### 5. 文件写入策略
 
-- 写盘/编辑改为「文本扩展名白名单」（`src/shared/workspaceTextExtensions.ts` 与
-  `vendor/local-agent/app/agent/tools/workspace_text_extensions.py` 保持同步）：
+- 写盘/编辑改为「文本扩展名白名单」（唯一真源：`src/shared/workspaceTextExtensions.ts`）：
   白名单之外的扩展名一律禁止写入，脚本/可执行类型（`.bat`、`.cmd`、`.ps1`、`.vbs`、
   `.hta`、`.scr`、`.jar`、`.reg`、`.lnk` 等）被明确拒绝。
 - `src/main/workspace/workspaceWrite.ts` 在 `path.resolve` 之外补充 `fs.realpath` 校验，
@@ -71,10 +72,13 @@
 
 ## 测试
 
-- TS：`npm test`（含 secretStore 加解密与失败关闭、MCP `/mcp` 401/403/放行、写盘白名单与
-  扩展名拦截、符号链接逃逸、深度链接校验与用后即清）。
-- Python：`cd vendor/local-agent && python -m pytest`（含 `tests/test_local_auth.py`
-  的 401/放行用例、`tests/test_workspace_text_extensions.py` 白名单用例）。
+- 全量单测：`npm test`（含 secretStore 加解密与失败关闭、MCP `/mcp` 401/403/放行、写盘白名单与
+  扩展名拦截、符号链接逃逸、深度链接校验与用后即清、本地 Agent 运行时的 401/放行与常量时间比较）。
+- 静态检查：`npm run lint`、`npm exec tsc`。
+- Agent 协议契约：`npm run baseline:selftest`（起 mock LLM server，校验 SSE chunk 序列与
+  tool_call 分片重组）。
+- 推理侧（`vendor/inference`）：无单测覆盖，CI 以 `python -m compileall` 做语法检查，
+  并以 `node scripts/ciCheckInferenceManifests.mjs` 校验依赖清单与 `envInstaller.ts` 常量同步。
 - 手工验证建议：dev 下确认新 CSP 不破坏 HMR/React Refresh；构造含 `javascript:` 链接的
   `.docx` 确认点击无脚本执行；用错误 token 调 `/mcp` 与本地 Agent 接口确认 401。
 
@@ -101,8 +105,10 @@
 
 ### `vendor/inference` 反序列化审计
 
-- 审计结论（2026-09）：当前 `vendor/inference` 与 `vendor/local-agent` 中**未发现**
+- 审计结论（2026-09）：当前 `vendor/inference` 中**未发现**
   `torch.load`、`pickle.load`、`np.load(allow_pickle=True)`、`yaml.load(`、`eval(`、`exec(`、
-  `os.system` 等高风险调用。
+  `os.system` 等高风险调用。（编排侧 `vendor/local-agent` 已随迁移删除，其替代实现是
+  TypeScript，由 CodeQL 的 `javascript` 矩阵覆盖。）
 - 后续政策：新增模型加载必须使用 `torch.load(..., weights_only=True)` 或 `safetensors`，
-  禁止加载不可信 checkpoint；引入前需补 CodeQL 扫描（已加入 `python` 语言矩阵）。
+  禁止加载不可信 checkpoint；引入前需补 CodeQL 扫描（`python` 语言矩阵当前即用于覆盖
+  `vendor/inference`）。
