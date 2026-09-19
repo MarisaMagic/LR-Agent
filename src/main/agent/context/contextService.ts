@@ -17,18 +17,22 @@ export const CHAT_SYSTEM_PROMPT =
 
 export const RESUME_NEXT_HINT =
   '客户端工具已结束。不要重复调用刚才同一个 tool_call。' +
-  '若 proposal_pending=true（标注生成提案）：尚未 Keep All、未写盘，不要声称已标注完成。' +
-  '标注编辑（mutate_annotation）已自动落盘，不要重复调用；如需修正请用 mutate_annotation 定向修改。' +
+  '若 proposal_pending=true（标注生成提案）：尚未确认、未写盘，不要声称已标注完成；' +
+  '用一两句说明提案内容，提示用户在提案卡片上确认后才会落盘。' +
+  '标注编辑（mutate_annotation）与文件写入已自动落盘，不要重复调用；' +
+  '如需修正请用对应工具再次修改（用户可撤销）。' +
   '若还要给其他文件做新标注，再调用 auto_annotate 并传入新的 paths。' +
   '不要 memory_write progress.md 或 annotated-files.md。';
 
 export const RESUME_APPLIED_NEXT_HINT =
-  '客户端工具已结束，用户已 Keep All：提案已写盘，file_written=true。' +
+  '客户端工具已结束，改动已落盘（file_written=true）：' +
+  '标注编辑与文件写入由系统直接应用，无需用户确认；' +
+  '标注生成提案则是用户已确认后落盘。' +
   '可用 read_file_annotation 核对落盘结果；如任务要求报告，用 write_workspace_file 生成。' +
   '报告中的每个数字必须来自工具返回或提案明细，禁止估算。' +
-  '不要对已写盘文件重复调用 auto_annotate 整文件重标；' +
+  '不要对已落盘文件重复调用 auto_annotate 整文件重标；' +
   '核对发现错标/漏标/重复框时，用 mutate_annotation 定向修正（带上 paths 或 annotation_ids）。' +
-  '提案已确认落盘，禁止再要求用户确认、Keep All 或查看提案。' +
+  '禁止再要求用户确认或查看提案。' +
   '不要 memory_write progress.md 或 annotated-files.md。';
 
 export interface ClientToolResultInput {
@@ -61,8 +65,11 @@ export function unansweredToolCallIds(messages: ChatMessage[]): Set<string> {
 /**
  * 为 resume 的客户端工具结果补上 `next_hint`（已有则保留）。
  *
- * `proposalsApplied`（用户已 Keep All）时同步修正 `proposal_pending` / `file_written`，
- * 避免模型把已落盘提案误判为未确认。
+ * `proposalsApplied`（阶段为 VERIFY，即相关提案已落盘）时同步修正
+ * `proposal_pending` / `file_written`，避免模型把已落盘提案误判为未确认。
+ *
+ * 注意：落盘既可能来自用户确认（标注生成），也可能来自系统自动应用
+ * （文件写入 / 标注编辑免确认），因此提示词不应声称「用户已 Keep All」。
  */
 export function enrichResumeToolResult(
   result: string,

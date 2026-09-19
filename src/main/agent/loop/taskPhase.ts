@@ -175,9 +175,9 @@ export function checkCallAllowed(
     if (ANNOTATION_WRITE_TOOLS.has(name) || WORKSPACE_WRITE_TOOLS.has(name)) {
       const pending = [...ctx.pendingAnnotationPaths].sort().join('、');
       return (
-        `当前存在未确认的标注提案（${pending}），用户尚未 Keep All，提案未写盘。` +
+        `当前存在未确认的标注生成提案（${pending}），尚未写盘。` +
         '禁止标注写入与文件写入操作。请用一两句说明提案内容，' +
-        '提示用户 Keep All 或关闭提案后再继续。'
+        '提示用户在提案卡片上确认（或关闭提案）后再继续。'
       );
     }
     return null;
@@ -189,7 +189,7 @@ export function checkCallAllowed(
 
     if (coerceBool(arguments_.all_files)) {
       return (
-        `以下文件本轮已完成标注并经用户确认落盘：${appliedText}。` +
+        `以下文件本轮已完成标注并已落盘：${appliedText}。` +
         '禁止 all_files=true 的全量重标；如确需对其他文件标注，请用 paths 明确指定。'
       );
     }
@@ -199,7 +199,7 @@ export function checkCallAllowed(
     if (name === 'auto_annotate') {
       if (callPaths.size === 0) {
         return (
-          `以下文件本轮已完成标注并经用户确认落盘：${appliedText}。` +
+          `以下文件本轮已完成标注并已落盘：${appliedText}。` +
           'auto_annotate 未指明 paths/scope_hint，无法确认是否重复标注已落盘文件，' +
           '请用 paths 明确指定要标注的新文件。'
         );
@@ -209,7 +209,7 @@ export function checkCallAllowed(
       );
       if (overlap.length > 0) {
         return (
-          `以下文件本轮已完成标注并经用户确认落盘：${overlap.sort().join('、')}。` +
+          `以下文件本轮已完成标注并已落盘：${overlap.sort().join('、')}。` +
           '请勿重复标注。如核对后认为确需重标，必须向用户说明检测到的不一致' +
           '（检测到几个框、标签是什么、与预期差在哪），' +
           '并给出确切的下一步指令（如「请说：重新标注 data/x.jpg」），由用户发起。'
@@ -222,7 +222,7 @@ export function checkCallAllowed(
     const annotationIds = coerceStrList(arguments_.annotation_ids);
     if (callPaths.size === 0 && annotationIds.length === 0) {
       return (
-        `以下文件本轮已完成标注并经用户确认落盘：${appliedText}。` +
+        `以下文件本轮已完成标注并已落盘：${appliedText}。` +
         'mutate_annotation 未指明 paths 或 annotation_ids，无法确认是否修改已落盘标注，' +
         '请明确指定目标。'
       );
@@ -241,23 +241,23 @@ export function phasePromptBlock(ctx: TaskPhaseContext | null): string {
   if (ctx.phase === 'await_confirm') {
     const paths = [...ctx.pendingAnnotationPaths].sort().join('、');
     return (
-      '【任务阶段】等待用户确认标注提案\n' +
-      `- 以下文件的标注提案未确认、未写盘：${paths}\n` +
+      '【任务阶段】等待确认标注生成提案\n' +
+      `- 以下文件的标注生成提案未确认、未写盘：${paths}\n` +
       '- 禁止调用标注写入与文件写入工具；禁止声称已标注/已修改/已写入。\n' +
       '- 不要用 read_file_annotation 验证提案内容（磁盘仍是旧态，以提案台账为准）。\n' +
-      '- 用一两句说明提案内容，提示用户 Keep All 或关闭提案。'
+      '- 用一两句说明提案内容，提示用户确认后再继续。'
     );
   }
 
   if (ctx.phase === 'verify') {
     const paths = [...ctx.appliedAnnotationPaths].sort().join('、');
     return (
-      '【任务阶段】标注提案已确认落盘\n' +
-      `- 以下文件的标注提案已由用户 Keep All 并写盘：${paths}\n` +
+      '【任务阶段】标注变更已落盘\n' +
+      `- 以下文件的标注变更已写盘：${paths}\n` +
       '- 可用 read_file_annotation 核对落盘结果；如任务要求报告，用 write_workspace_file 生成。\n' +
       '- 禁止对上述路径重复调用 auto_annotate 整文件重标；核对发现错标/漏标/重复框时，' +
       '用 mutate_annotation 定向修正，并带上 paths 或 annotation_ids。\n' +
-      '- 提案已确认落盘，禁止再要求用户确认、Keep All 或查看提案。\n' +
+      '- 变更已落盘，禁止再要求用户确认、查看提案或声称需要确认。\n' +
       '- 报告中的每个数字必须来自工具返回或提案明细，禁止估算或凭印象填写。\n' +
       '- 工具完成后用一两句确认即可，不要重复输出报告全文。'
     );

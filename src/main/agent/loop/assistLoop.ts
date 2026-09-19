@@ -238,7 +238,7 @@ async function* streamAssistInner(
   const clientToolResults = params.clientToolResults ?? [];
   const isResume = clientToolResults.length > 0;
 
-  // 阶段为 verify 表示用户已 Keep All、提案已落盘
+  // 阶段为 verify 表示标注变更已落盘（系统自动应用或用户确认）
   const proposalsApplied = params.taskPhaseContext?.phase === 'verify';
 
   if (isResume) {

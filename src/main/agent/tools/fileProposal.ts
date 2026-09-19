@@ -6,7 +6,7 @@
  *
  * **这些工具不落盘**：只校验路径与内容，产出一个带内部标记 `__doc_proposal__`
  * 的结果；调度层据此发出 `file_proposal_start` / `file_proposal_delta` /
- * `file_proposal` 事件，真正写盘由 Electron 在用户 Keep All 后执行。
+ * `file_proposal` 事件，真正写盘由 Electron 在提案定稿后直接执行（免确认，可撤销）。
  *
  * **基线接力（pendingProposals）**：同一轮里对同一文件的多次修改必须累积成一份提案。
  * `str_replace` 以最新**提案内容**为基线，而不是磁盘原文——否则第二份提案基于未含

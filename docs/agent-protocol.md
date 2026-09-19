@@ -720,12 +720,38 @@ Agent 工具集之外（理由见 §5.3 注释）。Python 侧 `fn_map` 只包�
 2. **`sourceKind` 优先，内容推断回退**：历史数据可能缺 `sourceKind`，此时按提案内容推断
    （只含 `delete`/`patch` 即标注编辑），与 `agentChatStore` 设置 `sourceKind` 用的是
    **同一份实现**（`pipelineKinds.ts` 的 `inferAnnotationProposalKind`）。
-3. **失败保持 `pending`**：写盘失败时不静默吞掉，block 仍为待确认态，卡片可用
-   Keep All / Undo 手动处理；同时标记该 ref 以免流式期间反复重试刷提示。
+3. **失败保持 `pending`**：写盘失败时不静默吞掉，block 仍为待确认态，可手动处理；
+   同时标记该 ref 以免流式期间反复重试刷提示。
 4. **撤销是一等公民**：每次落盘前都会捕获改前快照（`captureProposalCheckpoint`），
-   因此可直接撤销。撤销入口两处：消息的 Files Changed 汇总卡右上角、消息工具栏。
+   因此可直接撤销。撤销入口位于**消息工具栏**的撤销图标（仅当本消息全部已应用改动
+   都留有快照时显示）。
 
 **因此 `awaiting_confirmation` 只由标注生成（`auto_annotate`）与终端审批触发。**
+
+#### 落盘时机：客户端工具内 await，而非依赖渲染时序
+
+标注工具是 `ASYNC`——每次调用都会发 `tool_pending` 结束 HTTP 轮次，随后 resume。
+**落盘必须发生在 resume 之前**，否则会踩到一个竞态：
+
+```
+tool_pending → 渲染层执行 → 产出提案 block（status=pending）
+  → resume 前同步构建 proposal_states → 阶段机误判 AWAIT_CONFIRM
+  → 模型随后调用的 auto_annotate（重新标注）被门禁拦掉
+```
+
+（表现为「删除已落盘，但重新标注被拒」，同时工具结果却声称已应用——自相矛盾。）
+
+因此 `ClientToolContext` 提供 `applyAutoApplicable` 回调，客户端工具在产出提案后
+**`await` 它完成落盘**，再据实组合工具结果：
+
+| 情形 | `proposal_pending` | `file_written` | 是否进入确认断点 |
+|---|---|---|---|
+| 落盘成功 | `false` | `true` | 否 |
+| 落盘失败 | `true` | `false` | **是**（用户手动处理） |
+| `auto_annotate`（不自动落盘） | `true` | `false` | **是** |
+
+`AgentChatContext` 里的 effect 退化为**兜底**：覆盖重启恢复、历史消息重放等
+没有真实工具调用的场景；主路径已处理的提案会变 `applied`，effect 直接空转返回。
 
 ### 6.0 已记录的差异
 

@@ -927,6 +927,144 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     [updateMessage],
   );
 
+  // ── 免确认提案的自动落盘（文件写入 + 标注编辑）──────────────────────
+  //
+  // 两条调用路径，职责不同：
+  //   1. 客户端工具路径（主路径）：runClientTool 产出提案后 **await** 本函数，
+  //      据此在 resume 前完成落盘，并如实汇报 proposal_pending / file_written。
+  //   2. 兜底 effect（次路径）：覆盖重启恢复、历史消息重放等没有真实工具调用的场景。
+
+  /** 防止 effect 与工具路径并发进入。 */
+  const autoApplyingRef = useRef(false);
+
+  /**
+   * 自动落盘失败的提案（`messageId#blockIndex`）。
+   *
+   * 失败后 block 保持 `pending`，若不加去重则每次 state 变化（流式期间很频繁）
+   * 都会重试并重复弹出错误提示。记录后跳过，改由用户通过 Keep All 手动重试。
+   */
+  const autoApplyFailedRef = useRef<Set<string>>(new Set());
+
+  /** 跳过已尝试自动落盘但失败的提案，避免重复弹错。 */
+  const isAutoApplySkipped = useCallback(
+    (ref: { messageId: string; blockIndex: number }): boolean =>
+      autoApplyFailedRef.current.has(refKey(ref)),
+    [],
+  );
+
+  /**
+   * 落盘当前会话中所有「免确认」提案，返回实际应用条数与错误。
+   *
+   * 幂等：成功后 block 变 `applied`，不再命中 `selectAutoApplicableProposals`。
+   * `selectAutoApplicableProposals` 同时要求文件提案的 `contentFinalized` 为真，
+   * 否则会在内容尚未流式完成时写入空内容。
+   */
+  const flushAutoApplicable = useCallback(
+    async (
+      sessionIdOverride?: string,
+    ): Promise<{ applied: number; errors: string[] }> => {
+      const sessionId = sessionIdOverride ?? stateRef.current.activeSessionId;
+      if (!sessionId) return { applied: 0, errors: [] };
+
+      const messagesMap = stateRef.current.messagesBySession[sessionId] ?? {};
+      const ids = resolveSessionMessageIds(
+        stateRef.current.sessions[sessionId],
+        messagesMap,
+      );
+      const messages = ids
+        .map((id) => messagesMap[id])
+        .filter((message): message is ChatMessage => Boolean(message));
+
+      const autoRefs = selectAutoApplicableProposals(
+        messages,
+        isAutoApplySkipped,
+      );
+      if (autoRefs.length === 0) return { applied: 0, errors: [] };
+
+      const filePaths = autoRefs.flatMap((ref) => {
+        const block = messages.find((msg) => msg.id === ref.messageId)?.blocks[
+          ref.blockIndex
+        ];
+        return block && isFileProposalBlock(block)
+          ? [block.suggestedRelativePath]
+          : [];
+      });
+
+      const result = await applyAutoApplicableProposals({
+        sessionId,
+        messages,
+        project: activeProject ?? null,
+        workspaceRoot: rootPath,
+        updateBlock: (messageId, blockIndex, patch) => {
+          updateMessageBlocks(sessionId, messageId, (blocks) =>
+            blocks.map((b, i) =>
+              i === blockIndex ? ({ ...b, ...patch } as MessageBlock) : b,
+            ),
+          );
+        },
+        onSyncWarning: (message) => {
+          showToast(message, { type: 'info' });
+        },
+        isSkipped: isAutoApplySkipped,
+      });
+
+      if (result.applied > 0) {
+        if (result.missingCheckpoints > 0) {
+          showToast('未能保存改前快照，这些改动将无法撤销', { type: 'info' });
+        }
+        await syncWorkspaceFactMemory(activeProject);
+        clearFilePreviewSession();
+        markWorkspaceTextFilesChanged(filePaths);
+      }
+      if (result.errors.length > 0) {
+        // 标灰这批 ref，避免兜底 effect 反复重试刷屏；保留 pending 交用户手动处理
+        for (const ref of autoRefs) autoApplyFailedRef.current.add(refKey(ref));
+        showToast(`自动应用失败：${result.errors[0]}`, { type: 'error' });
+      }
+
+      return { applied: result.applied, errors: result.errors };
+    },
+    [
+      activeProject,
+      isAutoApplySkipped,
+      rootPath,
+      showToast,
+      updateMessageBlocks,
+    ],
+  );
+
+  /**
+   * 兜底 effect：主路径（客户端工具内 await）之外的状态变化也能落盘。
+   *
+   * 主路径已处理的提案会变 `applied`，因此这里通常直接空转返回。
+   */
+  useEffect(() => {
+    if (autoApplyingRef.current) return;
+    const sessionId = state.activeSessionId;
+    if (!sessionId) return;
+    const messagesMap = state.messagesBySession[sessionId] ?? {};
+    const ids = resolveSessionMessageIds(
+      state.sessions[sessionId],
+      messagesMap,
+    );
+    const messages = ids
+      .map((id) => messagesMap[id])
+      .filter((message): message is ChatMessage => Boolean(message));
+    // 廉价前置判断：无待落盘的提案（或仅剩已知失败的）时完全不进入异步流程
+    if (
+      selectAutoApplicableProposals(messages, isAutoApplySkipped).length === 0
+    ) {
+      return;
+    }
+
+    autoApplyingRef.current = true;
+    flushAutoApplicable(sessionId)
+      .catch(() => undefined)
+      .finally(() => {
+        autoApplyingRef.current = false;
+      });
+  }, [isAutoApplySkipped, state, flushAutoApplicable]);
+
   /**
    * 点击 Keep All / Undo 时立即把 awaiting 消息切回 streaming（带阶段提示），
    * 消除「apply 写盘 + resume 建连」期间 UI 停在「等待确认」的空窗。
@@ -1962,6 +2100,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
                   (message): message is ChatMessage => Boolean(message),
                 ),
               ),
+              // 让客户端工具在产出「免确认」提案后能立即落盘，
+              // 从而在 resume 前完成写盘并如实汇报结果（避免阶段机误判 AWAIT_CONFIRM）
+              applyAutoApplicable: () => flushAutoApplicable(sessionId),
             }
           : null;
 
@@ -2518,123 +2659,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     showToast,
     updateMessageBlocks,
   ]);
-
-  /**
-   * 免确认自动落盘（工作区文件写入 + 标注编辑）。
-   *
-   * 由「提案定稿」这一状态变化驱动，而非侵入 job 循环 —— 这样重启恢复、
-   * 历史消息重放等场景同样覆盖，也不依赖事件到达顺序。
-   *
-   * 幂等：应用成功后 block 变 `applied`，不再命中 `selectAutoApplicableProposals`；
-   * 失败时保持 `pending`，卡片仍可用 Keep All / Undo 手动处理。
-   *
-   * 注意 `selectAutoApplicableProposals` 内部要求文件提案的 `contentFinalized`
-   * 为真，否则会在内容尚未流式完成时写入空内容。
-   */
-  const autoApplyingRef = useRef(false);
-  /**
-   * 自动应用失败过的提案（`messageId#blockIndex`）。
-   *
-   * 失败后 block 保持 `pending`，若不加去重则每次 state 变化（流式期间很频繁）
-   * 都会重试并重复弹出错误提示。这里记录后跳过，改由用户通过 Keep All 手动重试
-   * —— 手动路径会明确展示失败原因，不会刷提示。
-   */
-  const autoApplyFailedRef = useRef<Set<string>>(new Set());
-
-  /** 跳过已尝试自动应用但失败的提案，避免重复弹错。 */
-  const isAutoApplySkipped = useCallback(
-    (ref: { messageId: string; blockIndex: number }): boolean =>
-      autoApplyFailedRef.current.has(refKey(ref)),
-    [],
-  );
-
-  const runAutoApply = useCallback(async (): Promise<void> => {
-    const sessionId = stateRef.current.activeSessionId;
-    if (!sessionId) return;
-    const messagesMap = stateRef.current.messagesBySession[sessionId] ?? {};
-    const ids = resolveSessionMessageIds(
-      stateRef.current.sessions[sessionId],
-      messagesMap,
-    );
-    const messages = ids
-      .map((id) => messagesMap[id])
-      .filter((message): message is ChatMessage => Boolean(message));
-
-    const autoRefs = selectAutoApplicableProposals(messages, isAutoApplySkipped);
-    if (autoRefs.length === 0) return;
-
-    const filePaths = autoRefs.flatMap((ref) => {
-      const block = messages.find((msg) => msg.id === ref.messageId)?.blocks[
-        ref.blockIndex
-      ];
-      return block && isFileProposalBlock(block)
-        ? [block.suggestedRelativePath]
-        : [];
-    });
-
-    const result = await applyAutoApplicableProposals({
-      sessionId,
-      messages,
-      project: activeProject ?? null,
-      workspaceRoot: rootPath,
-      updateBlock: (messageId, blockIndex, patch) => {
-        updateMessageBlocks(sessionId, messageId, (blocks) =>
-          blocks.map((b, i) =>
-            i === blockIndex ? ({ ...b, ...patch } as MessageBlock) : b,
-          ),
-        );
-      },
-      onSyncWarning: (message) => {
-        showToast(message, { type: 'info' });
-      },
-      isSkipped: isAutoApplySkipped,
-    });
-
-    if (result.applied > 0) {
-      if (result.missingCheckpoints > 0) {
-        showToast('未能保存改前快照，这些改动将无法撤销', { type: 'info' });
-      }
-      await syncWorkspaceFactMemory(activeProject);
-      clearFilePreviewSession();
-      markWorkspaceTextFilesChanged(filePaths);
-    }
-    if (result.errors.length > 0) {
-      // 标灰这批 ref，避免自动重试刷屏；保留 pending 交由用户手动处理
-      for (const ref of autoRefs) autoApplyFailedRef.current.add(refKey(ref));
-      showToast(`自动应用失败：${result.errors[0]}`, { type: 'error' });
-    }
-  }, [activeProject, isAutoApplySkipped, rootPath, showToast, updateMessageBlocks]);
-
-  useEffect(() => {
-    if (autoApplyingRef.current) return;
-    const sessionId = state.activeSessionId;
-    if (!sessionId) return;
-    const messagesMap = state.messagesBySession[sessionId] ?? {};
-    const ids = resolveSessionMessageIds(
-      state.sessions[sessionId],
-      messagesMap,
-    );
-    const messages = ids
-      .map((id) => messagesMap[id])
-      .filter((message): message is ChatMessage => Boolean(message));
-    // 廉价前置判断：无待自动应用的提案（或仅剩已知失败的）时完全不进入异步流程
-    if (
-      selectAutoApplicableProposals(messages, isAutoApplySkipped).length === 0
-    ) {
-      return;
-    }
-
-    autoApplyingRef.current = true;
-    runAutoApply()
-      .catch((err) => {
-        showToast(resolveErrorMessage(err, '自动应用变更失败'), {
-          type: 'error',
-        });
-      })
-      .finally(() => {
-        autoApplyingRef.current = false;
-      });
-  }, [isAutoApplySkipped, state, runAutoApply, showToast]);
 
   const openPanelTabs = useMemo<AgentPanelTab[]>(() => {
     const sessionTabs: AgentPanelTab[] = state.openTabIds.map((sessionId) => ({

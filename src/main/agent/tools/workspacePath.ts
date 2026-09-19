@@ -6,7 +6,7 @@
  *
  * **根顺序至关重要**：项目目录优先，其次工作区根。前端 `applyFileBlock` 的写入根
  * 同样是 `project.directoryPath ?? workspaceRoot`；若两侧顺序不一致，提案的
- * relative_display_path 会算出不同结果，Keep All 会把文件写到另一个根下
+ * relative_display_path 会算出不同结果，落盘会把文件写到另一个根下
  * （历史隐患：同一文件在两个根各落一份），并且前端按路径匹配提案块时会裂成两张卡片。
  *
  * 错误文案需与 Python 侧一致——它们会作为工具结果回灌给模型。

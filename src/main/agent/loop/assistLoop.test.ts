@@ -401,7 +401,7 @@ describe('阶段门禁与工具集', () => {
     );
 
     const toolResult = events.find((e) => e.type === 'tool_result');
-    expect(toolResult?.result).toContain('未确认的标注提案');
+    expect(toolResult?.result).toContain('未确认的标注生成提案');
   });
 
   it('模式路由：Ask 模式剔除写入工具', () => {

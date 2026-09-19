@@ -235,6 +235,41 @@ describe('formatAnnotationToolResult', () => {
     expect(String(parsed.summary)).toContain('不要对用户说已删除');
   });
 
+  // 方案 B：自动落盘失败时必须如实汇报，不得谎报已写盘
+  it('自动落盘失败时如实报告并保持待确认断点', () => {
+    const raw = formatAnnotationToolResult({
+      status: 'completed',
+      tool: 'mutate_annotation',
+      userRequest: '删框',
+      summary: '删除 1 个框',
+      hasProposal: true,
+      autoApplied: false,
+      autoApplyFailed: true,
+    });
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    expect(parsed.file_written).toBe(false);
+    // 提案仍是 pending，因此 job 应停在确认断点等用户处理
+    expect(parsed.proposal_pending).toBe(true);
+    expect(toolResultHasPendingProposal(raw)).toBe(true);
+    expect(String(parsed.summary)).toContain('自动落盘失败');
+    expect(String(parsed.summary)).not.toContain('已生成变更并直接应用');
+  });
+
+  it('autoApplied 优先于 autoApplyFailed（两者同时传时视为成功）', () => {
+    const raw = formatAnnotationToolResult({
+      status: 'completed',
+      tool: 'mutate_annotation',
+      userRequest: '删框',
+      summary: '删除 1 个框',
+      hasProposal: true,
+      autoApplied: true,
+      autoApplyFailed: true,
+    });
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    expect(parsed.file_written).toBe(true);
+    expect(parsed.proposal_pending).toBe(false);
+  });
+
   it('标注生成仍进入确认断点（autoApplied 不传）', () => {
     const raw = formatAnnotationToolResult({
       status: 'completed',
