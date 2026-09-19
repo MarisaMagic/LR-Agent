@@ -23,12 +23,18 @@
   margin-top: 6px;
   padding-left: 2px;
   font-size: var(--agent-font-small);
-  color: var(--vscode-descriptionForeground, #9d9d9d);
+  color: var(
+    --agent-reasoning-foreground,
+    var(--vscode-descriptionForeground, #9d9d9d)
+  );
 }
 
 .agent-reasoning-body .agent-markdown {
   font-size: var(--agent-font-small);
   line-height: 1.5;
+  /* AgentMarkdown 自带 color: var(--vscode-foreground)，
+     不显式继承会让上面的淡色失效 */
+  color: inherit;
 }
 
 /* Tool blocks: borderless, aligned with pipeline / reasoning */
@@ -125,4 +131,16 @@
 
 .agent-terminal-btn:hover {
   filter: brightness(1.15);
+}
+
+/* ── 展开体限高滚动（思考 / 工具调用 / 探索） ──
+   作为 OverlayVerticalScrollArea 的 contentClassName 使用。
+   注意：工作历史（"Worked for …"）容器本身不限高，由内部各块自己限高，
+   否则整段历史会出现一个把折叠标签也卷进去的滚动条。
+   置于文件末尾，保证 padding-right 能覆盖 .agent-tool-body 的 padding 简写。 */
+.agent-collapsible-scroll {
+  /* 给右侧垂直滑块留出空隙，避免压住文字 */
+  padding-right: 10px;
+  /* 滚到边界后不再把滚动接力给外层消息列表 */
+  overscroll-behavior: contain;
 }

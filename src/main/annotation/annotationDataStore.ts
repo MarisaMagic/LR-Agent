@@ -216,3 +216,65 @@ export async function writeAnnotationDocJson(
 
   await writeIndex(projectDir, index);
 }
+
+/** 单份文档的 `filePath` 与存储键不符时的修复记录。 */
+export interface AnnotationFilePathRepair {
+  relativePath: string;
+  storedFilePath: string | null;
+}
+
+export interface AnnotationFilePathRepairResult {
+  /** 索引中的文档总数（含文档缺失而跳过的） */
+  scanned: number;
+  repaired: AnnotationFilePathRepair[];
+}
+
+/**
+ * 把每份标注文档内的 `filePath` 重写为它在索引中的相对路径。
+ *
+ * 归属真源是「存储键 = 相对路径的 hash」，文档内的 `filePath` 只是冗余字段。
+ * 历史上防抖错配会把别的文件路径写进该字段；渲染层加载时会就地修正，但只有
+ * 被打开过的文件才会顺带修好磁盘，其余长期残留 —— 而加载时的修正本身会改写
+ * 字节，导致 `checkpoint.afterHash` 失配、Undo 被判定为「文件已改动」而拒绝。
+ *
+ * 只改 `filePath`，不动 `source` 与 `annotations`：磁盘实测显示这些文档的
+ * 归属键、`source` 元数据与标注数量都与索引一致，仅该冗余字段陈旧。
+ * 若将来发现 `source` 与索引不符，那才是真正的错配，需另行处理。
+ *
+ * 幂等：已一致时不会写盘。
+ */
+export async function repairAnnotationDocFilePaths(
+  projectDir: string,
+): Promise<AnnotationFilePathRepairResult> {
+  const index = await readIndex(projectDir);
+  if (!index) return { scanned: 0, repaired: [] };
+
+  const repaired: AnnotationFilePathRepair[] = [];
+  let scanned = 0;
+
+  for (const entry of Object.values(index.files)) {
+    const dp = docPath(projectDir, entry.fileKey);
+    if (!(await fs.pathExists(dp))) continue;
+    let doc: unknown;
+    try {
+      doc = await fs.readJson(dp);
+    } catch {
+      continue; // 损坏文档交由其他流程处理，不在此处吞掉
+    }
+    if (!doc || typeof doc !== 'object' || Array.isArray(doc)) continue;
+    scanned += 1;
+
+    const record = doc as { filePath?: unknown };
+    const stored = typeof record.filePath === 'string' ? record.filePath : null;
+    if (stored === entry.relativePath) continue;
+
+    await fs.writeJson(
+      dp,
+      { ...(doc as Record<string, unknown>), filePath: entry.relativePath },
+      { spaces: 2 },
+    );
+    repaired.push({ relativePath: entry.relativePath, storedFilePath: stored });
+  }
+
+  return { scanned, repaired };
+}

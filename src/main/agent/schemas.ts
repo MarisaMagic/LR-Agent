@@ -81,7 +81,9 @@ function strOrNull(value: unknown): string | null {
 }
 
 function strArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === 'string')
+    : [];
 }
 
 /** 解析标注项目快照（snake_case → 内部形态）。 */
@@ -96,7 +98,9 @@ function parseSnapshot(value: unknown): AnnotationProjectSnapshot | null {
     modality: str(raw.modality),
     annotationType: str(raw.annotation_type),
     labels: Array.isArray(raw.labels)
-      ? (raw.labels.filter((l) => asRecord(l)) as Array<Record<string, unknown>>)
+      ? (raw.labels.filter((l) => asRecord(l)) as Array<
+          Record<string, unknown>
+        >)
       : [],
     detectionModels: Array.isArray(raw.detection_models)
       ? (raw.detection_models.filter((m) => asRecord(m)) as Array<
@@ -139,7 +143,9 @@ function parseClientContext(value: unknown): ParsedClientContext | null {
             id: str(item.id),
             url: str(item.url),
             transport:
-              item.transport === 'sse' ? ('sse' as const) : ('streamable_http' as const),
+              item.transport === 'sse'
+                ? ('sse' as const)
+                : ('streamable_http' as const),
             headers:
               (asRecord(item.headers) as Record<string, string> | null) ?? {},
             disabledTools: strArray(item.disabled_tools),
@@ -166,7 +172,11 @@ function parseClientContext(value: unknown): ParsedClientContext | null {
             path: str(item.path),
             kind: str(item.kind) || 'annotation',
             status: str(item.status) || 'pending',
+            operation: strOrNull(item.operation),
             annotationIds: strArray(item.annotation_ids),
+            // 缺失时按最保守解读：来源未知（不参与生成类判定）、视为本轮
+            sourceKind: strOrNull(item.source_kind),
+            inCurrentTurn: item.in_current_turn !== false,
           }))
       : [],
   };
@@ -180,8 +190,13 @@ function parseMessages(value: unknown): ChatMessage[] {
   for (const item of value) {
     const raw = asRecord(item);
     if (!raw) continue;
-    const role = raw.role;
-    if (role !== 'user' && role !== 'assistant' && role !== 'system' && role !== 'tool') {
+    const { role } = raw;
+    if (
+      role !== 'user' &&
+      role !== 'assistant' &&
+      role !== 'system' &&
+      role !== 'tool'
+    ) {
       continue;
     }
 
@@ -270,7 +285,9 @@ export function parseChatStreamRequest(rawBody: string): ParsedChatRequest {
     userContent,
     systemPrompt: strOrNull(raw.system_prompt),
     contextSummary: strOrNull(raw.context_summary),
-    contextSummaryUpToMessageId: strOrNull(raw.context_summary_up_to_message_id),
+    contextSummaryUpToMessageId: strOrNull(
+      raw.context_summary_up_to_message_id,
+    ),
     clientContext: parseClientContext(raw.client_context),
     clientToolResults: parseClientToolResults(raw.client_tool_results),
     clientJobId,
@@ -286,7 +303,7 @@ export function hasToolContext(ctx: ParsedClientContext | null): boolean {
   if (!ctx) return false;
   return Boolean(
     (ctx.workspaceRoot ?? '').trim() ||
-      ctx.activeAnnotationProjectId ||
-      ctx.annotationProjectSnapshot,
+    ctx.activeAnnotationProjectId ||
+    ctx.annotationProjectSnapshot,
   );
 }

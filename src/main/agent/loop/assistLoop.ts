@@ -210,19 +210,39 @@ export async function* streamAssist(
     yield* streamAssistInner(params);
   } catch (err) {
     if (params.isCancelled() || isAbortError(err)) return;
-    console.error(
-      '[agentRuntime] Assist 循环异常终止:',
-      err instanceof Error ? (err.stack ?? err.message) : String(err),
-    );
-    yield sse.error(err instanceof Error ? err.message : '模型请求失败');
+    console.error('[agentRuntime] Assist 循环异常终止:', describeError(err));
+    yield sse.error(describeError(err));
   }
 }
 
 /** abort（取消）导致的异常不应被当作故障上报。 */
 function isAbortError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
-  const name = (err as { name?: unknown }).name;
-  return name === 'AbortError';
+  let cur: unknown = err;
+  for (let depth = 0; cur && depth < 4; depth += 1) {
+    const e = cur as { name?: unknown; cause?: unknown };
+    if (e.name === 'AbortError') return true;
+    cur = e.cause;
+  }
+  return false;
+}
+
+/** 递归展开 cause 链，把底层 code（如 ECONNRESET）带进错误文案，便于诊断。 */
+function describeError(err: unknown, depth = 0): string {
+  if (err == null || depth > 4) return String(err);
+  if (err instanceof AggregateError) {
+    return `${err.name}: ${err.message} [${err.errors
+      .map((e) => describeError(e, depth + 1))
+      .join(' | ')}]`;
+  }
+  if (err instanceof Error) {
+    const { cause, code } = err as { cause?: unknown; code?: unknown };
+    const meta = code ? ` (code=${String(code)})` : '';
+    return `${err.name}: ${err.message}${meta}${
+      cause ? ` <- ${describeError(cause, depth + 1)}` : ''
+    }`;
+  }
+  return String(err);
 }
 
 /** 工具循环主体（异常由 `streamAssist` 统一兜底）。 */

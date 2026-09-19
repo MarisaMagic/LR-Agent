@@ -5,7 +5,7 @@
  * jsdom 环境不提供这些。
  */
 import { describe, expect, it } from '@jest/globals';
-import { LlmClient, type ToolSpec } from '../llm/client';
+import { LlmClient, LlmRequestError, type ToolSpec } from '../llm/client';
 import { buildTools, toToolSpec } from '../tools/registry';
 import { DEFAULT_AGENT_SETTINGS } from '../config';
 import { createStandaloneImageService } from '../services/imageService';
@@ -268,6 +268,54 @@ describe('Assist 循环：异步客户端工具', () => {
     // arguments 是对象（与 tool_start 的字符串不同，属既成事实）
     expect(typeof pending?.clientToolCalls?.[0].arguments).toBe('object');
   });
+
+  it('start_terminal_command 作为 async 工具发 tool_pending 而非同步执行', async () => {
+    // 工具集路由：编辑器/标注 Agent 可用，Ask 模式剔除
+    expect(LIGHT_TOOL_SET.has('start_terminal_command')).toBe(true);
+    expect(FULL_TOOL_SET.has('start_terminal_command')).toBe(true);
+    const ask = resolveAssistToolSet({
+      hasProjectSnapshot: true,
+      agentMode: 'chat',
+      isEditor: false,
+      hasWorkspace: true,
+    });
+    expect(ask.has('start_terminal_command')).toBe(false);
+
+    const { fetchImpl } = makeFetch([
+      {
+        toolCalls: [
+          {
+            id: 'tc-term',
+            name: 'start_terminal_command',
+            args: { command: 'git', args: ['status'] },
+          },
+        ],
+      },
+    ]);
+
+    const events = await collect(
+      streamAssist({
+        ...baseParams,
+        llm: makeClient(fetchImpl),
+        messages: [{ role: 'user', content: '查看 git 状态' }],
+        toolSpecs: allSpecs,
+        toolSet: LIGHT_TOOL_SET,
+      }),
+    );
+
+    const types = events.map((e) => e.type);
+    expect(types).toContain('tool_pending');
+    expect(types[types.length - 1]).toBe('tool_pending');
+    // 不得出现同步执行的 tool_result（那说明走了 MCP callTool 的 approval_required 路径）
+    expect(types).not.toContain('tool_result');
+
+    const pending = events.find((e) => e.type === 'tool_pending');
+    expect(pending?.clientToolCalls?.[0].name).toBe('start_terminal_command');
+    expect(pending?.clientToolCalls?.[0].arguments).toEqual({
+      command: 'git',
+      args: ['status'],
+    });
+  });
 });
 
 describe('Assist 循环：tool_choice="any" 兜底', () => {
@@ -424,5 +472,118 @@ describe('阶段门禁与工具集', () => {
       hasWorkspace: false,
     });
     expect(none.size).toBe(0);
+  });
+});
+
+describe('LLM 客户端：网络失败重试', () => {
+  /** 构造一个合法的 SSE 流式响应（单段文本）。 */
+  function streamResponse(text: string): Response {
+    const frames = [
+      `data: ${JSON.stringify({ choices: [{ delta: { role: 'assistant', content: '' } }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`,
+      'data: [DONE]\n\n',
+    ].join('');
+    return new Response(frames, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+  }
+
+  /** 前 `failTimes` 次抛错、之后返回正常流式响应的 fetch 替身。 */
+  function makeFlakyFetch(opts: {
+    failTimes: number;
+    error: () => Error;
+    successText?: string;
+  }): { fetchImpl: typeof fetch; callCount: () => number } {
+    let index = 0;
+    const impl = (async () => {
+      const i = index;
+      index += 1;
+      if (i < opts.failTimes) throw opts.error();
+      return streamResponse(opts.successText ?? '成功');
+    }) as unknown as typeof fetch;
+    return { fetchImpl: impl, callCount: () => index };
+  }
+
+  /** 关闭退避延迟的客户端，保证测试不等待 300ms+。 */
+  function makeRetryClient(fetchImpl: typeof fetch): LlmClient {
+    return new LlmClient({
+      apiKey: 'k',
+      baseUrl: 'http://mock/v1',
+      model: 'm',
+      fetchImpl,
+      retryBaseDelayMs: 0,
+    });
+  }
+
+  async function drainText(llm: LlmClient): Promise<string> {
+    let text = '';
+    for await (const delta of llm.streamChat({
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      if (delta.content) text += delta.content;
+    }
+    return text;
+  }
+
+  it('首字节前失败一次后自动重试成功', async () => {
+    const { fetchImpl, callCount } = makeFlakyFetch({
+      failTimes: 1,
+      error: () => new TypeError('fetch failed'),
+      successText: '最终回答',
+    });
+
+    const text = await drainText(makeRetryClient(fetchImpl));
+    expect(text).toBe('最终回答');
+    expect(callCount()).toBe(2);
+  });
+
+  it('连续网络失败达到默认上限（maxRetries=2）后抛出', async () => {
+    const { fetchImpl, callCount } = makeFlakyFetch({
+      failTimes: 100,
+      error: () => new TypeError('fetch failed'),
+    });
+
+    await expect(drainText(makeRetryClient(fetchImpl))).rejects.toThrow();
+    expect(callCount()).toBe(3);
+  });
+
+  it('AbortError 不重试（取消不应被误判为故障重放）', async () => {
+    const { fetchImpl, callCount } = makeFlakyFetch({
+      failTimes: 100,
+      error: () => Object.assign(new Error('aborted'), { name: 'AbortError' }),
+    });
+
+    await expect(drainText(makeRetryClient(fetchImpl))).rejects.toThrow();
+    expect(callCount()).toBe(1);
+  });
+
+  it('AbortError 藏在 cause 链里也不重试', async () => {
+    const { fetchImpl, callCount } = makeFlakyFetch({
+      failTimes: 100,
+      error: () => {
+        const wrapped = new TypeError('fetch failed');
+        (wrapped as { cause?: unknown }).cause = Object.assign(
+          new Error('The operation was aborted.'),
+          { name: 'AbortError' },
+        );
+        return wrapped;
+      },
+    });
+
+    await expect(drainText(makeRetryClient(fetchImpl))).rejects.toThrow();
+    expect(callCount()).toBe(1);
+  });
+
+  it('HTTP 状态码错误（LlmRequestError）不重试', async () => {
+    let index = 0;
+    const impl = (async () => {
+      index += 1;
+      return new Response('server error', { status: 500 });
+    }) as unknown as typeof fetch;
+
+    await expect(drainText(makeRetryClient(impl))).rejects.toThrow(LlmRequestError);
+    expect(index).toBe(1);
   });
 });

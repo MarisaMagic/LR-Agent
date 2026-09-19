@@ -275,11 +275,9 @@ export async function discardCheckpoint(ref: CheckpointRef): Promise<void> {
 
 export async function hasCheckpoint(ref: CheckpointRef): Promise<boolean> {
   const manifest = await readManifest(resolveBlockDir(ref));
-  return Boolean(
-    manifest &&
-    manifest.entries.length > 0 &&
-    manifest.entries.every((entry) => Boolean(entry.afterHash)),
-  );
+  // 不要求 afterHash 齐全：`beforeMissing` + blob 已足够还原，「改后哈希」只用于
+  // 脏检查。若因 recordAfter 失败就判定「无快照」，会让 Undo 入口凭空消失。
+  return Boolean(manifest && manifest.entries.length > 0);
 }
 
 async function currentHash(
@@ -300,32 +298,46 @@ async function currentHash(
   return hashContent(read.content);
 }
 
+/**
+ * 还原到改前状态。
+ *
+ * 默认执行两道安全检查：快照必须完整（`afterHash` 齐全），且当前文件必须与
+ * 「改后状态」逐字节一致（否则说明之后又被人改动）。
+ *
+ * `force: true` 同时跳过这两道检查，用于用户已确认「就用这个快照覆盖」的场景。
+ * 还原本身只需要 `beforeMissing` 与 blob，`afterHash` 只服务于脏检查，
+ * 因此强制还原在功能上是完备的 —— 这是快照因后续写入而「永久失效」的唯一出路。
+ */
 export async function restoreCheckpoint(
   ref: CheckpointRef,
   roots: CheckpointRoots,
+  options?: { force?: boolean },
 ): Promise<RestoreResult> {
   const dir = resolveBlockDir(ref);
   const manifest = await readManifest(dir);
   if (!manifest) {
     return { ok: false, error: 'checkpoint_not_found' };
   }
-  if (manifest.entries.some((entry) => !entry.afterHash)) {
-    return { ok: false, error: 'checkpoint_incomplete' };
-  }
 
-  const dirtyPaths: string[] = [];
-  for (const entry of manifest.entries) {
-    const current = await currentHash(entry, roots);
-    if (current !== entry.afterHash) {
-      dirtyPaths.push(entry.path);
+  if (!options?.force) {
+    if (manifest.entries.some((entry) => !entry.afterHash)) {
+      return { ok: false, error: 'checkpoint_incomplete' };
     }
-  }
-  if (dirtyPaths.length > 0) {
-    return {
-      ok: false,
-      error: 'checkpoint_dirty',
-      dirtyPaths,
-    };
+
+    const dirtyPaths: string[] = [];
+    for (const entry of manifest.entries) {
+      const current = await currentHash(entry, roots);
+      if (current !== entry.afterHash) {
+        dirtyPaths.push(entry.path);
+      }
+    }
+    if (dirtyPaths.length > 0) {
+      return {
+        ok: false,
+        error: 'checkpoint_dirty',
+        dirtyPaths,
+      };
+    }
   }
 
   const restoredPaths: string[] = [];

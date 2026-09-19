@@ -55,8 +55,13 @@ export function registerCheckpointHandlers(): void {
 
   ipcMain.handle(
     'agent:checkpoint:restore',
-    (_event, payload: CheckpointRef & CheckpointRoots) => {
-      return restoreCheckpoint(asRef(payload), asRoots(payload));
+    (
+      _event,
+      payload: CheckpointRef & CheckpointRoots & { force?: boolean },
+    ) => {
+      return restoreCheckpoint(asRef(payload), asRoots(payload), {
+        force: payload.force === true,
+      });
     },
   );
 

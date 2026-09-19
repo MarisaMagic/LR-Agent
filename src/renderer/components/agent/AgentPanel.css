@@ -22,6 +22,15 @@
   --agent-font-meta: var(--lr-ui-font-meta);
   --agent-font-caption: var(--lr-ui-font-caption);
   --agent-font-code: var(--lr-ui-font-small);
+
+  /* 思考输出用更淡的前景色，与正文拉开层次 */
+  --agent-reasoning-foreground: color-mix(
+    in srgb,
+    var(--vscode-descriptionForeground, #9d9d9d) 88%,
+    transparent
+  );
+  /* 思考 / 工具调用展开体的统一高度上限，超出后内部滚动 */
+  --agent-collapsible-max-height: 280px;
 }
 
 [data-theme='light'] .agent-panel-root {

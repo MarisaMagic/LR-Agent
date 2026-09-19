@@ -20,6 +20,7 @@ export const LIGHT_TOOL_SET: ReadonlySet<string> = new Set([
   'str_replace_workspace_file',
   'delete_workspace_file',
   'move_workspace_file',
+  'start_terminal_command',
   'get_lr_agent_help',
   'describe_annotation_project',
   'read_file_annotation',
@@ -40,6 +41,7 @@ export const FULL_TOOL_SET: ReadonlySet<string> = new Set([
   'move_workspace_file',
   'auto_annotate',
   'mutate_annotation',
+  'start_terminal_command',
   'get_lr_agent_help',
   'describe_annotation_project',
   'read_file_annotation',
@@ -50,6 +52,7 @@ export const FULL_TOOL_SET: ReadonlySet<string> = new Set([
 export const WRITE_TOOL_NAMES: ReadonlySet<string> = new Set([
   'auto_annotate',
   'mutate_annotation',
+  'start_terminal_command',
   'write_workspace_file',
   'str_replace_workspace_file',
   'delete_workspace_file',

@@ -86,8 +86,10 @@ import {
   collectAppliedProposalRefs,
   collectUndoneProposalRefs,
   confirmDirtyWorkspaceIfNeeded,
+  confirmForceRestore,
   decideEditRollback,
   formatRestoreError,
+  isForceRestorableError,
   messageCanReapply,
   messageCanUndo,
   restoreAppliedCheckpoints,
@@ -2350,12 +2352,27 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       if (!confirmDirtyWorkspaceIfNeeded(restorePaths, activeProject?.id)) {
         return;
       }
-      const restored = await restoreAppliedCheckpoints({
+      let restored = await restoreAppliedCheckpoints({
         refs,
         project: activeProject ?? null,
         workspaceRoot: rootPath,
         newestFirst: true,
       });
+      // 快照可能因「后续正常写入」而判定为脏（例如加载流水线修正 filePath 后写回），
+      // 这类失败允许用户确认后强制覆盖，否则 Undo 会被永久锁死。
+      if (
+        !restored.ok &&
+        isForceRestorableError(restored.error) &&
+        confirmForceRestore(restored)
+      ) {
+        restored = await restoreAppliedCheckpoints({
+          refs,
+          project: activeProject ?? null,
+          workspaceRoot: rootPath,
+          newestFirst: true,
+          force: true,
+        });
+      }
       if (!restored.ok) {
         showToast(formatRestoreError(restored), { type: 'error' });
         return;

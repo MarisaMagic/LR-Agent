@@ -12,6 +12,7 @@ import {
   type PretrainedModelValidationResult,
   type Sam2ScanResult,
 } from '../../shared/pretrainedModelTypes';
+import { describeDetectionModeMismatch } from '../../shared/preAnnotTypes';
 
 export type {
   KeypointAssetScanResult,
@@ -363,6 +364,7 @@ export async function validatePretrainedModel(
     | 'modelType'
     | 'checkpointPath'
     | 'configPath'
+    | 'detectionMode'
     | 'keypointBackend'
     | 'keypointTemplateIds'
     | 'auxiliaryPaths'
@@ -390,6 +392,12 @@ export async function validatePretrainedModel(
     if (!checkpointPath.toLowerCase().endsWith('.pt')) {
       warnings.push('权重文件扩展名不是 .pt');
     }
+    // 检测模式写错会让模型在标注界面静默消失（详见 describeDetectionModeMismatch）。
+    const mismatch = describeDetectionModeMismatch({
+      detectionMode: model.detectionMode,
+      checkpointPath,
+    });
+    if (mismatch) warnings.push(mismatch);
   } else if (model.modelType === 'keypoint_estimation') {
     const backend = model.keypointBackend;
     if (backend === 'yolo_pose') {

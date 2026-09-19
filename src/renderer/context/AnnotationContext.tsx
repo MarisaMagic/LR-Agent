@@ -20,6 +20,7 @@ import {
   updateAnnotationProject,
   validateProjectDirectory,
 } from '../services/annotationProjectStore';
+import { repairAnnotationDocFilePaths } from '../services/annotationDataService';
 import { useApp } from './AppContext';
 import { useToast } from './ToastContext';
 import { setWorkModeExternal } from './workModeBridge';
@@ -27,6 +28,14 @@ import { setWorkModeExternal } from './workModeBridge';
 const STORAGE_KEYS = {
   lastAnnotationProjectId: 'lr-agent:lastAnnotationProjectId',
 };
+
+/**
+ * 已尝试过 `filePath` 修复的项目目录（每次运行只做一次）。
+ *
+ * 放在模块级而非 ref：AnnotationProvider 可能因路由/工作模式重挂载，
+ * 而修复本身是幂等的，没必要重复发起 IPC。
+ */
+const repairedDocPathDirs = new Set<string>();
 
 interface AnnotationContextValue {
   projects: AnnotationProject[];
@@ -128,6 +137,29 @@ export function AnnotationProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  // 一次性修复标注文档内陈旧的 `filePath`。
+  //
+  // 该残留会让加载流水线的「就地修正」改写字节，使 checkpoint 的 `afterHash`
+  // 失配 —— 于是 Undo 被判「文件已改动」而拒绝，且快照会永久失效。
+  // 这里在项目列表就绪后统一修好，之后的正常保存不会再产生新差异。
+  useEffect(() => {
+    for (const project of projects) {
+      const dir = project.directoryPath;
+      if (!dir || repairedDocPathDirs.has(dir)) continue;
+      repairedDocPathDirs.add(dir);
+      repairAnnotationDocFilePaths(dir)
+        .then((result) => {
+          if (result.repaired.length > 0) {
+            console.warn(
+              `[annotation] 已修正 ${result.repaired.length} 份标注文档的归属路径`,
+              result.repaired,
+            );
+          }
+        })
+        .catch(() => undefined);
+    }
+  }, [projects]);
 
   const openCreateWizard = useCallback(() => {
     setCreateWizardOpen(true);

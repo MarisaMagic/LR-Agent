@@ -189,6 +189,28 @@ const MutateAnnotationArgs = z.object({
   annotation_ids: z.array(z.string()).nullish().describe('画布选中或用户指定的标注 id。'),
 });
 
+// 参数名与 `src/main/mcp/server.ts` 的 start_terminal_command 保持一致，
+// 前端 runTerminalCommandTool 按 command / args / timeout_ms 读取。
+const StartTerminalCommandArgs = z.object({
+  command: z
+    .string()
+    .describe(
+      'Executable name or path, e.g. "git". Shell builtins and shell syntax (|, >, &&) are not supported',
+    ),
+  args: z
+    .array(z.string())
+    .max(128)
+    .optional()
+    .describe('Arguments passed verbatim as argv, e.g. ["status", "--short"]'),
+  timeout_ms: z
+    .number()
+    .int()
+    .positive()
+    .max(600_000)
+    .optional()
+    .describe('Kill the command after this many ms (default 300000, max 600000)'),
+});
+
 const ReadFileAnnotationArgs = z.object({
   relative_path: z.string().describe('文件相对路径（如 data/2.jpg）'),
   annotation_offset: z.number().int().default(0).describe('分页起始偏移'),
@@ -577,6 +599,17 @@ export function buildTools(): ToolDefinition[] {
         '不含新增；新增请用 auto_annotate。',
       kind: 'async',
       argsSchema: MutateAnnotationArgs,
+    },
+    {
+      name: 'start_terminal_command',
+      description:
+        'Run a terminal command in the current workspace (cwd is locked to it). ' +
+        'Runs WITHOUT a shell: no pipes, redirections or command chains — split into multiple calls instead. ' +
+        'Every execution requires explicit user approval in the chat UI before it starts, and destructive commands are rejected outright. ' +
+        'Returns a job id; the tool result delivered to you contains the exit code and an output tail. ' +
+        'Use read_terminal_output for the full/incremental output and kill_terminal_job to abort a long-running job.',
+      kind: 'async',
+      argsSchema: StartTerminalCommandArgs,
     },
     {
       name: 'explore_readonly',

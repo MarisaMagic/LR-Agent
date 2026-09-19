@@ -8,6 +8,7 @@ import {
   getModelDisplayName,
 } from '../../types/pretrainedModel';
 import { KEYPOINT_TEMPLATES } from '../../types/keypointTemplate';
+import { inferDetectionMode } from '../../../shared/preAnnotTypes';
 import PretrainedModelMenuPortal from './PretrainedModelMenuPortal';
 import './PretrainedModelList.css';
 
@@ -128,6 +129,14 @@ export default function PretrainedModelList({
 
                 <div className="pretrained-model-item-type">
                   {PRETRAINED_MODEL_TYPE_LABELS[model.modelType]}
+                  {model.modelType === 'object_detection' && (
+                    <>
+                      {' · '}
+                      {inferDetectionMode(model) === 'obb'
+                        ? '旋转框 (OBB)'
+                        : '普通矩形框 (Detect)'}
+                    </>
+                  )}
                   {model.keypointBackend && (
                     <> · {KEYPOINT_BACKEND_LABELS[model.keypointBackend]}</>
                   )}

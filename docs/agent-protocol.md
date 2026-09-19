@@ -480,6 +480,8 @@ client_context 非空 AND (
 | `status` | `"pending" \| "applied" \| "dismissed" \| "undone"` | `"pending"` |
 | `operation` | string? | `null` |
 | `annotation_ids` | string[] | `[]` |
+| `source_kind` | `"batch" \| "mutation" \| "report"`? | `null` |
+| `in_current_turn` | boolean | `true` |
 
 **`McpServerInput`**
 
@@ -547,7 +549,7 @@ client_context 非空 AND (
 `src/shared/agentToolKinds.ts`、`src/shared/agentTypes.ts` 的 `CLIENT_TOOL_NAME_SET`），
 必须收敛为一处，避免漂移。
 
-### 5.2 18 个内置工具
+### 5.2 19 个内置工具
 
 #### 只读检索类（SYNC，6 个）
 
@@ -596,27 +598,26 @@ client_context 非空 AND (
 |---|---|
 | `explore_readonly` | `query: string(≥1)`、`focus_path: string?` |
 
-#### 客户端工具（ASYNC 存根，2 个）
+#### 客户端工具（ASYNC 存根，3 个）
 
 | 工具 | 参数 |
 |---|---|
 | `auto_annotate` | `user_request: string(≥1)`、`paths: string[]?`、`all_files: bool?`、`scope_hint: string?`、`write_mode: string?`、`conf_threshold: float? (0..1)`、`iou_threshold: float? (0..1)`、`model_id: string?`、`include_classes: string[]?`、`exclude_classes: string[]?`、`use_vision_mapping: bool?` |
 | `mutate_annotation` | `user_request: string(≥1)`、`paths: string[]?`、`annotation_ids: string[]?` |
+| `start_terminal_command` | `command: string`、`args: string[]?`、`timeout_ms: int? (1..600000)` |
 
-**注意**：这两个工具在运行时侧**没有执行体**，注册的是永远不会被本地调用的 stub。真正执行在
-`src/renderer/services/agentJobRegistry.ts`。
-
-> 另有 `start_terminal_command`（ASYNC），由本地 MCP Server
-> （`src/main/mcp/server.ts`）暴露，不在上述 18 个内置工具内。
+**注意**：这三个工具在运行时侧**没有执行体**，注册的是永远不会被本地调用的 stub。真正执行在
+`src/renderer/services/agentJobRegistry.ts`（终端命令经 `runTerminalCommandTool` 弹出聊天内批准条后，
+经 IPC 由主进程 `commandJobManager` 执行）。
 
 ### 5.3 工具集分组
 
 | 集合 | 内容 |
 |---|---|
-| `FULL_TOOL_SET` | 14 个：全部只读 + 全部提案写入 + 2 个标注客户端工具 |
-| `WRITE_TOOL_NAMES` | `auto_annotate`、`mutate_annotation`、4 个提案写入工具 |
+| `FULL_TOOL_SET` | 15 个：全部只读 + 全部提案写入 + 3 个异步客户端工具 |
+| `WRITE_TOOL_NAMES` | `auto_annotate`、`mutate_annotation`、`start_terminal_command`、4 个提案写入工具 |
 | `ASK_TOOL_SET` | `FULL_TOOL_SET − WRITE_TOOL_NAMES`（纯只读） |
-| `LIGHT_TOOL_SET` | 只读 + 提案写入（**无标注工具**），用于编辑器 / 纯工作区 |
+| `LIGHT_TOOL_SET` | 只读 + 提案写入 + `start_terminal_command`（**无标注工具**），用于编辑器 / 纯工作区 |
 
 **工具集选择规则**：
 
@@ -863,10 +864,25 @@ else:
 |---|---|
 | 无 `proposal_states` | `null`（不启用门禁） |
 | 存在 `kind="annotation" && status="pending"` | `AWAIT_CONFIRM` |
-| 存在 `kind="annotation" && status="applied"` | `VERIFY` |
+| 存在 `kind="annotation" && status="applied"` **且本轮、且为生成类操作** | `VERIFY` |
 | 其余 | `null` |
 
 `gating_enabled` 仅在 `AWAIT_CONFIRM` / `VERIFY` 时为真。
+
+`PENDING` 与 `APPLIED` 的聚合口径**故意不同**：
+
+| 集合 | 作用域 | 理由 |
+|---|---|---|
+| `pending` | 全会话 | 未确认提案在磁盘上确实不存在，跨轮也必须拦住写入 |
+| `applied` | **仅本轮**，且仅 `append` / `replace` / `replace_bboxes` | 表达「别在同一轮里重复标注刚标过的文件」（防循环） |
+
+两个判据都不可省：
+
+- **生成类操作过滤**：`delete` / `patch` 不产生标注，若计入 `applied`，
+  「先删除再重新标注」会被自己的前置删除动作拦死。
+- **轮次过滤**：若按全会话聚合，同一会话内任何后续重标都会被历史提案永久拦截，
+  而阶段提示词恰恰让模型引导用户「重新发起请求」（如「请说：重新标注 data/x.jpg」）。
+- `applied_annotation_ids` 仍按**全会话**收集，供 `mutate_annotation` 定向修正识别已知标注。
 
 拦截规则：
 

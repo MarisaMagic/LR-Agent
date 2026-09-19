@@ -36,3 +36,10 @@
   height: 14px;
   flex-shrink: 0;
 }
+
+.preannot-model-hint {
+  max-width: 460px;
+  font-size: var(--lr-ui-font-caption);
+  line-height: 1.4;
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}

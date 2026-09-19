@@ -410,6 +410,22 @@ export interface ProposalStateEntry {
   operation?: string | null;
   /** 该提案涉及的标注实例 id（append/replace 的 annotations、delete 的 deleteIds、patch 的 patches） */
   annotationIds?: string[];
+  /**
+   * 提案来源流水线。
+   *
+   * 阶段门禁据此区分「生成标注」与「编辑标注」：只有生成类操作
+   * （`append`/`replace`/`replace_bboxes`）才算「该文件本轮已标注」。
+   * 删除/修改并不产生标注，若也计入，会让「先删除再重新标注」被自己的
+   * 前置删除动作永久拦死。
+   */
+  sourceKind?: PipelineKind | null;
+  /**
+   * 是否属于当前对话轮（最后一条 user 消息及之后的消息）。
+   *
+   * 门禁的 `applied` 判定只认本轮：跨轮时用户已显式重新下达指令，
+   * 应当放行。反之 `pending`（未确认提案）跨轮仍然有效，故不做此过滤。
+   */
+  inCurrentTurn?: boolean;
 }
 
 /** 全局 Agent Skill 目录条目（catalog，name 为目录名，注入 prompt）。 */

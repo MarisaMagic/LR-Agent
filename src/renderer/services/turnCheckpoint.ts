@@ -35,6 +35,7 @@ type CheckpointBridge = {
         blockIndex: number;
         projectDir?: string;
         workspaceRoot?: string;
+        force?: boolean;
       }) => Promise<{
         ok: boolean;
         restoredPaths?: string[];
@@ -101,8 +102,10 @@ export async function recordProposalCheckpointAfter(options: {
     });
     return true;
   } catch (err) {
+    // 不销毁快照：`afterHash` 只服务于「脏检查」，缺失它并不妨碍用
+    // `beforeMissing` + blob 还原。历史上这里会 discard，导致一次 recordAfter
+    // 失败就把刚捕获的改前快照删除，Undo 入口彻底消失且事后无法补救。
     console.warn('[checkpoint] recordAfter failed', err);
-    await discardProposalCheckpoint(options.ref);
     return false;
   }
 }
@@ -198,6 +201,29 @@ export function isSkippableRestoreError(error: string): boolean {
     error === 'checkpoint_incomplete' ||
     error === 'checkpoint_unavailable'
   );
+}
+
+/**
+ * 是否可通过「强制覆盖」补救的回滚失败。
+ *
+ * 这两类失败的共同点是：快照本身可用（`beforeMissing` + blob 齐全），
+ * 失败仅来自安全校验。而安全校验的失效原因常常是**正常的后续操作**
+ * （例如加载流水线修正 `filePath` 后写回、用户再次编辑），
+ * 若不允许覆盖，Undo 就等于永久不可用。
+ */
+export function isForceRestorableError(error: string): boolean {
+  return error === 'checkpoint_dirty' || error === 'checkpoint_incomplete';
+}
+
+/** 强制回滚前向用户说明代价；返回 false 表示放弃。 */
+export function confirmForceRestore(result: RestoreCheckpointsResult): boolean {
+  if (result.ok) return true;
+  const paths = (result.dirtyPaths ?? []).filter(Boolean).join('、');
+  const detail =
+    result.error === 'checkpoint_dirty'
+      ? `以下文件在本轮修改之后又有新的改动：${paths || '相关文件'}。强制回滚会一并丢弃这些后续改动。`
+      : '改前快照缺少「改后哈希」，无法校验文件是否被改动过。强制回滚会直接按改前内容覆盖当前文件。';
+  return window.confirm(`${detail}是否仍要回滚？`);
 }
 
 export function collectAppliedProposalRefs(
@@ -300,6 +326,8 @@ export async function restoreAppliedCheckpoints(options: {
   workspaceRoot?: string | null;
   newestFirst?: boolean;
   continueOnSkippable?: boolean;
+  /** 跳过「快照完整 / 未被后续改动」检查（需先获得用户确认） */
+  force?: boolean;
 }): Promise<RestoreCheckpointsResult> {
   const restore = getBridge()?.restore;
   if (!restore) {
@@ -315,7 +343,11 @@ export async function restoreAppliedCheckpoints(options: {
   let skipped = 0;
   const roots = resolveCheckpointRoots(options.project, options.workspaceRoot);
   for (const ref of ordered) {
-    const result = await restore({ ...ref, ...roots });
+    const result = await restore({
+      ...ref,
+      ...roots,
+      ...(options.force ? { force: true } : {}),
+    });
     if (!result.ok) {
       const error = result.error ?? 'restore_failed';
       if (options.continueOnSkippable && isSkippableRestoreError(error)) {

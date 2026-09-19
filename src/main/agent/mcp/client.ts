@@ -15,9 +15,12 @@
  *   3. **名字去重**。`_infer_mcp_capability` 当前对全部本地 MCP 工具返回 null，
  *      因此实际去重靠「名字已在前面 server 出现过则跳过」。
  *
- * 与 Python 的一处实现差异：工具调用**按需建连**（每次 `callTool` 独立握手），
- * 不长期持有连接。这样无需管理连接生命周期与失效重连，代价是每次调用多一次
- * `initialize` 往返——对 HTTP 传输可接受，且换来无状态、无泄漏。
+ * 与 Python 的一处实现差异：工具调用的连接策略按传输区分——
+ *   - `streamable_http` 无状态，**按需建连**（每次 `callTool` 独立握手），
+ *     发现连接用完即关，换来无状态、无泄漏；
+ *   - `sse` 是有状态长连接，**复用发现时建立的连接**做后续 `callTool`，
+ *     避免每次调用重新 `initialize` 握手（按会话绑定的服务端，如 ModelScope
+ *     托管 MCP，会「列出工具成功、调用却失败」）。SSE 连接在刷新/清空缓存时关闭。
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -77,6 +80,15 @@ const toolsCache = new Map<string, CacheEntry>();
 const refreshing = new Set<string>();
 /** 后台刷新任务，持有强引用避免被回收。 */
 const refreshTasks = new Set<Promise<void>>();
+/**
+ * 复用的 SSE 长连接（key → Client）。
+ *
+ * SSE 是有状态长连接：发现工具时建立的连接要保留给后续 `tools/call` 复用，
+ * 否则每次调用都重新 `initialize` 握手，遇到「按会话绑定」的服务端
+ * （如 ModelScope 托管 MCP）会列出工具成功、调用却失败。streamable_http 无状态，
+ * 仍走按需建连，不在此登记。刷新/清空缓存时统一关闭，避免泄漏。
+ */
+const openClients = new Map<string, Client>();
 
 /** 缓存键：url + transport + 排序后的 headers。 */
 export function cacheKey(conn: McpConnection): string {
@@ -92,9 +104,32 @@ export function clearMcpToolsCache(): void {
   toolsCache.clear();
   refreshing.clear();
   refreshTasks.clear();
+  for (const client of openClients.values()) {
+    void client.close().catch(() => {
+      /* 关闭失败不阻断 */
+    });
+  }
+  openClients.clear();
 }
 
 // ── 连接与调用 ──────────────────────────────────────────────────────
+
+/** 给一个 Promise 加整体超时；超时后拒绝并清理定时器。 */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 /** 建立客户端并初始化。 */
 async function connect(conn: McpConnection): Promise<Client> {
@@ -118,7 +153,21 @@ async function connect(conn: McpConnection): Promise<Client> {
               : undefined,
         });
 
-  await client.connect(transport);
+  // SSE 的 start() 会等待服务端 `endpoint` 事件，若服务端不发则无限挂起；
+  // 用 conn.timeoutMs 兜底（默认 DISCOVER_TIMEOUT_MS，probe 用更短的 PROBE_TIMEOUT_MS）。
+  const timeoutMs = conn.timeoutMs ?? DISCOVER_TIMEOUT_MS;
+  try {
+    await withTimeout(
+      client.connect(transport),
+      timeoutMs,
+      `连接 MCP server 超时（${timeoutMs}ms）：${conn.url}`,
+    );
+  } catch (err) {
+    await client.close().catch(() => {
+      /* 关闭失败不阻断 */
+    });
+    throw err;
+  }
   return client;
 }
 
@@ -127,14 +176,27 @@ async function connect(conn: McpConnection): Promise<Client> {
  *
  * 失败时抛异常，由调用方决定跳过（单台失败隔离）。
  */
-async function discoverTools(
-  conn: McpConnection,
-  dsn: string,
-): Promise<DiscoveredTool[]> {
+async function discoverTools(conn: McpConnection): Promise<DiscoveredTool[]> {
   const client = await connect(conn);
+  // SSE 是有状态长连接：发现时建立的连接保留给 invoke 复用；
+  // streamable_http 无状态，发现连接用完即关，invoke 按需建连。
+  const reuseConnection = conn.transport === 'sse';
+  const key = cacheKey(conn);
   try {
     const listed = await client.listTools();
-    return (listed.tools ?? []).map((tool) => ({
+
+    if (reuseConnection) {
+      // 登记新连接前关闭上一次的同源连接（刷新场景），避免泄漏
+      const previous = openClients.get(key);
+      if (previous && previous !== client) {
+        await previous.close().catch(() => {
+          /* 关闭失败不阻断 */
+        });
+      }
+      openClients.set(key, client);
+    }
+
+    const tools = (listed.tools ?? []).map((tool) => ({
       name: tool.name,
       description: tool.description ?? '',
       // MCP 的 inputSchema 就是 JSON Schema，直接透传
@@ -143,8 +205,7 @@ async function discoverTools(
         properties: {},
       },
       invoke: async (args: Record<string, unknown>): Promise<string> => {
-        // 按需建连：避免长期持有连接带来的生命周期与重连问题
-        const callClient = await connect(conn);
+        const callClient = reuseConnection ? client : await connect(conn);
         try {
           const result = await callClient.callTool({
             name: tool.name,
@@ -152,17 +213,27 @@ async function discoverTools(
           });
           return stringifyMcpResult(result);
         } finally {
-          await callClient.close().catch(() => {
-            /* 关闭失败不阻断 */
-          });
+          if (!reuseConnection) {
+            await callClient.close().catch(() => {
+              /* 关闭失败不阻断 */
+            });
+          }
         }
       },
     }));
-  } finally {
+
+    if (!reuseConnection) {
+      await client.close().catch(() => {
+        /* 关闭失败不阻断 */
+      });
+    }
+    return tools;
+  } catch (err) {
+    openClients.delete(key);
     await client.close().catch(() => {
       /* 关闭失败不阻断 */
     });
-    void dsn;
+    throw err;
   }
 }
 
@@ -339,7 +410,7 @@ export async function loadMcpToolsFromServers(
   if (pending.size > 0) {
     const entries = [...pending.entries()];
     const results = await Promise.allSettled(
-      entries.map(([name, conn]) => discoverTools(conn, name)),
+      entries.map(([, conn]) => discoverTools(conn)),
     );
     entries.forEach(([name, conn], index) => {
       const result = results[index];
@@ -409,7 +480,7 @@ function scheduleRefresh(
 
   const task = (async () => {
     try {
-      const tools = await discoverTools(conn, name);
+      const tools = await discoverTools(conn);
       if (ttlSeconds > 0) {
         toolsCache.set(key, {
           tools,
@@ -451,7 +522,7 @@ export async function probeMcpTools(params: {
   const headers = params.headers ?? {};
   if (Object.keys(headers).length > 0) conn.headers = { ...headers };
 
-  const tools = await discoverTools(conn, 'mcp-probe');
+  const tools = await discoverTools(conn);
   return tools.map((tool) => ({
     name: tool.name,
     description: tool.description,

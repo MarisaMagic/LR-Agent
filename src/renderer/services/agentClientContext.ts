@@ -52,6 +52,8 @@ export function buildApiClientContext(
       status: state.status,
       operation: state.operation ?? null,
       annotation_ids: state.annotationIds ?? [],
+      source_kind: state.sourceKind ?? null,
+      in_current_turn: state.inCurrentTurn !== false,
     })),
   };
 }

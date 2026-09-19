@@ -26,17 +26,31 @@ export const WORKSPACE_WRITE_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 export type TaskPhase =
-  | 'scan'
-  | 'annotate'
-  | 'await_confirm'
-  | 'verify'
-  | 'report';
+  'scan' | 'annotate' | 'await_confirm' | 'verify' | 'report';
+
+/**
+ * 会「产生标注」的操作。
+ *
+ * 只有这些操作才能证明某文件在本轮已被标注；`patch` / `delete` 是编辑已有标注，
+ * 不产生任何框，若也计入 `appliedAnnotationPaths`，「先删除再重新标注」会在
+ * `verify` 阶段被自己的前置删除动作拦死（auto_annotate 被拒，任务无法完成）。
+ */
+const GENERATIVE_ANNOTATION_OPS: ReadonlySet<string> = new Set([
+  'append',
+  'replace',
+  'replace_bboxes',
+]);
 
 export interface ProposalStateLike {
   path: string;
   kind?: string;
   status?: string;
+  operation?: string | null;
   annotationIds?: string[];
+  /** 提案来源流水线（batch / mutation），仅作诊断与提示，门禁以 operation 为准 */
+  sourceKind?: string | null;
+  /** 是否属于当前对话轮；缺省视为本轮（保守：仍参与门禁） */
+  inCurrentTurn?: boolean;
 }
 
 export interface TaskPhaseContext {
@@ -63,6 +77,14 @@ export function normalizeRelPath(path: string): string {
  *
  * 返回 `null` 表示不启用门禁：无 `proposal_states`（旧客户端 / 纯问答 / 无提案历史），
  * 或所有提案均为 dismissed（用户关闭提案，重新规划）。
+ *
+ * `pending` 与 `applied` 的聚合口径**故意不同**：
+ *
+ *   - `pending`（await_confirm 门禁）：按**全会话**聚合。未确认提案在磁盘上确实
+ *     不存在，跨轮也必须拦住写入，否则会「报告跑在落盘前」或覆盖未决变更。
+ *   - `applied`（verify 门禁）：只看**本轮**，且只看生成类操作。它表达的是
+ *     「别在同一轮里重复标注刚标过的文件」（防循环）；跨轮时用户已显式重新
+ *     下达指令，必须放行 —— 阶段提示词也正是让模型引导用户重新发起请求。
  */
 export function deriveTaskPhase(
   proposalStates: ProposalStateLike[] | null | undefined,
@@ -77,10 +99,13 @@ export function deriveTaskPhase(
     if (state.kind !== 'annotation') continue;
     if (state.status === 'pending') pending.add(normalizeRelPath(state.path));
     if (state.status === 'applied') {
-      applied.add(normalizeRelPath(state.path));
+      // 生成的标注 id 无论是否本轮都可作为「已知标注」供定向修正使用
       for (const id of state.annotationIds ?? []) {
         if (id) appliedIds.add(id);
       }
+      if (state.inCurrentTurn === false) continue;
+      if (!GENERATIVE_ANNOTATION_OPS.has(state.operation ?? '')) continue;
+      applied.add(normalizeRelPath(state.path));
     }
   }
 
@@ -144,7 +169,9 @@ export function coerceBool(value: unknown): boolean {
 }
 
 /** 从标注工具参数中提取目标路径集合（paths 优先，兼容 scope_hint）。 */
-export function extractCallPaths(arguments_: Record<string, unknown>): Set<string> {
+export function extractCallPaths(
+  arguments_: Record<string, unknown>,
+): Set<string> {
   const paths = new Set<string>();
   for (const item of coerceStrList(arguments_.paths)) {
     paths.add(normalizeRelPath(item));

@@ -484,13 +484,22 @@ async function withProposalCheckpoint<T>(
   }
   try {
     const value = await write();
-    let hasCheckpoint = false;
+    // 只要**捕获**成功就算「有快照」，可回滚：还原依赖 `beforeMissing` + blob，
+    // `afterHash`（由 recordAfter 写入）只用于脏检查，缺失时可走强制还原。
+    // 若这里以 recordAfter 成败为准，一次瞬时失败就会让 Undo 入口永久消失。
+    const hasCheckpoint = captured;
     if (captured && checkpoint) {
-      hasCheckpoint = await recordProposalCheckpointAfter({
+      const recorded = await recordProposalCheckpointAfter({
         ref: checkpoint,
         project: options.project,
         workspaceRoot: checkpoint.workspaceRoot,
       });
+      if (!recorded) {
+        console.warn(
+          '[checkpoint] 改后哈希未记录，回滚将跳过脏检查',
+          checkpoint,
+        );
+      }
     }
     return { value, hasCheckpoint };
   } catch (err) {

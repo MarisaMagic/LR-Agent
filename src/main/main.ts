@@ -65,6 +65,7 @@ import {
 } from './annotation/annotationStore';
 import {
   readAnnotationDocJson,
+  repairAnnotationDocFilePaths,
   writeAnnotationDocJson,
 } from './annotation/annotationDataStore';
 import { runAnnotationExport } from './annotation/annotationExportEngine';
@@ -544,6 +545,19 @@ ipcMain.handle(
       return await readAnnotationDocJson(projectDir, relativePath);
     } catch {
       return null;
+    }
+  },
+);
+
+ipcMain.handle(
+  'annotation:repairDocFilePaths',
+  async (_event, projectDir: string) => {
+    authorizeRoot(projectDir);
+    try {
+      return await repairAnnotationDocFilePaths(projectDir);
+    } catch (err) {
+      console.error('[annotation] 修复文档归属路径失败:', err);
+      return { scanned: 0, repaired: [] };
     }
   },
 );

@@ -79,10 +79,16 @@ export interface LlmClientOptions {
   temperature?: number;
   /** 测试注入点。 */
   fetchImpl?: typeof fetch;
+  /** 网络层失败重试次数（默认 2，即最多 3 次尝试）。 */
+  maxRetries?: number;
+  /** 重试退避基数（毫秒，默认 300）。 */
+  retryBaseDelayMs?: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_TEMPERATURE = 0.7;
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_RETRY_BASE_DELAY_MS = 300;
 
 /** 调用失败时抛出，携带 HTTP 状态与响应体片段以便上层分流。 */
 export class LlmRequestError extends Error {
@@ -97,9 +103,38 @@ export class LlmRequestError extends Error {
   }
 }
 
+/**
+ * 仅「未收到任何响应」的网络层错误可重试；取消/超时/HTTP 状态码错误一律不重试。
+ *
+ * - `LlmRequestError` 表示已拿到 4xx/5xx 响应，重试大概率相同，跳过。
+ * - 沿 cause 链排查：某些 Node 版本会把 AbortError/TimeoutError 包成
+ *   `TypeError: fetch failed`，必须逐层看 cause，否则会把取消/超时误判成可重试。
+ */
+function isRetryableNetworkError(err: unknown): boolean {
+  if (err instanceof LlmRequestError) return false;
+  if (!(err instanceof Error)) return false;
+
+  let cur: unknown = err;
+  for (let depth = 0; cur && depth < 4; depth += 1) {
+    const e = cur as Error;
+    if (e.name === 'AbortError' || e.name === 'TimeoutError') return false;
+    cur = e.cause;
+  }
+  return true;
+}
+
 export class LlmClient {
   private readonly options: Required<
-    Pick<LlmClientOptions, 'apiKey' | 'baseUrl' | 'model' | 'timeoutMs' | 'temperature'>
+    Pick<
+      LlmClientOptions,
+      | 'apiKey'
+      | 'baseUrl'
+      | 'model'
+      | 'timeoutMs'
+      | 'temperature'
+      | 'maxRetries'
+      | 'retryBaseDelayMs'
+    >
   >;
 
   private readonly fetchImpl: typeof fetch;
@@ -112,6 +147,8 @@ export class LlmClient {
       model: options.model,
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+      maxRetries: options.maxRetries ?? DEFAULT_MAX_RETRIES,
+      retryBaseDelayMs: options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS,
     };
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -143,30 +180,45 @@ export class LlmClient {
     body: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<Response> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
-    // 上游取消也要能中断请求
-    const onAbort = (): void => controller.abort();
-    signal?.addEventListener('abort', onAbort);
+    const maxRetries = this.options.maxRetries;
+    const baseDelay = this.options.retryBaseDelayMs;
 
-    try {
-      const res = await this.fetchImpl(`${this.options.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.options.apiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new LlmRequestError(res.status, text);
+    for (let attempt = 0; ; attempt += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
+      // 上游取消也要能中断请求
+      const onAbort = (): void => controller.abort();
+      signal?.addEventListener('abort', onAbort);
+
+      try {
+        const res = await this.fetchImpl(`${this.options.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.options.apiKey}`,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new LlmRequestError(res.status, text);
+        }
+        return res;
+      } catch (err) {
+        // 仅「尚未收到任何响应」的网络层错误可重试；HTTP 状态码错误 / 取消 /
+        // 超时一律不重试（避免无谓重放与把取消误判为故障）。
+        const canRetry =
+          attempt < maxRetries &&
+          isRetryableNetworkError(err) &&
+          !signal?.aborted;
+        if (!canRetry) throw err;
+        const delay = Math.min(baseDelay * 2 ** attempt, 2000);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
       }
-      return res;
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', onAbort);
     }
   }
 

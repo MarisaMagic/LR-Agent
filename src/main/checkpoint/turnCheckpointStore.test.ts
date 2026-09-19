@@ -7,6 +7,7 @@ import { writeScopedTextFile } from '../workspace/workspaceWrite';
 import {
   captureCheckpoint,
   hashContent,
+  hasCheckpoint,
   recordCheckpointAfter,
   restoreCheckpoint,
 } from './turnCheckpointStore';
@@ -168,6 +169,87 @@ describe('turnCheckpointStore', () => {
         blocks += (await fs.readdir(path.join(sessionDir, msgDir))).length;
       }
       expect(blocks).toBe(40);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * 回归：`recordAfter` 失败（未写入 afterHash）时快照必须仍然可用。
+   *
+   * 历史实现会在 recordAfter 抛错时 discard 快照，于是一次瞬时失败就让 Undo
+   * 入口永久消失且无法补救。还原只需要 `beforeMissing` + blob，`afterHash`
+   * 仅服务于脏检查，因此「无 afterHash」不该等于「无快照」。
+   */
+  it('treats a snapshot without afterHash as existing and force-restorable', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ckpt-force-'));
+    try {
+      await writeScopedTextFile(root, 'notes.md', 'before');
+      await captureCheckpoint(
+        ref,
+        'file',
+        { workspaceRoot: root },
+        { filePaths: ['notes.md'] },
+      );
+      await writeScopedTextFile(root, 'notes.md', 'after');
+      // 故意不调用 recordCheckpointAfter：模拟 recordAfter 失败
+
+      await expect(hasCheckpoint(ref)).resolves.toBe(true);
+
+      // 默认仍拒绝（快照不完整），但提供强制通道
+      const refused = await restoreCheckpoint(ref, { workspaceRoot: root });
+      expect(refused).toEqual({ ok: false, error: 'checkpoint_incomplete' });
+
+      const forced = await restoreCheckpoint(
+        ref,
+        { workspaceRoot: root },
+        { force: true },
+      );
+      expect(forced.ok).toBe(true);
+      expect(await fs.readFile(path.join(root, 'notes.md'), 'utf8')).toBe(
+        'before',
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * 回归：文件在应用之后又被改动（脏），强制回滚应能覆盖。
+   *
+   * 「脏」的常见成因是正常操作而非用户手改 —— 例如加载流水线修正文档内陈旧的
+   * `filePath` 后写回。若不允许覆盖，Undo 会因这类良性写入而永久失效。
+   */
+  it('force restore overrides the dirty check', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ckpt-force-dirty-'));
+    try {
+      await writeScopedTextFile(root, 'notes.md', 'before');
+      await captureCheckpoint(
+        ref,
+        'file',
+        { workspaceRoot: root },
+        { filePaths: ['notes.md'] },
+      );
+      await writeScopedTextFile(root, 'notes.md', 'after');
+      await recordCheckpointAfter(ref, { workspaceRoot: root });
+      await writeScopedTextFile(root, 'notes.md', 'benign-rewrite');
+
+      const refused = await restoreCheckpoint(ref, { workspaceRoot: root });
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) {
+        expect(refused.error).toBe('checkpoint_dirty');
+        expect(refused.dirtyPaths).toEqual(['notes.md']);
+      }
+
+      const forced = await restoreCheckpoint(
+        ref,
+        { workspaceRoot: root },
+        { force: true },
+      );
+      expect(forced.ok).toBe(true);
+      expect(await fs.readFile(path.join(root, 'notes.md'), 'utf8')).toBe(
+        'before',
+      );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

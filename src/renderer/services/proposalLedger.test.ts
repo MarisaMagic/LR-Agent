@@ -229,6 +229,8 @@ describe('buildProposalStates', () => {
         status: 'applied',
         operation: 'append',
         annotationIds: [],
+        sourceKind: 'batch',
+        inCurrentTurn: true,
       },
       {
         path: 'data/4.jpg',
@@ -236,6 +238,8 @@ describe('buildProposalStates', () => {
         status: 'applied',
         operation: 'append',
         annotationIds: [],
+        sourceKind: 'batch',
+        inCurrentTurn: true,
       },
     ]);
   });
@@ -259,6 +263,7 @@ describe('buildProposalStates', () => {
         kind: 'file',
         status: 'pending',
         operation: 'write',
+        inCurrentTurn: true,
       },
     ]);
   });
@@ -294,6 +299,8 @@ describe('buildProposalStates', () => {
     ]);
     expect(states[0].status).toBe('undone');
     expect(states[0].operation).toBe('delete');
+    // 单一 delete 变更 → 判定为标注编辑来源
+    expect(states[0].sourceKind).toBe('mutation');
   });
 
   it('collects annotation ids from annotations, deleteIds and patches', () => {
@@ -356,5 +363,101 @@ describe('buildProposalStates', () => {
     ]);
     expect(states[0].annotationIds).toEqual(['ann-1', 'ann-2']);
     expect(states[1].annotationIds).toEqual(['ann-9']);
+  });
+
+  /**
+   * 轮次标记：只有「最后一条 user 消息及之后」的提案算本轮。
+   *
+   * 门禁的 `applied` 只认本轮，否则同一会话内任何后续重新标注都会被历史提案
+   * 永久拦截 —— 而阶段提示词恰恰让模型引导用户重新发起请求。
+   */
+  it('marks proposals before the last user message as not in current turn', () => {
+    const userMessage: ChatMessage = {
+      id: 'u1',
+      sessionId: 'sess-1',
+      role: 'user',
+      blocks: [{ type: 'text', content: '重新标注' }],
+      status: 'done',
+      providerId: 'p1',
+      model: 'm1',
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const states = buildProposalStates([
+      assistantMessage('m1', [
+        {
+          type: 'annotation_proposal',
+          status: 'applied',
+          proposal: {
+            id: 'p-old',
+            projectId: 'proj',
+            summary: 'old',
+            changes: [
+              {
+                relativePath: 'data/1.jpg',
+                absolutePath: '/p/data/1.jpg',
+                operation: 'append',
+                annotations: [],
+              },
+            ],
+            stats: { kind: 'generic', processed: 1, succeeded: 1, skipped: 0 },
+            createdAt: 1,
+          },
+        },
+      ]),
+      userMessage,
+      assistantMessage('m2', [
+        {
+          type: 'annotation_proposal',
+          status: 'applied',
+          proposal: {
+            id: 'p-new',
+            projectId: 'proj',
+            summary: 'new',
+            changes: [
+              {
+                relativePath: 'data/1.jpg',
+                absolutePath: '/p/data/1.jpg',
+                operation: 'delete',
+                deleteIds: ['a'],
+              },
+            ],
+            stats: { kind: 'generic', processed: 1, succeeded: 1, skipped: 0 },
+            createdAt: 2,
+          },
+        },
+      ]),
+    ]);
+
+    expect(states).toHaveLength(2);
+    expect(states[0].inCurrentTurn).toBe(false);
+    expect(states[1].inCurrentTurn).toBe(true);
+  });
+
+  it('keeps inCurrentTurn true when no user message exists', () => {
+    const states = buildProposalStates([
+      assistantMessage('m1', [
+        {
+          type: 'annotation_proposal',
+          status: 'pending',
+          proposal: {
+            id: 'p1',
+            projectId: 'proj',
+            summary: 'x',
+            changes: [
+              {
+                relativePath: 'data/1.jpg',
+                absolutePath: '/p/data/1.jpg',
+                operation: 'append',
+                annotations: [],
+              },
+            ],
+            stats: { kind: 'generic', processed: 1, succeeded: 1, skipped: 0 },
+            createdAt: 1,
+          },
+        },
+      ]),
+    ]);
+    expect(states[0].inCurrentTurn).toBe(true);
   });
 });
