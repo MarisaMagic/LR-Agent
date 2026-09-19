@@ -136,7 +136,8 @@ type ∈ { file_proposal_start, file_proposal_delta, file_proposal, document_pro
 | 事件 | 生产者 |
 |---|---|
 | `preparing`、`text_delta`、`reasoning_delta`、`tool_start`、`tool_result`、`tool_pending`、`file_proposal_start`、`file_proposal_delta`、`file_edit_delta`、`file_proposal`、`subagent_*`、`done` | **运行时** |
-| `awaiting_confirmation`、`terminal_approval`、`terminal_approval_done`、`terminal_output`、`annotation_progress`、`annotation_proposal`、`error` | **渲染层合成** |
+| `awaiting_confirmation`、`terminal_approval`、`terminal_approval_done`、`terminal_output`、`annotation_progress`、`annotation_proposal` | **渲染层合成** |
+| `error` | **两侧都会发射**：渲染层在 fetch 失败 / HTTP 非 2xx / body 为空时合成；运行时的 Assist 循环在**非取消**的真实故障（最典型是 LLM 请求失败）时也会发射，否则失败会被静默降级为正常结束 |
 | `context_updated`、`route_decided` | 已声明但**全仓库无发射点**（死类型，仅类型与调试日志消费） |
 | `document_proposal` | `@deprecated` 旧类型，运行时从不发射；历史消息加载时归一为 `file_proposal`。序列化特判保留以兼容旧数据 |
 | `tool_calls_already_completed` | **内部信号**，被上层消费，**不出 SSE** |
@@ -323,7 +324,17 @@ type ∈ { file_proposal_start, file_proposal_delta, file_proposal, document_pro
 | `type` | `"error"` |
 | `message` | 错误信息 |
 
-**运行时从不发射**。由渲染层在 fetch 失败 / HTTP 非 2xx / body 为空时合成。
+**两个来源**：
+
+1. **运行时**——Assist 循环的故障兜底外壳（`src/main/agent/loop/assistLoop.ts` 的 `streamAssist`）。
+   内层循环抛出的异常（最典型是 LLM 请求失败）会被转成一条 `error` 事件。
+   若不这样做，异常会被 SSE 层吞掉、客户端读到 EOF 后合成 `done`，用户只会看到回复被截断
+   而没有任何提示。
+
+   **取消不报错**：`isCancelled()` 为真或异常为 `AbortError` 时静默结束——渲染层会按
+   Cancelled 处理，报错反而会出现「点了停止却弹错误」的干扰。
+
+2. **渲染层**——fetch 失败 / HTTP 非 2xx / body 为空时合成。
 
 ### 2.4 `arguments` 字段的类型不统一（不要统一）
 
