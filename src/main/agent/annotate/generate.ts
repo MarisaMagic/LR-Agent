@@ -85,7 +85,9 @@ function isLoadFailure(error: string | undefined): boolean {
 }
 
 /** 读取图片原始字节（路径优先，base64 兜底）。 */
-async function loadRawBytes(body: LlmGenerateRequest): Promise<Uint8Array | null> {
+async function loadRawBytes(
+  body: LlmGenerateRequest,
+): Promise<Uint8Array | null> {
   const abs = (body.image_absolute_path ?? '').trim();
   if (abs) {
     try {
@@ -98,7 +100,8 @@ async function loadRawBytes(body: LlmGenerateRequest): Promise<Uint8Array | null
   const raw = (body.image_base64 ?? '').trim();
   if (raw) {
     const comma = raw.indexOf(',');
-    const payload = raw.startsWith('data:') && comma >= 0 ? raw.slice(comma + 1) : raw;
+    const payload =
+      raw.startsWith('data:') && comma >= 0 ? raw.slice(comma + 1) : raw;
     return Uint8Array.from(Buffer.from(payload, 'base64'));
   }
   return null;

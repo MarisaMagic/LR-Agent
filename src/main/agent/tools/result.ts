@@ -52,7 +52,8 @@ export function formatToolResultForDisplay(resultText: string): string {
   } catch {
     return resultText;
   }
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return resultText;
+  if (!data || typeof data !== 'object' || Array.isArray(data))
+    return resultText;
   const record = data as Record<string, unknown>;
   if (record.summary) return String(record.summary);
   if (record.message) return String(record.message);
@@ -60,7 +61,9 @@ export function formatToolResultForDisplay(resultText: string): string {
 }
 
 /** 解析工具结果 JSON；非对象返回 null。 */
-export function parseToolResult(resultText: string): Record<string, unknown> | null {
+export function parseToolResult(
+  resultText: string,
+): Record<string, unknown> | null {
   try {
     const data = JSON.parse(resultText);
     return data && typeof data === 'object' && !Array.isArray(data)

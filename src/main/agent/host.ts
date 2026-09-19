@@ -106,7 +106,9 @@ function pushStatus(status: LocalAgentServiceStatus): void {
  */
 export function resolveRuntimeEntry(): string {
   const mainFile = path.basename(__filename);
-  const suffix = mainFile.startsWith('main') ? mainFile.slice('main'.length) : '.js';
+  const suffix = mainFile.startsWith('main')
+    ? mainFile.slice('main'.length)
+    : '.js';
   return path.join(__dirname, `agentRuntime${suffix}`);
 }
 
@@ -318,7 +320,10 @@ function makeEndpoint(child: UtilityProcess): MessageEndpoint {
   };
 }
 
-function waitForReady(child: UtilityProcess, timeoutMs: number): Promise<number> {
+function waitForReady(
+  child: UtilityProcess,
+  timeoutMs: number,
+): Promise<number> {
   return new Promise<number>((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup();

@@ -131,7 +131,12 @@ export function createBridge(options: BridgeOptions): Bridge {
     if (disposed) return;
     const msg: AgentMessage = ok
       ? { type: 'rpc:response', id, ok: true, result }
-      : { type: 'rpc:response', id, ok: false, error: error ?? 'unknown error' };
+      : {
+          type: 'rpc:response',
+          id,
+          ok: false,
+          error: error ?? 'unknown error',
+        };
     endpoint.postMessage(msg);
   }
 

@@ -399,7 +399,9 @@ describe('selectAutoApplicableProposals', () => {
         id: 'prop-1',
         projectId: 'p1',
         summary: 's',
-        changes: [{ relativePath: 'data/1.jpg', operation: 'delete', deleteIds: ['a'] }],
+        changes: [
+          { relativePath: 'data/1.jpg', operation: 'delete', deleteIds: ['a'] },
+        ],
       },
     }) as unknown as ChatMessage['blocks'][number];
 
@@ -500,7 +502,13 @@ describe('applyAutoApplicableProposals', () => {
             id: 'prop-1',
             projectId: 'p1',
             summary: 's',
-            changes: [{ relativePath: 'data/1.jpg', operation: 'append', annotations: [{}] }],
+            changes: [
+              {
+                relativePath: 'data/1.jpg',
+                operation: 'append',
+                annotations: [{}],
+              },
+            ],
           },
         },
       ] as unknown as ChatMessage['blocks']),
@@ -532,7 +540,13 @@ describe('applyAutoApplicableProposals', () => {
             id: 'prop-1',
             projectId: 'p1',
             summary: 's',
-            changes: [{ relativePath: 'data/1.jpg', operation: 'append', annotations: [{}] }],
+            changes: [
+              {
+                relativePath: 'data/1.jpg',
+                operation: 'append',
+                annotations: [{}],
+              },
+            ],
           },
         },
       ] as unknown as ChatMessage['blocks']),

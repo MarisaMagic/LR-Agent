@@ -46,7 +46,9 @@ export function heuristicMapBoxes(
   // 精确索引：同名后者覆盖前者
   const byName = new Map<string, Record<string, unknown>>();
   for (const item of labelCandidates) {
-    const name = String(item.name ?? '').trim().toLowerCase();
+    const name = String(item.name ?? '')
+      .trim()
+      .toLowerCase();
     if (name) byName.set(name, item);
   }
 
@@ -78,7 +80,7 @@ export function heuristicMapBoxes(
         return detLower.includes(name) || name.includes(detLower);
       });
       if (partial.length === 1) {
-        chosen = partial[0];
+        [chosen] = partial;
         reason = `检测类名与标签 ${pyRepr(chosen.name)} 部分匹配`;
       }
     }
@@ -89,7 +91,7 @@ export function heuristicMapBoxes(
         ocrLower.includes(String(n.name ?? '').toLowerCase()),
       );
       if (nameHits.length === 1) {
-        chosen = nameHits[0];
+        [chosen] = nameHits;
         reason = `OCR 含标签名 ${pyRepr(chosen.name)}`;
       }
     }

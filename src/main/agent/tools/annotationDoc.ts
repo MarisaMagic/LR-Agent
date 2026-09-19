@@ -13,7 +13,11 @@
  */
 
 import { readAnnotationDocRaw } from '../../annotation/annotationDataStore';
-import { normalizeRelativePath, projectDirectory, type ClientContextLike } from './workspacePath';
+import {
+  normalizeRelativePath,
+  projectDirectory,
+  type ClientContextLike,
+} from './workspacePath';
 
 /** 结果总体字符上限（对齐 Python 的 40_000）。 */
 const MAX_RESULT_CHARS = 40_000;
@@ -62,11 +66,14 @@ export async function readFileAnnotationTool(
 
   let note = '';
 
-  const annotations = record.annotations;
+  const { annotations } = record;
   if (Array.isArray(annotations)) {
     const total = annotations.length;
     const start = Math.max(0, Math.floor(options.offset ?? 0));
-    const limit = Math.max(1, Math.min(Math.floor(options.limit ?? 200), MAX_LIMIT));
+    const limit = Math.max(
+      1,
+      Math.min(Math.floor(options.limit ?? 200), MAX_LIMIT),
+    );
     const end = Math.min(start + limit, total);
     if (start > 0 || end < total) {
       record.annotations = annotations.slice(start, end);
@@ -79,9 +86,10 @@ export async function readFileAnnotationTool(
   // 带缩进：Python 的 indent=2 与 JSON.stringify(v, null, 2) 的分隔符行为一致
   let text = JSON.stringify(record, null, 2);
   if (text.length > MAX_RESULT_CHARS) {
-    text =
-      text.slice(0, MAX_RESULT_CHARS) +
-      '\n…[结果已截断，请用 annotation_offset/annotation_limit 分页读取]';
+    text = `${text.slice(
+      0,
+      MAX_RESULT_CHARS,
+    )}\n…[结果已截断，请用 annotation_offset/annotation_limit 分页读取]`;
   }
   return note + text;
 }

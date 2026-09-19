@@ -59,4 +59,5 @@ export async function buildMultimodalUserMessage(
 }
 
 /** 附图注入时使用的固定提示文本（与 Python 一致）。 */
-export const VISION_ATTACHMENT_TEXT = '【附图】请根据上图回答用户关于该图片的问题。';
+export const VISION_ATTACHMENT_TEXT =
+  '【附图】请根据上图回答用户关于该图片的问题。';

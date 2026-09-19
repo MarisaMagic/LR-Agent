@@ -40,7 +40,9 @@ export type RouteResult =
   | { kind: 'not_implemented' }
   | { kind: 'method_not_allowed' };
 
-export type RouteHandler = (req: RouteRequest) => Promise<RouteResult> | RouteResult;
+export type RouteHandler = (
+  req: RouteRequest,
+) => Promise<RouteResult> | RouteResult;
 
 export interface AgentServerOptions {
   host: string;
@@ -132,10 +134,7 @@ export async function startAgentServer(
     const path = url.pathname;
 
     // ── CORS ──────────────────────────────────────────────
-    const origin = resolveCorsOrigin(
-      req.headers.origin,
-      options.corsOrigins,
-    );
+    const origin = resolveCorsOrigin(req.headers.origin, options.corsOrigins);
     if (origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
@@ -169,11 +168,10 @@ export async function startAgentServer(
       const pathExists = Object.keys(options.routes).some(
         (key) => key.slice(key.indexOf(' ') + 1) === path,
       );
-      sendJson(
-        res,
-        pathExists ? 405 : 404,
-        { detail: pathExists ? 'method_not_allowed' : 'not_found', path },
-      );
+      sendJson(res, pathExists ? 405 : 404, {
+        detail: pathExists ? 'method_not_allowed' : 'not_found',
+        path,
+      });
       return;
     }
 
@@ -241,7 +239,11 @@ export async function startAgentServer(
   };
 }
 
-function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
+function sendJson(
+  res: http.ServerResponse,
+  status: number,
+  body: unknown,
+): void {
   const payload = JSON.stringify(body);
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');

@@ -57,7 +57,9 @@ function nameToId(
 ): Map<string, string> {
   const out = new Map<string, string>();
   for (const c of candidates) {
-    const name = String(c.name ?? '').trim().toLowerCase();
+    const name = String(c.name ?? '')
+      .trim()
+      .toLowerCase();
     const id = String(c.id ?? '').trim();
     if (name && id) out.set(name, id);
   }
@@ -129,7 +131,9 @@ export interface ValidateParams {
 }
 
 /** 校验视觉映射结果。 */
-export function validateVisionMappings(params: ValidateParams): ValidationResult {
+export function validateVisionMappings(
+  params: ValidateParams,
+): ValidationResult {
   const ids =
     params.validIds && params.validIds.size > 0
       ? params.validIds

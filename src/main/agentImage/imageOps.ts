@@ -73,7 +73,11 @@ function parseJpeg(buf: Buffer): ImageHeaderInfo | null {
       continue;
     }
     // 无长度字段的标记
-    if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+    if (
+      marker === 0xd8 ||
+      marker === 0x01 ||
+      (marker >= 0xd0 && marker <= 0xd7)
+    ) {
       offset += 2;
       continue;
     }
@@ -158,7 +162,12 @@ function parseBmp(buf: Buffer): ImageHeaderInfo | null {
 /** ICO：目录中第一个条目的宽高（0 表示 256）。 */
 function parseIco(buf: Buffer): ImageHeaderInfo | null {
   if (buf.length < 22) return null;
-  if (buf[0] !== 0x00 || buf[1] !== 0x00 || buf[2] !== 0x01 || buf[3] !== 0x00) {
+  if (
+    buf[0] !== 0x00 ||
+    buf[1] !== 0x00 ||
+    buf[2] !== 0x01 ||
+    buf[3] !== 0x00
+  ) {
     return null;
   }
   const count = readUInt16LE(buf, 4);

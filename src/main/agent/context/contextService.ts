@@ -115,7 +115,11 @@ export function appendClientToolResultsToMessages(
     });
 
     if (unanswered.has(ctr.toolCallId)) {
-      messages.push({ role: 'tool', content: result, toolCallId: ctr.toolCallId });
+      messages.push({
+        role: 'tool',
+        content: result,
+        toolCallId: ctr.toolCallId,
+      });
       unanswered.delete(ctr.toolCallId);
       continue;
     }
@@ -139,7 +143,11 @@ export function appendClientToolResultsToMessages(
       content: '',
       toolCalls: [{ id: ctr.toolCallId, name: ctr.name, args }],
     });
-    messages.push({ role: 'tool', content: result, toolCallId: ctr.toolCallId });
+    messages.push({
+      role: 'tool',
+      content: result,
+      toolCallId: ctr.toolCallId,
+    });
   }
 
   return messages;

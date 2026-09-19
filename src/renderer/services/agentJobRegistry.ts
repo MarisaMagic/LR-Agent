@@ -191,7 +191,7 @@ export function formatAnnotationToolResult(options: {
   autoApplyFailed?: boolean;
 }): string {
   // 只有真的产出了提案才谈得上「已应用/待确认」
-  const hasProposal = options.hasProposal;
+  const { hasProposal } = options;
   const autoApplied = Boolean(options.autoApplied && hasProposal);
   const autoApplyFailed = Boolean(
     options.autoApplyFailed && hasProposal && !autoApplied,

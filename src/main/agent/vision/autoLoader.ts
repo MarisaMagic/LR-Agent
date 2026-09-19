@@ -15,11 +15,22 @@
 import { randomUUID } from 'crypto';
 import { sse, type StreamEventPayload } from '../sse';
 import type { ChatMessage } from '../llm/client';
-import { buildMultimodalUserMessage, VISION_ATTACHMENT_TEXT } from '../context/multimodal';
+import {
+  buildMultimodalUserMessage,
+  VISION_ATTACHMENT_TEXT,
+} from '../context/multimodal';
 import { IMAGE_SUFFIXES } from '../tools/fileReader';
-import { resolveWorkspaceFile, type ClientContextLike } from '../tools/workspacePath';
+import {
+  resolveWorkspaceFile,
+  type ClientContextLike,
+} from '../tools/workspacePath';
 import { readImageForVisionTool } from '../tools/vision';
-import { extractVisionPath, formatToolResultForDisplay, stripInternalMarkers } from '../tools/result';import type { ImageService } from '../services/imageService';
+import {
+  extractVisionPath,
+  formatToolResultForDisplay,
+  stripInternalMarkers,
+} from '../tools/result';
+import type { ImageService } from '../services/imageService';
 import type { AgentSettings } from '../config';
 
 /**
@@ -124,7 +135,9 @@ export class VisionAutoLoader {
     // 注意：视觉结果显示用的是「剥离内部标记后的完整缩进 JSON」，
     // **不是** formatToolResultForDisplay（那会只取 summary/message）；
     // 与 Python 的 format_vision_tool_result_for_display 对齐
-    const displayResult = visionPath ? stripInternalMarkers(resultText) : resultText;
+    const displayResult = visionPath
+      ? stripInternalMarkers(resultText)
+      : resultText;
 
     yield sse.toolResult(toolId, displayResult);
     messages.push({

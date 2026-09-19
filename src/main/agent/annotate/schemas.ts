@@ -61,7 +61,9 @@ export const MutationPrepareRequestSchema = AnnotationLlmBase.extend({
   project: AnnotationProjectSnapshotSchema.nullish(),
 });
 
-export type MutationPrepareRequest = z.infer<typeof MutationPrepareRequestSchema>;
+export type MutationPrepareRequest = z.infer<
+  typeof MutationPrepareRequestSchema
+>;
 
 /** `POST /agent/annotation/map-detection-boxes` */
 export const MapDetectionBoxesRequestSchema = AnnotationLlmBase.extend({
@@ -106,10 +108,7 @@ export type QualityReportComposeRequest = z.infer<
 >;
 
 /** 把 JSON 文本解析为指定 schema；失败时抛出 zod 错误。 */
-export function parseRequest<T>(
-  rawBody: string,
-  schema: z.ZodType<T>,
-): T {
+export function parseRequest<T>(rawBody: string, schema: z.ZodType<T>): T {
   let parsed: unknown;
   try {
     parsed = rawBody ? JSON.parse(rawBody) : {};

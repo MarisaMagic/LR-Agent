@@ -20,7 +20,10 @@ import {
   writeScopedTextFile,
 } from './workspaceWrite';
 
-export const WORKSPACE_FORBIDDEN = { success: false, error: 'forbidden_root' } as const;
+export const WORKSPACE_FORBIDDEN = {
+  success: false,
+  error: 'forbidden_root',
+} as const;
 
 export interface WorkspaceWriteResult {
   success: boolean;
@@ -50,7 +53,8 @@ export async function writeWorkspaceTextFile(payload: {
   relativePath: string;
   content: string;
 }): Promise<WorkspaceWriteResult> {
-  if (!isWithinAuthorizedRoot(payload?.rootDir)) return { ...WORKSPACE_FORBIDDEN };
+  if (!isWithinAuthorizedRoot(payload?.rootDir))
+    return { ...WORKSPACE_FORBIDDEN };
   const result = await writeScopedTextFile(
     payload.rootDir,
     payload.relativePath,
@@ -66,7 +70,8 @@ export async function readWorkspaceTextFile(payload: {
   rootDir: string;
   relativePath: string;
 }): Promise<WorkspaceReadResult> {
-  if (!isWithinAuthorizedRoot(payload?.rootDir)) return { ...WORKSPACE_FORBIDDEN };
+  if (!isWithinAuthorizedRoot(payload?.rootDir))
+    return { ...WORKSPACE_FORBIDDEN };
   return readScopedTextFile(payload.rootDir, payload.relativePath);
 }
 
@@ -74,8 +79,12 @@ export async function deleteWorkspaceTextFile(payload: {
   rootDir: string;
   relativePath: string;
 }): Promise<WorkspaceWriteResult> {
-  if (!isWithinAuthorizedRoot(payload?.rootDir)) return { ...WORKSPACE_FORBIDDEN };
-  const result = await deleteScopedTextFile(payload.rootDir, payload.relativePath);
+  if (!isWithinAuthorizedRoot(payload?.rootDir))
+    return { ...WORKSPACE_FORBIDDEN };
+  const result = await deleteScopedTextFile(
+    payload.rootDir,
+    payload.relativePath,
+  );
   if (result.success) {
     broadcastFileSystemChanged(
       path.join(payload.rootDir, path.dirname(payload.relativePath)),
@@ -89,7 +98,8 @@ export async function moveWorkspaceTextFile(payload: {
   relativePath: string;
   newRelativePath: string;
 }): Promise<WorkspaceWriteResult> {
-  if (!isWithinAuthorizedRoot(payload?.rootDir)) return { ...WORKSPACE_FORBIDDEN };
+  if (!isWithinAuthorizedRoot(payload?.rootDir))
+    return { ...WORKSPACE_FORBIDDEN };
   const result = await moveScopedTextFile(
     payload.rootDir,
     payload.relativePath,

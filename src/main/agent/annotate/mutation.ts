@@ -184,7 +184,9 @@ type MutationOperation = z.infer<typeof MutationOperationSchema>;
  * 等价于 Pydantic 的 `model_dump()`：**输出全部字段**，未设值者为 `null`，
  * 嵌套模型递归展开为普通对象。
  */
-export function dumpMutationOperation(op: MutationOperation): Record<string, unknown> {
+export function dumpMutationOperation(
+  op: MutationOperation,
+): Record<string, unknown> {
   return {
     relative_path: op.relative_path,
     mutation_kind: op.mutation_kind,
@@ -252,7 +254,9 @@ export function filterPaths(
 ): string[] {
   const byPath = new Map<string, ImageCandidate>();
   for (const c of candidates) {
-    const key = String(c.relative_path ?? '').trim().replace(/\\/g, '/');
+    const key = String(c.relative_path ?? '')
+      .trim()
+      .replace(/\\/g, '/');
     if (key) byPath.set(key, c);
   }
 
@@ -300,7 +304,8 @@ export async function prepareMutationAnnotation(
   const labels = params.labelNames.slice(0, 50).join(', ') || '（无）';
   const selectedIds =
     (params.selectedAnnotationIds ?? []).join(', ') || '（无）';
-  const transcript = (params.conversationTranscript ?? '').trim() || '（无历史）';
+  const transcript =
+    (params.conversationTranscript ?? '').trim() || '（无历史）';
 
   const human =
     `【对话上下文】\n${transcript}\n\n` +

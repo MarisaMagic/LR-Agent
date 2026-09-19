@@ -57,7 +57,11 @@ export function createChatStreamHandler(deps: RuntimeDeps): RouteHandler {
       body = parseChatStreamRequest(req.rawBody);
     } catch (err) {
       if (err instanceof RequestParseError) {
-        return { kind: 'json', status: err.status, body: { detail: err.message } };
+        return {
+          kind: 'json',
+          status: err.status,
+          body: { detail: err.message },
+        };
       }
       throw err;
     }
@@ -88,8 +92,11 @@ export function createChatCancelHandler(): RouteHandler {
   return (req) => {
     let clientJobId = '';
     try {
-      const parsed = JSON.parse(req.rawBody || '{}') as { client_job_id?: unknown };
-      if (typeof parsed.client_job_id === 'string') clientJobId = parsed.client_job_id;
+      const parsed = JSON.parse(req.rawBody || '{}') as {
+        client_job_id?: unknown;
+      };
+      if (typeof parsed.client_job_id === 'string')
+        clientJobId = parsed.client_job_id;
     } catch {
       /* 解析失败按未找到处理 */
     }

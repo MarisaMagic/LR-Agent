@@ -115,7 +115,7 @@ export function writeWorkspaceFileTool(
       summary: `无法写入文件：${resolveResult.error}`,
     });
   }
-  const resolved = resolveResult.resolved;
+  const { resolved } = resolveResult;
   const relDisplay = relativeDisplayPath(clientContext, resolved, relativePath);
 
   const suffix = path.extname(resolved).toLowerCase();
@@ -170,13 +170,16 @@ export function strReplaceWorkspaceFileTool(
       summary,
     });
 
-  let resolveResult = resolveWorkspaceFile(clientContext, relativePath);
-  let resolved = resolveResult.resolved;
+  const resolveResult = resolveWorkspaceFile(clientContext, relativePath);
+  let { resolved } = resolveResult;
 
   if (resolved === null) {
     // 文件在磁盘上不存在：若同路径已有未落盘的 write 提案，则以提案为基线继续
     if (pendingProposals) {
-      const writeResult = resolveWorkspaceWritePath(clientContext, relativePath);
+      const writeResult = resolveWorkspaceWritePath(
+        clientContext,
+        relativePath,
+      );
       if (
         writeResult.resolved !== null &&
         pendingProposals.has(writeResult.resolved)
@@ -233,9 +236,10 @@ export function strReplaceWorkspaceFileTool(
     const firstLine = oldString.split(/\r\n|\r|\n/)[0]?.slice(0, 80) ?? '';
     return failure(
       `未找到 old_string（首行：${firstLine}）。` +
-        '常见原因：缩进/空白字符与原文不一致，或该处内容已变化。' +
-        '请先用 read_workspace_file 核对目标段落，原样复制（含缩进）后重试。' +
-        hint,
+        `常见原因：缩进/空白字符与原文不一致，或该处内容已变化。` +
+        `请先用 read_workspace_file 核对目标段落，原样复制（含缩进）后重试。${
+          hint
+        }`,
     );
   }
   if (count > 1 && !replaceAll) {
@@ -290,7 +294,7 @@ export function deleteWorkspaceFileTool(
   if (fileResult.resolved === null) {
     return failure(`无法删除文件：${fileResult.error}`);
   }
-  const resolved = fileResult.resolved;
+  const { resolved } = fileResult;
 
   const writeResult = resolveWorkspaceWritePath(clientContext, relativePath);
   if (writeResult.resolved === null) {
@@ -344,7 +348,7 @@ export function moveWorkspaceFileTool(
   if (fileResult.resolved === null) {
     return failure(`无法移动文件：${fileResult.error}`);
   }
-  const resolved = fileResult.resolved;
+  const { resolved } = fileResult;
 
   const suffix = path.extname(resolved).toLowerCase();
   if (notAllowedSuffix(suffix)) {
@@ -425,7 +429,11 @@ export function extractDocProposalFromToolResult(
   if (!record[DOC_PROPOSAL_MARKER]) return null;
 
   let operation = String(record.operation ?? 'write');
-  if (operation !== 'write' && operation !== 'delete' && operation !== 'rename') {
+  if (
+    operation !== 'write' &&
+    operation !== 'delete' &&
+    operation !== 'rename'
+  ) {
     operation = 'write';
   }
 
@@ -461,7 +469,9 @@ function replaceFirstOccurrence(
 ): string {
   const idx = haystack.indexOf(needle);
   if (idx === -1) return haystack;
-  return haystack.slice(0, idx) + replacement + haystack.slice(idx + needle.length);
+  return (
+    haystack.slice(0, idx) + replacement + haystack.slice(idx + needle.length)
+  );
 }
 
 function replaceAllOccurrences(

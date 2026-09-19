@@ -18,10 +18,7 @@
 
 import fs from 'fs-extra';
 import path from 'path';
-import {
-  resolveWorkspaceFile,
-  type ClientContextLike,
-} from './workspacePath';
+import { resolveWorkspaceFile, type ClientContextLike } from './workspacePath';
 
 /** 单行展示上限：防止 minified / 单行巨型文件撑爆工具结果。 */
 const MAX_LINE_DISPLAY_CHARS = 2000;
@@ -154,8 +151,7 @@ export function universalLines(text: string): string[] {
 
 /** 解码结果。 */
 type DecodeOutcome =
-  | { ok: true; text: string }
-  | { ok: false; reason: 'binary' | 'not_utf8' };
+  { ok: true; text: string } | { ok: false; reason: 'binary' | 'not_utf8' };
 
 /**
  * 探测并解码 UTF-8 文本。
@@ -168,7 +164,10 @@ function decodeUtf8(probe: Buffer, payload: Buffer): DecodeOutcome {
   try {
     const text = new TextDecoder('utf-8', { fatal: true }).decode(payload);
     // 对齐 Python 的 utf-8-sig：剥离 BOM
-    return { ok: true, text: text.charCodeAt(0) === 0xfeff ? text.slice(1) : text };
+    return {
+      ok: true,
+      text: text.charCodeAt(0) === 0xfeff ? text.slice(1) : text,
+    };
   } catch {
     return { ok: false, reason: 'not_utf8' };
   }
@@ -212,7 +211,13 @@ export function readWorkspaceTextFile(
   }
 
   if (startLine != null || endLine != null) {
-    return readRangedText(resolved, size, startLine ?? null, endLine ?? null, maxLines);
+    return readRangedText(
+      resolved,
+      size,
+      startLine ?? null,
+      endLine ?? null,
+      maxLines,
+    );
   }
 
   let raw: Buffer;
@@ -249,7 +254,9 @@ export function readWorkspaceTextFile(
   }
   header += '---\n';
 
-  return header + lines.map((line, index) => numberLine(1 + index, line)).join('\n');
+  return (
+    header + lines.map((line, index) => numberLine(1 + index, line)).join('\n')
+  );
 }
 
 /** 行范围读取。 */

@@ -28,26 +28,41 @@ export const mcpProbeHandler: RouteHandler = async (req) => {
   const url = typeof body.url === 'string' ? body.url.trim() : '';
   // 与 Python 一致：仅接受 http(s)
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return { kind: 'json', body: { ok: false, error: '仅支持 http(s) MCP 端点' } };
+    return {
+      kind: 'json',
+      body: { ok: false, error: '仅支持 http(s) MCP 端点' },
+    };
   }
 
   const transport =
     body.transport === 'sse' ? ('sse' as const) : ('streamable_http' as const);
 
   const headers: Record<string, string> = {};
-  if (body.headers && typeof body.headers === 'object' && !Array.isArray(body.headers)) {
-    for (const [key, value] of Object.entries(body.headers as Record<string, unknown>)) {
+  if (
+    body.headers &&
+    typeof body.headers === 'object' &&
+    !Array.isArray(body.headers)
+  ) {
+    for (const [key, value] of Object.entries(
+      body.headers as Record<string, unknown>,
+    )) {
       if (typeof value === 'string') headers[key] = value;
     }
   }
 
   try {
     const tools = await probeMcpTools({ url, transport, headers });
-    return { kind: 'json', body: { ok: true, tools: tools.map((t) => t.name) } };
+    return {
+      kind: 'json',
+      body: { ok: true, tools: tools.map((t) => t.name) },
+    };
   } catch (err) {
     return {
       kind: 'json',
-      body: { ok: false, error: err instanceof Error ? err.message : String(err) },
+      body: {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      },
     };
   }
 };

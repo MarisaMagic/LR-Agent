@@ -120,14 +120,16 @@ export function buildAssistSystemPrompt(params: {
   if (instructions) base = `${base}\n\n【项目指令】\n${instructions}`;
 
   // 稳定块（skills）先于动态块（记忆、台账）
-  const skillsBlock = formatSkillsCatalogBlock(clientContext.skillsCatalog ?? []);
+  const skillsBlock = formatSkillsCatalogBlock(
+    clientContext.skillsCatalog ?? [],
+  );
   if (skillsBlock) base = `${base}\n\n${skillsBlock}`;
 
   if (clientContext.workspaceMemoryEnabled) {
     const memoryIndex = (clientContext.memoryIndex ?? '').trim();
-    const indexBlock = memoryIndex
-      ? memoryIndex
-      : '（尚无工作区记忆文件。进度与已标文件将在用户确认或保存标注后由系统生成。）';
+    const indexBlock =
+      memoryIndex ||
+      '（尚无工作区记忆文件。进度与已标文件将在用户确认或保存标注后由系统生成。）';
     base =
       `${base}\n\n【工作区记忆】\n${indexBlock}\n` +
       '这是本标注任务的工作区记忆，可有多个 Markdown 文件。' +

@@ -181,7 +181,10 @@ export const DONE_FRAME = 'data: {"type": "done"}\n\n';
 
 /** 便于构造事件的辅助函数（只覆盖运行时会发射的类型）。 */
 export const sse = {
-  preparing: (stage: string): StreamEventPayload => ({ type: 'preparing', stage }),
+  preparing: (stage: string): StreamEventPayload => ({
+    type: 'preparing',
+    stage,
+  }),
   /**
    * 流中途失败。
    *
@@ -201,7 +204,11 @@ export const sse = {
     type: 'reasoning_delta',
     content,
   }),
-  toolStart: (toolCallId: string, name: string, args: unknown): StreamEventPayload => ({
+  toolStart: (
+    toolCallId: string,
+    name: string,
+    args: unknown,
+  ): StreamEventPayload => ({
     type: 'tool_start',
     toolCallId,
     name,
@@ -275,7 +282,10 @@ export const sse = {
     query: params.query,
     focusPath: params.focusPath ?? null,
   }),
-  subagentTextDelta: (toolCallId: string, content: string): StreamEventPayload => ({
+  subagentTextDelta: (
+    toolCallId: string,
+    content: string,
+  ): StreamEventPayload => ({
     type: 'subagent_text_delta',
     toolCallId,
     content,

@@ -110,7 +110,8 @@ export async function invokeJsonModel<T>(
     .map((m) => (typeof m.content === 'string' ? m.content : ''))
     .filter((part) => part.length > 0);
 
-  const systemCandidates = systemParts.length > 0 ? systemParts : ['你是结构化 JSON 助手。'];
+  const systemCandidates =
+    systemParts.length > 0 ? systemParts : ['你是结构化 JSON 助手。'];
   const systemText = [systemCandidates[0], options.extraInstruction]
     .filter((p) => p && p.length > 0)
     .join('\n');
@@ -193,7 +194,10 @@ export class AnnotateHttpError extends Error {
  * 否则 `requireCredentials` 抛出的 400 `provider_credentials_required` 会落进
  * 502 兜底分支——把「凭据没填」误报成「上游坏了」，前端拿到的错误语义就错了。
  */
-export function httpFromLlmError(err: unknown, status?: number): AnnotateHttpError {
+export function httpFromLlmError(
+  err: unknown,
+  status?: number,
+): AnnotateHttpError {
   if (err instanceof AnnotateHttpError) return err;
 
   const message = err instanceof Error ? err.message : String(err);
@@ -215,7 +219,10 @@ export function httpFromLlmError(err: unknown, status?: number): AnnotateHttpErr
       '当前模型不支持结构化输出，请使用普通对话模型或更换提供商',
     );
   }
-  return new AnnotateHttpError(502, message.slice(0, 500) || 'llm_invoke_failed');
+  return new AnnotateHttpError(
+    502,
+    message.slice(0, 500) || 'llm_invoke_failed',
+  );
 }
 
 /** 读取错误对象上的数字状态码（`LlmRequestError` 与 `AnnotateHttpError` 都有）。 */
@@ -254,7 +261,8 @@ export function requireCredentials(params: {
  */
 export function pyRepr(value: unknown): string {
   if (value === null || value === undefined) return 'None';
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'number' || typeof value === 'boolean')
+    return String(value);
 
   const text = String(value);
   const hasSingle = text.includes("'");

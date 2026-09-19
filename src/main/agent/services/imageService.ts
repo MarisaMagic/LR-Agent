@@ -81,10 +81,10 @@ export interface ImageService {
 }
 
 /** 读取图片字节：绝对路径优先，其次 base64。 */
-function loadBytes(params: {
-  absolutePath?: string;
-  base64?: string;
-}): { bytes: Buffer; error?: string } {
+function loadBytes(params: { absolutePath?: string; base64?: string }): {
+  bytes: Buffer;
+  error?: string;
+} {
   const abs = (params.absolutePath ?? '').trim();
   if (abs) {
     try {
@@ -93,13 +93,17 @@ function loadBytes(params: {
       }
       return { bytes: fs.readFileSync(abs) };
     } catch (err) {
-      return { bytes: Buffer.alloc(0), error: `读取图片失败：${errMessage(err)}` };
+      return {
+        bytes: Buffer.alloc(0),
+        error: `读取图片失败：${errMessage(err)}`,
+      };
     }
   }
   const raw = (params.base64 ?? '').trim();
   if (raw) {
     const comma = raw.indexOf(',');
-    const payload = raw.startsWith('data:') && comma >= 0 ? raw.slice(comma + 1) : raw;
+    const payload =
+      raw.startsWith('data:') && comma >= 0 ? raw.slice(comma + 1) : raw;
     return { bytes: Buffer.from(payload, 'base64') };
   }
   return { bytes: Buffer.alloc(0), error: '未提供图片路径或 base64 数据。' };
@@ -129,7 +133,8 @@ export function probeByHeader(params: ImageProbeParams): ImageProbeResult {
 export function createImageService(bridge: Bridge | null): ImageService {
   const unavailable = (): { ok: false; error: string } => ({
     ok: false,
-    error: '图像编码需要在 Electron 环境中运行（当前为独立模式，仅支持读取尺寸与格式）。',
+    error:
+      '图像编码需要在 Electron 环境中运行（当前为独立模式，仅支持读取尺寸与格式）。',
   });
 
   return {
@@ -142,7 +147,10 @@ export function createImageService(bridge: Bridge | null): ImageService {
       // 文件头无法识别时才让主进程用 nativeImage 兜底
       if (!bridge) return byHeader;
       try {
-        return await bridge.call<ImageProbeResult>(AGENT_CHANNELS.imageProbe, params);
+        return await bridge.call<ImageProbeResult>(
+          AGENT_CHANNELS.imageProbe,
+          params,
+        );
       } catch {
         return byHeader;
       }
@@ -150,12 +158,18 @@ export function createImageService(bridge: Bridge | null): ImageService {
 
     async toJpegDataUrl(params) {
       if (!bridge) return unavailable();
-      return bridge.call<ImageDataUrlResult>(AGENT_CHANNELS.imageDataUrl, params);
+      return bridge.call<ImageDataUrlResult>(
+        AGENT_CHANNELS.imageDataUrl,
+        params,
+      );
     },
 
     async cropBatch(params) {
       if (!bridge) return unavailable();
-      return bridge.call<CropBatchResult>(AGENT_CHANNELS.imageCropBatch, params);
+      return bridge.call<CropBatchResult>(
+        AGENT_CHANNELS.imageCropBatch,
+        params,
+      );
     },
   };
 }

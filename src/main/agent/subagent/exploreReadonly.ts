@@ -22,11 +22,12 @@
 
 import { sse, type StreamEventPayload } from '../sse';
 import type { ChatMessage, LlmClient, ToolSpec } from '../llm/client';
-import {
-  ToolCallAccumulator,
-} from '../llm/client';
+import { ToolCallAccumulator } from '../llm/client';
 import { buildToolResult, formatToolResultForDisplay } from '../tools/result';
-import { resolveRoundToolCalls, type ResolvedToolCall } from '../loop/toolInvocation';
+import {
+  resolveRoundToolCalls,
+  type ResolvedToolCall,
+} from '../loop/toolInvocation';
 import type { ToolDefinition, ToolContext } from '../tools/registry';
 
 export const EXPLORE_READONLY_TOOL_NAME = 'explore_readonly';
@@ -68,7 +69,9 @@ export const SUBAGENT_SYSTEM = `你是只读查阅子代理。只用只读工具
 const INNER_RESULT_LIMIT = 4000;
 
 /** 允许的内层工具名集合。 */
-export function resolveExploreInnerNames(includeAnnotationReads: boolean): Set<string> {
+export function resolveExploreInnerNames(
+  includeAnnotationReads: boolean,
+): Set<string> {
   const names = new Set(EXPLORE_READONLY_BASE_INNER);
   if (includeAnnotationReads) {
     for (const name of EXPLORE_READONLY_ANNOTATION_INNER) names.add(name);
@@ -301,8 +304,14 @@ export async function* streamExploreReadonly(
         args: c.arguments,
       });
 
-      const resultText = await invokeInner(c, params.innerTools, params.toolContext);
-      const display = truncateInnerResult(formatToolResultForDisplay(resultText));
+      const resultText = await invokeInner(
+        c,
+        params.innerTools,
+        params.toolContext,
+      );
+      const display = truncateInnerResult(
+        formatToolResultForDisplay(resultText),
+      );
 
       let stepStatus: 'done' | 'error' = 'done';
       try {

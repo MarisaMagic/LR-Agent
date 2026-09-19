@@ -65,10 +65,10 @@ export interface CropBatchResult {
 }
 
 /** 加载图片字节：路径优先，其次 base64。 */
-function loadImageBytes(params: {
-  absolutePath?: string;
-  base64?: string;
-}): { bytes: Buffer; error?: string } {
+function loadImageBytes(params: { absolutePath?: string; base64?: string }): {
+  bytes: Buffer;
+  error?: string;
+} {
   const abs = (params.absolutePath ?? '').trim();
   if (abs) {
     try {
@@ -77,18 +77,25 @@ function loadImageBytes(params: {
       }
       return { bytes: fs.readFileSync(abs) };
     } catch (err) {
-      return { bytes: Buffer.alloc(0), error: `读取图片失败：${errMessage(err)}` };
+      return {
+        bytes: Buffer.alloc(0),
+        error: `读取图片失败：${errMessage(err)}`,
+      };
     }
   }
   const raw = (params.base64 ?? '').trim();
   if (raw) {
     // 剥离 data URL 前缀
     const comma = raw.indexOf(',');
-    const payload = raw.startsWith('data:') && comma >= 0 ? raw.slice(comma + 1) : raw;
+    const payload =
+      raw.startsWith('data:') && comma >= 0 ? raw.slice(comma + 1) : raw;
     try {
       return { bytes: Buffer.from(payload, 'base64') };
     } catch (err) {
-      return { bytes: Buffer.alloc(0), error: `解码 base64 失败：${errMessage(err)}` };
+      return {
+        bytes: Buffer.alloc(0),
+        error: `解码 base64 失败：${errMessage(err)}`,
+      };
     }
   }
   return { bytes: Buffer.alloc(0), error: '未提供图片路径或 base64 数据。' };
@@ -105,7 +112,7 @@ export function probeImage(params: {
 }): ImageProbeResult {
   const loaded = loadImageBytes(params);
   if (loaded.error) return { ok: false, error: loaded.error };
-  const bytes = loaded.bytes;
+  const { bytes } = loaded;
   if (bytes.length === 0) return { ok: false, error: '图片数据为空。' };
 
   const header: ImageHeaderInfo | null = parseImageHeader(bytes);
@@ -214,10 +221,13 @@ export function imageToJpegDataUrl(params: {
   if (image.isEmpty()) {
     // nativeImage 无法解码（如 GIF/WebP 变体）：退化为原字节直传
     const header = parseImageHeader(loaded.bytes);
-    const suffix = path.extname((params.absolutePath ?? '').trim()).toLowerCase();
-    const mime = mimeFromSuffix(suffix) !== 'application/octet-stream'
-      ? mimeFromSuffix(suffix)
-      : formatToMime(header?.format);
+    const suffix = path
+      .extname((params.absolutePath ?? '').trim())
+      .toLowerCase();
+    const mime =
+      mimeFromSuffix(suffix) !== 'application/octet-stream'
+        ? mimeFromSuffix(suffix)
+        : formatToMime(header?.format);
     return {
       ok: true,
       dataUrl: toDataUrl(mime, loaded.bytes),
@@ -325,7 +335,9 @@ export function cropImageBatch(params: {
       });
     }
     cropped = flattenOntoWhite(cropped);
-    images.push(toDataUrl('image/jpeg', cropped.toJPEG(clampQuality(params.quality))));
+    images.push(
+      toDataUrl('image/jpeg', cropped.toJPEG(clampQuality(params.quality))),
+    );
   }
 
   return { ok: true, images };

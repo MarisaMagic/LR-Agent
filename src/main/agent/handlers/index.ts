@@ -31,7 +31,6 @@ export function buildImplementedRoutes(
       createMutationPrepareHandler(deps),
     [ANNOTATION_HANDLER_KEYS.mapDetectionBoxes]:
       createMapDetectionBoxesHandler(deps),
-    [ANNOTATION_HANDLER_KEYS.qualityCompose]:
-      createQualityComposeHandler(deps),
+    [ANNOTATION_HANDLER_KEYS.qualityCompose]: createQualityComposeHandler(deps),
   });
 }

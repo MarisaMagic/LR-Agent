@@ -147,8 +147,9 @@ export function formatSnapshotForPrompt(
       .filter((m) => m && typeof m === 'object')
       .map(
         (m) =>
-          `- ${String(m.id ?? '')}: ${String(m.name ?? '')}` +
-          (m.is_default ? ' (默认)' : ''),
+          `- ${String(m.id ?? '')}: ${String(m.name ?? '')}${
+            m.is_default ? ' (默认)' : ''
+          }`,
       );
     lines.push('可用检测模型（object_detection）:');
     lines.push(...(modelLines.length ? modelLines : ['- （未配置或未传入）']));
@@ -156,7 +157,9 @@ export function formatSnapshotForPrompt(
 
   if (ANNOTATION_KNOWN_TYPES.has(annotationType)) {
     const extra = ANNOTATION_TYPE_EXTRAS[annotationType];
-    lines.push(extra ? `${ANNOTATION_SCOPE_HINT} ${extra}` : ANNOTATION_SCOPE_HINT);
+    lines.push(
+      extra ? `${ANNOTATION_SCOPE_HINT} ${extra}` : ANNOTATION_SCOPE_HINT,
+    );
   }
 
   return lines.join('\n');

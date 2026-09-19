@@ -10,7 +10,11 @@ import { buildTools, toToolSpec } from '../tools/registry';
 import { DEFAULT_AGENT_SETTINGS } from '../config';
 import { createStandaloneImageService } from '../services/imageService';
 import { deriveTaskPhase } from './taskPhase';
-import { FULL_TOOL_SET, LIGHT_TOOL_SET, resolveAssistToolSet } from './modeRouter';
+import {
+  FULL_TOOL_SET,
+  LIGHT_TOOL_SET,
+  resolveAssistToolSet,
+} from './modeRouter';
 import { streamAssist } from './assistLoop';
 import type { StreamEventPayload } from '../sse';
 
@@ -43,7 +47,10 @@ function makeFetch(
                 tool_calls: (turn.toolCalls ?? []).map((tc) => ({
                   id: tc.id,
                   type: 'function',
-                  function: { name: tc.name, arguments: JSON.stringify(tc.args) },
+                  function: {
+                    name: tc.name,
+                    arguments: JSON.stringify(tc.args),
+                  },
                 })),
               },
               finish_reason: turn.toolCalls?.length ? 'tool_calls' : 'stop',
@@ -89,7 +96,10 @@ function makeFetch(
     frames.push(
       `data: ${JSON.stringify({
         choices: [
-          { delta: {}, finish_reason: turn.toolCalls?.length ? 'tool_calls' : 'stop' },
+          {
+            delta: {},
+            finish_reason: turn.toolCalls?.length ? 'tool_calls' : 'stop',
+          },
         ],
       })}\n\n`,
     );
@@ -149,10 +159,7 @@ describe('Assist 循环：纯文本', () => {
       }),
     );
 
-    expect(events.map((e) => e.type)).toEqual([
-      'preparing',
-      'text_delta',
-    ]);
+    expect(events.map((e) => e.type)).toEqual(['preparing', 'text_delta']);
     expect(events[1].content).toBe('你好');
   });
 });
@@ -161,9 +168,7 @@ describe('Assist 循环：工具集隔离', () => {
   it('调用集合外的工具返回「未知工具」，且不发 tool_result 之外的副作用', async () => {
     const { fetchImpl } = makeFetch([
       {
-        toolCalls: [
-          { id: 'tc1', name: 'describe_client_context', args: {} },
-        ],
+        toolCalls: [{ id: 'tc1', name: 'describe_client_context', args: {} }],
       },
       { text: '完成' },
     ]);
@@ -325,7 +330,11 @@ describe('Assist 循环：tool_choice="any" 兜底', () => {
       {
         nonStream: true,
         toolCalls: [
-          { id: 'forced', name: 'auto_annotate', args: { user_request: '标注' } },
+          {
+            id: 'forced',
+            name: 'auto_annotate',
+            args: { user_request: '标注' },
+          },
         ],
       },
     ]);
@@ -431,7 +440,11 @@ describe('阶段门禁与工具集', () => {
     const { fetchImpl } = makeFetch([
       {
         toolCalls: [
-          { id: 'tc1', name: 'write_workspace_file', args: { relative_path: 'a.md', content: 'x' } },
+          {
+            id: 'tc1',
+            name: 'write_workspace_file',
+            args: { relative_path: 'a.md', content: 'x' },
+          },
         ],
       },
       { text: '完成' },
@@ -583,7 +596,9 @@ describe('LLM 客户端：网络失败重试', () => {
       return new Response('server error', { status: 500 });
     }) as unknown as typeof fetch;
 
-    await expect(drainText(makeRetryClient(impl))).rejects.toThrow(LlmRequestError);
+    await expect(drainText(makeRetryClient(impl))).rejects.toThrow(
+      LlmRequestError,
+    );
     expect(index).toBe(1);
   });
 });

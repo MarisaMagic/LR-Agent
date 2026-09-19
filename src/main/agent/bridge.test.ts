@@ -54,7 +54,9 @@ describe('agent RPC bridge', () => {
       },
     });
 
-    await expect(host.call('image:crop', { boxes: [1, 2, 3] })).resolves.toEqual({
+    await expect(
+      host.call('image:crop', { boxes: [1, 2, 3] }),
+    ).resolves.toEqual({
       count: 3,
     });
 

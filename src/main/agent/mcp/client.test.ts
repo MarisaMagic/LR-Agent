@@ -237,7 +237,10 @@ describe('stringifyMcpResult：结果收拢', () => {
   it('过滤空文本部件', () => {
     expect(
       stringifyMcpResult({
-        content: [{ type: 'text', text: 'a' }, { type: 'text', text: '' }],
+        content: [
+          { type: 'text', text: 'a' },
+          { type: 'text', text: '' },
+        ],
       }),
     ).toBe('a');
   });

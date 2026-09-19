@@ -40,10 +40,12 @@ export const SCOPE_KEYWORD_TO_DETECTION: Record<string, string[]> = {
  *
  * 注意：JS 的 `.` 默认不匹配换行，与 Python 一致，故无需 `s` 标志。
  */
-const ONLY_ANNOTATE_RE = /(?:只|仅)(?:标注|标|检测|框选|识别|打框|标出)?(.{1,24})/g;
+const ONLY_ANNOTATE_RE =
+  /(?:只|仅)(?:标注|标|检测|框选|识别|打框|标出)?(.{1,24})/g;
 
 /** 「不要/排除」范围提取正则（可选动词组比 ONLY 少三项）。 */
-const EXCLUDE_RE = /(?:不要|别|排除|不包括|无需|不用)(?:标注|标|检测|框选)?(.{1,24})/g;
+const EXCLUDE_RE =
+  /(?:不要|别|排除|不包括|无需|不用)(?:标注|标|检测|框选)?(.{1,24})/g;
 
 /** 范围模型。 */
 export class AnnotationScope {
@@ -59,15 +61,20 @@ export class AnnotationScope {
 
   /** 从任意输入构造（null / payload / 普通对象）。 */
   static fromPayload(
-    payload: AnnotationScopePayload | Record<string, unknown> | null | undefined,
+    payload:
+      AnnotationScopePayload | Record<string, unknown> | null | undefined,
   ): AnnotationScope {
     const scope = new AnnotationScope();
     if (!payload) return scope;
     const record = payload as Record<string, unknown>;
     scope.scope_summary =
       typeof record.scope_summary === 'string' ? record.scope_summary : '';
-    scope.include_detection_labels = coerceStrList(record.include_detection_labels);
-    scope.exclude_detection_labels = coerceStrList(record.exclude_detection_labels);
+    scope.include_detection_labels = coerceStrList(
+      record.include_detection_labels,
+    );
+    scope.exclude_detection_labels = coerceStrList(
+      record.exclude_detection_labels,
+    );
     scope.include_label_names = coerceStrList(record.include_label_names);
     scope.exclude_label_names = coerceStrList(record.exclude_label_names);
     return scope;
@@ -86,10 +93,10 @@ export class AnnotationScope {
   isRestricted(): boolean {
     return Boolean(
       this.scope_summary.trim() ||
-        this.include_detection_labels.length ||
-        this.exclude_detection_labels.length ||
-        this.include_label_names.length ||
-        this.exclude_label_names.length,
+      this.include_detection_labels.length ||
+      this.exclude_detection_labels.length ||
+      this.include_label_names.length ||
+      this.exclude_label_names.length,
     );
   }
 }
@@ -219,7 +226,11 @@ export function inferAnnotationScopeFromText(
   }
 
   for (const name of options.labelNames ?? []) {
-    if (name && text.includes(name) && ['只', '仅'].some((k) => text.includes(k))) {
+    if (
+      name &&
+      text.includes(name) &&
+      ['只', '仅'].some((k) => text.includes(k))
+    ) {
       includeLabels.push(name);
     }
   }
@@ -291,8 +302,12 @@ export function filterLabelCandidatesByScope(
     return candidates;
   }
 
-  const include = new Set(scope.include_label_names.map((n) => n.toLowerCase()));
-  const exclude = new Set(scope.exclude_label_names.map((n) => n.toLowerCase()));
+  const include = new Set(
+    scope.include_label_names.map((n) => n.toLowerCase()),
+  );
+  const exclude = new Set(
+    scope.exclude_label_names.map((n) => n.toLowerCase()),
+  );
 
   const filtered: Array<Record<string, unknown>> = [];
   for (const candidate of candidates) {

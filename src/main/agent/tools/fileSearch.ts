@@ -188,7 +188,9 @@ function tryDecodeUtf8(raw: Buffer): string | null {
 }
 
 /** Python `str.splitlines()` 的等价（与 fileReader 保持一致）。 */
-const EXTRA_BOUNDARIES = new Set([0x0b, 0x0c, 0x1c, 0x1d, 0x1e, 0x85, 0x2028, 0x2029]);
+const EXTRA_BOUNDARIES = new Set([
+  0x0b, 0x0c, 0x1c, 0x1d, 0x1e, 0x85, 0x2028, 0x2029,
+]);
 
 function splitLinesForGrep(text: string): string[] {
   const out: string[] = [];
@@ -235,7 +237,11 @@ export interface GrepOptions {
 export async function grepWorkspace(
   clientContext: ClientContextLike | null | undefined,
   pattern: string,
-  options: GrepOptions & { path?: string; globPattern?: string; caseInsensitive?: boolean },
+  options: GrepOptions & {
+    path?: string;
+    globPattern?: string;
+    caseInsensitive?: boolean;
+  },
 ): Promise<string> {
   const needle = (pattern ?? '').trim();
   if (!needle) return '请提供搜索 pattern（正则表达式）。';
@@ -250,10 +256,7 @@ export async function grepWorkspace(
   const roots = allowedRoots(clientContext);
   if (roots.length === 0) return '未绑定工作区或项目目录，无法搜索。';
 
-  const limit = Math.min(
-    Math.max(options.maxResults, 1),
-    options.maxResults,
-  );
+  const limit = Math.min(Math.max(options.maxResults, 1), options.maxResults);
   const maxFiles = options.maxFilesScanned;
   const globPattern = options.globPattern ?? '*';
   const rawPath = (options.path ?? '').trim();
@@ -268,7 +271,11 @@ export async function grepWorkspace(
       if (dirResult.resolved === null) {
         return fileResult.error || dirResult.error || '路径无效。';
       }
-      filesToSearch = await iterSearchFiles(dirResult.resolved, globPattern, maxFiles);
+      filesToSearch = await iterSearchFiles(
+        dirResult.resolved,
+        globPattern,
+        maxFiles,
+      );
     }
   } else {
     for (const root of roots) {
@@ -322,7 +329,8 @@ export async function grepWorkspace(
 
   const scope = rawPath ? normalizeRelativePath(rawPath) : 'workspace';
   let header = `搜索：${needle}\n范围：${scope}\n`;
-  if (globPattern && globPattern !== '*') header += `文件匹配：${globPattern}\n`;
+  if (globPattern && globPattern !== '*')
+    header += `文件匹配：${globPattern}\n`;
 
   if (results.length === 0) {
     return `${header}未找到匹配。\n`;

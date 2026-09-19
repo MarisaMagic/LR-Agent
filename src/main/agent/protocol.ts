@@ -98,7 +98,7 @@ export type AgentChannel = (typeof AGENT_CHANNELS)[keyof typeof AGENT_CHANNELS];
 /** 判断是否为合法的运行时消息（防御 parentPort 上的脏数据）。 */
 export function isAgentMessage(value: unknown): value is AgentMessage {
   if (!value || typeof value !== 'object') return false;
-  const type = (value as { type?: unknown }).type;
+  const { type } = value as { type?: unknown };
   return (
     type === 'rpc:request' ||
     type === 'rpc:response' ||

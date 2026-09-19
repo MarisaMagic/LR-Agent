@@ -93,7 +93,8 @@ const PHASE_BLOCKED_STATUS = 'phase_blocked';
 const DUPLICATE_CALL_SUMMARY = '该工具本轮已用相同参数调用，已跳过重复调用。';
 
 /** 同轮多个 auto_annotate 被合并后的反馈。 */
-const COALESCED_SUMMARY = '同一轮中的多个 auto_annotate 已合并为一次批量调用，本调用已跳过。';
+const COALESCED_SUMMARY =
+  '同一轮中的多个 auto_annotate 已合并为一次批量调用，本调用已跳过。';
 
 /** 已执行过的调用被重复发起时的反馈文案。 */
 const ALREADY_COMPLETED_SUMMARY =
@@ -173,9 +174,7 @@ export interface AssistLoopParams {
 
 /** 单轮执行结果，用于驱动外层循环。 */
 type RoundOutcome =
-  | { kind: 'continued' }
-  | { kind: 'finished' }
-  | { kind: 'pending' };
+  { kind: 'continued' } | { kind: 'finished' } | { kind: 'pending' };
 
 /**
  * 可变的轮次结果容器。
@@ -262,7 +261,8 @@ async function* streamAssistInner(
   const proposalsApplied = params.taskPhaseContext?.phase === 'verify';
 
   if (isResume) {
-    for (const result of clientToolResults) completedTools.add(result.toolCallId);
+    for (const result of clientToolResults)
+      completedTools.add(result.toolCallId);
     appendClientToolResultsToMessages(messages, clientToolResults, {
       userContent: params.userContent,
       proposalsApplied,
@@ -390,7 +390,8 @@ async function* streamAssistInner(
   if (budgetExhausted) {
     messages.push({
       role: 'user',
-      content: '工具调用预算已用完。请基于以上进展直接给出最终回答，不要再调用工具。',
+      content:
+        '工具调用预算已用完。请基于以上进展直接给出最终回答，不要再调用工具。',
     });
     for await (const delta of llm.streamChat({ messages, signal })) {
       if (isCancelled()) return;
@@ -506,7 +507,9 @@ async function* executeRound(
   messages.push({
     role: 'assistant',
     content: fullText,
-    toolCalls: apiToolCalls.length ? apiToolCalls : resolved.map(toChatToolCall),
+    toolCalls: apiToolCalls.length
+      ? apiToolCalls
+      : resolved.map(toChatToolCall),
   });
 
   /** 被拦下的调用：发 tool_start + tool_result 并回灌 ToolMessage。 */
@@ -538,7 +541,14 @@ async function* executeRound(
   const deferred = new Set<string>();
   if (hasAnnotationWrite) {
     for (const call of resolved) {
-      if (['write_workspace_file', 'str_replace_workspace_file', 'delete_workspace_file', 'move_workspace_file'].includes(call.name)) {
+      if (
+        [
+          'write_workspace_file',
+          'str_replace_workspace_file',
+          'delete_workspace_file',
+          'move_workspace_file',
+        ].includes(call.name)
+      ) {
         deferred.add(call.toolCallId);
       }
     }
@@ -554,7 +564,11 @@ async function* executeRound(
   if (gatingEnabled(taskPhaseContext)) {
     for (const call of resolved) {
       if (deferred.has(call.toolCallId)) continue;
-      const reason = checkCallAllowed(call.name, call.arguments, taskPhaseContext);
+      const reason = checkCallAllowed(
+        call.name,
+        call.arguments,
+        taskPhaseContext,
+      );
       if (reason) {
         gatedOut.add(call.toolCallId);
         yield* blocked(call, PHASE_BLOCKED_STATUS, reason);
@@ -640,7 +654,9 @@ async function* executeRound(
   );
   if (parallelCalls.length > 0) {
     const results = await Promise.all(
-      parallelCalls.map((call) => invokeTool(call, tools, toolSet, toolContext)),
+      parallelCalls.map((call) =>
+        invokeTool(call, tools, toolSet, toolContext),
+      ),
     );
     parallelCalls.forEach((call, index) => {
       prefetched.set(call.toolCallId, results[index]);
@@ -667,7 +683,10 @@ async function* executeRound(
 
   // explore 调用：允许多个并行（事件交错），完成后统一补 tool_result
   if (exploreCalls.length > 0) {
-    const finals = new Map<string, { summary: string; status: 'done' | 'error' }>();
+    const finals = new Map<
+      string,
+      { summary: string; status: 'done' | 'error' }
+    >();
     const streams = exploreCalls.map((call) =>
       trackedExplore({
         call,
@@ -999,7 +1018,8 @@ async function* streamToolExecution(
     const streamedPath = streamedPathsByCallId.get(call.toolCallId);
     if (streamedPath) {
       yield sse.fileProposal({
-        summary: String(call.arguments.relative_path ?? streamedPath) || streamedPath,
+        summary:
+          String(call.arguments.relative_path ?? streamedPath) || streamedPath,
         content: '',
         relativePath: streamedPath,
         mode: call.name === STR_REPLACE_TOOL_NAME ? 'edit' : 'write',
@@ -1015,7 +1035,7 @@ async function* streamToolExecution(
 
     // 注意：`.lr-agent` 路径的终态事件**仍然发射**（与流式拦截的 suppress 不同）
     if (!isLrAgentRelative(relPath)) {
-      const operation = docProposal.operation;
+      const { operation } = docProposal;
       const omitForPath = streamedPaths?.has(relPath) ?? false;
 
       if (operation !== 'delete' && !omitForPath) {
@@ -1027,7 +1047,11 @@ async function* streamToolExecution(
         });
         // 定稿补齐时分 200 字符一片
         const CHUNK_SIZE = 200;
-        for (let offset = 0; offset < fullContent.length; offset += CHUNK_SIZE) {
+        for (
+          let offset = 0;
+          offset < fullContent.length;
+          offset += CHUNK_SIZE
+        ) {
           yield sse.fileProposalDelta({
             content: fullContent.slice(offset, offset + CHUNK_SIZE),
             relativePath: relPath,

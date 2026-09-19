@@ -6,9 +6,14 @@ import zlib from 'node:zlib';
 import { extractPdfText, extractTextFromContentStream } from './documentReader';
 
 /** 构造一个含单页、内容流可指定压缩方式的最小 PDF。 */
-function buildPdf(content: string, options: { compress?: boolean } = {}): Buffer {
+function buildPdf(
+  content: string,
+  options: { compress?: boolean } = {},
+): Buffer {
   const contentBytes = Buffer.from(content, 'latin1');
-  const streamData = options.compress ? zlib.deflateSync(contentBytes) : contentBytes;
+  const streamData = options.compress
+    ? zlib.deflateSync(contentBytes)
+    : contentBytes;
   const filter = options.compress ? ' /Filter /FlateDecode' : '';
 
   const parts: string[] = [];
@@ -23,7 +28,10 @@ function buildPdf(content: string, options: { compress?: boolean } = {}): Buffer
     '3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n',
   );
   // 4: Contents（二进制部分用 latin1 拼接以保字节）
-  const head = Buffer.from(`4 0 obj\n<< /Length ${streamData.length}${filter} >>\nstream\n`, 'latin1');
+  const head = Buffer.from(
+    `4 0 obj\n<< /Length ${streamData.length}${filter} >>\nstream\n`,
+    'latin1',
+  );
   const tail = Buffer.from('\nendstream\nendobj\n', 'latin1');
   parts.push('');
   const prefix = Buffer.from(parts.join(''), 'latin1');
@@ -74,9 +82,9 @@ describe('extractTextFromContentStream：文本算子', () => {
   });
 
   it('处理嵌套括号', () => {
-    expect(
-      extractTextFromContentStream(Buffer.from('BT (a(b)c) Tj ET')),
-    ).toBe('a(b)c');
+    expect(extractTextFromContentStream(Buffer.from('BT (a(b)c) Tj ET'))).toBe(
+      'a(b)c',
+    );
   });
 
   it('解码十六进制字符串', () => {

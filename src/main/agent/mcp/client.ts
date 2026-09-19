@@ -26,8 +26,8 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-import type { ToolDefinition } from '../tools/registry';
 import { z } from 'zod';
+import type { ToolDefinition } from '../tools/registry';
 
 /** 连接参数。 */
 export interface McpConnection {
@@ -247,7 +247,7 @@ export function stringifyMcpResult(result: unknown): string {
   if (typeof result === 'string') return result;
 
   if (typeof result === 'object') {
-    const content = (result as { content?: unknown }).content;
+    const { content } = result as { content?: unknown };
     if (Array.isArray(content)) {
       const parts: string[] = [];
       for (const item of content) {
@@ -295,7 +295,9 @@ export function localConnection(
 /** 远程 MCP Server 连接参数：URL **原样使用**（不拼 /mcp），协议按配置。 */
 export function remoteConnection(server: McpServerInput): McpConnection {
   const transport =
-    server.transport === 'sse' ? ('sse' as const) : ('streamable_http' as const);
+    server.transport === 'sse'
+      ? ('sse' as const)
+      : ('streamable_http' as const);
   const conn: McpConnection = {
     url: (server.url ?? '').trim(),
     transport,
@@ -514,8 +516,7 @@ export async function probeMcpTools(params: {
 }): Promise<{ name: string; description: string }[]> {
   const conn: McpConnection = {
     url: params.url.trim(),
-    transport:
-      params.transport === 'sse' ? 'sse' : 'streamable_http',
+    transport: params.transport === 'sse' ? 'sse' : 'streamable_http',
     timeoutMs: PROBE_TIMEOUT_MS,
     sseReadTimeoutMs: PROBE_SSE_READ_TIMEOUT_MS,
   };

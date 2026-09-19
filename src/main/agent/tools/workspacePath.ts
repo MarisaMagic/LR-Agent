@@ -169,7 +169,10 @@ export function resolveWorkspaceFile(
 
   const roots = allowedRoots(clientContext);
   if (roots.length === 0) {
-    return { resolved: null, error: '未绑定工作区或项目目录，无法读取本地文件。' };
+    return {
+      resolved: null,
+      error: '未绑定工作区或项目目录，无法读取本地文件。',
+    };
   }
 
   if (path.isAbsolute(raw)) {
@@ -212,7 +215,10 @@ export function resolveWorkspaceDirectory(
   const raw = (dirPath ?? '').trim();
   const roots = allowedRoots(clientContext);
   if (roots.length === 0) {
-    return { resolved: null, error: '未绑定工作区或项目目录，无法访问本地目录。' };
+    return {
+      resolved: null,
+      error: '未绑定工作区或项目目录，无法访问本地目录。',
+    };
   }
 
   if (!raw) {
@@ -268,7 +274,10 @@ export function resolveWorkspaceWritePath(
 
   const roots = allowedRoots(clientContext);
   if (roots.length === 0) {
-    return { resolved: null, error: '未绑定工作区或项目目录，无法写入本地文件。' };
+    return {
+      resolved: null,
+      error: '未绑定工作区或项目目录，无法写入本地文件。',
+    };
   }
 
   if (path.isAbsolute(raw)) {

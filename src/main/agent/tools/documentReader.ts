@@ -73,7 +73,10 @@ export async function readDocumentFile(
   let meta: string;
   try {
     if (suffix === '.pdf') {
-      const extracted = extractPdfText(fs.readFileSync(resolved), options.maxPages);
+      const extracted = extractPdfText(
+        fs.readFileSync(resolved),
+        options.maxPages,
+      );
       text = extracted.text;
       meta = `PDF 共 ${extracted.total} 页，已提取前 ${extracted.extracted} 页`;
     } else {
@@ -129,7 +132,10 @@ interface PdfExtractResult {
  * `/Contents` 引用 → 解压内容流 → 按文本算子抽取文字。页顺序取对象在文件中出现的
  * 顺序，对绝大多数文档与页树顺序一致。
  */
-export function extractPdfText(bytes: Buffer, maxPages: number): PdfExtractResult {
+export function extractPdfText(
+  bytes: Buffer,
+  maxPages: number,
+): PdfExtractResult {
   // 用 latin1 解析结构：字节保真，且不会因二进制内容破坏索引
   const raw = bytes.toString('latin1');
 
@@ -228,7 +234,9 @@ function collectPageContentRefs(objects: Map<number, PdfObject>): number[][] {
       pages.push({ objNum, refs: [] });
       continue;
     }
-    const refs = [...m[1].matchAll(/(\d+)\s+\d+\s+R/g)].map((r) => Number(r[1]));
+    const refs = [...m[1].matchAll(/(\d+)\s+\d+\s+R/g)].map((r) =>
+      Number(r[1]),
+    );
     pages.push({ objNum, refs });
   }
 
@@ -367,7 +375,12 @@ function readLiteralString(
             // 最多三位八进制
             let oct = '';
             let k = i + 1;
-            while (k < text.length && oct.length < 3 && text[k] >= '0' && text[k] <= '7') {
+            while (
+              k < text.length &&
+              oct.length < 3 &&
+              text[k] >= '0' &&
+              text[k] <= '7'
+            ) {
               oct += text[k];
               k += 1;
             }
@@ -397,12 +410,14 @@ function readLiteralString(
 }
 
 /** 读取十六进制字符串 `<...>`。 */
-function readHexString(text: string, start: number): { value: string; next: number } {
+function readHexString(
+  text: string,
+  start: number,
+): { value: string; next: number } {
   const end = text.indexOf('>', start + 1);
-  const hex = (end === -1 ? text.slice(start + 1) : text.slice(start + 1, end)).replace(
-    /[^0-9a-fA-F]/g,
-    '',
-  );
+  const hex = (
+    end === -1 ? text.slice(start + 1) : text.slice(start + 1, end)
+  ).replace(/[^0-9a-fA-F]/g, '');
   const padded = hex.length % 2 === 0 ? hex : `${hex}0`;
   const bytes = Buffer.from(padded, 'hex');
   return {

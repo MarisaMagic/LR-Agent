@@ -14,6 +14,12 @@
  * 本模块只负责「把请求发出去、把增量取回来」。
  */
 
+/* eslint-disable max-classes-per-file -- 本文件是单一协议层模块：
+ * `LlmRequestError`（错误契约）、`LlmClient`（请求/流式解析）、
+ * `ToolCallAccumulator`（流式 tool_call 分片累积）三者互相耦合
+ * （客户端抛错误、并靠累积器拼参数），拆文件只会把这份契约切碎，
+ * 反而降低可读性。 */
+
 /** 消息内容可以是纯文本，或多模态部件数组。 */
 export type MessageContent =
   | string
@@ -93,6 +99,7 @@ const DEFAULT_RETRY_BASE_DELAY_MS = 300;
 /** 调用失败时抛出，携带 HTTP 状态与响应体片段以便上层分流。 */
 export class LlmRequestError extends Error {
   readonly status: number;
+
   readonly body: string;
 
   constructor(status: number, body: string) {
@@ -180,26 +187,32 @@ export class LlmClient {
     body: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<Response> {
-    const maxRetries = this.options.maxRetries;
+    const { maxRetries } = this.options;
     const baseDelay = this.options.retryBaseDelayMs;
 
     for (let attempt = 0; ; attempt += 1) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
+      const timer = setTimeout(
+        () => controller.abort(),
+        this.options.timeoutMs,
+      );
       // 上游取消也要能中断请求
       const onAbort = (): void => controller.abort();
       signal?.addEventListener('abort', onAbort);
 
       try {
-        const res = await this.fetchImpl(`${this.options.baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.options.apiKey}`,
+        const res = await this.fetchImpl(
+          `${this.options.baseUrl}/chat/completions`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.options.apiKey}`,
+            },
+            body: JSON.stringify(body),
+            signal: controller.signal,
           },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        });
+        );
         if (!res.ok) {
           const text = await res.text().catch(() => '');
           throw new LlmRequestError(res.status, text);
@@ -235,7 +248,12 @@ export class LlmClient {
     maxTokens?: number;
     temperature?: number;
   }): AsyncGenerator<LlmDelta> {
-    const body = this.buildBody({ ...params, stream: true, maxTokens: params.maxTokens, temperature: params.temperature });
+    const body = this.buildBody({
+      ...params,
+      stream: true,
+      maxTokens: params.maxTokens,
+      temperature: params.temperature,
+    });
     const res = await this.post(body, params.signal);
     const bodyStream = res.body;
     if (!bodyStream) throw new Error('LLM 响应没有 body');
@@ -319,7 +337,7 @@ function serializeMessage(message: ChatMessage): Record<string, unknown> {
 /** 从流式 chunk 提取增量；结构不符时返回 null（容错）。 */
 function parseChunk(chunk: unknown): LlmDelta | null {
   if (!chunk || typeof chunk !== 'object') return null;
-  const choices = (chunk as { choices?: unknown }).choices;
+  const { choices } = chunk as { choices?: unknown };
   if (!Array.isArray(choices) || choices.length === 0) return null;
   const first = choices[0] as {
     delta?: Record<string, unknown>;
@@ -356,14 +374,15 @@ function parseCompletion(json: unknown): AssistantTurn {
     json && typeof json === 'object'
       ? ((json as { choices?: unknown }).choices as unknown[] | undefined)?.[0]
       : undefined;
-  const message = (
-    choice as { message?: Record<string, unknown> } | undefined
-  )?.message;
+  const message = (choice as { message?: Record<string, unknown> } | undefined)
+    ?.message;
   if (!message) return { content: '', reasoning: '', toolCalls: [] };
 
   const content = typeof message.content === 'string' ? message.content : '';
   const reasoning =
-    typeof message.reasoning_content === 'string' ? message.reasoning_content : '';
+    typeof message.reasoning_content === 'string'
+      ? message.reasoning_content
+      : '';
 
   const rawCalls = Array.isArray(message.tool_calls)
     ? (message.tool_calls as Array<{
@@ -382,7 +401,9 @@ function parseCompletion(json: unknown): AssistantTurn {
 }
 
 /** 参数解析失败时退化为 `{}`（对齐 Python `normalize_api_tool_calls` 的兜底）。 */
-export function safeParseArgs(raw: string | undefined | null): Record<string, unknown> {
+export function safeParseArgs(
+  raw: string | undefined | null,
+): Record<string, unknown> {
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw);

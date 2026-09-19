@@ -1,7 +1,14 @@
 /**
  * @jest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import {
   hasLocalAgentAuth,
   invalidateLocalAgentAuth,
@@ -82,7 +89,9 @@ describe('localAgentFetch：网络异常自愈', () => {
     });
 
     const seen: string[] = [];
-    (globalThis as unknown as { fetch: unknown }).fetch = async (url: string) => {
+    (globalThis as unknown as { fetch: unknown }).fetch = async (
+      url: string,
+    ) => {
       calls += 1;
       seen.push(url);
       if (calls === 1) throw new TypeError('Failed to fetch');

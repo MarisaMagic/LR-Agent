@@ -43,10 +43,13 @@ export function buildRoutes(
   routes[`POST ${AGENT_ROUTE_PATHS.chatStream}`] = notImplemented;
   routes[`POST ${AGENT_ROUTE_PATHS.chatCancel}`] = notImplemented;
   routes[`POST ${AGENT_ROUTE_PATHS.mcpProbe}`] = notImplemented;
-  routes[`POST ${AGENT_ROUTE_PATHS.annotationMutationPrepare}`] = notImplemented;
-  routes[`POST ${AGENT_ROUTE_PATHS.annotationMapDetectionBoxes}`] = notImplemented;
+  routes[`POST ${AGENT_ROUTE_PATHS.annotationMutationPrepare}`] =
+    notImplemented;
+  routes[`POST ${AGENT_ROUTE_PATHS.annotationMapDetectionBoxes}`] =
+    notImplemented;
   routes[`POST ${AGENT_ROUTE_PATHS.annotationLlmGenerate}`] = notImplemented;
-  routes[`POST ${AGENT_ROUTE_PATHS.qualityReportComposeStream}`] = notImplemented;
+  routes[`POST ${AGENT_ROUTE_PATHS.qualityReportComposeStream}`] =
+    notImplemented;
 
   return { ...routes, ...overrides };
 }

@@ -156,8 +156,11 @@ export interface ResolvePoolParams {
 export async function resolveEffectiveLabelCandidates(
   params: ResolvePoolParams,
 ): Promise<LabelPoolResult> {
-  const scoped = filterLabelCandidatesByScope([...params.allCandidates], params.scope);
-  let source: LabelPoolResult['source'] =
+  const scoped = filterLabelCandidatesByScope(
+    [...params.allCandidates],
+    params.scope,
+  );
+  const source: LabelPoolResult['source'] =
     scoped.length < params.allCandidates.length ? 'scope' : 'full';
 
   const excluded: string[] = [];

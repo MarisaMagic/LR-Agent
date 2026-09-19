@@ -33,10 +33,7 @@ function isUsablePython(pythonPath: string | null): boolean {
   }
 }
 
-function isVenvPath(
-  target: 'inference',
-  pythonPath: string | null,
-): boolean {
+function isVenvPath(target: 'inference', pythonPath: string | null): boolean {
   if (!pythonPath) return false;
   const venv = getVenvPythonPath(target);
   return (

@@ -574,14 +574,18 @@ export default function EnvironmentWizard(): ReactElement | null {
             )}
           </div>
           {status.localAgent.serviceUrl && (
-            <div className="env-wizard-mono" title={status.localAgent.serviceUrl}>
+            <div
+              className="env-wizard-mono"
+              title={status.localAgent.serviceUrl}
+            >
               {status.localAgent.serviceUrl}
             </div>
           )}
 
           <div className="env-wizard-hint">
-            Agent 编排（Assist 工具循环、标注与质量报告编排、Skills 与 MCP 调用）
-            已内置在应用中，随主程序一起启动，无需安装 Python 或额外依赖。
+            Agent 编排（Assist 工具循环、标注与质量报告编排、Skills 与 MCP
+            调用） 已内置在应用中，随主程序一起启动，无需安装 Python
+            或额外依赖。
           </div>
         </div>
       )}

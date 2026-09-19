@@ -88,7 +88,10 @@ export function loadAgentSettings(): AgentSettings {
   };
   return {
     ...DEFAULT_AGENT_SETTINGS,
-    maxToolRounds: num('LR_AGENT_MAX_TOOL_ROUNDS', DEFAULT_AGENT_SETTINGS.maxToolRounds),
+    maxToolRounds: num(
+      'LR_AGENT_MAX_TOOL_ROUNDS',
+      DEFAULT_AGENT_SETTINGS.maxToolRounds,
+    ),
     readFileMaxBytes: num(
       'LR_AGENT_READ_FILE_MAX_BYTES',
       DEFAULT_AGENT_SETTINGS.readFileMaxBytes,

@@ -11,11 +11,7 @@ import {
   sanitizeJsonValue,
   sanitizeUnicodeText,
 } from './common';
-import {
-  dumpMutationOperation,
-  filterPaths,
-  labelNamesOf,
-} from './mutation';
+import { dumpMutationOperation, filterPaths, labelNamesOf } from './mutation';
 import { contentToText } from './generate';
 import {
   assertComposePayloadSize,
@@ -45,9 +41,11 @@ describe('extractJsonObject：LLM 文本解析', () => {
   });
 
   it('从夹杂说明文字的响应中抓取 JSON', () => {
-    expect(extractJsonObject('好的，结果如下：\n{"a": 1}\n希望有帮助')).toEqual({
-      a: 1,
-    });
+    expect(extractJsonObject('好的，结果如下：\n{"a": 1}\n希望有帮助')).toEqual(
+      {
+        a: 1,
+      },
+    );
   });
 
   it('贪婪匹配到最后一个 }（尾部有游离 } 时会解析失败）', () => {
@@ -131,9 +129,9 @@ describe('sanitizeUnicodeText：孤立代理清洗', () => {
 
 describe('sanitizeJsonValue：递归清洗', () => {
   it('清洗嵌套对象与数组中的字符串', () => {
-    expect(
-      sanitizeJsonValue({ a: ['x\uD800', { b: 'y\ufffd' }] }),
-    ).toEqual({ a: ['x', { b: 'y' }] });
+    expect(sanitizeJsonValue({ a: ['x\uD800', { b: 'y\ufffd' }] })).toEqual({
+      a: ['x', { b: 'y' }],
+    });
   });
 
   it('清洗键名', () => {
@@ -165,7 +163,9 @@ describe('httpFromLlmError：错误分流', () => {
   });
 
   it('提及 json_schema 时同样映射为 400', () => {
-    expect(httpFromLlmError(new Error('json_schema not supported')).status).toBe(400);
+    expect(
+      httpFromLlmError(new Error('json_schema not supported')).status,
+    ).toBe(400);
   });
 
   it('其它错误映射为 502', () => {
@@ -308,13 +308,18 @@ describe('contentToText：LLM 内容抽取', () => {
   });
 
   it('内容块数组拼接 text 部件', () => {
-    expect(contentToText([{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }])).toBe(
-      'ab',
-    );
+    expect(
+      contentToText([
+        { type: 'text', text: 'a' },
+        { type: 'text', text: 'b' },
+      ]),
+    ).toBe('ab');
   });
 
   it('数组中非 text 部件跳过', () => {
-    expect(contentToText([{ type: 'text', text: 'a' }, { type: 'image' }])).toBe('a');
+    expect(
+      contentToText([{ type: 'text', text: 'a' }, { type: 'image' }]),
+    ).toBe('a');
   });
 
   it('null / undefined 返回空串', () => {
@@ -330,7 +335,9 @@ describe('quality compose：payload 校验与消息构造', () => {
 
   it('超过 512KB 抛 compose_payload_too_large', () => {
     const huge = { blob: 'x'.repeat(600_000) };
-    expect(() => assertComposePayloadSize(huge)).toThrow('compose_payload_too_large');
+    expect(() => assertComposePayloadSize(huge)).toThrow(
+      'compose_payload_too_large',
+    );
   });
 
   it('消息含固定系统提示与 JSON 载荷', () => {
@@ -339,7 +346,9 @@ describe('quality compose：payload 校验与消息构造', () => {
     expect(messages[0].content).toBe(QUALITY_REPORT_COMPOSE_SYSTEM);
     expect(messages[1].content).toContain('【质量指标与发现 JSON】');
     expect(messages[1].content).toContain('"total": 5');
-    expect(messages[1].content).toContain('请基于以上数据撰写完整 Markdown 质量报告。');
+    expect(messages[1].content).toContain(
+      '请基于以上数据撰写完整 Markdown 质量报告。',
+    );
   });
 
   it('超过 48000 字符时截断并加提示', () => {
@@ -374,7 +383,10 @@ describe('请求 schema：约束对齐', () => {
       MutationPrepareRequestSchema.parse({ provider_id: 'p' }),
     ).toThrow();
     expect(() =>
-      MutationPrepareRequestSchema.parse({ provider_id: 'p', user_request: '' }),
+      MutationPrepareRequestSchema.parse({
+        provider_id: 'p',
+        user_request: '',
+      }),
     ).toThrow();
   });
 
@@ -388,7 +400,8 @@ describe('请求 schema：约束对齐', () => {
 
   it('quality compose 的 compose_payload 默认空对象', () => {
     expect(
-      QualityReportComposeRequestSchema.parse({ provider_id: 'p' }).compose_payload,
+      QualityReportComposeRequestSchema.parse({ provider_id: 'p' })
+        .compose_payload,
     ).toEqual({});
   });
 

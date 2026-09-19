@@ -19,7 +19,11 @@ function request(
     headers?: Record<string, string>;
     body?: string;
   } = {},
-): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
+): Promise<{
+  status: number;
+  headers: http.IncomingHttpHeaders;
+  body: string;
+}> {
   return new Promise((resolve, reject) => {
     const req = http.request(
       {

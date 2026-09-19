@@ -74,11 +74,17 @@ describe('extractJsonString：半截 JSON 解析', () => {
   });
 
   it('key 出现但值尚未开始时返回 null', () => {
-    expect(extractJsonString('{"a":', 'a')).toEqual({ value: null, closed: false });
+    expect(extractJsonString('{"a":', 'a')).toEqual({
+      value: null,
+      closed: false,
+    });
   });
 
   it('解码标准转义', () => {
-    const { value } = extractJsonString('{"a": "l1\\nl2\\tt\\"q\\"\\\\s"}', 'a');
+    const { value } = extractJsonString(
+      '{"a": "l1\\nl2\\tt\\"q\\"\\\\s"}',
+      'a',
+    );
     expect(value).toBe('l1\nl2\tt"q"\\s');
   });
 
@@ -87,7 +93,9 @@ describe('extractJsonString：半截 JSON 解析', () => {
   });
 
   it('解码 \\uXXXX', () => {
-    expect(extractJsonString('{"a": "\\u4f60\\u597d"}', 'a').value).toBe('你好');
+    expect(extractJsonString('{"a": "\\u4f60\\u597d"}', 'a').value).toBe(
+      '你好',
+    );
   });
 
   it('\\u 序列不完整时暂停解析（返回未闭合）', () => {
@@ -113,7 +121,10 @@ describe('extractJsonString：半截 JSON 解析', () => {
   });
 
   it('空字符串值为空串而非 null', () => {
-    expect(extractJsonString('{"a": ""}', 'a')).toEqual({ value: '', closed: true });
+    expect(extractJsonString('{"a": ""}', 'a')).toEqual({
+      value: '',
+      closed: true,
+    });
   });
 
   it('按码点解码，emoji 不丢字', () => {
@@ -131,7 +142,9 @@ describe('提案拦截器：write 工具', () => {
     const events = run(fragment(0, 'tc1', 'write_workspace_file', ARGS, 7));
     const types = events.map((e) => e.type);
     expect(types[0]).toBe('file_proposal_start');
-    expect(types.filter((t) => t === 'file_proposal_delta').length).toBeGreaterThan(0);
+    expect(
+      types.filter((t) => t === 'file_proposal_delta').length,
+    ).toBeGreaterThan(0);
   });
 
   it('增量拼接后等于完整内容', () => {
@@ -165,13 +178,17 @@ describe('提案拦截器：write 工具', () => {
     const interceptor = new ProposalStreamInterceptor(CTX);
     for (const chunk of chunks) {
       const events = interceptor.onChunk([chunk]);
-      expect(events.filter((e) => e.type === 'file_proposal_delta').length)
-        .toBeLessThanOrEqual(1);
+      expect(
+        events.filter((e) => e.type === 'file_proposal_delta').length,
+      ).toBeLessThanOrEqual(1);
     }
   });
 
   it('含 emoji 的内容增量拼接后完整还原', () => {
-    const args = JSON.stringify({ relative_path: 'a.md', content: '前😀后🎉尾' });
+    const args = JSON.stringify({
+      relative_path: 'a.md',
+      content: '前😀后🎉尾',
+    });
     const events = run(fragment(0, 'tc1', 'write_workspace_file', args, 3));
     const content = events
       .filter((e) => e.type === 'file_proposal_delta')
@@ -191,14 +208,18 @@ describe('提案拦截器：edit 工具', () => {
   });
 
   it('start 带 mode/operation = edit', () => {
-    const events = run(fragment(0, 'tc1', 'str_replace_workspace_file', ARGS, 6));
+    const events = run(
+      fragment(0, 'tc1', 'str_replace_workspace_file', ARGS, 6),
+    );
     const start = events.find((e) => e.type === 'file_proposal_start');
     expect(start?.mode).toBe('edit');
     expect(start?.operation).toBe('edit');
   });
 
   it('file_edit_delta 的 old/new 增量可拼接还原', () => {
-    const events = run(fragment(0, 'tc1', 'str_replace_workspace_file', ARGS, 4));
+    const events = run(
+      fragment(0, 'tc1', 'str_replace_workspace_file', ARGS, 4),
+    );
     const deltas = events.filter((e) => e.type === 'file_edit_delta');
     expect(deltas.length).toBeGreaterThan(0);
 
@@ -209,12 +230,16 @@ describe('提案拦截器：edit 工具', () => {
   });
 
   it('不发 file_proposal_delta（edit 走 edit_delta）', () => {
-    const events = run(fragment(0, 'tc1', 'str_replace_workspace_file', ARGS, 4));
+    const events = run(
+      fragment(0, 'tc1', 'str_replace_workspace_file', ARGS, 4),
+    );
     expect(events.some((e) => e.type === 'file_proposal_delta')).toBe(false);
   });
 
   it('oldDelta/newDelta 至少一个非空才发事件', () => {
-    const events = run(fragment(0, 'tc1', 'str_replace_workspace_file', ARGS, 4));
+    const events = run(
+      fragment(0, 'tc1', 'str_replace_workspace_file', ARGS, 4),
+    );
     for (const event of events.filter((e) => e.type === 'file_edit_delta')) {
       const hasDelta = Boolean(event.oldDelta) || Boolean(event.newDelta);
       expect(hasDelta).toBe(true);
@@ -228,11 +253,16 @@ describe('提案拦截器：.lr-agent 抑制', () => {
       relative_path: '.lr-agent/scratch.md',
       content: '内部草稿',
     });
-    expect(run(fragment(0, 'tc1', 'write_workspace_file', args, 5))).toHaveLength(0);
+    expect(
+      run(fragment(0, 'tc1', 'write_workspace_file', args, 5)),
+    ).toHaveLength(0);
   });
 
   it('被抑制的调用不出现在 streamedPathsByCallId', () => {
-    const args = JSON.stringify({ relative_path: '.lr-agent/scratch.md', content: 'x' });
+    const args = JSON.stringify({
+      relative_path: '.lr-agent/scratch.md',
+      content: 'x',
+    });
     const interceptor = new ProposalStreamInterceptor(CTX);
     for (const chunk of fragment(0, 'tc1', 'write_workspace_file', args, 5)) {
       interceptor.onChunk([chunk]);
@@ -245,13 +275,25 @@ describe('提案拦截器：状态重置与 provider 兼容', () => {
   it('同一 tc_idx 上换 id 时重置状态（避免残留 rel_path 错标）', () => {
     const interceptor = new ProposalStreamInterceptor(CTX);
     const first = JSON.stringify({ relative_path: 'a.md', content: 'AAA' });
-    for (const chunk of fragment(0, 'tc1', 'write_workspace_file', first, 100)) {
+    for (const chunk of fragment(
+      0,
+      'tc1',
+      'write_workspace_file',
+      first,
+      100,
+    )) {
       interceptor.onChunk([chunk]);
     }
 
     const second = JSON.stringify({ relative_path: 'b.md', content: 'BBB' });
     let sawSecondStart = false;
-    for (const chunk of fragment(0, 'tc2', 'write_workspace_file', second, 100)) {
+    for (const chunk of fragment(
+      0,
+      'tc2',
+      'write_workspace_file',
+      second,
+      100,
+    )) {
       for (const event of interceptor.onChunk([chunk])) {
         const dict = toSseDict(event);
         if (
@@ -268,7 +310,13 @@ describe('提案拦截器：状态重置与 provider 兼容', () => {
   it('kind 从 write 变为 edit 时重置状态', () => {
     const interceptor = new ProposalStreamInterceptor(CTX);
     const writeArgs = JSON.stringify({ relative_path: 'a.md', content: 'x' });
-    for (const chunk of fragment(0, 'tc1', 'write_workspace_file', writeArgs, 100)) {
+    for (const chunk of fragment(
+      0,
+      'tc1',
+      'write_workspace_file',
+      writeArgs,
+      100,
+    )) {
       interceptor.onChunk([chunk]);
     }
     const editArgs = JSON.stringify({
@@ -293,7 +341,12 @@ describe('提案拦截器：状态重置与 provider 兼容', () => {
     const collected: string[] = [];
     for (let i = 0; i < 3; i += 1) {
       for (const event of interceptor.onChunk([
-        { index: 0, id: 'tc1', name: 'write_workspace_file', argsFragment: args },
+        {
+          index: 0,
+          id: 'tc1',
+          name: 'write_workspace_file',
+          argsFragment: args,
+        },
       ])) {
         if (event.type === 'file_proposal_delta') {
           collected.push(event.content as string);
@@ -318,10 +371,18 @@ describe('提案拦截器：streamedPathsByCallId', () => {
   it('返回已出卡的 callId → 显示路径', () => {
     const args = JSON.stringify({ relative_path: 'dir/x.md', content: 'c' });
     const interceptor = new ProposalStreamInterceptor(CTX);
-    for (const chunk of fragment(0, 'call-abc', 'write_workspace_file', args, 5)) {
+    for (const chunk of fragment(
+      0,
+      'call-abc',
+      'write_workspace_file',
+      args,
+      5,
+    )) {
       interceptor.onChunk([chunk]);
     }
-    expect(interceptor.streamedPathsByCallId().get('call-abc')).toBe('dir/x.md');
+    expect(interceptor.streamedPathsByCallId().get('call-abc')).toBe(
+      'dir/x.md',
+    );
     expect(interceptor.collectedPaths().has('dir/x.md')).toBe(true);
   });
 

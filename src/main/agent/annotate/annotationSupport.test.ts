@@ -99,7 +99,10 @@ describe('normalizeDetectionLabel', () => {
 
 describe('expandDetectionAliases', () => {
   it('中文关键词展开为英文别名', () => {
-    expect(expandDetectionAliases(['篮球'])).toEqual(['sports ball', 'basketball']);
+    expect(expandDetectionAliases(['篮球'])).toEqual([
+      'sports ball',
+      'basketball',
+    ]);
   });
 
   it('未命中的词原样作为别名输出', () => {
@@ -124,7 +127,10 @@ describe('inferAnnotationScopeFromText：范围推断', () => {
 
   it('「不要标注篮球」推断出排除项', () => {
     const scope = inferAnnotationScopeFromText('不要标注篮球');
-    expect(scope.exclude_detection_labels).toEqual(['sports ball', 'basketball']);
+    expect(scope.exclude_detection_labels).toEqual([
+      'sports ball',
+      'basketball',
+    ]);
   });
 
   it('取分隔符前的第一段作为范围词', () => {
@@ -190,7 +196,9 @@ describe('inferAnnotationScopeFromText：范围推断', () => {
   });
 
   it('exclude_label_names 推断恒为空', () => {
-    expect(inferAnnotationScopeFromText('不要 dog').exclude_label_names).toEqual([]);
+    expect(
+      inferAnnotationScopeFromText('不要 dog').exclude_label_names,
+    ).toEqual([]);
   });
 
   it('空文本返回全默认', () => {
@@ -225,9 +233,9 @@ describe('mergeAnnotationScope', () => {
   });
 
   it('null 输入等价空 scope', () => {
-    expect(mergeAnnotationScope(null, '只标注猫').include_detection_labels).toEqual([
-      'cat',
-    ]);
+    expect(
+      mergeAnnotationScope(null, '只标注猫').include_detection_labels,
+    ).toEqual(['cat']);
   });
 });
 
@@ -286,7 +294,13 @@ describe('YOLO_COCO_CLASS_NAMES', () => {
   });
 
   it('含关键项', () => {
-    for (const name of ['person', 'car', 'sports ball', 'dining table', 'face']) {
+    for (const name of [
+      'person',
+      'car',
+      'sports ball',
+      'dining table',
+      'face',
+    ]) {
       expect(YOLO_COCO_CLASS_NAMES.has(name)).toBe(true);
     }
   });
@@ -298,15 +312,15 @@ describe('YOLO_COCO_CLASS_NAMES', () => {
 
 describe('labelsRequireVisionMapping', () => {
   it('全部未命中标准类名时返回 true', () => {
-    expect(labelsRequireVisionMapping([{ name: 'Curry' }, { name: 'James' }])).toBe(
-      true,
-    );
+    expect(
+      labelsRequireVisionMapping([{ name: 'Curry' }, { name: 'James' }]),
+    ).toBe(true);
   });
 
   it('任一命中时返回 false', () => {
-    expect(labelsRequireVisionMapping([{ name: 'Curry' }, { name: 'person' }])).toBe(
-      false,
-    );
+    expect(
+      labelsRequireVisionMapping([{ name: 'Curry' }, { name: 'person' }]),
+    ).toBe(false);
   });
 
   it('无有效标签名时返回 false', () => {
@@ -337,14 +351,17 @@ describe('heuristicMapBoxes', () => {
   });
 
   it('class_name 为空时回退 detection_label', () => {
-    const result = heuristicMapBoxes([{ detection_label: 'person' }], candidates);
+    const result = heuristicMapBoxes(
+      [{ detection_label: 'person' }],
+      candidates,
+    );
     expect(result[0].label_id).toBe('l1');
   });
 
   it('精确匹配大小写不敏感', () => {
-    expect(heuristicMapBoxes([{ class_name: 'CAR' }], candidates)[0].label_id).toBe(
-      'l2',
-    );
+    expect(
+      heuristicMapBoxes([{ class_name: 'CAR' }], candidates)[0].label_id,
+    ).toBe('l2');
   });
 
   it('无匹配时 label_id 为空且 reason 为兜底文案', () => {
@@ -356,7 +373,10 @@ describe('heuristicMapBoxes', () => {
   it('唯一部分匹配（双向子串）', () => {
     const result = heuristicMapBoxes(
       [{ class_name: 'sports' }],
-      [{ id: 'l1', name: 'sports ball' }, { id: 'l2', name: 'car' }],
+      [
+        { id: 'l1', name: 'sports ball' },
+        { id: 'l2', name: 'car' },
+      ],
     );
     expect(result[0].label_id).toBe('l1');
     expect(result[0].reason).toContain('部分匹配');
@@ -365,7 +385,10 @@ describe('heuristicMapBoxes', () => {
   it('部分匹配多命中时不选', () => {
     const result = heuristicMapBoxes(
       [{ class_name: 'a' }],
-      [{ id: 'l1', name: 'abc' }, { id: 'l2', name: 'abd' }],
+      [
+        { id: 'l1', name: 'abc' },
+        { id: 'l2', name: 'abd' },
+      ],
     );
     expect(result[0].label_id).toBe('');
   });
@@ -373,7 +396,10 @@ describe('heuristicMapBoxes', () => {
   it('OCR 唯一命中', () => {
     const result = heuristicMapBoxes(
       [{ class_name: 'unknown' }],
-      [{ id: 'l1', name: 'curry' }, { id: 'l2', name: 'jokic' }],
+      [
+        { id: 'l1', name: 'curry' },
+        { id: 'l2', name: 'jokic' },
+      ],
       '球员 curry 在场上',
     );
     expect(result[0].label_id).toBe('l1');
@@ -383,7 +409,10 @@ describe('heuristicMapBoxes', () => {
   it('OCR 多命中时不选', () => {
     const result = heuristicMapBoxes(
       [{ class_name: 'unknown' }],
-      [{ id: 'l1', name: 'curry' }, { id: 'l2', name: 'jokic' }],
+      [
+        { id: 'l1', name: 'curry' },
+        { id: 'l2', name: 'jokic' },
+      ],
       'curry 与 jokic',
     );
     expect(result[0].label_id).toBe('');
@@ -495,7 +524,9 @@ describe('validateVisionMappings', () => {
       (i) => i.code === MappingIssueCode.REASON_NAME_MISMATCH,
     );
     expect(mismatch).toBeDefined();
-    expect(mismatch?.message).toBe("reason 指向 'Curry'，但 label_id 对应 'James'");
+    expect(mismatch?.message).toBe(
+      "reason 指向 'Curry'，但 label_id 对应 'James'",
+    );
   });
 
   it('reason 提到两个候选名时不报 mismatch', () => {
@@ -610,43 +641,63 @@ describe('findLabelNamesInText', () => {
 describe('shouldRunPreflight', () => {
   it('off 恒不跑', () => {
     expect(
-      shouldRunPreflight('off', { candidateCount: 100, boxCount: 1, minExtra: 0 }),
+      shouldRunPreflight('off', {
+        candidateCount: 100,
+        boxCount: 1,
+        minExtra: 0,
+      }),
     ).toBe(false);
   });
 
   it('always 在框数 > 0 时恒跑', () => {
     expect(
-      shouldRunPreflight('always', { candidateCount: 1, boxCount: 1, minExtra: 99 }),
+      shouldRunPreflight('always', {
+        candidateCount: 1,
+        boxCount: 1,
+        minExtra: 99,
+      }),
     ).toBe(true);
   });
 
   it('框数为 0 时一律不跑', () => {
     expect(
-      shouldRunPreflight('always', { candidateCount: 10, boxCount: 0, minExtra: 0 }),
+      shouldRunPreflight('always', {
+        candidateCount: 10,
+        boxCount: 0,
+        minExtra: 0,
+      }),
     ).toBe(false);
   });
 
   it('auto 需候选数比框数多出至少 minExtra', () => {
     expect(
-      shouldRunPreflight('auto', { candidateCount: 5, boxCount: 3, minExtra: 2 }),
+      shouldRunPreflight('auto', {
+        candidateCount: 5,
+        boxCount: 3,
+        minExtra: 2,
+      }),
     ).toBe(true);
     expect(
-      shouldRunPreflight('auto', { candidateCount: 4, boxCount: 3, minExtra: 2 }),
+      shouldRunPreflight('auto', {
+        candidateCount: 4,
+        boxCount: 3,
+        minExtra: 2,
+      }),
     ).toBe(false);
   });
 });
 
 describe('coordsAreNormalized', () => {
   it('全部 <= 1.5 视为归一化', () => {
-    expect(coordsAreNormalized([{ x: 0.1, y: 0.2, width: 0.3, height: 0.4 }])).toBe(
-      true,
-    );
+    expect(
+      coordsAreNormalized([{ x: 0.1, y: 0.2, width: 0.3, height: 0.4 }]),
+    ).toBe(true);
   });
 
   it('任一 > 1.5 视为像素坐标', () => {
-    expect(coordsAreNormalized([{ x: 100, y: 0.2, width: 0.3, height: 0.4 }])).toBe(
-      false,
-    );
+    expect(
+      coordsAreNormalized([{ x: 100, y: 0.2, width: 0.3, height: 0.4 }]),
+    ).toBe(false);
   });
 
   it('非法值视为像素坐标', () => {
@@ -694,6 +745,9 @@ describe('SCOPE_KEYWORD_TO_DETECTION', () => {
   });
 
   it('篮球映射到两个别名', () => {
-    expect(SCOPE_KEYWORD_TO_DETECTION['篮球']).toEqual(['sports ball', 'basketball']);
+    expect(SCOPE_KEYWORD_TO_DETECTION['篮球']).toEqual([
+      'sports ball',
+      'basketball',
+    ]);
   });
 });

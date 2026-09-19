@@ -1095,7 +1095,8 @@ export function applyStreamEventToBlocks(
   }
 
   if (event.type === 'annotation_proposal') {
-    const proposalKind = inferAnnotationProposalKind(event.proposal);    for (let i = 0; i < next.length; i += 1) {
+    const proposalKind = inferAnnotationProposalKind(event.proposal);
+    for (let i = 0; i < next.length; i += 1) {
       const b = next[i];
       if (b.type === 'annotation_pipeline') {
         next[i] = {

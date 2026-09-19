@@ -52,7 +52,10 @@ interface ProposalState {
   suppressed?: boolean;
 }
 
-function newState(callId = '', kind: 'write' | 'edit' = 'write'): ProposalState {
+function newState(
+  callId = '',
+  kind: 'write' | 'edit' = 'write',
+): ProposalState {
   return {
     argsBuf: '',
     titleSent: false,
@@ -173,11 +176,15 @@ export function extractJsonString(
 /** 在码点数组中查找子序列，返回起始下标；未找到返回 -1。 */
 function indexOfSequence(haystack: string[], needle: string[]): number {
   if (needle.length === 0) return 0;
-  outer: for (let i = 0; i + needle.length <= haystack.length; i += 1) {
+  for (let i = 0; i + needle.length <= haystack.length; i += 1) {
+    let matched = true;
     for (let j = 0; j < needle.length; j += 1) {
-      if (haystack[i + j] !== needle[j]) continue outer;
+      if (haystack[i + j] !== needle[j]) {
+        matched = false;
+        break;
+      }
     }
-    return i;
+    if (matched) return i;
   }
   return -1;
 }
@@ -195,7 +202,7 @@ function mergeArgs(state: ProposalState, tcArgs: string): void {
   if (tcArgs.startsWith(buf)) {
     state.argsBuf = tcArgs;
   } else if (buf.startsWith(tcArgs)) {
-    return;
+    // 已见前缀的重复投递：保持现有 buf 不变（此处刻意不做任何处理）
   } else {
     state.argsBuf = buf + tcArgs;
   }
@@ -269,7 +276,10 @@ export class ProposalStreamInterceptor {
           if (isLrAgentRelative(relPath)) {
             state.suppressed = true;
           } else {
-            state.relPath = normalizeWriteDisplayPath(this.clientContext, relPath);
+            state.relPath = normalizeWriteDisplayPath(
+              this.clientContext,
+              relPath,
+            );
             events.push(
               sse.fileProposalStart({
                 summary: state.relPath,
@@ -362,7 +372,8 @@ export class ProposalStreamInterceptor {
         const callId = state.callId || '';
         streamed.set(
           callId,
-          state.relPath || normalizeWriteDisplayPath(this.clientContext, relPath),
+          state.relPath ||
+            normalizeWriteDisplayPath(this.clientContext, relPath),
         );
       }
     }

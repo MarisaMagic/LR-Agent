@@ -14,10 +14,7 @@
 
 import path from 'path';
 import { buildToolResult, VISION_PATH_MARKER } from './result';
-import {
-  resolveWorkspaceFile,
-  type ClientContextLike,
-} from './workspacePath';
+import { resolveWorkspaceFile, type ClientContextLike } from './workspacePath';
 import { IMAGE_SUFFIXES } from './fileReader';
 import type { ImageService } from '../services/imageService';
 

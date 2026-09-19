@@ -26,10 +26,7 @@ import {
   QualityReportComposeRequestSchema,
 } from '../annotate/schemas';
 import { mapDetectionBoxesToLabelsUnified } from '../annotate/mapLabels';
-import {
-  labelNamesOf,
-  prepareMutationAnnotation,
-} from '../annotate/mutation';
+import { labelNamesOf, prepareMutationAnnotation } from '../annotate/mutation';
 import { llmGenerate } from '../annotate/generate';
 import {
   assertComposePayloadSize,
@@ -106,12 +103,18 @@ export function createMutationPrepareHandler(deps: RuntimeDeps): RouteHandler {
   return async (req) => {
     // 功能开关：关闭时返回 403（对齐 Python）
     if (!deps.settings.mutationEnabled) {
-      return { kind: 'json', status: 403, body: { detail: 'agent_mutation_disabled' } };
+      return {
+        kind: 'json',
+        status: 403,
+        body: { detail: 'agent_mutation_disabled' },
+      };
     }
 
     let body;
     try {
-      body = MutationPrepareRequestSchema.parse(JSON.parse(req.rawBody || '{}'));
+      body = MutationPrepareRequestSchema.parse(
+        JSON.parse(req.rawBody || '{}'),
+      );
     } catch (err) {
       return {
         kind: 'json',
@@ -178,7 +181,11 @@ export function createQualityComposeHandler(deps: RuntimeDeps): RouteHandler {
       requireCredentials(body);
     } catch (err) {
       if (err instanceof AnnotateHttpError) {
-        return { kind: 'json', status: err.status, body: { detail: err.message } };
+        return {
+          kind: 'json',
+          status: err.status,
+          body: { detail: err.message },
+        };
       }
       return {
         kind: 'json',
@@ -206,11 +213,15 @@ export function createQualityComposeHandler(deps: RuntimeDeps): RouteHandler {
 }
 
 /** `POST /agent/annotation/map-detection-boxes` */
-export function createMapDetectionBoxesHandler(deps: RuntimeDeps): RouteHandler {
+export function createMapDetectionBoxesHandler(
+  deps: RuntimeDeps,
+): RouteHandler {
   return async (req) => {
     let body;
     try {
-      body = MapDetectionBoxesRequestSchema.parse(JSON.parse(req.rawBody || '{}'));
+      body = MapDetectionBoxesRequestSchema.parse(
+        JSON.parse(req.rawBody || '{}'),
+      );
     } catch (err) {
       return {
         kind: 'json',

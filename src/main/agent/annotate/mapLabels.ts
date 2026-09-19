@@ -74,7 +74,9 @@ interface CropRegion {
  *
  * 任一维度 > 1.5 视为像素坐标；任一值无法转数字也视为像素（返回 false）。
  */
-export function coordsAreNormalized(boxes: Array<Record<string, unknown>>): boolean {
+export function coordsAreNormalized(
+  boxes: Array<Record<string, unknown>>,
+): boolean {
   for (const b of boxes) {
     for (const key of ['x', 'y', 'width', 'height']) {
       const value = Number(b[key] ?? 0);
@@ -122,7 +124,9 @@ interface VisionMapBoxParams {
 }
 
 /** 对单个裁剪区域调用视觉 LLM。 */
-async function visionMapBoxWithCrop(params: VisionMapBoxParams): Promise<BoxMapping> {
+async function visionMapBoxWithCrop(
+  params: VisionMapBoxParams,
+): Promise<BoxMapping> {
   const validIds = new Set(params.candidates.map((c) => String(c.id ?? '')));
 
   const retryBlock = params.retryNote.trim()
@@ -152,7 +156,10 @@ async function visionMapBoxWithCrop(params: VisionMapBoxParams): Promise<BoxMapp
 
   let content = '';
   try {
-    const turn = await params.llm.completeChat({ messages, signal: params.signal });
+    const turn = await params.llm.completeChat({
+      messages,
+      signal: params.signal,
+    });
     content = typeof turn.content === 'string' ? turn.content : '';
   } catch {
     return { box_index: params.boxIndex, label_id: '', reason: '视觉调用失败' };
@@ -263,7 +270,8 @@ function usedLabelIds(
   const used = new Set<string>();
   for (const m of mappings) {
     const idx = Number(m.box_index ?? 0);
-    if (options.excludeBox !== undefined && idx === options.excludeBox) continue;
+    if (options.excludeBox !== undefined && idx === options.excludeBox)
+      continue;
     const lid = String(m.label_id ?? '').trim();
     if (lid) used.add(lid);
   }
@@ -301,7 +309,8 @@ async function visionMapWithValidationRetry(
   });
 
   let retryRounds = 0;
-  if (!params.validate || params.maxRetries <= 0) return { mappings, retryRounds };
+  if (!params.validate || params.maxRetries <= 0)
+    return { mappings, retryRounds };
 
   const regionByIndex = new Map(params.regions.map((r) => [r.box_index, r]));
 
@@ -314,9 +323,9 @@ async function visionMapWithValidationRetry(
     });
     if (result.ok) break;
 
-    const retryIndices = [...new Set(result.issues.map((i) => i.boxIndex))].sort(
-      (a, b) => a - b,
-    );
+    const retryIndices = [
+      ...new Set(result.issues.map((i) => i.boxIndex)),
+    ].sort((a, b) => a - b);
     if (retryIndices.length === 0) break;
 
     retryRounds += 1;
@@ -326,7 +335,11 @@ async function visionMapWithValidationRetry(
     for (const boxIndex of retryIndices) {
       const used = usedLabelIds(mappings, { excludeBox: boxIndex });
       const currentLid = String(byIndex.get(boxIndex)?.label_id ?? '');
-      const boxCandidates = candidatesForRetryBox(params.candidates, used, currentLid);
+      const boxCandidates = candidatesForRetryBox(
+        params.candidates,
+        used,
+        currentLid,
+      );
       const boxIssues: MappingIssue[] = result.issuesForBox(boxIndex);
       overrides.set(boxIndex, {
         candidates: boxCandidates,
@@ -391,7 +404,7 @@ export async function mapDetectionBoxesToLabelsUnified(
     params.scope instanceof AnnotationScope
       ? params.scope
       : AnnotationScope.fromPayload(params.scope);
-  const settings = params.settings;
+  const { settings } = params;
 
   const scopedCandidates = filterLabelCandidatesByScope(
     [...params.labelCandidates],
@@ -450,8 +463,7 @@ export async function mapDetectionBoxesToLabelsUnified(
     let scopeNote = '';
     if (scopeModel.isRestricted()) {
       const summary =
-        scopeModel.scope_summary ||
-        pythonJsonDumps(scopeModel.toPayload());
+        scopeModel.scope_summary || pythonJsonDumps(scopeModel.toPayload());
       scopeNote = `\n用户标注范围：${summary}`;
     }
 
@@ -470,7 +482,7 @@ export async function mapDetectionBoxesToLabelsUnified(
       signal: params.signal,
     });
 
-    const candidates = pool.candidates;
+    const { candidates } = pool;
     validIds = new Set(candidates.map((c) => String(c.id ?? '')));
 
     const normalized = coordsAreNormalized(normalizedBoxes as never);

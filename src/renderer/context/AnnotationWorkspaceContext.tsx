@@ -821,10 +821,10 @@ export function AnnotationWorkspaceProvider({
       // 这里选择**跳过这次保存**而不是写入：脏数据仍留在内存中，用户继续操作会
       // 重新触发保存；而下一次加载完成时 ref 已同步，不会再误判。
       if (meta.filePath !== relPath) {
-        console.warn(
-          '[annotation] 跳过保存：文档归属路径与当前文件不一致',
-          { metaFilePath: meta.filePath, relPath },
-        );
+        console.warn('[annotation] 跳过保存：文档归属路径与当前文件不一致', {
+          metaFilePath: meta.filePath,
+          relPath,
+        });
         return;
       }
 

@@ -83,7 +83,10 @@ export interface ToolDefinition {
    * 执行体。`proposal` 与 `async` 类工具没有执行体——前者由调度层生成提案，
    * 后者交给 Electron 执行。
    */
-  execute?: (args: Record<string, unknown>, ctx: ToolContext) => string | Promise<string>;
+  execute?: (
+    args: Record<string, unknown>,
+    ctx: ToolContext,
+  ) => string | Promise<string>;
 }
 
 /** 剥掉 JSON Schema 中的 title（含嵌套），对齐 Pydantic 的 `_strip_titles`。 */
@@ -91,7 +94,9 @@ export function stripSchemaTitles(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(stripSchemaTitles);
   if (node && typeof node === 'object') {
     const out: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    for (const [key, value] of Object.entries(
+      node as Record<string, unknown>,
+    )) {
       if (key === 'title') continue;
       out[key] = stripSchemaTitles(value);
     }
@@ -107,7 +112,10 @@ export function stripSchemaTitles(node: unknown): unknown {
  * `additionalProperties`。
  */
 export function toParametersSchema(schema: z.ZodType): Record<string, unknown> {
-  const raw = z.toJSONSchema(schema, { io: 'input' }) as Record<string, unknown>;
+  const raw = z.toJSONSchema(schema, { io: 'input' }) as Record<
+    string,
+    unknown
+  >;
   delete raw.$schema;
   const cleaned = stripSchemaTitles(raw) as Record<string, unknown>;
   delete cleaned.additionalProperties;
@@ -134,7 +142,10 @@ export function toToolSpec(tool: ToolDefinition): ToolSpec {
 // 描述文本需与 registry.py 的 Field(description=...) 逐字一致。
 
 const AutoAnnotateArgs = z.object({
-  user_request: z.string().min(1).describe('本轮标注任务说明（按用户意图归纳）'),
+  user_request: z
+    .string()
+    .min(1)
+    .describe('本轮标注任务说明（按用户意图归纳）'),
   paths: z
     .array(z.string())
     .default([])
@@ -173,7 +184,10 @@ const AutoAnnotateArgs = z.object({
     .array(z.string())
     .nullish()
     .describe('只保留这些检测类名的框（如 ["person"]）'),
-  exclude_classes: z.array(z.string()).nullish().describe('排除这些检测类名的框'),
+  exclude_classes: z
+    .array(z.string())
+    .nullish()
+    .describe('排除这些检测类名的框'),
   use_vision_mapping: z
     .boolean()
     .nullish()
@@ -186,7 +200,10 @@ const MutateAnnotationArgs = z.object({
     .array(z.string())
     .nullish()
     .describe('要修改的文件相对路径。有明确文件时必须填写。'),
-  annotation_ids: z.array(z.string()).nullish().describe('画布选中或用户指定的标注 id。'),
+  annotation_ids: z
+    .array(z.string())
+    .nullish()
+    .describe('画布选中或用户指定的标注 id。'),
 });
 
 // 参数名与 `src/main/mcp/server.ts` 的 start_terminal_command 保持一致，
@@ -208,7 +225,9 @@ const StartTerminalCommandArgs = z.object({
     .positive()
     .max(600_000)
     .optional()
-    .describe('Kill the command after this many ms (default 300000, max 600000)'),
+    .describe(
+      'Kill the command after this many ms (default 300000, max 600000)',
+    ),
 });
 
 const ReadFileAnnotationArgs = z.object({
@@ -218,7 +237,10 @@ const ReadFileAnnotationArgs = z.object({
 });
 
 const ReadWorkspaceFileArgs = z.object({
-  relative_path: z.string().default('').describe('相对路径；为空时使用当前打开的文件'),
+  relative_path: z
+    .string()
+    .default('')
+    .describe('相对路径；为空时使用当前打开的文件'),
   start_line: z.number().int().nullish().describe('起始行（1-indexed，含）'),
   end_line: z.number().int().nullish().describe('结束行（1-indexed，含）'),
 });
@@ -232,11 +254,17 @@ const GrepArgs = z.object({
 
 const GlobArgs = z.object({
   glob_pattern: z.string().describe('glob 表达式，如 **/*.py、src/**/*.ts'),
-  relative_dir: z.string().default('').describe('起始目录；为空时从工作区根开始'),
+  relative_dir: z
+    .string()
+    .default('')
+    .describe('起始目录；为空时从工作区根开始'),
 });
 
 const ListDirArgs = z.object({
-  relative_dir: z.string().default('').describe('目录相对路径；为空时列出工作区根'),
+  relative_dir: z
+    .string()
+    .default('')
+    .describe('目录相对路径；为空时列出工作区根'),
 });
 
 const HelpArgs = z.object({
@@ -244,11 +272,17 @@ const HelpArgs = z.object({
 });
 
 const ReadImageArgs = z.object({
-  relative_path: z.string().default('').describe('图片相对路径；为空时使用当前打开的图片'),
+  relative_path: z
+    .string()
+    .default('')
+    .describe('图片相对路径；为空时使用当前打开的图片'),
 });
 
 const ReadDocumentArgs = z.object({
-  relative_path: z.string().default('').describe('文档相对路径；为空时使用当前打开的文件'),
+  relative_path: z
+    .string()
+    .default('')
+    .describe('文档相对路径；为空时使用当前打开的文件'),
 });
 
 const WriteFileArgs = z.object({
@@ -317,7 +351,9 @@ function describeContext(clientContext: ClientContextLike | null): string {
   return parts.join('\n');
 }
 
-function describeAnnotationProject(clientContext: ClientContextLike | null): string {
+function describeAnnotationProject(
+  clientContext: ClientContextLike | null,
+): string {
   const snapshot = clientContext?.annotationProjectSnapshot;
   if (!clientContext || !snapshot) {
     return '当前未绑定标注项目快照。请确认用户已在标注任务中打开项目。';
@@ -326,13 +362,13 @@ function describeAnnotationProject(clientContext: ClientContextLike | null): str
     projectId: String((snapshot as Record<string, unknown>).projectId ?? ''),
     name: String((snapshot as Record<string, unknown>).name ?? ''),
     modality: String((snapshot as Record<string, unknown>).modality ?? ''),
-    annotationType: String((snapshot as Record<string, unknown>).annotationType ?? ''),
+    annotationType: String(
+      (snapshot as Record<string, unknown>).annotationType ?? '',
+    ),
     labels: (snapshot as Record<string, unknown>).labels as
-      | Array<Record<string, unknown>>
-      | undefined,
+      Array<Record<string, unknown>> | undefined,
     detectionModels: (snapshot as Record<string, unknown>).detectionModels as
-      | Array<Record<string, unknown>>
-      | undefined,
+      Array<Record<string, unknown>> | undefined,
   });
 }
 
@@ -393,7 +429,8 @@ export function buildTools(): ToolDefinition[] {
       description: '获取 LR-Agent 应用功能说明，可选 topic 关键词',
       kind: 'sync',
       argsSchema: HelpArgs,
-      execute: (args) => getLrAgentHelp(args.topic as string | null | undefined),
+      execute: (args) =>
+        getLrAgentHelp(args.topic as string | null | undefined),
     },
     {
       name: 'describe_client_context',
@@ -439,12 +476,16 @@ export function buildTools(): ToolDefinition[] {
       kind: 'sync',
       argsSchema: ReadWorkspaceFileArgs,
       execute: (args, ctx) =>
-        readWorkspaceTextFile(ctx.clientContext, String(args.relative_path ?? ''), {
-          maxBytes: ctx.settings.readFileMaxBytes,
-          maxLines: ctx.settings.readFileMaxLines,
-          startLine: args.start_line as number | null | undefined,
-          endLine: args.end_line as number | null | undefined,
-        }),
+        readWorkspaceTextFile(
+          ctx.clientContext,
+          String(args.relative_path ?? ''),
+          {
+            maxBytes: ctx.settings.readFileMaxBytes,
+            maxLines: ctx.settings.readFileMaxLines,
+            startLine: args.start_line as number | null | undefined,
+            endLine: args.end_line as number | null | undefined,
+          },
+        ),
     },
     {
       name: 'grep_workspace',
@@ -501,10 +542,14 @@ export function buildTools(): ToolDefinition[] {
       kind: 'sync',
       argsSchema: ReadImageArgs,
       execute: (args, ctx) =>
-        readImageForVisionTool(ctx.clientContext, String(args.relative_path ?? ''), {
-          providerIsVision: ctx.providerIsVision,
-          imageService: ctx.imageService,
-        }),
+        readImageForVisionTool(
+          ctx.clientContext,
+          String(args.relative_path ?? ''),
+          {
+            providerIsVision: ctx.providerIsVision,
+            imageService: ctx.imageService,
+          },
+        ),
     },
     {
       name: 'read_document_file',
@@ -644,13 +689,18 @@ export function buildToolSpecs(
 }
 
 /** 构造统一失败结果（供调度层复用）。 */
-export function toolFailure(tool: string, status: string, summary: string): string {
+export function toolFailure(
+  tool: string,
+  status: string,
+  summary: string,
+): string {
   return buildToolResult({ ok: false, tool, status, summary });
 }
 
 /** 宽松的整数取值：非数字时回退默认值（模型可能传字符串或省略）。 */
 function asInt(value: unknown, fallback: number): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === 'number' && Number.isFinite(value))
+    return Math.trunc(value);
   if (typeof value === 'string') {
     const parsed = Number(value.trim());
     if (Number.isFinite(parsed)) return Math.trunc(parsed);

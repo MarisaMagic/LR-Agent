@@ -40,7 +40,8 @@ interface ParentPortLike {
 }
 
 function getParentPort(): ParentPortLike | null {
-  const port = (process as unknown as { parentPort?: ParentPortLike }).parentPort;
+  const port = (process as unknown as { parentPort?: ParentPortLike })
+    .parentPort;
   return port ?? null;
 }
 
@@ -99,7 +100,10 @@ async function main(): Promise<void> {
   const token = process.env[AGENT_TOKEN_ENV] ?? '';
   if (!token) {
     // 与 Python 版一致：token 未配置时失败关闭，不启动服务
-    log('error', `${AGENT_TOKEN_ENV} 未设置，拒绝启动（token 未配置时不得对外提供服务）`);
+    log(
+      'error',
+      `${AGENT_TOKEN_ENV} 未设置，拒绝启动（token 未配置时不得对外提供服务）`,
+    );
     process.exitCode = 1;
     return;
   }
@@ -131,7 +135,8 @@ async function main(): Promise<void> {
   }
 
   log('info', `就绪，baseUrl=http://${HOST}:${server.port}/api/v1`);
-  if (debug) log('info', `模式=${parentPort ? 'utilityProcess' : 'standalone'}`);
+  if (debug)
+    log('info', `模式=${parentPort ? 'utilityProcess' : 'standalone'}`);
 
   // 独立模式下把端口打到 stdout，便于脚本解析
   if (!parentPort) {
@@ -156,7 +161,7 @@ async function main(): Promise<void> {
   if (parentPort) {
     // 主进程经消息触发关闭
     const endpointOnMessage = (event: { data: unknown }): void => {
-      const data = event.data;
+      const { data } = event;
       if (isAgentMessage(data) && data.type === 'shutdown') {
         void shutdown('shutdown message').then(() => process.exit(0));
       }

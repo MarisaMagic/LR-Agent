@@ -11,7 +11,10 @@ import {
   pickVisionRelativePath,
   visionRelativeFromUserText,
 } from './autoLoader';
-import { buildMultimodalUserMessage, VISION_ATTACHMENT_TEXT } from '../context/multimodal';
+import {
+  buildMultimodalUserMessage,
+  VISION_ATTACHMENT_TEXT,
+} from '../context/multimodal';
 import { createImageService } from '../services/imageService';
 import type { ImageService } from '../services/imageService';
 import { DEFAULT_AGENT_SETTINGS } from '../config';
@@ -29,7 +32,11 @@ afterEach(async () => {
 });
 
 /** 写一个最小 PNG（文件名可指定）。 */
-async function writePng(relative: string, width = 640, height = 480): Promise<string> {
+async function writePng(
+  relative: string,
+  width = 640,
+  height = 480,
+): Promise<string> {
   const buf = Buffer.alloc(33);
   buf.writeUInt32BE(0x89504e47, 0);
   buf.writeUInt32BE(0x0d0a1a0a, 4);
@@ -53,7 +60,12 @@ function fakeEncoder(): ImageService {
       return { ok: true, width: 640, height: 480, format: 'PNG' };
     },
     async toJpegDataUrl() {
-      return { ok: true, dataUrl: 'data:image/jpeg;base64,AAAA', width: 640, height: 480 };
+      return {
+        ok: true,
+        dataUrl: 'data:image/jpeg;base64,AAAA',
+        width: 640,
+        height: 480,
+      };
     },
     async cropBatch() {
       return { ok: true, images: [] };
@@ -91,11 +103,15 @@ async function collect(
 
 describe('visionRelativeFromUserText：从用户文本解析图片路径', () => {
   it('解析行首的图片路径', () => {
-    expect(visionRelativeFromUserText('data/1.jpg 里有什么')).toBe('data/1.jpg');
+    expect(visionRelativeFromUserText('data/1.jpg 里有什么')).toBe(
+      'data/1.jpg',
+    );
   });
 
   it('解析空白后的图片路径', () => {
-    expect(visionRelativeFromUserText('看看 data/2.png 这张图')).toBe('data/2.png');
+    expect(visionRelativeFromUserText('看看 data/2.png 这张图')).toBe(
+      'data/2.png',
+    );
   });
 
   it('解析「『引号后的图片路径', () => {
@@ -128,7 +144,10 @@ describe('visionRelativeFromUserText：从用户文本解析图片路径', () =>
 describe('pickVisionRelativePath 与 canBootstrapVision', () => {
   it('优先取 active_relative_path', () => {
     expect(
-      pickVisionRelativePath({ workspaceRoot: workspace, activeRelativePath: 'a/b.png' }),
+      pickVisionRelativePath({
+        workspaceRoot: workspace,
+        activeRelativePath: 'a/b.png',
+      }),
     ).toBe('a/b.png');
   });
 
@@ -152,7 +171,9 @@ describe('pickVisionRelativePath 与 canBootstrapVision', () => {
 });
 
 describe('VisionAutoLoader.shouldLoad', () => {
-  const params = (overrides: Partial<ConstructorParameters<typeof VisionAutoLoader>[0]> = {}) => ({
+  const params = (
+    overrides: Partial<ConstructorParameters<typeof VisionAutoLoader>[0]> = {},
+  ) => ({
     settings: DEFAULT_AGENT_SETTINGS,
     clientContext: ctx(),
     providerIsVision: true,
@@ -170,14 +191,18 @@ describe('VisionAutoLoader.shouldLoad', () => {
   });
 
   it('provider 不支持视觉时不触发', () => {
-    expect(new VisionAutoLoader(params({ providerIsVision: false })).shouldLoad(false)).toBe(
-      false,
-    );
+    expect(
+      new VisionAutoLoader(params({ providerIsVision: false })).shouldLoad(
+        false,
+      ),
+    ).toBe(false);
   });
 
   it('文本无图片路径时不触发', () => {
     expect(
-      new VisionAutoLoader(params({ userContent: '帮我看看目录' })).shouldLoad(false),
+      new VisionAutoLoader(params({ userContent: '帮我看看目录' })).shouldLoad(
+        false,
+      ),
     ).toBe(false);
   });
 });
@@ -188,7 +213,10 @@ describe('VisionAutoLoader.tryFallback', () => {
     const messages: ChatMessage[] = [];
     const loader = new VisionAutoLoader({
       settings: DEFAULT_AGENT_SETTINGS,
-      clientContext: { workspaceRoot: workspace, activeRelativePath: 'data/opened.png' },
+      clientContext: {
+        workspaceRoot: workspace,
+        activeRelativePath: 'data/opened.png',
+      },
       providerIsVision: true,
       userContent: '这张图里有什么',
       imageService: fakeEncoder(),
@@ -201,7 +229,9 @@ describe('VisionAutoLoader.tryFallback', () => {
     expect(events[1].type).toBe('tool_result');
 
     // 工具 id 形态与 Python 一致
-    expect(String(events[0].toolCallId)).toMatch(/^lr-vision-fallback-[0-9a-f]{10}$/);
+    expect(String(events[0].toolCallId)).toMatch(
+      /^lr-vision-fallback-[0-9a-f]{10}$/,
+    );
 
     // 追加 ToolMessage + 附图 HumanMessage
     expect(messages).toHaveLength(2);
@@ -244,7 +274,10 @@ describe('VisionAutoLoader.tryFallback', () => {
     await writePng('data/opened.png');
     const loader = new VisionAutoLoader({
       settings: DEFAULT_AGENT_SETTINGS,
-      clientContext: { workspaceRoot: workspace, activeRelativePath: 'data/opened.png' },
+      clientContext: {
+        workspaceRoot: workspace,
+        activeRelativePath: 'data/opened.png',
+      },
       providerIsVision: true,
       userContent: '看图',
       imageService: fakeEncoder(),
@@ -258,7 +291,11 @@ describe('VisionAutoLoader.tryFallback', () => {
     // 应是缩进 JSON（含换行），而不是被折叠成 message 单行文本
     expect(result).toContain('\n');
     // 且保留结构化字段
-    expect(JSON.parse(result)).toMatchObject({ ok: true, width: 640, height: 480 });
+    expect(JSON.parse(result)).toMatchObject({
+      ok: true,
+      width: 640,
+      height: 480,
+    });
   });
 
   it('无编码能力时仍追加纯文本消息（退化不抛异常）', async () => {
@@ -269,7 +306,10 @@ describe('VisionAutoLoader.tryFallback', () => {
     const messages: ChatMessage[] = [];
     const loader = new VisionAutoLoader({
       settings: DEFAULT_AGENT_SETTINGS,
-      clientContext: { workspaceRoot: workspace, activeRelativePath: 'data/opened.png' },
+      clientContext: {
+        workspaceRoot: workspace,
+        activeRelativePath: 'data/opened.png',
+      },
       providerIsVision: true,
       userContent: '看图',
       imageService: standalone,
@@ -308,7 +348,11 @@ describe('buildMultimodalUserMessage', () => {
     };
     const msg = await buildMultimodalUserMessage(
       'text',
-      { imageAbsolutePath: path.join(workspace, 'data/x.png'), maxEdge: 1280, jpegQuality: 85 },
+      {
+        imageAbsolutePath: path.join(workspace, 'data/x.png'),
+        maxEdge: 1280,
+        jpegQuality: 85,
+      },
       failing,
     );
     expect(msg.content).toBe('text');
@@ -350,6 +394,8 @@ describe('buildMultimodalUserMessage', () => {
   });
 
   it('附图提示文本固定', () => {
-    expect(VISION_ATTACHMENT_TEXT).toBe('【附图】请根据上图回答用户关于该图片的问题。');
+    expect(VISION_ATTACHMENT_TEXT).toBe(
+      '【附图】请根据上图回答用户关于该图片的问题。',
+    );
   });
 });
