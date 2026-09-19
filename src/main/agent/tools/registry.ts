@@ -14,8 +14,8 @@
  *      不在每个工具描述中重复。
  *
  *   3. **执行器类型（kind）是三方共享的单一真源**。`sync` 在运行时内执行；
- *      `proposal` 由运行时生成提案、Electron 在用户确认后落盘；`async` 暂停循环、
- *      由 Electron 执行后 resume（见协议文档 §5.1）。
+ *      `proposal` 由运行时生成提案事件、Electron **直接落盘**（免确认，可撤销）；
+ *      `async` 暂停循环、由 Electron 执行后 resume（见协议文档 §5.1）。
  */
 
 import { z } from 'zod';
@@ -500,7 +500,7 @@ export function buildTools(): ToolDefinition[] {
       name: 'write_workspace_file',
       description:
         '在工作区内创建或覆写文本/代码文件（如 .md .py .ts）。' +
-        '生成提案，用户 Keep All 后才落盘。' +
+        '内容会直接写入磁盘，无需用户确认；用户可在对话中撤销。' +
         '只用于工作区文档与代码，不能用来保存标注。' +
         '删文件请用 delete_workspace_file，不要写入空内容；' +
         '移动/重命名文件请用 move_workspace_file。',
@@ -535,8 +535,8 @@ export function buildTools(): ToolDefinition[] {
     {
       name: 'delete_workspace_file',
       description:
-        '删除工作区内的文本/代码文件，生成删除提案。' +
-        '用户确认 Keep All 后才从磁盘移除。不能删除标注。',
+        '删除工作区内的文本/代码文件。' +
+        '删除会直接生效，无需用户确认；用户可在对话中撤销。不能删除标注。',
       kind: 'proposal',
       argsSchema: DeleteFileArgs,
       execute: (args, ctx) =>
@@ -549,8 +549,8 @@ export function buildTools(): ToolDefinition[] {
     {
       name: 'move_workspace_file',
       description:
-        '移动或重命名工作区内的文本/代码文件，生成移动提案。' +
-        '用户确认 Keep All 后才在磁盘执行。' +
+        '移动或重命名工作区内的文本/代码文件。' +
+        '变更会直接生效，无需用户确认；用户可在对话中撤销。' +
         '禁止用「读出内容再写到新路径」来移动文件。',
       kind: 'proposal',
       argsSchema: MoveFileArgs,

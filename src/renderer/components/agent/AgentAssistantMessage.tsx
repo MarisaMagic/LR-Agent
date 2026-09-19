@@ -36,6 +36,7 @@ import AgentFileChangeBlock from './AgentFileChangeBlock';
 import AgentAnnotationChangeBlock from './AgentAnnotationChangeBlock';
 import AgentFilesChangedSummary from './AgentFilesChangedSummary';
 import { shouldSkipRedundantProposalText } from './agentAssistantRenderUtils';
+import { messageCanUndo } from '../../services/turnCheckpoint';
 
 interface AgentAssistantMessageProps {
   message: ChatMessage;
@@ -146,9 +147,11 @@ export default function AgentAssistantMessage({
     applyingAllPending,
     dismissAllPendingChanges,
     dismissingAllPending,
+    undoAssistantChanges,
   } = useAgentChat();
 
   const [thoughtCollapsed, setThoughtCollapsed] = useState(true);
+  const [undoingChanges, setUndoingChanges] = useState(false);
 
   const isStreaming = message.status === 'streaming';
   // awaiting_confirmation 是第三种活跃态：turn 暂停在 HITL 断点，
@@ -303,6 +306,16 @@ export default function AgentAssistantMessage({
   const handleUndoAll = useCallback(() => {
     dismissAllPendingChanges().catch(() => undefined);
   }, [dismissAllPendingChanges]);
+
+  const handleUndoChanges = useCallback(() => {
+    setUndoingChanges(true);
+    undoAssistantChanges(message.id)
+      .catch(() => undefined)
+      .finally(() => setUndoingChanges(false));
+  }, [message.id, undoAssistantChanges]);
+
+  // 免确认改造后，已落盘的改动靠这里回退；无快照可回滚时不显示入口
+  const canUndoChanges = useMemo(() => messageCanUndo(message), [message]);
 
   const renderBlock = (block: MessageBlock, index: number) => {
     if ((block as { type: string }).type === 'mode_suggestion') {
@@ -507,6 +520,18 @@ export default function AgentAssistantMessage({
               >
                 <VscodeIcon name="refresh" size={18} />
               </button>
+              {canUndoChanges ? (
+                <button
+                  type="button"
+                  className="agent-assistant-action"
+                  aria-label="撤销修改"
+                  title="撤销本消息的全部已应用修改"
+                  disabled={undoingChanges}
+                  onClick={handleUndoChanges}
+                >
+                  <VscodeIcon name="discard" size={18} />
+                </button>
+              ) : null}
             </div>
           </div>
         )}

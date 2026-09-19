@@ -89,16 +89,25 @@ node scripts/agent-baseline/diffSse.mjs \
 ## 已记录的差异
 
 `diffSse.mjs` 里有 `KNOWN_DIVERGENCES` 表，用于记录**有意保留**的行为差异。
-它只豁免明确列出的**事件类型**，其余任何偏差仍会导致 gate 失败——避免「整场景跳过」
-让这个 gate 失效。
+它支持两种粒度，且都**只豁免明确列出的内容**，其余任何偏差仍会导致 gate 失败
+——避免「整场景跳过」让这个 gate 失效：
+
+1. `extraEventTypes`：允许候选侧多出（基准侧没有）的**事件类型**
+2. `fieldOverrides`：某事件类型下**指定字段**的差异被忽略（两侧同时剔除后再比对，
+   其余字段、事件顺序与条数仍严格校验）
 
 当前记录：
 
-| 场景 | 豁免的事件类型 | 原因 |
+| 场景 | 豁免内容 | 原因 |
 |---|---|---|
-| `reasoning` | 候选侧多出的 `reasoning_delta` | Python 的 `langchain-openai` 1.2.2 不把 provider 的 `reasoning_content` 透出到 `additional_kwargs`，故从不发该事件；Node 直接读原始 delta，属能力增强，前端已完整消费 |
+| `reasoning` | 候选侧多出的 `reasoning_delta` 事件 | Python 的 `langchain-openai` 1.2.2 不把 provider 的 `reasoning_content` 透出到 `additional_kwargs`，故从不发该事件；Node 直接读原始 delta，属能力增强，前端已完整消费 |
+| `proposal-write` | `tool_result` 事件的 `result` 字段 | 提案免确认改造：文件写入由「等用户 Keep All 才落盘」改为「直接落盘 + 可撤销」，工具结果文案随之从「文件尚未写入磁盘…」改为「内容已直接写入磁盘（无需确认）…可撤销」 |
+| `proposal-edit` | 同上 | 同上 |
 
 新增豁免时必须同时更新 `docs/agent-protocol.md` 的「已记录的差异」小节，并在 PR 说明中给出理由。
+
+可随时用负向测试验证 gate 未被削弱：篡改任一**非豁免**字段（如 `text_delta.content`）
+或删除一个事件，diff 必须报错。
 
 ## 场景与实现阶段的对应
 

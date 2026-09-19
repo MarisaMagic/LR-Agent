@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { VscodeIcon } from '@vscode-elements/react-elements';
 import type { ChatMessage } from '../../../shared/agentTypes';
 import { isFileProposalBlock } from '../../../shared/agentTypes';
 import FileTypeIcon from '../FileTypeIcon';
@@ -10,6 +11,7 @@ import {
   collectMessageChangeItems,
   type MessageChangeItem,
 } from '../../services/agentProposalApply';
+import { messageCanUndo } from '../../services/turnCheckpoint';
 import { computeFileProposalDiffStats } from '../../utils/workspaceFileRead';
 import { useOpenAgentChange } from './useOpenAgentChange';
 import './AgentFilesChangedSummary.css';
@@ -33,16 +35,26 @@ function resolveItemStats(
 export default function AgentFilesChangedSummary({
   message,
 }: AgentFilesChangedSummaryProps) {
-  const { updateMessageBlocks } = useAgentChat();
+  const { updateMessageBlocks, undoAssistantChanges } = useAgentChat();
   const { activeProject } = useAnnotation();
   const { rootPath } = useApp();
   const { openFileProposal, openAnnotationProposal } = useOpenAgentChange();
   const [expanded, setExpanded] = useState(false);
+  const [undoing, setUndoing] = useState(false);
   const [computedStats, setComputedStats] = useState<
     Record<string, { additions: number; deletions: number }>
   >({});
 
   const items = useMemo(() => collectMessageChangeItems(message), [message]);
+  // 仅当本消息的已应用改动**全部**留有改前快照时可撤销（部分缺失会让回滚不完整）
+  const canUndo = useMemo(() => messageCanUndo(message), [message]);
+
+  const handleUndo = useCallback(() => {
+    setUndoing(true);
+    undoAssistantChanges(message.id)
+      .catch(() => undefined)
+      .finally(() => setUndoing(false));
+  }, [message.id, undoAssistantChanges]);
 
   useEffect(() => {
     const missing = items.filter(
@@ -152,13 +164,27 @@ export default function AgentFilesChangedSummary({
         <span className="agent-files-changed__title">
           {items.length} Files Changed
         </span>
-        <button
-          type="button"
-          className="agent-files-changed__review"
-          onClick={() => handleOpen(items[0])}
-        >
-          Review
-        </button>
+        <div className="agent-files-changed__actions">
+          <button
+            type="button"
+            className="agent-files-changed__review"
+            onClick={() => handleOpen(items[0])}
+          >
+            Review
+          </button>
+          {canUndo ? (
+            <button
+              type="button"
+              className="agent-files-changed__undo"
+              title="撤销本消息的全部已应用修改"
+              disabled={undoing}
+              onClick={handleUndo}
+            >
+              <VscodeIcon name="discard" size={13} />
+              {undoing ? '撤销中…' : '撤销修改'}
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="agent-files-changed__list">
         {visible.map((item) => {

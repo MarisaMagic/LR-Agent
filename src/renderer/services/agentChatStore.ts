@@ -18,7 +18,10 @@ import {
 } from '../../shared/agentTypes';
 import { isLrAgentRelativePath } from '../../shared/workspacePathGuards';
 import type { AnnotationBatchProposal } from '../../shared/annotationAgentTypes';
-import { normalizePipelineKindsInBlocks } from './annotationAgent/pipelineKinds';
+import {
+  inferAnnotationProposalKind,
+  normalizePipelineKindsInBlocks,
+} from './annotationAgent/pipelineKinds';
 import {
   upsertPipelineSteps,
   buildPipelineStepFromProgressEvent,
@@ -373,19 +376,6 @@ export function normalizeHistoricalMessages(
     next[id] = normalizeHistoricalAssistantMessage(message);
   }
   return next;
-}
-
-function inferAnnotationProposalKind(
-  proposal: AnnotationBatchProposal,
-): 'batch' | 'mutation' {
-  const mutationOps = new Set(['delete', 'patch']);
-  if (
-    proposal.changes.length > 0 &&
-    proposal.changes.every((change) => mutationOps.has(change.operation))
-  ) {
-    return 'mutation';
-  }
-  return 'batch';
 }
 
 function applyAnnotationProgressToBlocks(
@@ -1105,8 +1095,7 @@ export function applyStreamEventToBlocks(
   }
 
   if (event.type === 'annotation_proposal') {
-    const proposalKind = inferAnnotationProposalKind(event.proposal);
-    for (let i = 0; i < next.length; i += 1) {
+    const proposalKind = inferAnnotationProposalKind(event.proposal);    for (let i = 0; i < next.length; i += 1) {
       const b = next[i];
       if (b.type === 'annotation_pipeline') {
         next[i] = {

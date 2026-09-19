@@ -41,13 +41,20 @@ const ONLY = argOf('--only', '')
 /**
  * 已记录的、有意为之的差异。
  *
- * 只豁免**明确列出的**事件类型，其余任何偏差仍会导致失败——避免这个 gate
- * 因为「整场景跳过」而失效。
+ * 支持两种粒度的豁免，且**只豁免明确列出的内容**，其余任何偏差仍会导致失败
+ * —— 避免这个 gate 因为「整场景跳过」而失效。
  *
- * `reasoning`：Python 侧（langchain-openai 1.2.2）不会把 provider 的
- * `reasoning_content` 透出到 `additional_kwargs`，因此从不发 `reasoning_delta`；
- * Node 侧直接读原始 delta，会正常透出。这是**能力增强**（前端 `agentChatStore`
- * 已完整消费该事件），保留而不回退。
+ * 1. `extraEventTypes`：允许候选侧多出（基准侧没有）的事件类型。
+ * 2. `fieldOverrides`：某事件类型下**指定字段**的差异被忽略（其余字段仍严格比对）。
+ *
+ * - `reasoning`：Python 侧（langchain-openai 1.2.2）不会把 provider 的
+ *   `reasoning_content` 透出到 `additional_kwargs`，因此从不发 `reasoning_delta`；
+ *   Node 侧直接读原始 delta，会正常透出。这是**能力增强**（前端 `agentChatStore`
+ *   已完整消费该事件），保留而不回退。
+ * - `proposal-write` / `proposal-edit`：提案免确认改造后，文件写入由「等用户
+ *   Keep All 才落盘」改为「直接落盘 + 可撤销」，因此工具结果里的文案从
+ *   「文件尚未写入磁盘；用户确认（Keep All）后才会落盘」改为「已直接写入磁盘
+ *   （无需确认）…可撤销」。事件类型、顺序、条数与其余字段仍逐字校验。
  */
 const KNOWN_DIVERGENCES = {
   reasoning: {
@@ -55,19 +62,72 @@ const KNOWN_DIVERGENCES = {
     extraEventTypes: ['reasoning_delta'],
     note: 'Node 正常透出 reasoning_content；Python 受 langchain-openai 限制未透出',
   },
+  'proposal-write': {
+    fieldOverrides: [
+      {
+        type: 'tool_result',
+        field: 'result',
+        note: '免确认改造：文件写入工具结果文案改为「已直接落盘、可撤销」',
+      },
+    ],
+  },
+  'proposal-edit': {
+    fieldOverrides: [
+      {
+        type: 'tool_result',
+        field: 'result',
+        note: '免确认改造：文件写入工具结果文案改为「已直接落盘、可撤销」',
+      },
+    ],
+  },
 };
 
 /** 按已记录的豁免过滤候选事件（仅移除明确列出的类型）。 */
 function applyKnownDivergences(id, baseline, candidate) {
   const rule = KNOWN_DIVERGENCES[id];
   if (!rule) return { candidate, applied: null };
+  const extraTypes = rule.extraEventTypes ?? [];
+  if (extraTypes.length === 0) return { candidate, applied: null };
   const before = candidate.length;
-  const filtered = candidate.filter(
-    (event) => !rule.extraEventTypes.includes(event?.type),
-  );
+  const filtered = candidate.filter((event) => !extraTypes.includes(event?.type));
   return {
     candidate: filtered,
-    applied: before === filtered.length ? null : `${rule.note}（移除 ${before - filtered.length} 条）`,
+    applied:
+      before === filtered.length
+        ? null
+        : `${rule.note}（移除 ${before - filtered.length} 条）`,
+  };
+}
+
+/** 某场景下指定事件类型的豁免字段。 */
+function exemptedFields(id, eventType) {
+  const rule = KNOWN_DIVERGENCES[id];
+  if (!rule?.fieldOverrides) return [];
+  return rule.fieldOverrides
+    .filter((o) => o.type === eventType)
+    .map((o) => o.field);
+}
+
+/**
+ * 剔除已豁免的字段（两侧同时剔除后再比较），使其余字段仍受严格校验。
+ *
+ * @returns `{ events, note }`；有字段被剔除时 note 非空
+ */
+function stripExemptedFields(id, events) {
+  const notes = new Set();
+  const stripped = events.map((event) => {
+    const fields = exemptedFields(id, event?.type);
+    if (fields.length === 0) return event;
+    const copy = { ...event };
+    for (const field of fields) delete copy[field];
+    for (const override of KNOWN_DIVERGENCES[id].fieldOverrides) {
+      if (override.type === event?.type) notes.add(override.note);
+    }
+    return copy;
+  });
+  return {
+    events: stripped,
+    note: notes.size > 0 ? [...notes].join('；') : null,
   };
 }
 
@@ -171,11 +231,15 @@ function main() {
       a,
       b,
     );
-    const diffs = diffScenario(id, a, bFiltered);
+    // 字段级豁免：两侧同时剔除后再比较，其余字段仍严格校验
+    const aStripped = stripExemptedFields(id, a);
+    const bStripped = stripExemptedFields(id, bFiltered);
+    const diffs = diffScenario(id, aStripped.events, bStripped.events);
     if (diffs.length === 0) {
       passed += 1;
       if (!QUIET) {
-        const suffix = appliedNote ? `  [已记录差异: ${appliedNote}]` : '';
+        const note = appliedNote ?? bStripped.note ?? aStripped.note;
+        const suffix = note ? `  [已记录差异: ${note}]` : '';
         console.log(`✓ ${id}  (${a.length} events)${suffix}`);
       }
     } else {

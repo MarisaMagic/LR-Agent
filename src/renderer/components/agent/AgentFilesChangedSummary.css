@@ -23,6 +23,13 @@
   user-select: none;
 }
 
+.agent-files-changed__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .agent-files-changed__review {
   flex-shrink: 0;
   padding: 0 4px;
@@ -36,6 +43,30 @@
 
 .agent-files-changed__review:hover {
   color: var(--vscode-foreground, #cccccc);
+}
+
+/* 撤销入口：免确认改造后文件写入/标注编辑直接落盘，撤销成为主要回退手段 */
+.agent-files-changed__undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  color: var(--agent-surface-muted-text);
+  font-size: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.agent-files-changed__undo:hover:not(:disabled) {
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.agent-files-changed__undo:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .agent-files-changed__list {

@@ -160,12 +160,26 @@ export function formatAnnotationToolResult(options: {
   fileStats?: AnnotationProposalFileStat[];
   omittedCount?: number;
   omittedPaths?: string[];
+  /**
+   * 提案由前端直接落盘，不进入用户确认流程（免确认改造）。
+   *
+   * 标注编辑（`mutate_annotation`）走这条路径：前端会在收到提案后自动应用，
+   * 因此这里必须报告 `proposal_pending: false`，否则 job 会错误地停在
+   * AwaitingConfirm 断点等一个永远不会发生的用户确认。
+   *
+   * 标注生成（`auto_annotate`）**不传本项**——它仍需用户审阅后 Keep All。
+   */
+  autoApplied?: boolean;
 }): string {
-  const pendingNote = options.hasProposal
-    ? '已生成待确认提案（未写盘）。'
-    : options.tool === 'mutate_annotation'
-      ? '未生成提案，不要对用户说已删除或已修改。'
-      : '未生成提案，不要对用户说已标注完成。';
+  // 只有真的产出了提案才谈得上"已应用/待确认"
+  const autoApplied = Boolean(options.autoApplied && options.hasProposal);
+  const pendingNote = autoApplied
+    ? '已生成变更并直接应用。'
+    : options.hasProposal
+      ? '已生成待确认提案（未写盘）。'
+      : options.tool === 'mutate_annotation'
+        ? '未生成提案，不要对用户说已删除或已修改。'
+        : '未生成提案，不要对用户说已标注完成。';
   const fileStatsText = options.fileStats?.length
     ? ` ${formatFileStatsText(options.fileStats)}。`
     : '';
@@ -175,17 +189,18 @@ export function formatAnnotationToolResult(options: {
     ANNOTATION_BATCH_MAX_FILES,
   );
   const truncationText = truncationNote ? ` ${truncationNote}` : '';
-  const summary = options.hasProposal
-    ? `${pendingNote}${options.summary}${fileStatsText}${truncationText}`
-    : `${options.summary} ${pendingNote}${truncationText}`;
+  const summary =
+    options.hasProposal || autoApplied
+      ? `${pendingNote}${options.summary}${fileStatsText}${truncationText}`
+      : `${options.summary} ${pendingNote}${truncationText}`;
   return formatClientToolResult({
     status: options.status,
     tool: options.tool,
     user_request: options.userRequest,
     summary: summary.trim(),
     message: summary.trim(),
-    file_written: false,
-    proposal_pending: options.hasProposal,
+    file_written: autoApplied,
+    proposal_pending: autoApplied ? false : options.hasProposal,
     files: options.fileStats,
   });
 }
@@ -670,6 +685,8 @@ async function runClientTool(
         summary: mutateResult.summary,
         hasProposal: mutateResult.hasProposal,
         fileStats: mutateResult.fileStats,
+        // 标注编辑免确认：提案随后由前端自动落盘，不进入 AwaitingConfirm 断点
+        autoApplied: true,
       });
     } catch {
       return formatAnnotationToolResult({

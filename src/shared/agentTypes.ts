@@ -10,7 +10,7 @@ export enum JobState {
   Streaming = 'streaming',
   ToolPending = 'tool_pending',
   Resuming = 'resuming',
-  /** 提案已生成、等待用户 Keep All/Dismiss；确认后自动续跑 */
+  /** 仅标注生成提案需用户 Keep All/Dismiss；确认后自动续跑（文件写入与标注编辑免确认） */
   AwaitingConfirm = 'awaiting_confirm',
   Done = 'done',
   Error = 'error',
@@ -327,7 +327,7 @@ export type StreamEvent =
       toolCalls: ClientToolCall[];
     }
   | {
-      /** 客户端工具已生成待确认提案，job 暂停等待 Keep All/Dismiss */
+      /** 存在待确认的标注生成提案，job 暂停等待 Keep All/Dismiss（文件写入与标注编辑免确认） */
       type: 'awaiting_confirmation';
     }
   | {

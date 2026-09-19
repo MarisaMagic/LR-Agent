@@ -132,9 +132,9 @@ export function writeWorkspaceFileTool(
 
   const title = titleFromPath(resolved);
   const summary =
-    `已生成文件提案：${relDisplay}。` +
-    '文件尚未写入磁盘；用户确认（Keep All）后才会落盘。' +
-    '请勿在回复中声称文件已创建或已保存。';
+    `已创建文件：${relDisplay}。` +
+    '内容已直接写入磁盘（无需确认），用户可在对话中撤销本次修改。' +
+    '可以在回复中告知用户文件已创建。';
 
   if (pendingProposals) pendingProposals.set(resolved, [null, content]);
 
@@ -254,8 +254,8 @@ export function strReplaceWorkspaceFileTool(
   const relDisplay = relativeDisplayPath(clientContext, resolved, relativePath);
   const title = titleFromPath(resolved);
   const summary =
-    `已生成补丁提案：${relDisplay}（替换 ${replaceAll ? count : 1} 处）。` +
-    '文件尚未写入磁盘；用户确认（Keep All）后才会落盘。';
+    `已替换 ${relDisplay} 中的 ${replaceAll ? count : 1} 处内容。` +
+    '修改已直接写入磁盘（无需确认），用户可在对话中撤销本次修改。';
 
   return buildToolResult({
     ok: true,
@@ -305,8 +305,8 @@ export function deleteWorkspaceFileTool(
   const relDisplay = relativeDisplayPath(clientContext, resolved, relativePath);
   const title = `删除 ${path.basename(resolved)}`;
   const summary =
-    `已生成删除提案：${relDisplay}。` +
-    '文件尚未删除；用户确认（Keep All）后才会从磁盘移除。';
+    `已删除 ${relDisplay}。` +
+    '删除已直接生效（无需确认），用户可在对话中撤销本次修改。';
 
   if (pendingProposals) pendingProposals.delete(resolved);
 
@@ -379,8 +379,8 @@ export function moveWorkspaceFileTool(
   const newDisplay = relativeDisplayPath(clientContext, target, newRaw);
   const title = `移动 ${path.basename(resolved)}`;
   const summary =
-    `已生成移动/重命名提案：${oldDisplay} → ${newDisplay}。` +
-    '文件尚未改动；用户确认（Keep All）后才会在磁盘执行。';
+    `已移动/重命名：${oldDisplay} → ${newDisplay}。` +
+    '变更已直接生效（无需确认），用户可在对话中撤销本次修改。';
 
   if (pendingProposals) {
     pendingProposals.delete(resolved);

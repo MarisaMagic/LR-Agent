@@ -209,6 +209,20 @@ type ∈ { file_proposal_start, file_proposal_delta, file_proposal, document_pro
 触发工具 = runner 为 `ASYNC` 的三个：`auto_annotate`、`mutate_annotation`、`start_terminal_command`。
 发射前会先为每个调用各发一条 `tool_start`。
 
+**注意：`tool_pending` 之后是否进入用户确认断点，取决于该工具是否免确认。**
+
+| 工具 | 落盘方式 | 是否进入 `awaiting_confirmation` |
+|---|---|---|
+| `write_workspace_file` / `str_replace_workspace_file` / `delete_workspace_file` / `move_workspace_file` | 渲染层收到定稿的 `file_proposal`（`contentFinalized === true`）后**直接落盘** | 否 |
+| `mutate_annotation`（标注编辑） | 渲染层自动落盘；工具结果报 `proposal_pending: false` | 否 |
+| `auto_annotate`（标注生成） | 提案保留 `pending`，等用户 Keep All | **是** |
+| `start_terminal_command` | 需聊天内批准 | 是（终端审批流程） |
+
+免确认的依据是「结果可审阅性 × 错误代价」：文件 diff 可扫读、标注编辑是指令明确的定点修改，
+两者都随时可通过改前快照撤销；而标注生成由模型推理产出、审阅需逐框看图、`replace_matching`
+还会覆盖已有标注，因此保留确认。详见 `src/renderer/services/agentProposalApply.ts` 的
+`selectAutoApplicableProposals`。
+
 #### `subagent_start`
 
 | 字段 | 说明 |
@@ -526,8 +540,8 @@ client_context 非空 AND (
 | Runner | 语义 | 执行位置 |
 |---|---|---|
 | `SYNC` | 本轮在运行时内同步执行完毕 | 运行时 |
-| `PROPOSAL` | 运行时校验并生成提案事件，**落盘由 Electron 在用户确认后执行** | 运行时生成提案 / Electron 落盘 |
-| `ASYNC` | 暂停循环，由 Electron 执行后 resume | Electron |
+| `PROPOSAL` | 运行时校验并生成提案事件，**Electron 在提案定稿后直接落盘**（免确认，可撤销） | 运行时生成提案 / Electron 落盘 |
+| `ASYNC` | 暂停循环，由 Electron 执行后 resume；是否进入用户确认断点见 §2.3 的 `tool_pending` | Electron |
 
 **迁移后应收归为单一真源**：当前分类在三处手写镜像（Python `tool_registry_meta.py`、
 `src/shared/agentToolKinds.ts`、`src/shared/agentTypes.ts` 的 `CLIENT_TOOL_NAME_SET`），
@@ -687,14 +701,45 @@ Agent 工具集之外（理由见 §5.3 注释）。Python 侧 `fn_map` 只包�
 1. 越界调用从「未知工具」变成真实执行
 2. `tool_choice="any"` 兜底**错误触发**——它的前置条件之一正是「该工具在当前工具集内」
 
+### 5.5 免确认落盘（提案免确认改造）
+
+**提案事件（`file_proposal` / `annotation_proposal`）在运行时侧仍是统一的「变更描述」，
+但渲染层对它们的处理分两档。**
+
+| 提案来源 | 渲染层行为 | 依据 |
+|---|---|---|
+| `file_proposal`（4 个写入工具） | 等 `contentFinalized === true` 后**直接落盘** | diff 可扫读、指令明确、错误代价低 |
+| `annotation_proposal` 且 `sourceKind === 'mutation'` | **直接落盘** | 指令明确的定点修改（改标签/删框/改内容），有改前快照兜底 |
+| `annotation_proposal` 且来源为批量标注 | 保留 `pending`，**等用户 Keep All** | 模型推理产出、审阅需逐框看图、`replace_matching` 会覆盖已有标注 |
+
+实现要点（`src/renderer/services/agentProposalApply.ts` 的 `selectAutoApplicableProposals`）：
+
+1. **必须等 `contentFinalized`**：`file_proposal_start` 阶段 `content` 是空串且
+   `contentFinalized` 为 false（内容随后由 `file_proposal_delta` 流式补齐）。
+   此时落盘会写入空内容 / 半截内容。缺失该字段的历史数据一律视为未定稿（保守）。
+2. **`sourceKind` 优先，内容推断回退**：历史数据可能缺 `sourceKind`，此时按提案内容推断
+   （只含 `delete`/`patch` 即标注编辑），与 `agentChatStore` 设置 `sourceKind` 用的是
+   **同一份实现**（`pipelineKinds.ts` 的 `inferAnnotationProposalKind`）。
+3. **失败保持 `pending`**：写盘失败时不静默吞掉，block 仍为待确认态，卡片可用
+   Keep All / Undo 手动处理；同时标记该 ref 以免流式期间反复重试刷提示。
+4. **撤销是一等公民**：每次落盘前都会捕获改前快照（`captureProposalCheckpoint`），
+   因此可直接撤销。撤销入口两处：消息的 Files Changed 汇总卡右上角、消息工具栏。
+
+**因此 `awaiting_confirmation` 只由标注生成（`auto_annotate`）与终端审批触发。**
+
 ### 6.0 已记录的差异
 
 以下差异是**有意保留**的，不属于回归。`scripts/agent-baseline/diffSse.mjs` 的
-`KNOWN_DIVERGENCES` 只豁免明确列出的**事件类型**，其余任何偏差仍会导致 gate 失败。
+`KNOWN_DIVERGENCES` 支持两种粒度，且都只豁免**明确列出的内容**（其余字段、事件顺序与
+条数仍严格校验），因此任何偏差仍会导致 gate 失败：
 
-| 场景 | 差异 | 原因 |
+1. `extraEventTypes`：允许候选侧多出某类事件
+2. `fieldOverrides`：忽略某事件类型下指定字段的差异
+
+| 场景 | 豁免内容 | 原因 |
 |---|---|---|
-| `reasoning` | 运行时会发出 `reasoning_delta`，Python 侧不发 | Python 用的 `langchain-openai` 1.2.2 不把 provider 的 `reasoning_content` 透出到 `additional_kwargs`，因此 `stream_adapter.py` 的该分支从不触发。Node 侧直接读原始 delta，正常透出。这是**能力增强**（前端 `agentChatStore` 已完整消费该事件），保留而不回退 |
+| `reasoning` | 候选侧多出的 `reasoning_delta` 事件 | Python 用的 `langchain-openai` 1.2.2 不把 provider 的 `reasoning_content` 透出到 `additional_kwargs`，因此 `stream_adapter.py` 的该分支从不触发。Node 侧直接读原始 delta，正常透出。这是**能力增强**（前端 `agentChatStore` 已完整消费该事件），保留而不回退 |
+| `proposal-write` / `proposal-edit` | `tool_result` 事件的 `result` 字段 | 见 §5.5 免确认落盘：文件写入不再等用户 Keep All，工具结果文案相应由「文件尚未写入磁盘；用户确认后才会落盘」改为「已直接写入磁盘（无需确认），用户可撤销」 |
 
 ---
 

@@ -139,4 +139,37 @@ describe('turnCheckpointStore', () => {
     expect(hashContent('abc')).toBe(hashContent('abc'));
     expect(hashContent('abc')).not.toBe(hashContent('abd'));
   });
+
+  /**
+   * 免确认改造把每会话上限从 20 提到 50：一轮对话内可能有更多次直接落盘，
+   * 上限过低会把最早、也最可能需要回滚的快照先行清掉。
+   *
+   * 这里只验证「不清掉 40 个」这一关键边界，避免逐次建 51 个快照拖慢测试。
+   */
+  it('keeps up to 40 checkpoints in a session (limit raised to 50)', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ckpt-prune-'));
+    try {
+      await writeScopedTextFile(root, 'notes.md', 'v0');
+      // 同一 session 下建 40 个不同的 blockIndex 快照
+      for (let i = 0; i < 40; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await captureCheckpoint(
+          { ...ref, blockIndex: i },
+          'file',
+          { workspaceRoot: root },
+          { filePaths: ['notes.md'] },
+        );
+      }
+      const sessionDir = path.join(userDataDir, 'agent-checkpoints', 'sess-1');
+      const msgDirs = await fs.readdir(sessionDir);
+      let blocks = 0;
+      for (const msgDir of msgDirs) {
+        // eslint-disable-next-line no-await-in-loop
+        blocks += (await fs.readdir(path.join(sessionDir, msgDir))).length;
+      }
+      expect(blocks).toBe(40);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

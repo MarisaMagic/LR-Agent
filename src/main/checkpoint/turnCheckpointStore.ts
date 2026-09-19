@@ -14,7 +14,14 @@ import {
 } from '../workspace/workspaceWrite';
 
 const ID_SEGMENT = /^[A-Za-z0-9._-]+$/;
-const MAX_CHECKPOINTS_PER_SESSION = 20;
+/**
+ * 每会话保留的 checkpoint 上限。
+ *
+ * 免确认改造后，文件写入与标注编辑会直接落盘（不再等用户逐次确认），
+ * 一轮对话内可能产生更多 checkpoints。上限过低会让 `pruneSession` 把
+ * **最早、也最可能需要回滚**的那些快照清掉，因此从 20 提高到 50。
+ */
+const MAX_CHECKPOINTS_PER_SESSION = 50;
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type CheckpointKind = 'annotation' | 'file';

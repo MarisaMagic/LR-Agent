@@ -7,7 +7,10 @@ import type { StreamEvent } from '../../shared/agentTypes';
 import { runAnnotationMutationJob } from './annotationAgent/mutationOrchestrator';
 import type { MutationProgressEvent } from './annotationAgent/mutationOrchestrator';
 import { startAnnotationMutationJob } from './annotationMutationBatchJob';
-import { formatAnnotationToolResult } from './agentJobRegistry';
+import {
+  formatAnnotationToolResult,
+  toolResultHasPendingProposal,
+} from './agentJobRegistry';
 
 jest.mock('./annotationAgent/mutationOrchestrator', () => ({
   runAnnotationMutationJob: jest.fn(),
@@ -195,5 +198,53 @@ describe('formatAnnotationToolResult', () => {
     expect(String(parsed.summary)).toContain('另有 37 张因单次上限 100 未纳入');
     expect(String(parsed.summary)).toContain('data/101.jpg');
     expect(String(parsed.summary)).toContain('可再调用 auto_annotate');
+  });
+
+  // 免确认改造：标注编辑（mutate_annotation）自动落盘，不再进入确认断点
+  it('reports auto-applied for annotation edits (no confirm breakpoint)', () => {
+    const raw = formatAnnotationToolResult({
+      status: 'completed',
+      tool: 'mutate_annotation',
+      userRequest: '删框',
+      summary: '删除无标签框',
+      hasProposal: true,
+      autoApplied: true,
+    });
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    expect(parsed.proposal_pending).toBe(false);
+    expect(parsed.file_written).toBe(true);
+    expect(String(parsed.summary)).toContain('已生成变更并直接应用');
+    // 不再出现「未写盘」这类会误导模型的说法
+    expect(String(parsed.summary)).not.toContain('未写盘');
+    // 关键：不得触发 AwaitingConfirm 断点
+    expect(toolResultHasPendingProposal(raw)).toBe(false);
+  });
+
+  it('autoApplied 但未产出提案时仍报告未写盘', () => {
+    const raw = formatAnnotationToolResult({
+      status: 'skipped',
+      tool: 'mutate_annotation',
+      userRequest: '删框',
+      summary: '未能识别',
+      hasProposal: false,
+      autoApplied: true,
+    });
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    expect(parsed.proposal_pending).toBe(false);
+    expect(parsed.file_written).toBe(false);
+    expect(String(parsed.summary)).toContain('不要对用户说已删除');
+  });
+
+  it('标注生成仍进入确认断点（autoApplied 不传）', () => {
+    const raw = formatAnnotationToolResult({
+      status: 'completed',
+      tool: 'auto_annotate',
+      userRequest: '标注',
+      summary: '生成 3 个框',
+      hasProposal: true,
+    });
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    expect(parsed.proposal_pending).toBe(true);
+    expect(toolResultHasPendingProposal(raw)).toBe(true);
   });
 });

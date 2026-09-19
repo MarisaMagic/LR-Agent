@@ -17,8 +17,8 @@ export const CHAT_SYSTEM_PROMPT =
 
 export const RESUME_NEXT_HINT =
   '客户端工具已结束。不要重复调用刚才同一个 tool_call。' +
-  '若 proposal_pending=true：提案未 Keep All、未写盘，不要声称已标注/已删除/已写入。' +
-  '改或删已有标注必须调用 mutate_annotation。' +
+  '若 proposal_pending=true（标注生成提案）：尚未 Keep All、未写盘，不要声称已标注完成。' +
+  '标注编辑（mutate_annotation）已自动落盘，不要重复调用；如需修正请用 mutate_annotation 定向修改。' +
   '若还要给其他文件做新标注，再调用 auto_annotate 并传入新的 paths。' +
   '不要 memory_write progress.md 或 annotated-files.md。';
 
