@@ -3,6 +3,7 @@ import type { PretrainedModelConfig } from './pretrainedModelTypes';
 import {
   describeDetectionModeMismatch,
   inferDetectionMode,
+  resolvePreAnnotDetectKind,
 } from './preAnnotTypes';
 
 /** 只填检测模式推断相关字段的最小模型。 */
@@ -59,6 +60,46 @@ describe('inferDetectionMode', () => {
       ),
     ).toBe('detect');
   });
+
+  it('显式 open_vocab 优先于文件名', () => {
+    expect(
+      inferDetectionMode(
+        model({
+          checkpointPath: 'D:/models/yolov8n.pt',
+          detectionMode: 'open_vocab',
+        }),
+      ),
+    ).toBe('open_vocab');
+  });
+});
+
+describe('resolvePreAnnotDetectKind', () => {
+  it('普通检测走 yolo_detect', () => {
+    expect(
+      resolvePreAnnotDetectKind(
+        model({ checkpointPath: 'D:/m/yolov8n.pt', detectionMode: 'detect' }),
+      ),
+    ).toBe('yolo_detect');
+  });
+
+  it('旋转框走 yolo_obb', () => {
+    expect(
+      resolvePreAnnotDetectKind(
+        model({ checkpointPath: 'D:/m/yolov8n-obb.pt', detectionMode: 'obb' }),
+      ),
+    ).toBe('yolo_obb');
+  });
+
+  it('开放词表走 yolo_world', () => {
+    expect(
+      resolvePreAnnotDetectKind(
+        model({
+          checkpointPath: 'D:/m/yolov8s-worldv2.pt',
+          detectionMode: 'open_vocab',
+        }),
+      ),
+    ).toBe('yolo_world');
+  });
 });
 
 describe('describeDetectionModeMismatch', () => {
@@ -110,6 +151,39 @@ describe('describeDetectionModeMismatch', () => {
         checkpointPath: '',
       }),
     ).toBeNull();
+  });
+
+  it('开放词表模式与 world/yoloe 权重一致时不告警', () => {
+    expect(
+      describeDetectionModeMismatch({
+        detectionMode: 'open_vocab',
+        checkpointPath: 'D:/models/yolov8s-worldv2.pt',
+      }),
+    ).toBeNull();
+    expect(
+      describeDetectionModeMismatch({
+        detectionMode: 'open_vocab',
+        checkpointPath: 'D:/models/yoloe-11s-seg.pt',
+      }),
+    ).toBeNull();
+  });
+
+  it('检出「开放词表声明 + 普通检测权重名」的矛盾', () => {
+    expect(
+      describeDetectionModeMismatch({
+        detectionMode: 'open_vocab',
+        checkpointPath: 'D:/models/yolov8n.pt',
+      }),
+    ).toContain('开放词表');
+  });
+
+  it('检出「普通检测声明 + world 权重名」的矛盾', () => {
+    expect(
+      describeDetectionModeMismatch({
+        detectionMode: 'detect',
+        checkpointPath: 'D:/models/yolov8s-worldv2.pt',
+      }),
+    ).toContain('world/yoloe');
   });
 
   it('自训练的 OBB 权重（仅目录含 obb）不误报', () => {

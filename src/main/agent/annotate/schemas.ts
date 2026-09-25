@@ -73,6 +73,7 @@ export const MapDetectionBoxesRequestSchema = AnnotationLlmBase.extend({
   boxes: z.array(z.record(z.string(), z.unknown())).default([]),
   use_vision: z.boolean().default(false),
   label_strategy: z.string().default('map_each_box_to_label'),
+  label_uniqueness: z.enum(['allow', 'enforce']).nullish(),
   single_label_id: z.string().nullish(),
   annotation_scope: z.record(z.string(), z.unknown()).default({}),
   ocr_text: z.string().default(''),

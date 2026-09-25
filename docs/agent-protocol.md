@@ -149,7 +149,7 @@ type ∈ { file_proposal_start, file_proposal_delta, file_proposal, document_pro
 | 字段 | 说明 |
 |---|---|
 | `type` | `"preparing"` |
-| `stage` | `"streaming"`（assist / chat 两条路径）；`"mcp"`（MCP 工具发现之前） |
+| `stage` | `"streaming"`（assist / chat 两条路径）；`"mcp"`（MCP 工具发现之前）；`"compact"`（上下文超长触发运行时压缩，重试前） |
 
 语义：首 token 前的等待提示。TS 类型声明里还允许 `'summarize'` / `'build_messages'`，但运行时当前不发。
 
@@ -602,7 +602,7 @@ client_context 非空 AND (
 
 | 工具 | 参数 |
 |---|---|
-| `auto_annotate` | `user_request: string(≥1)`、`paths: string[]?`、`all_files: bool?`、`scope_hint: string?`、`write_mode: string?`、`conf_threshold: float? (0..1)`、`iou_threshold: float? (0..1)`、`model_id: string?`、`include_classes: string[]?`、`exclude_classes: string[]?`、`use_vision_mapping: bool?` |
+| `auto_annotate` | `user_request: string(≥1)`、`paths: string[]?`、`all_files: bool?`、`scope_hint: string?`、`write_mode: string?`、`conf_threshold: float? (0..1)`、`iou_threshold: float? (0..1)`、`model_id: string?`、`include_classes: string[]?`、`exclude_classes: string[]?`、`use_vision_mapping: bool?`、`unique_labels_per_box: bool?` |
 | `mutate_annotation` | `user_request: string(≥1)`、`paths: string[]?`、`annotation_ids: string[]?` |
 | `start_terminal_command` | `command: string`、`args: string[]?`、`timeout_ms: int? (1..600000)` |
 
@@ -1213,6 +1213,10 @@ work_mode === "editor"                     → 工作区助手（task + 文件�
 | 视觉映射重试次数 | 1 |
 | 标签池预检模式 | `"auto"` |
 | 标签池预检最小额外标签数 | 2 |
+| 逐框视觉映射候选标签上限 | 300（`LR_AGENT_VISION_CANDIDATE_LIMIT`） |
+| 标签池 preflight 候选上限 | 500（`LR_AGENT_PREFLIGHT_CANDIDATE_LIMIT`） |
+| mutation 规划标签名上限 | 300（`LR_AGENT_MUTATION_LABEL_NAME_LIMIT`） |
+| 标签唯一性策略 | `"allow"`（`LR_AGENT_LABEL_UNIQUENESS=allow\|enforce`） |
 | 标注变更功能开关 | true |
 
 **代码里硬编码、未走配置的编排参数**（不要漏）：

@@ -17,6 +17,7 @@ import {
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import { exportAnnotationProject } from '../../services/annotationExportService';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './ExportAnnotationWizard.css';
 
 interface ExportAnnotationWizardProps {
@@ -209,25 +210,31 @@ export default function ExportAnnotationWizard({
         <div className="export-annotation-field">
           <span className="export-annotation-label">导出格式</span>
           <div className="export-annotation-format-list" role="radiogroup">
-            {formatOptions.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                role="radio"
-                aria-checked={format === option.id}
-                className={`export-annotation-format-option${
-                  format === option.id ? ' selected' : ''
-                }`}
-                onClick={() => setFormat(option.id)}
-              >
-                <span className="export-annotation-format-name">
-                  {option.label}
-                </span>
-                <span className="export-annotation-format-desc">
-                  {option.description}
-                </span>
-              </button>
-            ))}
+            <OverlayVerticalScrollArea
+              maxHeight="220px"
+              observeKey={formatOptions.length}
+              contentClassName="export-annotation-format-list-inner"
+            >
+              {formatOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={format === option.id}
+                  className={`export-annotation-format-option${
+                    format === option.id ? ' selected' : ''
+                  }`}
+                  onClick={() => setFormat(option.id)}
+                >
+                  <span className="export-annotation-format-name">
+                    {option.label}
+                  </span>
+                  <span className="export-annotation-format-desc">
+                    {option.description}
+                  </span>
+                </button>
+              ))}
+            </OverlayVerticalScrollArea>
           </div>
         </div>
 

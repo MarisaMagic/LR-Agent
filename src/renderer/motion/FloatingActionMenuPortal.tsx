@@ -86,15 +86,22 @@ export default function FloatingActionMenuPortal({
       if (event.key === 'Escape') onClose();
     };
 
+    // 菜单自身内部滚动不应关闭菜单；仅外部容器滚动才关闭。
+    const onScroll = (event: Event) => {
+      const target = event.target as Node | null;
+      if (target && menuRef.current?.contains(target)) return;
+      onClose();
+    };
+
     document.addEventListener('mousedown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
-    window.addEventListener('scroll', onClose, true);
+    window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', onClose);
 
     return () => {
       document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('scroll', onClose, true);
+      window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', onClose);
     };
   }, [open, anchorEl, onClose]);

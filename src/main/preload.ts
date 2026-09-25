@@ -173,6 +173,7 @@ const electronHandler = {
         | 'checkpointPath'
         | 'configPath'
         | 'detectionMode'
+        | 'promptClasses'
         | 'keypointBackend'
         | 'keypointTemplateIds'
         | 'auxiliaryPaths'

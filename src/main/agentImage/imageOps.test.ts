@@ -78,6 +78,21 @@ function webpBytes(width: number, height: number): Buffer {
   return buf;
 }
 
+/** 构造有损 WebP（VP8）的帧头。 */
+function webpLossyBytes(width: number, height: number): Buffer {
+  const buf = Buffer.alloc(40);
+  buf.write('RIFF', 0, 'ascii');
+  buf.writeUInt32LE(32, 4);
+  buf.write('WEBP', 8, 'ascii');
+  buf.write('VP8 ', 12, 'ascii');
+  buf.writeUInt32LE(20, 16);
+  // 帧标签 3 字节 + 起始码 3 字节，其后为 14 位宽高（小端）
+  buf.writeUInt32LE(0x9d012a, 23);
+  buf.writeUInt16LE(width & 0x3fff, 26);
+  buf.writeUInt16LE(height & 0x3fff, 28);
+  return buf;
+}
+
 /** 构造 BMP 头。 */
 function bmpBytes(width: number, height: number): Buffer {
   const buf = Buffer.alloc(30);
@@ -138,6 +153,14 @@ describe('parseImageHeader：文件头解析', () => {
     expect(parseImageHeader(webpBytes(1000, 500))).toEqual({
       width: 1000,
       height: 500,
+      format: 'WEBP',
+    });
+  });
+
+  it('WebP（VP8 有损）读出宽高与格式', () => {
+    expect(parseImageHeader(webpLossyBytes(1200, 675))).toEqual({
+      width: 1200,
+      height: 675,
       format: 'WEBP',
     });
   });

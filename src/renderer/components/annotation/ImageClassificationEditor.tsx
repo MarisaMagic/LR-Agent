@@ -3,6 +3,7 @@ import { VscodeButton } from '@vscode-elements/react-elements';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import ImageAnnotationToolbar from './ImageAnnotationToolbar';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './ImageClassificationEditor.css';
 
 interface ImageClassificationEditorProps {
@@ -75,7 +76,11 @@ export default function ImageClassificationEditor({
           />
         </div>
 
-        <div className="image-classification-panel">
+        <OverlayVerticalScrollArea
+          fillHost
+          className="image-classification-panel"
+          contentClassName="image-classification-panel-scroll"
+        >
           <div className="image-classification-panel-section">
             <h4 className="image-classification-panel-heading">已分配标签</h4>
             {classificationAnnotations.length === 0 ? (
@@ -184,7 +189,7 @@ export default function ImageClassificationEditor({
               </p>
             </div>
           )}
-        </div>
+        </OverlayVerticalScrollArea>
       </div>
     </div>
   );

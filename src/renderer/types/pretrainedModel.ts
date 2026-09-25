@@ -14,7 +14,9 @@ export type {
 export {
   createModelId,
   defaultParamsForBackend,
+  defaultParamsForDetectionMode,
   defaultParamsForType,
+  DEFAULT_OPEN_VOCAB_PARAMS,
   DEFAULT_SAM2_PARAMS,
   DEFAULT_YOLO_PARAMS,
   getModelDisplayName,

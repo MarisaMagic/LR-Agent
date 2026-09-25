@@ -1,0 +1,36 @@
+# Cursor privacy hardening — added 2026-09-21
+# Files listed here are excluded from Cursor AI features (context, codebase
+# indexing, tab sync, agent). Keep secrets and local-only artifacts here.
+
+# --- Secrets / credentials ---
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.p12
+*.pfx
+*.keystore
+id_rsa
+id_ed25519
+known_hosts
+.ssh/
+.aws/
+.azure/
+.netrc
+*credentials*
+*secret*
+*token*
+
+# --- Local-only artifacts ---
+.zcode/
+.cursor/
+.git/
+node_modules/
+vendor/local-agent/.venv/
+.venv/
+venv/
+__pycache__/
+*.sqlite
+*.sqlite3
+*.db

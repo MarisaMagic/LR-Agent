@@ -17,7 +17,6 @@
 import type { ChatMessage, LlmClient } from '../llm/client';
 import { extractJsonObject, pythonJsonDumps } from './common';
 import { heuristicMapBoxes } from './heuristic';
-import { labelsRequireVisionMapping } from './visionPolicy';
 import {
   resolveEffectiveLabelCandidates,
   type LabelPoolResult,
@@ -41,8 +40,8 @@ export const CROP_VISION_SYSTEM = `你是视觉标注助手。你会收到一张
 /** 裁剪后送 LLM 的最长边。 */
 const CROP_MAX_EDGE = 768;
 
-/** 送 LLM 的候选标签上限。 */
-const VISION_CANDIDATE_LIMIT = 40;
+/** 送 LLM 的候选标签上限的兜底值（实际取 settings.annotationVisionCandidateLimit）。 */
+const VISION_CANDIDATE_LIMIT_FALLBACK = 300;
 
 /** 单框视觉映射结果。 */
 export interface BoxMapping {
@@ -120,6 +119,7 @@ interface VisionMapBoxParams {
   scopeNote: string;
   retryNote: string;
   reservedLabelIds: string[] | null;
+  candidateLimit: number;
   signal?: AbortSignal;
 }
 
@@ -141,7 +141,7 @@ async function visionMapBoxWithCrop(
     `用户请求：${params.userRequest}\n意图：${params.intentSummary}\n` +
     `box_index=${params.boxIndex} 检测类名：${params.box.class_name || params.box.detection_label || ''}\n` +
     `${params.scopeNote}${retryBlock}${reservedBlock}\n\nlabel_candidates:\n` +
-    `${pythonJsonDumps(params.candidates.slice(0, VISION_CANDIDATE_LIMIT))}`;
+    `${pythonJsonDumps(params.candidates.slice(0, params.candidateLimit))}`;
 
   const messages: ChatMessage[] = [
     { role: 'system', content: CROP_VISION_SYSTEM },
@@ -191,6 +191,7 @@ async function visionMapRegionsConcurrent(
     intentSummary: string;
     scopeNote: string;
     concurrency: number;
+    candidateLimit: number;
     regionOverrides?: Map<number, RegionOverrides>;
     signal?: AbortSignal;
   },
@@ -217,6 +218,7 @@ async function visionMapRegionsConcurrent(
           scopeNote: options.scopeNote,
           retryNote: extra?.retryNote ?? '',
           reservedLabelIds: extra?.reservedLabelIds ?? null,
+          candidateLimit: options.candidateLimit,
           signal: options.signal,
         });
       }),
@@ -287,6 +289,7 @@ interface ValidationRetryParams {
   intentSummary: string;
   scopeNote: string;
   concurrency: number;
+  candidateLimit: number;
   instanceLabels: boolean;
   maxRetries: number;
   validate: boolean;
@@ -305,6 +308,7 @@ async function visionMapWithValidationRetry(
     intentSummary: params.intentSummary,
     scopeNote: params.scopeNote,
     concurrency: params.concurrency,
+    candidateLimit: params.candidateLimit,
     signal: params.signal,
   });
 
@@ -333,7 +337,11 @@ async function visionMapWithValidationRetry(
     const byIndex = mappingByIndex(mappings);
 
     for (const boxIndex of retryIndices) {
-      const used = usedLabelIds(mappings, { excludeBox: boxIndex });
+      // 仅在「每框标签唯一」策略下才排除已被其它框占用的 label_id；
+      // 类别型/细粒度标签允许同类多实例，否则会把重复实例逼成空标签。
+      const used = params.instanceLabels
+        ? usedLabelIds(mappings, { excludeBox: boxIndex })
+        : new Set<string>();
       const currentLid = String(byIndex.get(boxIndex)?.label_id ?? '');
       const boxCandidates = candidatesForRetryBox(
         params.candidates,
@@ -344,7 +352,7 @@ async function visionMapWithValidationRetry(
       overrides.set(boxIndex, {
         candidates: boxCandidates,
         retryNote: formatIssuesForRetry(boxIssues),
-        reservedLabelIds: [...used].sort(),
+        reservedLabelIds: params.instanceLabels ? [...used].sort() : undefined,
       });
     }
 
@@ -360,6 +368,7 @@ async function visionMapWithValidationRetry(
       intentSummary: params.intentSummary,
       scopeNote: params.scopeNote,
       concurrency: 1,
+      candidateLimit: params.candidateLimit,
       regionOverrides: overrides,
       signal: params.signal,
     });
@@ -385,6 +394,8 @@ export interface MapUnifiedParams {
   ocrText: string;
   scope: AnnotationScope | Record<string, unknown> | null;
   labelStrategy: string;
+  /** 标签唯一性策略；undefined 时取 settings.annotationLabelUniqueness */
+  labelUniqueness?: 'allow' | 'enforce';
   singleLabelId: string | null;
   imageAbsolutePath: string;
   imageBase64: string;
@@ -496,7 +507,13 @@ export async function mapDetectionBoxesToLabelsUnified(
     });
 
     const regions: CropRegion[] = [];
-    if (probed.ok && probed.width != null && probed.height != null) {
+    // 空裁剪集必须显式失败：否则会以 `ok: true` + 空 mappings 返回，
+    // 上游只能报出「mappings 为空」，把真正的原因（多为图片无法解码）盖掉。
+    let cropFailure = '';
+
+    if (!probed.ok || probed.width == null || probed.height == null) {
+      cropFailure = `无法读取图片尺寸：${probed.error ?? '未知原因'}`;
+    } else {
       const usable: Array<{
         box: NormalizedBox;
         rect: { left: number; top: number; right: number; bottom: number };
@@ -517,28 +534,54 @@ export async function mapDetectionBoxesToLabelsUnified(
         });
       }
 
-      const cropped = await params.imageService.cropBatch({
-        absolutePath: params.imageAbsolutePath || undefined,
-        base64: params.imageBase64 || undefined,
-        boxes: usable.map((u) => u.rect),
-        maxEdge: CROP_MAX_EDGE,
-        quality: settings.annotationLlmImageJpegQuality,
-      });
-
-      if (cropped.ok && cropped.images) {
-        cropped.images.forEach((dataUrl, index) => {
-          const entry = usable[index];
-          if (!entry || !dataUrl) return;
-          regions.push({
-            box_index: entry.box.box_index,
-            data_url: dataUrl,
-            box: entry.box,
-          });
+      if (usable.length === 0) {
+        cropFailure = '检测框宽高或坐标非法，无法生成裁剪区域';
+      } else {
+        const cropped = await params.imageService.cropBatch({
+          absolutePath: params.imageAbsolutePath || undefined,
+          base64: params.imageBase64 || undefined,
+          boxes: usable.map((u) => u.rect),
+          maxEdge: CROP_MAX_EDGE,
+          quality: settings.annotationLlmImageJpegQuality,
         });
+
+        if (!cropped.ok) {
+          cropFailure = `裁剪图片失败：${cropped.error ?? '未知原因'}`;
+        } else {
+          (cropped.images ?? []).forEach((dataUrl, index) => {
+            const entry = usable[index];
+            if (!entry || !dataUrl) return;
+            regions.push({
+              box_index: entry.box.box_index,
+              data_url: dataUrl,
+              box: entry.box,
+            });
+          });
+          if (regions.length === 0) cropFailure = '裁剪结果为空图';
+        }
       }
     }
 
-    const instanceLabels = labelsRequireVisionMapping(params.labelCandidates);
+    if (regions.length === 0) {
+      return {
+        ok: false,
+        error: 'crop_unavailable',
+        method: 'vision_crop',
+        hint: `${cropFailure || '未能为任何检测框生成裁剪区域'}；无裁剪图则逐框视觉映射不可用`,
+      };
+    }
+
+    // 唯一性策略：显式参数优先，否则取系统设置。
+    // 注意：不再用 labelsRequireVisionMapping 推断「实例标签」——它只表示
+    // 「检测类名与项目标签无交集、必须靠视觉判断」，对细粒度类别标签同样成立，
+    // 若据此判定每框唯一，会把同类多实例（如本图 3 盒奥利奥）全部逼成空标签。
+    const enforceUniqueLabels =
+      (params.labelUniqueness ?? settings.annotationLabelUniqueness) ===
+      'enforce';
+    const instanceLabels = enforceUniqueLabels;
+    const candidateLimit =
+      settings.annotationVisionCandidateLimit ??
+      VISION_CANDIDATE_LIMIT_FALLBACK;
     const { mappings, retryRounds } = await visionMapWithValidationRetry({
       llm: params.llm,
       regions,
@@ -548,6 +591,7 @@ export async function mapDetectionBoxesToLabelsUnified(
       intentSummary: params.intentSummary,
       scopeNote,
       concurrency,
+      candidateLimit,
       instanceLabels,
       maxRetries: settings.annotationVisionMapMaxRetries,
       validate: settings.annotationVisionMapValidate,

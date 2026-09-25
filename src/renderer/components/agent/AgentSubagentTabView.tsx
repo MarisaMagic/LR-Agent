@@ -13,6 +13,7 @@ import {
   buildAssistantRenderSegments,
   type AssistantRenderSegment,
 } from './explorationRenderUtils';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './AgentMessageItem.css';
 import './AgentSubagentTabView.css';
 
@@ -112,7 +113,11 @@ export default function AgentSubagentTabView({
         </div>
       </header>
 
-      <div className="agent-subagent-tab-body">
+      <OverlayVerticalScrollArea
+        fillHost
+        className="agent-subagent-tab-body"
+        contentClassName="agent-subagent-tab-body-scroll"
+      >
         {emptyRunning ? (
           <div className="agent-subagent-tab-empty">正在查阅工作区…</div>
         ) : failed && transcript.length === 0 ? (
@@ -143,7 +148,7 @@ export default function AgentSubagentTabView({
             ) : null}
           </div>
         )}
-      </div>
+      </OverlayVerticalScrollArea>
     </div>
   );
 }

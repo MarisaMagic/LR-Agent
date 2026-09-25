@@ -259,7 +259,10 @@ export type StreamEvent =
       arguments: string;
     }
   | { type: 'tool_result'; toolCallId: string; result: string }
-  | { type: 'preparing'; stage: 'summarize' | 'streaming' | 'build_messages' }
+  | {
+      type: 'preparing';
+      stage: 'summarize' | 'streaming' | 'build_messages' | 'mcp' | 'compact';
+    }
   | {
       type: 'context_updated';
       summary: string;

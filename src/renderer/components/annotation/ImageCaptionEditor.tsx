@@ -10,6 +10,7 @@ import { useAnnotation } from '../../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import type { CaptionGranularity } from '../../types/annotationDocument';
 import ImageAnnotationToolbar from './ImageAnnotationToolbar';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './ImageCaptionEditor.css';
 
 interface ImageCaptionEditorProps {
@@ -248,7 +249,11 @@ export default function ImageCaptionEditor({
           </div>
 
           {/* Tab 内容区 */}
-          <div className="image-caption-drawer-body">
+          <OverlayVerticalScrollArea
+            fillHost
+            className="image-caption-drawer-body"
+            contentClassName="image-caption-drawer-body-scroll"
+          >
             {activeTab === 'input' ? (
               <div className="image-caption-input-tab">
                 <div className="image-caption-granularity-row">
@@ -366,7 +371,7 @@ export default function ImageCaptionEditor({
                 )}
               </div>
             )}
-          </div>
+          </OverlayVerticalScrollArea>
         </div>
       </div>
     </div>

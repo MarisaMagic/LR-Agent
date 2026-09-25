@@ -8,6 +8,7 @@ import {
   KeypointBackend,
   KEYPOINT_BACKEND_LABELS,
   KEYPOINT_BACKEND_PRESETS,
+  defaultParamsForDetectionMode,
   defaultParamsForType,
   type ObjectDetectionMode,
 } from '../../types/pretrainedModel';
@@ -48,10 +49,12 @@ export default function PretrainedModelFormModal({
   const [validationMessages, setValidationMessages] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [promptText, setPromptText] = useState('');
 
   useEffect(() => {
     if (!open) return;
     setForm(initial);
+    setPromptText((initial.promptClasses ?? []).join('\n'));
     setError(null);
     setValidationMessages([]);
     setSubmitting(false);
@@ -68,6 +71,19 @@ export default function PretrainedModelFormModal({
     setForm((prev) => ({
       ...prev,
       params: { ...prev.params, ...patch },
+    }));
+  };
+
+  const handleDetectionModeChange = (mode: ObjectDetectionMode) => {
+    const defaults = defaultParamsForDetectionMode(mode);
+    setForm((prev) => ({
+      ...prev,
+      detectionMode: mode,
+      params: {
+        ...prev.params,
+        confThreshold: defaults.confThreshold,
+        iouThreshold: defaults.iouThreshold,
+      },
     }));
   };
 
@@ -286,11 +302,21 @@ export default function PretrainedModelFormModal({
       }
     }
 
+    if (
+      form.modelType === 'object_detection' &&
+      form.detectionMode === 'open_vocab' &&
+      !(form.promptClasses ?? []).length
+    ) {
+      setError('开放词表检测需要至少一个提示词');
+      return;
+    }
+
     const validation = await validatePretrainedModelPaths({
       modelType: form.modelType,
       checkpointPath: form.checkpointPath,
       configPath: form.configPath,
       detectionMode: form.detectionMode,
+      promptClasses: form.promptClasses,
       keypointBackend: form.keypointBackend,
       keypointTemplateIds: form.keypointTemplateIds,
       auxiliaryPaths: form.auxiliaryPaths,
@@ -311,6 +337,11 @@ export default function PretrainedModelFormModal({
         name: form.name.trim(),
         checkpointPath: form.checkpointPath.trim(),
         configPath: form.configPath?.trim() || undefined,
+        promptClasses:
+          form.modelType === 'object_detection' &&
+          form.detectionMode === 'open_vocab'
+            ? form.promptClasses
+            : undefined,
         keypointTemplateIds: form.keypointTemplateIds?.length
           ? form.keypointTemplateIds
           : undefined,
@@ -600,6 +631,7 @@ export default function PretrainedModelFormModal({
               [
                 ['detect', '普通矩形框 (Detect)'],
                 ['obb', '旋转框 (OBB)'],
+                ['open_vocab', '开放词表 (YOLO-World)'],
               ] as [ObjectDetectionMode, string][]
             ).map(([value, label]) => (
               <label key={value} className="pretrained-model-type-option">
@@ -608,7 +640,7 @@ export default function PretrainedModelFormModal({
                   name="detectionMode"
                   value={value}
                   checked={(form.detectionMode ?? 'detect') === value}
-                  onChange={() => updateForm({ detectionMode: value })}
+                  onChange={() => handleDetectionModeChange(value)}
                 />
                 {label}
               </label>
@@ -621,6 +653,32 @@ export default function PretrainedModelFormModal({
           ) : null}
         </div>
       )}
+
+      {form.modelType === 'object_detection' &&
+        (form.detectionMode ?? 'detect') === 'open_vocab' && (
+          <div className="pretrained-model-form-field">
+            <label htmlFor="pm-prompts">提示词（每行或逗号分隔）</label>
+            <textarea
+              id="pm-prompts"
+              rows={3}
+              value={promptText}
+              placeholder={'product\npackage\nbottle\ncan\nbox\nbag'}
+              onChange={(e) => {
+                setPromptText(e.target.value);
+                updateForm({
+                  promptClasses: e.target.value
+                    .split(/[\r\n,]/)
+                    .map((item) => item.trim())
+                    .filter(Boolean),
+                });
+              }}
+            />
+            <span className="pretrained-model-form-hint">
+              用于 YOLO-World 文本提示出框；建议使用通用物体词（如
+              product、package、bottle、can、box、bag）。
+            </span>
+          </div>
+        )}
 
       {form.modelType === 'object_detection' && (
         <div className="pretrained-model-form-advanced">

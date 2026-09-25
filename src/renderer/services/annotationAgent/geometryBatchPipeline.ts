@@ -109,6 +109,9 @@ export function applyDetectionOverrides(
     plan.use_vision_mapping =
       overrides.useVisionMapping && (providerSupportsVision ?? false);
   }
+  if (overrides.uniqueLabelsPerBox !== undefined) {
+    plan.label_uniqueness = overrides.uniqueLabelsPerBox ? 'enforce' : 'allow';
+  }
 }
 
 /** 按 id 指定检测模型；未命中返回 null，由调用方回退默认模型。 */
@@ -121,16 +124,31 @@ function pickModelById(
 }
 
 function formatWorkerDetailParts(result: WorkerResult): string[] {
-  const parts = [
-    result.mappedCount != null ? `已标 ${result.mappedCount} 实例` : '',
+  const unmappedLabel =
     result.unlabeledInProposal != null && result.unlabeledInProposal > 0
       ? `留空 ${result.unlabeledInProposal}`
       : result.unmappedCount != null && result.unmappedCount > 0
         ? `未映射 ${result.unmappedCount}`
-        : '',
+        : '';
+  const noMatch = result.unmappedNoMatch ?? 0;
+  const failed = result.unmappedFailed ?? 0;
+  const unmappedReason =
+    unmappedLabel && noMatch + failed > 0
+      ? `（无匹配 ${noMatch}/失败 ${failed}）`
+      : '';
+  const poolPart =
+    result.labelPoolEffective != null && result.labelPoolEffective > 0
+      ? `候选池 ${result.labelPoolEffective}${
+          result.labelPoolSource ? `(${result.labelPoolSource})` : ''
+        }`
+      : '';
+  const parts = [
+    result.mappedCount != null ? `已标 ${result.mappedCount} 实例` : '',
+    unmappedLabel ? `${unmappedLabel}${unmappedReason}` : '',
     result.rawCount != null
       ? `检测 ${result.rawCount}→保留 ${result.keptCount ?? 0}`
       : '',
+    poolPart,
     result.method ? `方式 ${result.method}` : '',
   ].filter(Boolean) as string[];
   if (result.timing) {

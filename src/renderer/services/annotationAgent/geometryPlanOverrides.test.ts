@@ -53,6 +53,20 @@ describe('applyDetectionOverrides', () => {
     applyDetectionOverrides(plan, { useVisionMapping: true }, true);
     expect(plan.use_vision_mapping).toBe(true);
   });
+
+  it('maps uniqueLabelsPerBox to label_uniqueness', () => {
+    const enforce = basePlan();
+    applyDetectionOverrides(enforce, { uniqueLabelsPerBox: true }, true);
+    expect(enforce.label_uniqueness).toBe('enforce');
+
+    const allow = basePlan();
+    applyDetectionOverrides(allow, { uniqueLabelsPerBox: false }, true);
+    expect(allow.label_uniqueness).toBe('allow');
+
+    const untouched = basePlan();
+    applyDetectionOverrides(untouched, { confThreshold: 0.3 }, true);
+    expect(untouched.label_uniqueness).toBeUndefined();
+  });
 });
 
 describe('parseDetectionOverrides', () => {
@@ -82,6 +96,15 @@ describe('parseDetectionOverrides', () => {
     });
     expect(overrides?.confThreshold).toBe(1);
     expect(overrides?.iouThreshold).toBe(0);
+  });
+
+  it('parses unique_labels_per_box', () => {
+    expect(parseDetectionOverrides({ unique_labels_per_box: true })).toEqual({
+      uniqueLabelsPerBox: true,
+    });
+    expect(parseDetectionOverrides({ unique_labels_per_box: 'false' })).toEqual(
+      { uniqueLabelsPerBox: false },
+    );
   });
 
   it('returns undefined when no override fields present', () => {

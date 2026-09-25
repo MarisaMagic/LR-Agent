@@ -273,8 +273,6 @@
 .env-wizard-install-log {
   margin: 0;
   padding: 8px;
-  max-height: 180px;
-  overflow: auto;
   border-radius: 4px;
   background: var(--vscode-editor-background, #1e1e1e);
   color: var(--vscode-foreground, #cccccc);

@@ -47,7 +47,9 @@
 .agent-subagent-tab-body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+}
+
+.agent-subagent-tab-body-scroll {
   padding: 12px 16px 20px;
 }
 

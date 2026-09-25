@@ -28,6 +28,7 @@ export async function validatePretrainedModelPaths(
     | 'checkpointPath'
     | 'configPath'
     | 'detectionMode'
+    | 'promptClasses'
     | 'keypointBackend'
     | 'keypointTemplateIds'
     | 'auxiliaryPaths'

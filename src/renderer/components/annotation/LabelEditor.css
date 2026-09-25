@@ -11,6 +11,13 @@
   gap: 8px;
 }
 
+.label-editor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .label-editor-title {
   font-size: var(--lr-ui-font-meta);
   font-weight: 600;
@@ -44,6 +51,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.label-editor-list-scroll-content {
+  padding-right: 8px;
 }
 
 .label-editor-list {

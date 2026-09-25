@@ -79,11 +79,13 @@ export async function preflightLabelPool(
 ): Promise<[string[], boolean]> {
   const validIds = new Set(params.candidates.map((c) => String(c.id ?? '')));
 
-  // 只送前 80 个，且保留原值（不转字符串）
-  const payload = params.candidates.slice(0, 80).map((c) => ({
-    id: c.id,
-    name: c.name,
-  }));
+  // 只送前 N 个（由设置控制，默认 500；过小会让尾部标签永远选不到），且保留原值（不转字符串）
+  const payload = params.candidates
+    .slice(0, params.settings.annotationPreflightCandidateLimit)
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+    }));
 
   const userText =
     `用户请求：${params.userRequest}\n` +

@@ -365,6 +365,7 @@ export async function validatePretrainedModel(
     | 'checkpointPath'
     | 'configPath'
     | 'detectionMode'
+    | 'promptClasses'
     | 'keypointBackend'
     | 'keypointTemplateIds'
     | 'auxiliaryPaths'
@@ -391,6 +392,12 @@ export async function validatePretrainedModel(
   } else if (model.modelType === 'object_detection') {
     if (!checkpointPath.toLowerCase().endsWith('.pt')) {
       warnings.push('权重文件扩展名不是 .pt');
+    }
+    if (
+      model.detectionMode === 'open_vocab' &&
+      !(model.promptClasses ?? []).some((item) => item.trim())
+    ) {
+      errors.push('开放词表检测需要至少一个提示词 (promptClasses)');
     }
     // 检测模式写错会让模型在标注界面静默消失（详见 describeDetectionModeMismatch）。
     const mismatch = describeDetectionModeMismatch({

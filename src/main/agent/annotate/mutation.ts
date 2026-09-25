@@ -64,7 +64,9 @@ text_classification、classification、span_ner、instruction、preference、con
 }
 
 规则：
-- patch_label：改已有标签（含多边形/分类空 labelId 补标）。必须给出 new_label_name（项目标签名之一）
+- patch_label：改已有标签（含多边形/分类空 labelId 补标）。new_label_name 必须是项目标签名之一；
+  若需要「按图像内容逐框自动判定标签」（用户说"给这些框补标签 / 标注这些框"但未指定具体标签名），
+  **省略 new_label_name**：系统会对目标框逐框视觉判定，判定不出的框保持留空。
 - patch_geometry：改几何。
   bbox 填 x/y/width/height（0–1，左上角）；rotated_bbox 与 keypoint 骨架填 cx/cy/width/height（0–1，中心点），可带 angle（度）；
   keypoint 改关键点填 keypoints 整表替换（长度与骨架模板一致，visibility 0=不可见 1=遮挡 2=可见）；
@@ -278,6 +280,8 @@ export interface PrepareMutationParams {
   labelNames: string[];
   selectedAnnotationIds?: string[];
   conversationTranscript?: string;
+  /** 送 LLM 的标签名上限（默认 300）。 */
+  labelNameLimit?: number;
   signal?: AbortSignal;
 }
 
@@ -301,7 +305,9 @@ export async function prepareMutationAnnotation(
       parent: c.parent,
     })),
   );
-  const labels = params.labelNames.slice(0, 50).join(', ') || '（无）';
+  const labels =
+    params.labelNames.slice(0, params.labelNameLimit ?? 300).join(', ') ||
+    '（无）';
   const selectedIds =
     (params.selectedAnnotationIds ?? []).join(', ') || '（无）';
   const transcript =

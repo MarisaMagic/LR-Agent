@@ -160,7 +160,6 @@ body.is-resizing-row .image-caption-drawer {
 /* ── Tab 内容区 ── */
 .image-caption-drawer-body {
   flex: 1;
-  overflow-y: auto;
   min-height: 0;
 }
 

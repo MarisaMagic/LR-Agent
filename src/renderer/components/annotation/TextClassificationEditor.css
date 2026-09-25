@@ -75,11 +75,9 @@
 
 .text-classification-labels-panel {
   width: 280px;
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
   flex-shrink: 0;
   background: var(--vscode-editor-background);
+  overflow: hidden;
 }
 
 .text-classification-section {

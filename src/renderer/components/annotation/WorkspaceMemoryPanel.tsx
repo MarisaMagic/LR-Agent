@@ -17,6 +17,7 @@ import { syncWorkspaceFactMemory } from '../../services/workspaceFactMemory';
 import type { AnnotationProject } from '../../types/annotation';
 import WorkspaceMemoryOpenSplit from './WorkspaceMemoryOpenSplit';
 import WorkspaceMemoryToggle from './WorkspaceMemoryToggle';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './WorkspaceMemoryPanel.css';
 
 interface WorkspaceMemoryPanelProps {
@@ -142,51 +143,57 @@ export default function WorkspaceMemoryPanel({
         />
       </div>
 
-      <div className="workspace-memory-panel-list" aria-busy={loading}>
-        {loading ? (
-          <p className="workspace-memory-panel-empty">正在读取记忆文件…</p>
-        ) : entries.length === 0 ? (
-          <div className="workspace-memory-panel-empty-card">
-            <VscodeIcon name="thinking" size={22} />
-            <p>尚未生成记忆文件</p>
-            <span>
-              打开开关后，确认标注或保存时系统会更新进度与已标文件；Agent
-              可另记偏好
-            </span>
-          </div>
-        ) : (
-          <ul className="workspace-memory-card-list">
-            {entries.map((entry) => (
-              <li key={entry.id} className="workspace-memory-card">
-                <div className="workspace-memory-card-icon" aria-hidden>
-                  <VscodeIcon name="thinking" size={16} />
-                </div>
-                <div className="workspace-memory-card-body">
-                  <div className="workspace-memory-card-title">
-                    {entry.title}
+      <OverlayVerticalScrollArea
+        className="workspace-memory-panel-list"
+        maxHeight="min(420px, calc(100vh - 280px))"
+        observeKey={entries.length}
+      >
+        <div className="workspace-memory-panel-list-inner" aria-busy={loading}>
+          {loading ? (
+            <p className="workspace-memory-panel-empty">正在读取记忆文件…</p>
+          ) : entries.length === 0 ? (
+            <div className="workspace-memory-panel-empty-card">
+              <VscodeIcon name="thinking" size={22} />
+              <p>尚未生成记忆文件</p>
+              <span>
+                打开开关后，确认标注或保存时系统会更新进度与已标文件；Agent
+                可另记偏好
+              </span>
+            </div>
+          ) : (
+            <ul className="workspace-memory-card-list">
+              {entries.map((entry) => (
+                <li key={entry.id} className="workspace-memory-card">
+                  <div className="workspace-memory-card-icon" aria-hidden>
+                    <VscodeIcon name="thinking" size={16} />
                   </div>
-                  {entry.excerpt ? (
-                    <p className="workspace-memory-card-excerpt">
-                      {entry.excerpt}
-                    </p>
-                  ) : null}
-                  <div className="workspace-memory-card-path">
-                    {entry.relativePath}
+                  <div className="workspace-memory-card-body">
+                    <div className="workspace-memory-card-title">
+                      {entry.title}
+                    </div>
+                    {entry.excerpt ? (
+                      <p className="workspace-memory-card-excerpt">
+                        {entry.excerpt}
+                      </p>
+                    ) : null}
+                    <div className="workspace-memory-card-path">
+                      {entry.relativePath}
+                    </div>
                   </div>
-                </div>
-                <WorkspaceMemoryOpenSplit
-                  disabled={openingId === entry.id}
-                  selectedTarget={openTarget}
-                  onSelectTarget={handleSelectTarget}
-                  onOpen={(target) => {
-                    void handleOpenFile(entry, target);
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                  <WorkspaceMemoryOpenSplit
+                    disabled={openingId === entry.id}
+                    selectedTarget={openTarget}
+                    onSelectTarget={handleSelectTarget}
+                    onOpen={(target) => {
+                      void handleOpenFile(entry, target);
+                    }}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </OverlayVerticalScrollArea>
 
       <div className="workspace-memory-panel-actions">
         <VscodeButton
