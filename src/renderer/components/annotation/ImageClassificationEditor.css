@@ -34,11 +34,9 @@
 .image-classification-panel {
   width: 320px;
   min-width: 280px;
-  display: flex;
-  flex-direction: column;
   border-left: 1px solid var(--vscode-panel-border, #3c3c3c);
   background: var(--vscode-editor-background, #1e1e1e);
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .image-classification-panel-section {

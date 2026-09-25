@@ -3,7 +3,7 @@ export type PretrainedModelType =
 
 export type KeypointBackend = 'yolo_pose' | 'mediapipe_hand' | 'face_alignment';
 
-export type ObjectDetectionMode = 'detect' | 'obb';
+export type ObjectDetectionMode = 'detect' | 'obb' | 'open_vocab';
 
 export interface KeypointAuxiliaryPaths {
   detector?: string;
@@ -30,6 +30,8 @@ export interface PretrainedModelConfig {
   configPath?: string;
   /** YOLO detect vs OBB; inferred from filename when omitted */
   detectionMode?: ObjectDetectionMode;
+  /** 开放词表检测 (YOLO-World) 的文本提示词 */
+  promptClasses?: string[];
   /** Class names from model metadata (YOLO) */
   classNames?: string[];
   /** model class name -> project label id */
@@ -123,6 +125,25 @@ export const DEFAULT_YOLO_PARAMS: Required<
   confThreshold: 0.7,
   iouThreshold: 0.5,
 };
+
+/** 开放词表检测默认更低的置信度阈值（提示词出框通常置信度偏低）。 */
+export const DEFAULT_OPEN_VOCAB_PARAMS: Required<
+  Pick<PretrainedModelParams, 'confThreshold' | 'iouThreshold'>
+> = {
+  confThreshold: 0.25,
+  iouThreshold: 0.5,
+};
+
+export function defaultParamsForDetectionMode(
+  mode: ObjectDetectionMode,
+): PretrainedModelParams {
+  return {
+    ...(mode === 'open_vocab'
+      ? DEFAULT_OPEN_VOCAB_PARAMS
+      : DEFAULT_YOLO_PARAMS),
+    device: 'auto',
+  };
+}
 
 export const DEFAULT_SAM2_PARAMS: Required<
   Pick<PretrainedModelParams, 'minArea' | 'epsilonRatio'>

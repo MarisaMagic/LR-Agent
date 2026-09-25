@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { createMarkdownCodeComponents } from '../markdown/markdownCodeComponents';
 import { resolveReportImageAbsolutePath } from '../../services/annotationQuality/reportImageResolver';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import '../agent/AgentMarkdown.css';
 import './ReportPreviewPanel.css';
 
@@ -32,10 +33,16 @@ export default function ReportPreviewPanel({
   }
 
   return (
-    <div className="quality-report-preview agent-markdown">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {markdown}
-      </ReactMarkdown>
-    </div>
+    <OverlayVerticalScrollArea
+      className="quality-report-preview"
+      maxHeight="360px"
+      observeKey={markdown.length}
+    >
+      <div className="quality-report-preview-inner agent-markdown">
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+          {markdown}
+        </ReactMarkdown>
+      </div>
+    </OverlayVerticalScrollArea>
   );
 }

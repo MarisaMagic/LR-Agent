@@ -10,6 +10,8 @@ import { prepareMutationAnnotation } from '../annotationAgentApi';
 import { getAnnotationWorkspaceAgentSnapshot } from '../annotationAgentBridge';
 import { logAnnotationDebug } from './annotationAgentDebug';
 import { overlayPendingAnnotations } from '../pendingAnnotationOverlay';
+import { isGeometryAnnotationType } from './geometryTypes';
+import { labelBoxesByVision } from './mutationVisionLabeling';
 import {
   buildAnnotationDigest,
   labelIdByName,
@@ -164,6 +166,9 @@ export async function* runAnnotationMutationJob(options: {
   providerApiKey?: string;
   providerBaseUrl?: string;
   providerModel?: string;
+  /** 提供商是否通过视觉探针（逐框视觉补标需要）。 */
+  providerSupportsVision?: boolean;
+  signal?: AbortSignal;
   isCancelled?: () => boolean;
 }): AsyncGenerator<MutationProgressEvent> {
   const {
@@ -316,6 +321,69 @@ export async function* runAnnotationMutationJob(options: {
         deleteIds: ids,
       });
       continue;
+    }
+
+    // patch_label 省略 new_label_name：按图像内容逐框视觉判定标签。
+    if (op.mutation_kind === 'patch_label') {
+      const explicitLabelId = labelIdByName(op.new_label_name, project.labels);
+      const wantsAuto = !String(op.new_label_name ?? '').trim();
+      if (!explicitLabelId && wantsAuto) {
+        if (!isGeometryAnnotationType(project.annotationType)) {
+          resolveErrors.push(
+            `${rel}: 当前标注类型 ${project.annotationType} 不支持按框视觉补标`,
+          );
+          continue;
+        }
+        if (!options.providerSupportsVision) {
+          resolveErrors.push(
+            `${rel}: 未指定标签，且当前大模型不支持视觉，无法自动判定`,
+          );
+          continue;
+        }
+
+        yield progress('vision', '逐框视觉判定标签', 'running', rel);
+        // eslint-disable-next-line no-await-in-loop
+        const vision = await labelBoxesByVision({
+          providerId,
+          userRequest,
+          intentSummary: prepareResult?.intent_summary ?? userRequest,
+          imageAbsolutePath: image.absolutePath,
+          annotations,
+          ids,
+          labels: project.labels,
+          providerApiKey: options.providerApiKey,
+          providerBaseUrl: options.providerBaseUrl,
+          providerModel: options.providerModel,
+          signal: options.signal,
+        });
+
+        if (vision.labelsById.size === 0) {
+          resolveErrors.push(
+            `${rel}: ${
+              vision.error
+                ? `逐框视觉判定失败（${vision.error}）`
+                : '未判定出任何可用标签'
+            }`,
+          );
+          continue;
+        }
+        if (vision.unmappedCount > 0) {
+          resolveErrors.push(
+            `${rel}: ${vision.unmappedCount} 个框无匹配标签，保持留空`,
+          );
+        }
+
+        changes.push({
+          relativePath: rel,
+          absolutePath: image.absolutePath,
+          operation: 'patch',
+          patches: [...vision.labelsById.entries()].map(([id, labelId]) => ({
+            id,
+            labelId,
+          })),
+        });
+        continue;
+      }
     }
 
     const built = patchesFromOperation(ids, op, project.labels);

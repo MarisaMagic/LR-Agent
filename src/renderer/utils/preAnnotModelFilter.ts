@@ -14,7 +14,8 @@ export function getEligiblePreAnnotModels(
       return enabled.filter(
         (m) =>
           m.modelType === 'object_detection' &&
-          inferDetectionMode(m) === 'detect',
+          (inferDetectionMode(m) === 'detect' ||
+            inferDetectionMode(m) === 'open_vocab'),
       );
     case 'rotated_bbox':
       return enabled.filter(
@@ -85,16 +86,19 @@ export function describeNoEligibleModelReason(
   const detectCount = detectionModels.filter(
     (m) => inferDetectionMode(m) === 'detect',
   ).length;
-  const obbCount = detectionModels.length - detectCount;
+  const openVocabCount = detectionModels.filter(
+    (m) => inferDetectionMode(m) === 'open_vocab',
+  ).length;
+  const obbCount = detectionModels.length - detectCount - openVocabCount;
 
   switch (annotationType) {
     case 'bbox':
       return obbCount > 0
-        ? '已启用的目标检测模型都是「旋转框 (OBB)」。矩形框标注需要普通检测 (Detect) 权重，请在模型配置中改选检测模式，或补充 Detect 权重。'
+        ? '已启用的目标检测模型都是「旋转框 (OBB)」。矩形框标注需要普通检测 (Detect) 或开放词表权重，请在模型配置中改选检测模式，或补充相应权重。'
         : '未启用目标检测 (YOLO) 模型，请在左侧「预训练模型」面板中配置。';
     case 'rotated_bbox':
-      return detectCount > 0
-        ? '已启用的目标检测模型都是「普通矩形框 (Detect)」。旋转框标注需要 OBB 权重，请在模型配置中改选检测模式，或补充 OBB 权重。'
+      return detectCount > 0 || openVocabCount > 0
+        ? '已启用的目标检测模型都是普通矩形框。旋转框标注需要 OBB 权重，请在模型配置中改选检测模式，或补充 OBB 权重。'
         : '未启用目标检测 (YOLO) 模型，请在左侧「预训练模型」面板中配置。';
     case 'polygon':
       return '未启用 SAM2 分割模型，请在左侧「预训练模型」面板中配置。';

@@ -7,7 +7,10 @@ import type {
   ImageCandidate,
 } from '../../../shared/annotationAgentTypes';
 import type { PretrainedModelConfig } from '../../types/pretrainedModel';
-import { isDetectResult } from '../../../shared/preAnnotTypes';
+import {
+  isDetectResult,
+  resolvePreAnnotDetectKind,
+} from '../../../shared/preAnnotTypes';
 import { filterDetectionBoxesByScope } from './detectionScope';
 import { logAnnotationDebug } from './annotationAgentDebug';
 
@@ -55,7 +58,7 @@ export async function runObjectDetectionForSubAgent(
       : hints.iou_threshold;
 
   const response = await runPreAnnot(
-    'yolo_detect',
+    resolvePreAnnotDetectKind(detectionModel),
     image.absolutePath,
     detectionModel,
     {

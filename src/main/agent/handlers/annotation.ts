@@ -141,6 +141,7 @@ export function createMutationPrepareHandler(deps: RuntimeDeps): RouteHandler {
         labelNames: labelNamesOf(body.project),
         selectedAnnotationIds: body.selected_annotation_ids,
         conversationTranscript: body.conversation_transcript,
+        labelNameLimit: deps.settings.annotationMutationLabelNameLimit,
       });
 
       return {
@@ -262,6 +263,7 @@ export function createMapDetectionBoxesHandler(
         ocrText: body.ocr_text,
         scope: body.annotation_scope,
         labelStrategy: body.label_strategy,
+        labelUniqueness: body.label_uniqueness ?? undefined,
         singleLabelId: body.single_label_id ?? null,
         imageAbsolutePath: body.image_absolute_path,
         imageBase64: body.image_base64,

@@ -96,17 +96,37 @@ const DEFAULT_TEMPERATURE = 0.7;
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_BASE_DELAY_MS = 300;
 
+/**
+ * 判定错误体是否表示「上下文超长」。
+ *
+ * 不同 provider 的措辞差异很大（OpenAI `context_length_exceeded`、
+ * Anthropic `prompt is too long`、DeepSeek `maximum context length` 等），
+ * 因此按关键词宽匹配；仅在上层确实要「压缩后重试」时才使用，误判的代价
+ * 是压缩一次而非崩溃，可接受。
+ */
+export function isContextLengthExceededBody(body: string): boolean {
+  return /context[_ ]?length|maximum context|context window|prompt is too long|prompt too long|too many tokens|reduce the length|exceeds? the (maximum )?context|输入.{0,4}(过长|超长)|上下文.{0,4}(过长|超长)/i.test(
+    body,
+  );
+}
+
 /** 调用失败时抛出，携带 HTTP 状态与响应体片段以便上层分流。 */
 export class LlmRequestError extends Error {
   readonly status: number;
 
   readonly body: string;
 
+  /** 是否为「上下文超长」类错误（触发运行时压缩重试的依据）。 */
+  readonly isContextLengthExceeded: boolean;
+
   constructor(status: number, body: string) {
     super(`LLM 请求失败 HTTP ${status}: ${body.slice(0, 500)}`);
     this.name = 'LlmRequestError';
     this.status = status;
     this.body = body;
+    this.isContextLengthExceeded =
+      (status === 400 || status === 413 || status === 422) &&
+      isContextLengthExceededBody(body);
   }
 }
 

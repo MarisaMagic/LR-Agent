@@ -20,6 +20,7 @@ import {
   isDetectResult,
   isPolygonResult,
   isPoseResult,
+  resolvePreAnnotDetectKind,
 } from '../../../shared/preAnnotTypes';
 import {
   describeNoEligibleModelReason,
@@ -168,7 +169,7 @@ export default function PreAnnotToolbarSection({
 
     setRunning(true);
     try {
-      const kind = mode === 'rotated_bbox' ? 'yolo_obb' : 'yolo_detect';
+      const kind = resolvePreAnnotDetectKind(selectedModel);
       const response = await runPreAnnot(kind, imagePath, selectedModel);
       const result = assertPreAnnotResult(response, isDetectResult, '检测');
 

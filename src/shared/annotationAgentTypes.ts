@@ -50,6 +50,8 @@ export interface DetectionOverrides {
   excludeClasses?: string[];
   /** 覆盖是否使用视觉映射；undefined 时按系统默认策略 */
   useVisionMapping?: boolean;
+  /** 是否要求每框标签唯一（实例型标签）；undefined 时按系统默认策略 */
+  uniqueLabelsPerBox?: boolean;
 }
 
 export interface SubAgentConstraints {
@@ -69,6 +71,8 @@ export interface BatchAnnotationPlan {
   intent_summary: string;
   label_strategy: 'map_each_box_to_label' | 'single_label_for_all_boxes';
   use_vision_mapping?: boolean;
+  /** 标签唯一性策略；undefined 时按系统默认值 */
+  label_uniqueness?: 'allow' | 'enforce';
   detection_hints: DetectionHints;
   sub_agent_constraints: SubAgentConstraints;
   annotation_scope: AnnotationScopePayload;

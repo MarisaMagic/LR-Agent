@@ -224,10 +224,13 @@ export function imageToJpegDataUrl(params: {
     const suffix = path
       .extname((params.absolutePath ?? '').trim())
       .toLowerCase();
+    // 文件头描述的是字节本身，后缀可能说谎（WebP 存成 `.jpg`）。
+    // data URL 的 MIME 要描述字节，因此文件头优先，无法识别时才退回后缀。
+    const byHeader = formatToMime(header?.format);
     const mime =
-      mimeFromSuffix(suffix) !== 'application/octet-stream'
-        ? mimeFromSuffix(suffix)
-        : formatToMime(header?.format);
+      byHeader !== 'application/octet-stream'
+        ? byHeader
+        : mimeFromSuffix(suffix);
     return {
       ok: true,
       dataUrl: toDataUrl(mime, loaded.bytes),

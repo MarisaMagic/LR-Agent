@@ -3,6 +3,7 @@ import { VscodeButton, VscodeIcon } from '@vscode-elements/react-elements';
 import { useAnnotation } from '../../context/AnnotationContext';
 import { useAnnotationWorkspace } from '../../context/AnnotationWorkspaceContext';
 import { getLabelChipStyle } from '../../utils/labelColor';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './TextClassificationEditor.css';
 
 export default function TextClassificationEditor() {
@@ -93,7 +94,11 @@ export default function TextClassificationEditor() {
         </div>
 
         {/* 分类面板 */}
-        <div className="text-classification-labels-panel">
+        <OverlayVerticalScrollArea
+          fillHost
+          className="text-classification-labels-panel"
+          contentClassName="text-classification-labels-panel-scroll"
+        >
           {/* 已分配标签 */}
           <div className="text-classification-section">
             <h4 className="text-classification-heading">已分配标签</h4>
@@ -196,7 +201,7 @@ export default function TextClassificationEditor() {
               </p>
             </div>
           )}
-        </div>
+        </OverlayVerticalScrollArea>
       </div>
     </div>
   );

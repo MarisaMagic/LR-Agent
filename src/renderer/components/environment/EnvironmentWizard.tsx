@@ -22,6 +22,7 @@ import {
   showItemInFolder,
   validatePythonInterpreter,
 } from '../../services/environmentService';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './EnvironmentWizard.css';
 
 type WizardStep = 1 | 2 | 3 | 4;
@@ -211,9 +212,14 @@ function InstallPanel({
         )}
       </div>
       {progress.lines.length > 0 && (
-        <pre className="env-wizard-install-log">
-          {progress.lines.join('\n')}
-        </pre>
+        <OverlayVerticalScrollArea
+          maxHeight="180px"
+          observeKey={progress.lines.length}
+        >
+          <pre className="env-wizard-install-log">
+            {progress.lines.join('\n')}
+          </pre>
+        </OverlayVerticalScrollArea>
       )}
       {progress.stage === 'done' && (
         <div className="env-wizard-install-result env-wizard-install-result-ok">

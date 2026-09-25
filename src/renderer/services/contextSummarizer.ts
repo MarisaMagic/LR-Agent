@@ -5,13 +5,7 @@
  * 调用失败时由调用方降级为纯窗口裁剪，不阻塞发消息。
  */
 
-const SUMMARY_SYSTEM_PROMPT = `你是对话摘要助手。请把提供的对话内容压缩为一段简洁的中文摘要，用于后续对话的上下文提示。
-要求：
-- 保留用户的任务目标、关键决定、明确的偏好与约束
-- 保留标注项目相关的信息（项目名、标签、标注类型、涉及的文件/目录）
-- 保留已完成操作的结论（如已标注哪些文件、分析结果要点）
-- 省略寒暄、重复内容与中间过程细节
-- 直接输出摘要正文，不要任何前缀或解释，长度控制在 500 字以内`;
+import { AGENT_SUMMARY_SYSTEM_PROMPT } from '../../shared/agentSummaryPrompt';
 
 export interface SummarizeConversationOptions {
   baseUrl: string;
@@ -70,12 +64,12 @@ export async function summarizeConversation(
       body: JSON.stringify({
         model: options.model,
         messages: [
-          { role: 'system', content: SUMMARY_SYSTEM_PROMPT },
+          { role: 'system', content: AGENT_SUMMARY_SYSTEM_PROMPT },
           { role: 'user', content: buildUserPrompt(options) },
         ],
         stream: false,
         temperature: 0.2,
-        max_tokens: 1024,
+        max_tokens: 2048,
       }),
       signal: timeoutController.signal,
     });

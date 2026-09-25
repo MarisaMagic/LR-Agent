@@ -63,9 +63,11 @@
 .workspace-memory-panel-list {
   flex: 1;
   min-height: 160px;
-  max-height: min(420px, calc(100vh - 280px));
-  overflow: auto;
   margin-bottom: 16px;
+}
+
+.workspace-memory-panel-list-inner {
+  min-height: 160px;
 }
 
 .workspace-memory-panel-empty {

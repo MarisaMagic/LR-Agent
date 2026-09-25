@@ -11,6 +11,7 @@ import {
   computeFloatingMenuPosition,
   type FloatingMenuPosition,
 } from '../../utils/annotationMenuPosition';
+import OverlayVerticalScrollArea from '../OverlayVerticalScrollArea';
 import './AnnotationLabelOverflowMenuPortal.css';
 
 interface LabelOption {
@@ -74,17 +75,24 @@ export default function AnnotationLabelOverflowMenuPortal({
       if (event.key === 'Escape') onClose();
     };
 
+    // 内部滚动（菜单自身溢出时）不应关闭菜单；只有外部容器滚动才关闭。
+    const onScroll = (event: Event) => {
+      const target = event.target as Node | null;
+      if (target && menuRef.current?.contains(target)) return;
+      onClose();
+    };
+
     const onDismiss = () => onClose();
 
     document.addEventListener('mousedown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
-    window.addEventListener('scroll', onDismiss, true);
+    window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', onDismiss);
 
     return () => {
       document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('scroll', onDismiss, true);
+      window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', onDismiss);
     };
   }, [anchorEl, onClose]);
@@ -111,24 +119,32 @@ export default function AnnotationLabelOverflowMenuPortal({
       onMouseDown={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
-      {labels.map((lab) => {
-        const active = lab.id === activeLabelId;
-        return (
-          <button
-            key={lab.id}
-            type="button"
-            role="option"
-            aria-selected={active}
-            className={`${chipClassName} ${chipMenuClassName}${
-              active ? ` ${chipActiveClassName}` : ''
-            }`}
-            style={getLabelChipStyle(lab.color)}
-            onClick={() => onSelect(lab.id)}
-          >
-            {lab.name}
-          </button>
-        );
-      })}
+      <OverlayVerticalScrollArea
+        className="annotation-label-overflow-menu-scroll"
+        contentClassName="annotation-label-overflow-menu-list"
+        maxHeight="min(220px, calc(100vh - 16px))"
+        hoverMode="edge"
+        observeKey={labels.length}
+      >
+        {labels.map((lab) => {
+          const active = lab.id === activeLabelId;
+          return (
+            <button
+              key={lab.id}
+              type="button"
+              role="option"
+              aria-selected={active}
+              className={`${chipClassName} ${chipMenuClassName}${
+                active ? ` ${chipActiveClassName}` : ''
+              }`}
+              style={getLabelChipStyle(lab.color)}
+              onClick={() => onSelect(lab.id)}
+            >
+              {lab.name}
+            </button>
+          );
+        })}
+      </OverlayVerticalScrollArea>
     </div>,
     document.body,
   );

@@ -27,7 +27,8 @@
 .text-source-preview-scroll,
 .text-lfm-form,
 .text-classification-text-scroll,
-.text-classification-labels-panel {
+.text-classification-labels-panel,
+.text-span-ner-body {
   scrollbar-width: thin;
   scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 }
@@ -36,7 +37,8 @@
 .text-source-preview-scroll::-webkit-scrollbar,
 .text-lfm-form::-webkit-scrollbar,
 .text-classification-text-scroll::-webkit-scrollbar,
-.text-classification-labels-panel::-webkit-scrollbar {
+.text-classification-labels-panel::-webkit-scrollbar,
+.text-span-ner-body::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
@@ -45,7 +47,8 @@
 .text-source-preview-scroll::-webkit-scrollbar-track,
 .text-lfm-form::-webkit-scrollbar-track,
 .text-classification-text-scroll::-webkit-scrollbar-track,
-.text-classification-labels-panel::-webkit-scrollbar-track {
+.text-classification-labels-panel::-webkit-scrollbar-track,
+.text-span-ner-body::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -53,7 +56,8 @@
 .text-source-preview-scroll::-webkit-scrollbar-thumb,
 .text-lfm-form::-webkit-scrollbar-thumb,
 .text-classification-text-scroll::-webkit-scrollbar-thumb,
-.text-classification-labels-panel::-webkit-scrollbar-thumb {
+.text-classification-labels-panel::-webkit-scrollbar-thumb,
+.text-span-ner-body::-webkit-scrollbar-thumb {
   background: var(--vscode-scrollbarSlider-background);
   border-radius: 5px;
   border: 2px solid transparent;
@@ -64,7 +68,8 @@
 .text-source-preview-scroll::-webkit-scrollbar-thumb:hover,
 .text-lfm-form::-webkit-scrollbar-thumb:hover,
 .text-classification-text-scroll::-webkit-scrollbar-thumb:hover,
-.text-classification-labels-panel::-webkit-scrollbar-thumb:hover {
+.text-classification-labels-panel::-webkit-scrollbar-thumb:hover,
+.text-span-ner-body::-webkit-scrollbar-thumb:hover {
   background: var(--vscode-scrollbarSlider-hoverBackground);
   background-clip: padding-box;
 }
@@ -73,6 +78,7 @@
 .text-source-preview-scroll::-webkit-scrollbar-corner,
 .text-lfm-form::-webkit-scrollbar-corner,
 .text-classification-text-scroll::-webkit-scrollbar-corner,
-.text-classification-labels-panel::-webkit-scrollbar-corner {
+.text-classification-labels-panel::-webkit-scrollbar-corner,
+.text-span-ner-body::-webkit-scrollbar-corner {
   background: transparent;
 }

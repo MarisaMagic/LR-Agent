@@ -170,7 +170,10 @@ export function buildChatMessages(params: {
   if (params.contextSummary) {
     out.push({
       role: 'system',
-      content: `【此前对话摘要】\n${params.contextSummary}`,
+      content:
+        '本会话是从此前一段对话延续而来（因上下文预算压缩）。' +
+        '以下摘要概述此前内容；请据此继续，不要从头开始，也不要重复已完成的操作。\n' +
+        `【此前对话摘要】\n${params.contextSummary}`,
     });
   }
   out.push(...params.messages);

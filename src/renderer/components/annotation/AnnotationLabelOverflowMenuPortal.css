@@ -1,19 +1,34 @@
 .annotation-label-overflow-menu-portal {
   position: fixed;
   z-index: 1200;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
   min-width: 120px;
   max-width: 220px;
-  max-height: min(220px, calc(100vh - 16px));
-  overflow-y: auto;
-  padding: 4px;
+  overflow: hidden;
+  padding: 0;
   margin: 0;
   border: 1px solid var(--vscode-menu-border, #454545);
   border-radius: 4px;
   background: var(--vscode-menu-background, #252526);
   box-shadow: 0 4px 12px var(--lr-menu-shadow, rgba(0, 0, 0, 0.4));
+
+  /* portal 到 body，拿不到侧栏上的这套变量，需在此声明 */
+  --agent-overlay-scrollbar-size: 6px;
+  --agent-overlay-scrollbar-inset: 3px;
+  --agent-overlay-scrollbar-thumb: rgba(255, 255, 255, 0.22);
+  --agent-overlay-scrollbar-thumb-hover: rgba(255, 255, 255, 0.36);
+}
+
+[data-theme='light'] .annotation-label-overflow-menu-portal {
+  --agent-overlay-scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --agent-overlay-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+}
+
+.annotation-label-overflow-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
 }
 
 .annotation-label-overflow-menu-portal[style*='visibility: hidden'] {

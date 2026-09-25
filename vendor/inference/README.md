@@ -93,6 +93,7 @@ python server.py
 | kind | 说明 |
 |------|------|
 | `yolo_detect` | 矩形框目标检测 |
+| `yolo_world` | 开放词表矩形框检测（YOLO-World，按 `promptClasses` 提示词出框；输出前做跨类去重，阈值可用 `params.dedupeIouThreshold` 覆盖，默认取 `iouThreshold`） |
 | `yolo_obb` | 旋转框检测 |
 | `sam2_box` | SAM2 框选分割 → 多边形 |
 | `keypoint_full` | 整图关键点 / 骨架 |

@@ -3,8 +3,6 @@
   padding: 10px;
   border: 1px solid var(--vscode-panel-border, #3e3e42);
   border-radius: 4px;
-  max-height: 360px;
-  overflow: auto;
 }
 
 .quality-report-preview__img {

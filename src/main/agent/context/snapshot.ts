@@ -56,6 +56,7 @@ export const ANNOTATION_CALL_GUIDE = `【标注调用纪律】(auto_annotate)
 - model_id 仅在用户点名检测模型时填（可用模型见 describe_annotation_project）。
 - include_classes / exclude_classes 仅在用户说“只标 X / 不要 Y”时填，类名以检测模型输出为准。
 - use_vision_mapping 留空由系统按标签情况决定；标签为实例/细粒度（球员名等）时填 true。
+- unique_labels_per_box 仅在用户明确要求「每个框标签唯一/不允许重复标签」（如球员名一人一标签）时填 true；默认留空，同类多实例（如同一商品多瓶）允许共用同一标签。
 - 所有参数以用户本轮原话为依据，禁止凭猜测补值。`;
 
 export const ANNOTATION_SCOPE_HINT =

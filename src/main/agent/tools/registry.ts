@@ -192,6 +192,12 @@ const AutoAnnotateArgs = z.object({
     .boolean()
     .nullish()
     .describe('是否用视觉模型把检测框映射到项目标签；留空由系统决定'),
+  unique_labels_per_box: z
+    .boolean()
+    .nullish()
+    .describe(
+      '是否要求每个框的标签唯一（实例型标签，如球员名）。用户未明确要求时留空，同类多实例默认允许。',
+    ),
 });
 
 const MutateAnnotationArgs = z.object({

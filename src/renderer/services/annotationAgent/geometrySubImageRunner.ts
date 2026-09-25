@@ -26,6 +26,11 @@ import {
 } from './annotationAgentDebug';
 import type { FusionSubImageResult } from './fusionSubImageTypes';
 import { readImageBase64 } from './fusionSubImageTools';
+import {
+  normalizeImageForCrop,
+  prepareMapImageSource,
+  type MapImageSource,
+} from './imageNormalize';
 
 type MappingRow = { box_index: number; label_id: string; reason?: string };
 
@@ -161,54 +166,91 @@ export async function runGeometrySubImageAgent(options: {
     return imageBase64;
   };
 
+  // 交给映射接口的图像来源。非 PNG/JPEG 先在渲染侧转码：
+  // 主进程 nativeImage 只保证解码 PNG/JPEG，其余格式会裁不出任何区域。
+  // 仅在服务端真的会走逐框裁剪时才转码（服务端条件是 use_vision && supports_vision）。
+  const willCrop = useVision && Boolean(options.providerSupportsVision);
+  let mapSource: MapImageSource = {
+    absolutePath: image.absolutePath,
+    base64: '',
+  };
+  if (willCrop) {
+    mapSource = await prepareMapImageSource(image.absolutePath);
+  }
+  const mapImageFields = (): {
+    imageAbsolutePath: string;
+    imageBase64: string;
+  } =>
+    mapSource.base64
+      ? { imageAbsolutePath: '', imageBase64: mapSource.base64 }
+      : { imageAbsolutePath: mapSource.absolutePath, imageBase64: '' };
+
   const runMap = async (): Promise<MapDetectionBoxesUnifiedResult> => {
     throwIfAborted();
     const tMap = performance.now();
-    let mapResult = await mapDetectionBoxesUnified(options.providerId, {
-      userRequest: options.userRequest,
-      intentSummary: plan.intent_summary,
-      labelCandidates: options.labelCandidates,
-      boxes: mapBoxesPayload,
-      useVision,
-      labelStrategy: plan.label_strategy,
-      singleLabelId,
-      annotationScope: { ...plan.annotation_scope },
-      imageAbsolutePath: image.absolutePath,
-      providerApiKey: options.providerApiKey ?? '',
-      providerBaseUrl: options.providerBaseUrl ?? '',
-      providerModel: options.providerModel ?? '',
-      providerSupportsVision: options.providerSupportsVision ?? false,
-      signal: options.signal,
-    });
-
-    if (
-      useVision &&
-      mapResult.ok === false &&
-      (mapResult as { error?: string }).error === 'image_unavailable'
-    ) {
-      const fallbackBase64 = await ensureImageBase64();
-      mapResult = await mapDetectionBoxesUnified(options.providerId, {
+    const callMap = (fields: {
+      imageAbsolutePath: string;
+      imageBase64: string;
+    }): Promise<MapDetectionBoxesUnifiedResult> =>
+      mapDetectionBoxesUnified(options.providerId, {
         userRequest: options.userRequest,
         intentSummary: plan.intent_summary,
         labelCandidates: options.labelCandidates,
         boxes: mapBoxesPayload,
         useVision,
         labelStrategy: plan.label_strategy,
+        labelUniqueness: plan.label_uniqueness,
         singleLabelId,
         annotationScope: { ...plan.annotation_scope },
-        imageBase64: fallbackBase64,
+        imageAbsolutePath: fields.imageAbsolutePath || undefined,
+        imageBase64: fields.imageBase64 || undefined,
         providerApiKey: options.providerApiKey ?? '',
         providerBaseUrl: options.providerBaseUrl ?? '',
         providerModel: options.providerModel ?? '',
         providerSupportsVision: options.providerSupportsVision ?? false,
         signal: options.signal,
       });
+
+    let mapResult = await callMap(mapImageFields());
+
+    // 图像不可读：改用原始字节（仅在首次请求没走 base64 时才有意义）
+    if (
+      useVision &&
+      mapResult.ok === false &&
+      mapResult.error === 'image_unavailable' &&
+      !mapSource.base64
+    ) {
+      const fallbackBase64 = await ensureImageBase64();
+      if (fallbackBase64) {
+        mapResult = await callMap({
+          imageAbsolutePath: '',
+          imageBase64: fallbackBase64,
+        });
+      }
     }
+
+    // 主进程解不出像素（WebP/BMP/ICO，或截断的 PNG/JPEG）：转码后重试一次
+    if (
+      useVision &&
+      mapResult.ok === false &&
+      mapResult.error === 'crop_unavailable' &&
+      !mapSource.base64
+    ) {
+      const normalized = await normalizeImageForCrop(image.absolutePath);
+      if (normalized) {
+        mapSource = { absolutePath: '', base64: normalized };
+        mapResult = await callMap(mapImageFields());
+      }
+    }
+
     timing.map_ms = (timing.map_ms ?? 0) + Math.round(performance.now() - tMap);
     return mapResult;
   };
 
   let lastMapMappings = formatMapMappingRows([], options.labelCandidates);
+  let mapError = '';
+  let labelPoolSource = '';
+  let labelPoolEffective = 0;
   let ctxMappings: MappingRow[] = skipMapping
     ? buildPresetMappings(instances)
     : [];
@@ -220,6 +262,12 @@ export async function runGeometrySubImageAgent(options: {
     ctxMappings = mapResult.mappings ?? [];
     mapMethod = mapResult.method ?? '';
     mapHint = mapResult.hint ?? '';
+    mapError = mapResult.error ?? '';
+    labelPoolSource = mapResult.label_pool_source ?? '';
+    labelPoolEffective =
+      mapResult.label_candidates?.length ??
+      mapResult.label_pool_debug?.effective_count ??
+      0;
     lastMapMappings = formatMapMappingRows(
       ctxMappings,
       options.labelCandidates,
@@ -253,12 +301,29 @@ export async function runGeometrySubImageAgent(options: {
     labelCandidates: options.labelCandidates,
   });
 
+  const unmappedRows = ctxMappings.filter((m) => !m.label_id);
+  const unmappedFailed = unmappedRows.filter((m) =>
+    /失败|unavailable|crop|error/i.test(String(m.reason ?? '')),
+  ).length;
+  const unmappedNoMatch = unmappedRows.length - unmappedFailed;
+  const poolFields = {
+    labelPoolSource,
+    labelPoolEffective,
+    unmappedNoMatch,
+    unmappedFailed,
+  };
+
   if (!auto.ok || !auto.change) {
     const mappedCount = ctxMappings.filter((m) => m.label_id).length;
     timing.total_ms = Math.round(performance.now() - totalStarted);
+    // 一个映射条目都没有、且映射阶段自己报了错时，优先报它的原因：
+    // 否则「mappings 为空」这类下游校验文案会把真实原因（多为图片解不出像素）盖掉。
+    const mapFailureReason =
+      ctxMappings.length === 0 && mapError ? mapHint || mapError : '';
     return withTiming({
       ...base,
       reason:
+        mapFailureReason ||
         auto.reason ||
         mapHint ||
         `成功映射 ${mappedCount} 个实例，不足 ${minLabeled}`,
@@ -267,6 +332,7 @@ export async function runGeometrySubImageAgent(options: {
       mappedCount,
       unmappedCount: Math.max(0, keptCount - mappedCount),
       unlabeledInProposal: auto.unlabeledInProposal,
+      ...poolFields,
       method: mapMethod,
       mapHint,
       mapMappings: lastMapMappings,
@@ -285,6 +351,7 @@ export async function runGeometrySubImageAgent(options: {
     unmappedCount: Math.max(0, keptCount - auto.mappedCount),
     unlabeledInProposal: auto.unlabeledInProposal,
     autoFinalized: true,
+    ...poolFields,
     method: mapMethod,
     mapMappings: lastMapMappings,
   });

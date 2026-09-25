@@ -92,15 +92,16 @@
 }
 
 .export-annotation-format-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 220px;
-  overflow: auto;
   padding: 4px;
   border-radius: 4px;
   border: 1px solid var(--vscode-input-border, #3c3c3c);
   background: var(--vscode-input-background, #3c3c3c);
+}
+
+.export-annotation-format-list-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .export-annotation-format-option {

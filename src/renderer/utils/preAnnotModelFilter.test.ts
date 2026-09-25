@@ -42,6 +42,34 @@ describe('getEligiblePreAnnotModels', () => {
     expect(eligible.map((m) => m.id)).toEqual(['obb']);
   });
 
+  it('矩形框同时接受 Detect 与开放词表', () => {
+    const detect = model({ id: 'detect' });
+    const openVocab = model({
+      id: 'world',
+      detectionMode: 'open_vocab',
+      checkpointPath: 'D:/m/yolov8s-worldv2.pt',
+    });
+    const obb = model({ id: 'obb', detectionMode: 'obb' });
+
+    const eligible = getEligiblePreAnnotModels('bbox', [
+      detect,
+      openVocab,
+      obb,
+    ]);
+    expect(eligible.map((m) => m.id)).toEqual(['detect', 'world']);
+  });
+
+  it('开放词表模型不进入旋转框下拉', () => {
+    const openVocab = model({
+      id: 'world',
+      detectionMode: 'open_vocab',
+      checkpointPath: 'D:/m/yolov8s-worldv2.pt',
+    });
+    expect(getEligiblePreAnnotModels('rotated_bbox', [openVocab])).toHaveLength(
+      0,
+    );
+  });
+
   it('多边形只接受分割模型', () => {
     const det = model({ id: 'det' });
     const sam = model({ id: 'sam', modelType: 'image_segmentation' });
@@ -134,5 +162,20 @@ describe('describeNoEligibleModelReason', () => {
   it('存在可用模型时返回 null', () => {
     const models = [model({ checkpointPath: 'D:/m/yolov8n.pt' })];
     expect(describeNoEligibleModelReason('bbox', models)).toBeNull();
+  });
+
+  it('仅有开放词表检测模型时矩形框可用', () => {
+    const models = [
+      model({
+        detectionMode: 'open_vocab',
+        checkpointPath: 'D:/m/yolov8s-worldv2.pt',
+      }),
+    ];
+    expect(getEligiblePreAnnotModels('bbox', models)).toHaveLength(1);
+    expect(describeNoEligibleModelReason('bbox', models)).toBeNull();
+    // 旋转框下仍不可用，且原因指向需要 OBB
+    expect(describeNoEligibleModelReason('rotated_bbox', models)).toContain(
+      'OBB',
+    );
   });
 });

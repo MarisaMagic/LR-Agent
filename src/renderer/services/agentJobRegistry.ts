@@ -318,6 +318,8 @@ export function parseDetectionOverrides(
   if (exclude.length) overrides.excludeClasses = exclude;
   const vision = parseOptionalBoolean(args.use_vision_mapping);
   if (vision !== undefined) overrides.useVisionMapping = vision;
+  const unique = parseOptionalBoolean(args.unique_labels_per_box);
+  if (unique !== undefined) overrides.uniqueLabelsPerBox = unique;
   return Object.keys(overrides).length > 0 ? overrides : undefined;
 }
 
@@ -699,6 +701,7 @@ async function runClientTool(
         providerApiKey,
         providerBaseUrl,
         providerModel,
+        providerSupportsVision,
       });
 
       // 免确认：提案产出后**立即落盘**，再据实汇报结果。

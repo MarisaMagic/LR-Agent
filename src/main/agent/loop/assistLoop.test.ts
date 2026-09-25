@@ -5,7 +5,12 @@
  * jsdom 环境不提供这些。
  */
 import { describe, expect, it } from '@jest/globals';
-import { LlmClient, LlmRequestError, type ToolSpec } from '../llm/client';
+import {
+  LlmClient,
+  LlmRequestError,
+  type ChatMessage,
+  type ToolSpec,
+} from '../llm/client';
 import { buildTools, toToolSpec } from '../tools/registry';
 import { DEFAULT_AGENT_SETTINGS } from '../config';
 import { createStandaloneImageService } from '../services/imageService';
@@ -25,13 +30,32 @@ function makeFetch(
     toolCalls?: Array<{ id: string; name: string; args: unknown }>;
     /** 非流式响应（tool_choice="any" 路径）。 */
     nonStream?: boolean;
+    /** 该轮直接返回 HTTP 错误（用于触发上下文超长路径）。 */
+    error?: { status: number; body: string };
+    /** 流式响应结束时的 finish_reason（默认按是否有 toolCalls 推断）。 */
+    finishReason?: string;
   }>,
-): { fetchImpl: typeof fetch; callCount: () => number } {
+  hooks: { onRequest?: (body: Record<string, unknown>) => void } = {},
+): {
+  fetchImpl: typeof fetch;
+  callCount: () => number;
+  requestBodies: () => Array<Record<string, unknown>>;
+} {
   let index = 0;
+  const requestBodies: Array<Record<string, unknown>> = [];
   const impl = (async (_url: string, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body ?? '{}')) as { stream?: boolean };
+    const parsedBody = JSON.parse(String(init?.body ?? '{}')) as {
+      stream?: boolean;
+    };
+    requestBodies.push(parsedBody as Record<string, unknown>);
+    hooks.onRequest?.(parsedBody as Record<string, unknown>);
+    const body = parsedBody;
     const turn = turns[Math.min(index, turns.length - 1)];
     if (index < turns.length) index += 1;
+
+    if (turn.error) {
+      return new Response(turn.error.body, { status: turn.error.status });
+    }
 
     if (body.stream === false) {
       return new Response(
@@ -98,7 +122,9 @@ function makeFetch(
         choices: [
           {
             delta: {},
-            finish_reason: turn.toolCalls?.length ? 'tool_calls' : 'stop',
+            finish_reason:
+              turn.finishReason ??
+              (turn.toolCalls?.length ? 'tool_calls' : 'stop'),
           },
         ],
       })}\n\n`,
@@ -111,7 +137,11 @@ function makeFetch(
     });
   }) as unknown as typeof fetch;
 
-  return { fetchImpl: impl, callCount: () => index };
+  return {
+    fetchImpl: impl,
+    callCount: () => index,
+    requestBodies: () => requestBodies,
+  };
 }
 
 async function collect(
@@ -485,6 +515,256 @@ describe('阶段门禁与工具集', () => {
       hasWorkspace: false,
     });
     expect(none.size).toBe(0);
+  });
+});
+
+describe('Assist 循环：2.2 循环内 microcompact', () => {
+  function longHistory(): ChatMessage[] {
+    return [
+      { role: 'user', content: '读文件' },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'c1',
+            name: 'read_workspace_file',
+            args: { relative_path: 'a' },
+          },
+        ],
+      },
+      { role: 'tool', content: 'A'.repeat(500), toolCallId: 'c1' },
+      { role: 'user', content: '继续' },
+    ];
+  }
+
+  it('超预算时清理旧的可重取工具结果', async () => {
+    const { fetchImpl, requestBodies } = makeFetch([{ text: '完成' }]);
+    await collect(
+      streamAssist({
+        ...baseParams,
+        settings: {
+          ...DEFAULT_AGENT_SETTINGS,
+          contextTokenBudget: 10,
+          contextCompactRatio: 0.5,
+          microCompactKeepRecentToolResults: 0,
+        },
+        llm: makeClient(fetchImpl),
+        messages: longHistory(),
+        toolSpecs: [],
+        toolSet: new Set<string>(),
+      }),
+    );
+    expect(JSON.stringify(requestBodies()[0])).toContain(
+      '较早的工具结果已清理',
+    );
+  });
+
+  it('默认（budget=0）不触发', async () => {
+    const { fetchImpl, requestBodies } = makeFetch([{ text: '完成' }]);
+    await collect(
+      streamAssist({
+        ...baseParams,
+        llm: makeClient(fetchImpl),
+        messages: longHistory(),
+        toolSpecs: [],
+        toolSet: new Set<string>(),
+      }),
+    );
+    expect(JSON.stringify(requestBodies()[0])).not.toContain(
+      '较早的工具结果已清理',
+    );
+  });
+});
+
+describe('Assist 循环：3 流式并行只读工具', () => {
+  it('同轮多个只读工具：结果正确且事件仍按序串行', async () => {
+    const { fetchImpl } = makeFetch([
+      {
+        text: '并行查阅。',
+        toolCalls: [
+          { id: 'p1', name: 'get_lr_agent_help', args: { topic: '模型' } },
+          { id: 'p2', name: 'get_lr_agent_help', args: { topic: '标注' } },
+        ],
+      },
+      { text: '完成' },
+    ]);
+
+    const events = await collect(
+      streamAssist({
+        ...baseParams,
+        llm: makeClient(fetchImpl),
+        messages: [{ role: 'user', content: '帮我查两件事' }],
+        toolSpecs: allSpecs,
+        toolSet: LIGHT_TOOL_SET,
+      }),
+    );
+
+    const results = events.filter((e) => e.type === 'tool_result');
+    expect(results).toHaveLength(2);
+    // 事件顺序仍与工具调用顺序一致
+    const starts = events.filter((e) => e.type === 'tool_start');
+    expect(starts.map((e) => e.toolCallId)).toEqual(['p1', 'p2']);
+    expect(results.map((e) => e.toolCallId)).toEqual(['p1', 'p2']);
+    // 无错误
+    expect(events.some((e) => e.type === 'error')).toBe(false);
+  });
+});
+
+describe('Assist 循环：1.3 孤立 tool_use 修复', () => {
+  it('声明但未应答的 tool_call 会被补齐合成 tool_result', async () => {
+    const { fetchImpl, requestBodies } = makeFetch([{ text: '完成' }]);
+
+    await collect(
+      streamAssist({
+        ...baseParams,
+        llm: makeClient(fetchImpl),
+        messages: [
+          { role: 'user', content: '读文件' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'orphan-1',
+                name: 'read_workspace_file',
+                args: { relative_path: 'README.md' },
+              },
+            ],
+          },
+        ],
+        toolSpecs: allSpecs,
+        toolSet: LIGHT_TOOL_SET,
+      }),
+    );
+
+    const sent = requestBodies()[0].messages as Array<{
+      role: string;
+      tool_call_id?: string;
+    }>;
+    const repaired = sent.find(
+      (m) => m.role === 'tool' && m.tool_call_id === 'orphan-1',
+    );
+    expect(repaired).toBeDefined();
+    expect(JSON.stringify(requestBodies()[0])).toContain('未执行');
+  });
+});
+
+describe('Assist 循环：1.2 上下文超长 → 运行时压缩重试', () => {
+  it('400 超长后压缩一次并重试成功', async () => {
+    const { fetchImpl, callCount, requestBodies } = makeFetch([
+      {
+        error: {
+          status: 400,
+          body: '{"error":{"message":"This model maximum context length is 8192 tokens"}}',
+        },
+      },
+      { nonStream: true, text: '这是历史摘要。' },
+      { text: '恢复后的回答' },
+    ]);
+
+    // 需要足够的轮次才能挤出完整对话（keepTurns 默认 4 → 8 条）
+    const messages = Array.from({ length: 10 }, (_, i) => ({
+      role: 'user' as const,
+      content: `消息${i}`,
+    }));
+
+    const events = await collect(
+      streamAssist({
+        ...baseParams,
+        llm: makeClient(fetchImpl),
+        messages,
+        toolSpecs: [],
+        toolSet: new Set<string>(),
+      }),
+    );
+
+    expect(
+      events.filter((e) => e.type === 'preparing').map((e) => e.stage),
+    ).toEqual(['streaming', 'compact']);
+    expect(
+      events.some(
+        (e) => e.type === 'text_delta' && e.content === '恢复后的回答',
+      ),
+    ).toBe(true);
+    // 首次(超长) + 压缩 + 重试
+    expect(callCount()).toBe(3);
+    expect(JSON.stringify(requestBodies()[2])).toContain('此前对话摘要');
+  });
+});
+
+describe('Assist 循环：1.1 输出截断恢复', () => {
+  it('finish_reason=length 时注入续写提示并继续', async () => {
+    const { fetchImpl, requestBodies } = makeFetch([
+      { text: '前半段', finishReason: 'length' },
+      { text: '后半段' },
+    ]);
+
+    const events = await collect(
+      streamAssist({
+        ...baseParams,
+        llm: makeClient(fetchImpl),
+        messages: [{ role: 'user', content: '写报告' }],
+        toolSpecs: [],
+        toolSet: new Set<string>(),
+      }),
+    );
+
+    const texts = events
+      .filter((e) => e.type === 'text_delta')
+      .map((e) => e.content);
+    expect(texts).toEqual(['前半段', '后半段']);
+    expect(JSON.stringify(requestBodies()[1])).toContain(
+      '输出因长度上限被截断',
+    );
+  });
+
+  it('无任何输出时静默升档重试 max_tokens', async () => {
+    const { fetchImpl, callCount, requestBodies } = makeFetch([
+      { text: '', finishReason: 'length' },
+      { text: '升档后的回答' },
+    ]);
+
+    const settings = {
+      ...DEFAULT_AGENT_SETTINGS,
+      chatMaxOutputTokens: 8192,
+      chatMaxOutputTokensBumped: 65536,
+    };
+
+    const events = await collect(
+      streamAssist({
+        ...baseParams,
+        settings,
+        llm: makeClient(fetchImpl),
+        messages: [{ role: 'user', content: '写长文' }],
+        toolSpecs: [],
+        toolSet: new Set<string>(),
+      }),
+    );
+
+    expect(callCount()).toBe(2);
+    expect(requestBodies()[0].max_tokens).toBe(8192);
+    expect(requestBodies()[1].max_tokens).toBe(65536);
+    const texts = events
+      .filter((e) => e.type === 'text_delta')
+      .map((e) => e.content);
+    expect(texts).toEqual(['升档后的回答']);
+  });
+
+  it('默认不下发 max_tokens（保持既有请求体不变）', async () => {
+    const { fetchImpl, requestBodies } = makeFetch([{ text: '正常回答' }]);
+
+    await collect(
+      streamAssist({
+        ...baseParams,
+        llm: makeClient(fetchImpl),
+        messages: [{ role: 'user', content: '你好' }],
+        toolSpecs: [],
+        toolSet: new Set<string>(),
+      }),
+    );
+
+    expect('max_tokens' in requestBodies()[0]).toBe(false);
   });
 });
 

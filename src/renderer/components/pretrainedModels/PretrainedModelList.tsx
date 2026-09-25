@@ -132,9 +132,13 @@ export default function PretrainedModelList({
                   {model.modelType === 'object_detection' && (
                     <>
                       {' · '}
-                      {inferDetectionMode(model) === 'obb'
-                        ? '旋转框 (OBB)'
-                        : '普通矩形框 (Detect)'}
+                      {(() => {
+                        const mode = inferDetectionMode(model);
+                        if (mode === 'obb') return '旋转框 (OBB)';
+                        if (mode === 'open_vocab')
+                          return '开放词表 (YOLO-World)';
+                        return '普通矩形框 (Detect)';
+                      })()}
                     </>
                   )}
                   {model.keypointBackend && (

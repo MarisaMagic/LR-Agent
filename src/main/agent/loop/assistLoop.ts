@@ -16,12 +16,19 @@
  */
 
 import {
+  LlmRequestError,
   ToolCallAccumulator,
   type ChatMessage,
   type ChatToolCall,
   type LlmClient,
   type ToolSpec,
 } from '../llm/client';
+import { reactiveCompact } from './compact';
+import { StreamingToolExecutor } from './streamingToolExecutor';
+import { repairOrphanToolCalls } from '../context/orphanRepair';
+import { estimateMessagesTokens } from '../context/tokenEstimate';
+import { microCompactMessages } from '../context/microCompact';
+import { maybePreviewLargeResult } from '../tools/resultOffload';
 import {
   DONE_FRAME,
   sse,
@@ -99,6 +106,38 @@ const COALESCED_SUMMARY =
 /** 已执行过的调用被重复发起时的反馈文案。 */
 const ALREADY_COMPLETED_SUMMARY =
   '该工具本轮已执行，请勿重复调用。请总结，勿重跑标注工具。';
+
+/** 输出截断后的「续写」提示（对齐 Claude Code 的 nudge 思路）。 */
+const OUTPUT_TRUNCATION_NUDGE =
+  '输出因长度上限被截断。请直接从断点继续：不要道歉、不要复述已写内容、不要回顾此前过程，把剩余工作拆成更小的块。';
+
+/**
+ * 跨轮的可变循环状态。
+ *
+ * 所有「计数器 / 防重复标志」集中一处，避免散落的闭包变量难以调试
+ * （对齐 Claude Code 显式 State 的做法）。
+ */
+interface LoopState {
+  /** 输出截断后续写次数。 */
+  outputRecoveryCount: number;
+  /** 是否已用过一次「静默升档」。 */
+  maxTokensBumped: boolean;
+  /** 本请求是否已触发过运行时压缩（同一请求只压一次）。 */
+  hasAttemptedReactiveCompact: boolean;
+  /** 本请求是否已触发过循环内 microcompact（只清理一次）。 */
+  microCompacted: boolean;
+}
+
+/** 本轮应下发的 `max_tokens`；配置为 0 时不下发（沿用 provider 默认）。 */
+function resolveChatMaxTokens(
+  settings: AgentSettings,
+  state: LoopState,
+): number | undefined {
+  if (settings.chatMaxOutputTokens <= 0) return undefined;
+  return state.maxTokensBumped
+    ? settings.chatMaxOutputTokensBumped
+    : settings.chatMaxOutputTokens;
+}
 
 /**
  * 未知工具的失败结果。
@@ -291,40 +330,157 @@ async function* streamAssistInner(
   const visionState = { bootstrapped: false };
 
   let budgetExhausted = true;
+  const loopState: LoopState = {
+    outputRecoveryCount: 0,
+    maxTokensBumped: false,
+    hasAttemptedReactiveCompact: false,
+    microCompacted: false,
+  };
 
   for (let roundIdx = 0; roundIdx <= settings.maxToolRounds; roundIdx += 1) {
     if (isCancelled()) return;
 
+    // 1.3 修复孤立 tool_use：历史里「已声明但未应答」的调用会让 API 直接拒收
+    repairOrphanToolCalls(messages);
+
+    // 2.2 循环内上下文治理：超预算时本地清理旧的可重取工具结果（零 API、只清一次）
+    if (
+      settings.contextTokenBudget > 0 &&
+      !loopState.microCompacted &&
+      estimateMessagesTokens(messages) >
+        settings.contextTokenBudget * settings.contextCompactRatio
+    ) {
+      microCompactMessages(messages, {
+        keepRecent: settings.microCompactKeepRecentToolResults,
+      });
+      loopState.microCompacted = true;
+    }
+
     const accumulator = new ToolCallAccumulator();
     // 拦截器必须**每轮新建**：tc_index 每轮从 0 重新编号
     const interceptor = new ProposalStreamInterceptor(params.clientContext);
+    // 流式并行执行器同样每轮新建（index 每轮重置）；只提前跑只读白名单工具
+    const executor = new StreamingToolExecutor({
+      isEligible: (name) =>
+        PARALLEL_SYNC_TOOLS.has(name) &&
+        typeof tools.get(name)?.execute === 'function',
+      run: (call) =>
+        invokeTool(
+          {
+            toolCallId: call.id || `early-${roundIdx}-${call.index}`,
+            name: call.name,
+            arguments: call.args,
+            source: 'api',
+          },
+          tools,
+          params.toolSet,
+          toolContext,
+        ),
+    });
     let pendingText = '';
     let gatheredAny = false;
+    let finishReason: string | null = null;
 
-    // ── 阶段 A：单次 astream ────────────────────────────────
-    for await (const delta of llm.streamChat({
-      messages,
-      tools: params.toolSpecs,
-      toolChoice: 'auto',
-      signal,
-    })) {
-      if (isCancelled()) return;
-      if (delta.content) {
-        pendingText += delta.content;
-        yield sse.textDelta(delta.content);
-        gatheredAny = true;
-      }
-      if (delta.reasoning) {
-        yield sse.reasoningDelta(delta.reasoning);
-        gatheredAny = true;
-      }
-      if (delta.toolCallChunks?.length) {
-        accumulator.push(delta.toolCallChunks);
-        gatheredAny = true;
-        // 流式拦截：在 chunk 期间实时发出提案 start / delta 事件
-        for (const event of interceptor.onChunk(delta.toolCallChunks)) {
-          yield event;
+    // ── 阶段 A：单次 astream（上下文超长时压缩后重试）────────
+    try {
+      for await (const delta of llm.streamChat({
+        messages,
+        tools: params.toolSpecs,
+        toolChoice: 'auto',
+        signal,
+        maxTokens: resolveChatMaxTokens(settings, loopState),
+      })) {
+        if (isCancelled()) return;
+        if (delta.content) {
+          pendingText += delta.content;
+          yield sse.textDelta(delta.content);
+          gatheredAny = true;
         }
+        if (delta.reasoning) {
+          yield sse.reasoningDelta(delta.reasoning);
+          gatheredAny = true;
+        }
+        if (delta.toolCallChunks?.length) {
+          accumulator.push(delta.toolCallChunks);
+          // 只读工具的参数一旦完整就立刻后台开跑（与模型生成时间重叠）
+          executor.onChunk(delta.toolCallChunks);
+          gatheredAny = true;
+          // 流式拦截：在 chunk 期间实时发出提案 start / delta 事件
+          for (const event of interceptor.onChunk(delta.toolCallChunks)) {
+            yield event;
+          }
+        }
+        if (delta.finishReason != null) finishReason = delta.finishReason;
+      }
+    } catch (err) {
+      // 1.2 上下文超长：压缩一次后重试该轮（超长不在既有场景中，基线不受影响）
+      if (
+        err instanceof LlmRequestError &&
+        err.isContextLengthExceeded &&
+        settings.reactiveCompactEnabled &&
+        !loopState.hasAttemptedReactiveCompact
+      ) {
+        loopState.hasAttemptedReactiveCompact = true;
+        console.warn('[agentRuntime] 上下文超长，尝试运行时压缩后重试');
+        yield sse.preparing('compact');
+        let compacted: ChatMessage[];
+        try {
+          compacted = await reactiveCompact({
+            messages,
+            llm,
+            settings,
+            signal,
+          });
+        } catch (compactErr) {
+          // 压缩本身失败时保留**原始**超长错误（它才是根因），避免掩盖故障
+          console.warn(
+            '[agentRuntime] 运行时压缩失败:',
+            describeError(compactErr),
+          );
+          throw err;
+        }
+        messages.length = 0;
+        messages.push(...compacted);
+        roundIdx -= 1; // 重试同一轮
+        continue;
+      }
+      throw err;
+    }
+
+    // ── 1.1 输出截断恢复 ───────────────────────────────────
+    if (finishReason === 'length') {
+      const partialCalls = accumulator.resolve();
+      const incompleteToolCall = partialCalls.some(
+        (call) => !call.name || Object.keys(call.args).length === 0,
+      );
+
+      // 尚无任何输出时，优先静默升档重试（不会造成重复内容）
+      if (
+        !gatheredAny &&
+        !loopState.maxTokensBumped &&
+        settings.chatMaxOutputTokens > 0 &&
+        settings.chatMaxOutputTokensBumped > settings.chatMaxOutputTokens
+      ) {
+        loopState.maxTokensBumped = true;
+        roundIdx -= 1;
+        continue;
+      }
+
+      // 否则注入续写提示，让模型从断点继续
+      if (
+        loopState.outputRecoveryCount < settings.outputRecoveryMaxAttempts &&
+        (pendingText.length > 0 || partialCalls.length > 0)
+      ) {
+        loopState.outputRecoveryCount += 1;
+        messages.push({ role: 'assistant', content: pendingText });
+        messages.push({
+          role: 'user',
+          content: incompleteToolCall
+            ? `${OUTPUT_TRUNCATION_NUDGE}\n\n注意：上一次的工具调用参数被截断且不完整，请重新完整地发起该调用。`
+            : OUTPUT_TRUNCATION_NUDGE,
+        });
+        budgetExhausted = true;
+        continue;
       }
     }
 
@@ -333,6 +489,9 @@ async function* streamAssistInner(
       budgetExhausted = false;
       break;
     }
+
+    // 收尾：启动尚未提前执行的合格调用（单个/最后一个工具在此起步）
+    executor.startPending();
 
     const apiToolCalls = accumulator.resolve();
     const outcome: RoundOutcomeHolder = { kind: 'finished' };
@@ -357,6 +516,7 @@ async function* streamAssistInner(
       interceptor,
       visionState,
       settings,
+      earlyResult: (call) => executor.getResult(call.name, call.arguments),
     });
 
     if (outcome.kind === 'pending') {
@@ -421,6 +581,8 @@ interface ExecuteRoundParams {
   /** 「本请求是否已处理过视觉图」——由调用方持有，跨轮次共享。 */
   visionState: { bootstrapped: boolean };
   settings: AgentSettings;
+  /** 取回流式期间已提前执行的结果；未命中时返回 undefined。 */
+  earlyResult?: (call: ResolvedToolCall) => Promise<string> | undefined;
 }
 
 /**
@@ -451,6 +613,7 @@ async function* executeRound(
     isCancelled,
     signal,
     interceptor,
+    earlyResult,
   } = params;
   const { settings } = toolContext;
 
@@ -654,8 +817,9 @@ async function* executeRound(
   );
   if (parallelCalls.length > 0) {
     const results = await Promise.all(
-      parallelCalls.map((call) =>
-        invokeTool(call, tools, toolSet, toolContext),
+      parallelCalls.map(
+        (call) =>
+          earlyResult?.(call) ?? invokeTool(call, tools, toolSet, toolContext),
       ),
     );
     parallelCalls.forEach((call, index) => {
@@ -1000,6 +1164,13 @@ async function* streamToolExecution(
   } else {
     display = formatToolResultForDisplay(raw);
   }
+
+  // 2.1 大结果预览化：只读可重取工具结果过大时折叠为预览 + 重取提示
+  display = maybePreviewLargeResult({
+    toolName: call.name,
+    result: display,
+    settings: toolContext.settings,
+  });
 
   yield sse.toolResult(call.toolCallId, display);
   messages.push({

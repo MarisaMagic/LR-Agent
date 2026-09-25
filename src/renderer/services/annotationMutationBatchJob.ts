@@ -40,6 +40,8 @@ export async function startAnnotationMutationJob(options: {
   providerApiKey?: string;
   providerBaseUrl?: string;
   providerModel?: string;
+  /** 提供商是否通过视觉探针（逐框视觉补标需要）。 */
+  providerSupportsVision?: boolean;
 }): Promise<AnnotationMutationJobResult> {
   const emit = (event: StreamEvent): void => {
     options.onEvent(event);
@@ -155,6 +157,8 @@ export async function startAnnotationMutationJob(options: {
       providerApiKey: options.providerApiKey ?? '',
       providerBaseUrl: options.providerBaseUrl ?? '',
       providerModel: options.providerModel ?? '',
+      providerSupportsVision: options.providerSupportsVision ?? false,
+      signal: options.signal,
       isCancelled,
     })) {
       if (isCancelled()) break;

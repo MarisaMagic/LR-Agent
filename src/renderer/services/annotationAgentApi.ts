@@ -140,6 +140,8 @@ export async function mapDetectionBoxesUnified(
     }>;
     useVision: boolean;
     labelStrategy: string;
+    /** 标签唯一性策略；undefined 时服务端按设置默认值 */
+    labelUniqueness?: 'allow' | 'enforce';
     singleLabelId?: string | null;
     annotationScope: Record<string, unknown>;
     imageAbsolutePath?: string;
@@ -166,6 +168,7 @@ export async function mapDetectionBoxesUnified(
       boxes: options.boxes,
       use_vision: options.useVision,
       label_strategy: options.labelStrategy,
+      label_uniqueness: options.labelUniqueness ?? null,
       single_label_id: options.singleLabelId ?? null,
       annotation_scope: options.annotationScope,
       image_absolute_path: options.imageAbsolutePath ?? '',
