@@ -20,7 +20,9 @@ import { streamChatDirectly } from './localChatClient';
 import {
   buildBackendMessages,
   streamChatViaBackend,
+  type BackendChatMessage,
 } from './backendChatClient';
+import { applySoftLineBudget } from './payloadCompaction';
 import { startAnnotationBatchJob } from './annotationBatchJob';
 import { startAnnotationMutationJob } from './annotationMutationBatchJob';
 import {
@@ -787,6 +789,10 @@ export async function startChatJob(options: {
   assistantMessageId: string;
   userContent: string;
   truncateFromMessageId?: string | null;
+  /** 预构建的跨轮 payload（由发消息前的级联管线产出；缺省时自行构建） */
+  priorMessages?: BackendChatMessage[];
+  /** 会话预算（tokens）；用于发请求前的软线本地清理 */
+  contextBudgetTokens?: number;
   clientContext?: ClientContextPayload;
   systemPrompt?: string;
   /** 客户端工具执行所需上下文，有标注项目时传入 */
@@ -824,10 +830,12 @@ export async function startChatJob(options: {
   const debugLogger = createDebugLogger(options.jobId);
   debugLogger.logJobState(JobState.Registered);
 
-  const priorMessages = buildBackendMessages(
-    options.messageIds,
-    options.sessionMessages,
-    { excludeMessageIds: new Set([options.assistantMessageId]) },
+  const priorMessages = applySoftLineBudget(
+    options.priorMessages ??
+      buildBackendMessages(options.messageIds, options.sessionMessages, {
+        excludeMessageIds: new Set([options.assistantMessageId]),
+      }),
+    options.contextBudgetTokens,
   );
   const turnHistory = new TurnToolHistoryAccumulator();
 
@@ -871,6 +879,13 @@ export async function startChatJob(options: {
         ? mergeResumeMessages(priorMessages, turnHistory.snapshot())
         : priorMessages;
 
+    // 发请求前软线治理：resume 会带回本轮累积的工具历史，超过预算软线时
+    // 先做零 API 的本地微压缩（与发消息前的级联管线同源）
+    const payloadForSend = applySoftLineBudget(
+      resumeMessages,
+      options.contextBudgetTokens,
+    );
+
     const stream = useDirect
       ? streamChatDirectly(
           {
@@ -881,7 +896,7 @@ export async function startChatJob(options: {
             sessionId: options.session.id,
             userMessageId: options.userMessageId,
             assistantMessageId: options.assistantMessageId,
-            messages: priorMessages,
+            messages: payloadForSend,
             userContent: options.userContent,
             systemPrompt: composeDirectSystemPrompt(
               options.systemPrompt,
@@ -897,7 +912,7 @@ export async function startChatJob(options: {
               sessionId: options.session.id,
               userMessageId: options.userMessageId,
               assistantMessageId: options.assistantMessageId,
-              messages: resumeMessages,
+              messages: payloadForSend,
               context: {
                 summary: options.session.contextSummary,
                 summaryUpToMessageId: options.session.summaryUpToMessageId,
@@ -909,6 +924,7 @@ export async function startChatJob(options: {
               clientContext: clientContextForRequest,
               clientToolResults:
                 accumulatedResults.length > 0 ? accumulatedResults : undefined,
+              contextBudgetTokens: options.contextBudgetTokens,
               apiKey: options.providerApiKey,
               baseUrl: options.providerBaseUrl,
               model: options.providerModel,

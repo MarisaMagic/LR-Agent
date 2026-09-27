@@ -22,13 +22,25 @@ export interface SummarizeConversationOptions {
 const DEFAULT_SUMMARIZE_TIMEOUT_MS = 30_000;
 
 function buildUserPrompt(options: SummarizeConversationOptions): string {
-  const parts: string[] = [];
-  if (options.existingSummary?.trim()) {
-    parts.push(`【已有摘要】\n${options.existingSummary.trim()}`);
+  const existing = options.existingSummary?.trim() ?? '';
+  const transcript = options.evictedTranscript.trim();
+
+  // 合并模式：只给了已有摘要（多段摘要超限时的合并请求）
+  if (!transcript) {
+    return (
+      `【已有摘要】\n${existing}\n\n` +
+      '请把以上多段摘要合并为一段更精炼的摘要，供后续对话接续使用。' +
+      '必须保留所有用户消息的意图与当前进度，不要遗漏关键约束。'
+    );
   }
-  parts.push(`【新增对话内容】\n${options.evictedTranscript.trim()}`);
+
+  const parts: string[] = [];
+  if (existing) {
+    parts.push(`【已有摘要】\n${existing}`);
+  }
+  parts.push(`【新增对话内容】\n${transcript}`);
   parts.push(
-    options.existingSummary?.trim()
+    existing
       ? '请把已有摘要与新增对话内容合并为一段更新后的摘要。'
       : '请对以上对话内容生成摘要。',
   );

@@ -51,6 +51,8 @@ export interface ParsedChatRequest {
   systemPrompt: string | null;
   contextSummary: string | null;
   contextSummaryUpToMessageId: string | null;
+  /** 会话预算（tokens，对话区不含 system 消息）；null = 未提供，沿用运行时设置 */
+  contextBudgetTokens: number | null;
   clientContext: ParsedClientContext | null;
   clientToolResults: ClientToolResultInput[];
   clientJobId: string;
@@ -84,6 +86,17 @@ function strArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((v): v is string => typeof v === 'string')
     : [];
+}
+
+/** 正有限数值；否则 null（模型侧未提供或非法值一律回落运行时设置）。 */
+function positiveNumberOrNull(value: unknown): number | null {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim()
+        ? Number(value)
+        : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 /** 解析标注项目快照（snake_case → 内部形态）。 */
@@ -288,6 +301,7 @@ export function parseChatStreamRequest(rawBody: string): ParsedChatRequest {
     contextSummaryUpToMessageId: strOrNull(
       raw.context_summary_up_to_message_id,
     ),
+    contextBudgetTokens: positiveNumberOrNull(raw.context_budget_tokens),
     clientContext: parseClientContext(raw.client_context),
     clientToolResults: parseClientToolResults(raw.client_tool_results),
     clientJobId,

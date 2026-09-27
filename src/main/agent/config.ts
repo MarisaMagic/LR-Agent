@@ -92,10 +92,13 @@ export interface AgentSettings {
    *
    * 默认关闭以保持既有行为；开启后，单轮工具结果累积超预算时会清理旧的
    * **可重取**工具结果内容（本地操作、零 API 开销）。
+   * 渲染层发请求时传入的 `context_budget_tokens` 会覆盖此项。
    */
   contextTokenBudget: number;
-  /** 触发 microcompact 的预算占比。 */
+  /** 触发 microcompact 的预算占比（软线，先做本地清理）。 */
   contextCompactRatio: number;
+  /** 触发主动压缩的预算占比（清理后仍超过此线才调 LLM 摘要）。 */
+  proactiveCompactRatio: number;
   /** microcompact 保留的最近工具结果条数（更旧的才可清理）。 */
   microCompactKeepRecentToolResults: number;
 }
@@ -136,7 +139,8 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   toolResultPreviewBytes: 50_000,
   toolResultPreviewChars: 2_000,
   contextTokenBudget: 0,
-  contextCompactRatio: 0.85,
+  contextCompactRatio: 0.7,
+  proactiveCompactRatio: 0.85,
   microCompactKeepRecentToolResults: 5,
 };
 
@@ -219,6 +223,10 @@ export function loadAgentSettings(): AgentSettings {
     contextCompactRatio: num(
       'LR_AGENT_CONTEXT_COMPACT_RATIO',
       DEFAULT_AGENT_SETTINGS.contextCompactRatio,
+    ),
+    proactiveCompactRatio: num(
+      'LR_AGENT_PROACTIVE_COMPACT_RATIO',
+      DEFAULT_AGENT_SETTINGS.proactiveCompactRatio,
     ),
     microCompactKeepRecentToolResults: num(
       'LR_AGENT_MICRO_COMPACT_KEEP_RECENT',

@@ -53,6 +53,8 @@ function loadMammoth(): MammothModule {
 export interface DocumentReadOptions {
   maxPages: number;
   maxChars: number;
+  /** PDF 起始页（1-indexed，含）；DOCX 忽略。默认第 1 页。 */
+  startPage?: number;
 }
 
 export async function readDocumentFile(
@@ -73,12 +75,21 @@ export async function readDocumentFile(
   let meta: string;
   try {
     if (suffix === '.pdf') {
-      const extracted = extractPdfText(
-        fs.readFileSync(resolved),
-        options.maxPages,
-      );
+      const extracted = extractPdfText(fs.readFileSync(resolved), {
+        startPage: options.startPage,
+        maxPages: options.maxPages,
+      });
+      if (extracted.total > 0 && extracted.extracted === 0) {
+        return (
+          `「${fileName}」第 ${extracted.startPage} 页超出文档范围` +
+          `（PDF 共 ${extracted.total} 页）。`
+        );
+      }
       text = extracted.text;
-      meta = `PDF 共 ${extracted.total} 页，已提取前 ${extracted.extracted} 页`;
+      meta =
+        extracted.startPage > 1
+          ? `PDF 共 ${extracted.total} 页，已提取第 ${extracted.startPage}~${extracted.endPage} 页`
+          : `PDF 共 ${extracted.total} 页，已提取前 ${extracted.extracted} 页`;
     } else {
       const extracted = await extractDocxText(resolved);
       text = extracted.text;
@@ -119,10 +130,21 @@ async function extractDocxText(
 
 // ── PDF 文本提取 ────────────────────────────────────────────────────
 
+export interface PdfExtractOptions {
+  /** 1-indexed 起始页（含）；默认第 1 页。 */
+  startPage?: number;
+  /** 本次最多提取页数。 */
+  maxPages: number;
+}
+
 interface PdfExtractResult {
   text: string;
   total: number;
   extracted: number;
+  /** 1-indexed 实际起始页。 */
+  startPage: number;
+  /** 1-indexed 实际结束页（含）；未提取到任何页时为 startPage - 1。 */
+  endPage: number;
 }
 
 /**
@@ -131,10 +153,12 @@ interface PdfExtractResult {
  * 策略：扫描 `N 0 obj ... endobj` 取出对象表 → 找出页对象（`/Type /Page`）与其
  * `/Contents` 引用 → 解压内容流 → 按文本算子抽取文字。页顺序取对象在文件中出现的
  * 顺序，对绝大多数文档与页树顺序一致。
+ *
+ * 支持 `startPage` 页偏移：超过总页数时返回 `extracted: 0`，由调用方给出明确提示。
  */
 export function extractPdfText(
   bytes: Buffer,
-  maxPages: number,
+  options: PdfExtractOptions,
 ): PdfExtractResult {
   // 用 latin1 解析结构：字节保真，且不会因二进制内容破坏索引
   const raw = bytes.toString('latin1');
@@ -143,10 +167,18 @@ export function extractPdfText(
   const pageContents = collectPageContentRefs(objects);
 
   const total = pageContents.length;
-  const limit = Math.min(total, Math.max(1, maxPages));
+  const startIndex = Math.max(0, Math.floor(options.startPage ?? 1) - 1);
+  const startPage = startIndex + 1;
+
+  if (total === 0 || startIndex >= total) {
+    return { text: '', total, extracted: 0, startPage, endPage: startPage - 1 };
+  }
+
+  const limit = Math.min(total - startIndex, Math.max(1, options.maxPages));
+  const endPage = startIndex + limit;
 
   const parts: string[] = [];
-  for (let i = 0; i < limit; i += 1) {
+  for (let i = startIndex; i < endPage; i += 1) {
     const chunks = pageContents[i]
       .map((objNum) => objects.get(objNum))
       .filter((obj): obj is PdfObject => obj !== undefined)
@@ -154,7 +186,13 @@ export function extractPdfText(
     parts.push(chunks.map(extractTextFromContentStream).join(''));
   }
 
-  return { text: parts.join('\n\n'), total, extracted: limit };
+  return {
+    text: parts.join('\n\n'),
+    total,
+    extracted: limit,
+    startPage,
+    endPage,
+  };
 }
 
 interface PdfObject {

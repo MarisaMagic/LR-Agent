@@ -289,6 +289,18 @@ const ReadDocumentArgs = z.object({
     .string()
     .default('')
     .describe('文档相对路径；为空时使用当前打开的文件'),
+  start_page: z
+    .number()
+    .int()
+    .min(1)
+    .nullish()
+    .describe('PDF 起始页（1-indexed，含）；DOCX 忽略。默认第 1 页'),
+  max_pages: z
+    .number()
+    .int()
+    .min(1)
+    .nullish()
+    .describe('PDF 本次最多提取页数；DOCX 忽略。默认 30'),
 });
 
 const WriteFileArgs = z.object({
@@ -560,13 +572,15 @@ export function buildTools(): ToolDefinition[] {
     {
       name: 'read_document_file',
       description:
-        '提取 PDF 或 DOCX 文档正文。relative_path 为空时使用当前打开的文件。',
+        '提取 PDF 或 DOCX 文档正文。relative_path 为空时使用当前打开的文件。' +
+        'PDF 可用 start_page / max_pages 分页提取，结果头部标注页范围。',
       kind: 'sync',
       argsSchema: ReadDocumentArgs,
       execute: (args, ctx) =>
         readDocumentFile(ctx.clientContext, String(args.relative_path ?? ''), {
-          maxPages: ctx.settings.readDocumentMaxPages,
+          maxPages: asInt(args.max_pages, ctx.settings.readDocumentMaxPages),
           maxChars: ctx.settings.readFileMaxBytes,
+          startPage: asInt(args.start_page, 1),
         }),
     },
     {

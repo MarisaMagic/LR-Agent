@@ -1,4 +1,5 @@
 import { prepareChatContext, estimateTokens } from './contextPreparer';
+import { serializeContextSummary } from '../../shared/summarySegments';
 import type {
   AgentSession,
   ChatContextConfig,
@@ -127,7 +128,8 @@ describe('prepareChatContext', () => {
       summarizeFn,
     });
     expect(result.summarized).toBe(true);
-    expect(result.contextSummary).toBe('这是摘要');
+    expect(result.contextSummary).toContain('这是摘要');
+    expect(result.contextSummary).toContain('【摘要段 1｜覆盖 u0 ~ a7】');
     // keepTurns = ceil(4/2)=2 → 保留最后 4 条，摘要覆盖到 a7
     expect(result.summaryUpToMessageId).toBe('a7');
     expect(result.windowedMessageIds).toEqual(ids.slice(-4));
@@ -138,7 +140,7 @@ describe('prepareChatContext', () => {
     expect(call.evictedTranscript).not.toContain('q9');
   });
 
-  it('passes existing summary for incremental merge', async () => {
+  it('appends a new segment after legacy summary', async () => {
     const { ids, messages } = makeTurns(10, 100);
     const summarizeFn = jest.fn().mockResolvedValue('合并后的摘要');
     const result = await prepareChatContext({
@@ -156,10 +158,56 @@ describe('prepareChatContext', () => {
     });
     expect(result.summarized).toBe(true);
     const call = summarizeFn.mock.calls[0][0];
-    expect(call.existingSummary).toBe('旧摘要');
+    // 新段独立生成，旧摘要由已有段承载
+    expect(call.existingSummary).toBeNull();
     // 摘要覆盖点之后的消息才参与：a1 之后从 u2 开始
     expect(call.evictedTranscript).toContain('q2');
     expect(call.evictedTranscript).not.toContain('q0');
+    // 旧格式摘要迁移为段 1（覆盖 * ~ a1），新段为段 2
+    expect(result.contextSummary).toContain('【摘要段 1｜覆盖 * ~ a1】');
+    expect(result.contextSummary).toContain('旧摘要');
+    expect(result.contextSummary).toContain('【摘要段 2｜覆盖 u2 ~ a7】');
+    expect(result.contextSummary).toContain('合并后的摘要');
+  });
+
+  it('merges segments when over the segment limit', async () => {
+    const { ids, messages } = makeTurns(10, 100);
+    const existingSegments = [
+      { summary: 's1', fromMessageId: '*', toMessageId: 'a1' },
+      { summary: 's2', fromMessageId: 'u2', toMessageId: 'a2' },
+      { summary: 's3', fromMessageId: 'u3', toMessageId: 'a3' },
+      { summary: 's4', fromMessageId: 'u4', toMessageId: 'a4' },
+      { summary: 's5', fromMessageId: 'u5', toMessageId: 'a5' },
+    ];
+    const summarizeFn = jest
+      .fn()
+      .mockResolvedValueOnce('新段')
+      .mockResolvedValueOnce('合并段');
+    const result = await prepareChatContext({
+      session: makeSession({
+        messageIds: ids,
+        contextSummary: serializeContextSummary({
+          legacyText: null,
+          segments: existingSegments,
+        }),
+        summaryUpToMessageId: 'a1',
+      }),
+      messageIds: ids,
+      sessionMessages: messages,
+      currentUserContent: 'hello',
+      provider,
+      config: smallConfig,
+      summarizeFn,
+    });
+    expect(result.summarized).toBe(true);
+    // 第一次生成新段（共 6 段），第二次触发合并
+    expect(summarizeFn).toHaveBeenCalledTimes(2);
+    const mergeCall = summarizeFn.mock.calls[1][0];
+    expect(mergeCall.evictedTranscript).toBe('');
+    expect(mergeCall.existingSummary).toContain('s1');
+    expect(result.contextSummary).toContain('【摘要段 1｜覆盖 * ~ a7】');
+    expect(result.contextSummary).toContain('合并段');
+    expect(result.contextSummary).not.toContain('【摘要段 2');
   });
 
   it('falls back to hard window when summarize fails', async () => {
@@ -215,5 +263,22 @@ describe('prepareChatContext', () => {
     });
     expect(result.summarized).toBe(false);
     expect(summarizeFn).not.toHaveBeenCalled();
+  });
+
+  it('returns built payload messages and budget alongside ids', async () => {
+    const { ids, messages } = makeTurns(2, 10);
+    const summarizeFn = jest.fn();
+    const result = await prepareChatContext({
+      session: makeSession({ messageIds: ids }),
+      messageIds: ids,
+      sessionMessages: messages,
+      currentUserContent: 'hello',
+      provider,
+      summarizeFn,
+    });
+    expect(result.summarized).toBe(false);
+    expect(result.compacted).toBe(false);
+    expect(result.budgetTokens).toBeGreaterThan(0);
+    expect(result.messages.map((m) => m.content).join('\n')).toContain('r1');
   });
 });

@@ -118,10 +118,38 @@ describe('extractTextFromContentStream：文本算子', () => {
   });
 });
 
+/** 构造一个含多页、内容流未压缩的最小 PDF（页顺序按对象号升序）。 */
+function buildMultiPagePdf(pages: string[]): Buffer {
+  const parts: Buffer[] = [Buffer.from('%PDF-1.4\n', 'latin1')];
+  const kids = pages.map((_, i) => `${3 + 2 * i} 0 R`).join(' ');
+  parts.push(
+    Buffer.from(
+      '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n' +
+        `2 0 obj\n<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>\nendobj\n`,
+      'latin1',
+    ),
+  );
+  pages.forEach((content, i) => {
+    const pageObj = 3 + 2 * i;
+    const contentObj = 4 + 2 * i;
+    const data = Buffer.from(content, 'latin1');
+    parts.push(
+      Buffer.from(
+        `${pageObj} 0 obj\n<< /Type /Page /Parent 2 0 R /Contents ${contentObj} 0 R >>\nendobj\n` +
+          `${contentObj} 0 obj\n<< /Length ${data.length} >>\nstream\n`,
+        'latin1',
+      ),
+    );
+    parts.push(data);
+    parts.push(Buffer.from('\nendstream\nendobj\n', 'latin1'));
+  });
+  return Buffer.concat(parts);
+}
+
 describe('extractPdfText：页提取', () => {
   it('提取未压缩内容流的文本', () => {
     const pdf = buildPdf('BT (Plain text) Tj ET');
-    const result = extractPdfText(pdf, 30);
+    const result = extractPdfText(pdf, { maxPages: 30 });
     expect(result.total).toBe(1);
     expect(result.extracted).toBe(1);
     expect(result.text).toContain('Plain text');
@@ -129,26 +157,69 @@ describe('extractPdfText：页提取', () => {
 
   it('提取 FlateDecode 压缩内容流的文本', () => {
     const pdf = buildPdf('BT (Compressed text) Tj ET', { compress: true });
-    const result = extractPdfText(pdf, 30);
+    const result = extractPdfText(pdf, { maxPages: 30 });
     expect(result.text).toContain('Compressed text');
   });
 
   it('maxPages 限制提取页数', () => {
     const pdf = buildPdf('BT (X) Tj ET');
-    const result = extractPdfText(pdf, 0);
+    const result = extractPdfText(pdf, { maxPages: 0 });
     // 至少提取 1 页（对齐 Python 的 limit = min(total, max_pages) 与 Math.max(1, ...)）
     expect(result.extracted).toBeGreaterThanOrEqual(1);
   });
 
   it('非 PDF 内容不抛异常', () => {
-    expect(() => extractPdfText(Buffer.from('not a pdf'), 10)).not.toThrow();
-    const result = extractPdfText(Buffer.from('not a pdf'), 10);
+    expect(() =>
+      extractPdfText(Buffer.from('not a pdf'), { maxPages: 10 }),
+    ).not.toThrow();
+    const result = extractPdfText(Buffer.from('not a pdf'), { maxPages: 10 });
     expect(result.total).toBe(0);
     expect(result.text).toBe('');
   });
 
   it('空 buffer 不抛异常', () => {
-    const result = extractPdfText(Buffer.alloc(0), 10);
+    const result = extractPdfText(Buffer.alloc(0), { maxPages: 10 });
     expect(result.total).toBe(0);
+  });
+});
+
+describe('extractPdfText：分页', () => {
+  it('startPage 指定起始页并返回页范围', () => {
+    const pdf = buildMultiPagePdf([
+      'BT (Page one) Tj ET',
+      'BT (Page two) Tj ET',
+      'BT (Page three) Tj ET',
+    ]);
+    const result = extractPdfText(pdf, { startPage: 2, maxPages: 1 });
+    expect(result.total).toBe(3);
+    expect(result.extracted).toBe(1);
+    expect(result.startPage).toBe(2);
+    expect(result.endPage).toBe(2);
+    expect(result.text).toContain('Page two');
+    expect(result.text).not.toContain('Page one');
+  });
+
+  it('从起始页提取到剩余页数为止', () => {
+    const pdf = buildMultiPagePdf([
+      'BT (A) Tj ET',
+      'BT (B) Tj ET',
+      'BT (C) Tj ET',
+    ]);
+    const result = extractPdfText(pdf, { startPage: 2, maxPages: 10 });
+    expect(result.extracted).toBe(2);
+    expect(result.startPage).toBe(2);
+    expect(result.endPage).toBe(3);
+    expect(result.text).toContain('B');
+    expect(result.text).toContain('C');
+  });
+
+  it('startPage 超出总页数返回 0 页', () => {
+    const pdf = buildMultiPagePdf(['BT (Only) Tj ET']);
+    const result = extractPdfText(pdf, { startPage: 5, maxPages: 1 });
+    expect(result.total).toBe(1);
+    expect(result.extracted).toBe(0);
+    expect(result.startPage).toBe(5);
+    expect(result.endPage).toBe(4);
+    expect(result.text).toBe('');
   });
 });

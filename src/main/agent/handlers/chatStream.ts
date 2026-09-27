@@ -213,6 +213,7 @@ async function* streamFrames(
         providerIsVision: body.supportsVision,
         userContent: body.userContent,
         clientToolResults: body.clientToolResults,
+        contextBudgetTokens: body.contextBudgetTokens,
         taskPhaseContext,
         isCancelled: params.isCancelled,
         signal: params.signal,

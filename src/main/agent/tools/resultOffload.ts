@@ -13,22 +13,18 @@
  */
 
 import type { AgentSettings } from '../config';
+import { RE_RETRIEVABLE_TOOLS } from '../../../shared/microCompact';
 
-/** 可重取、纯文本输出的只读工具。 */
-export const RE_RETRIEVABLE_TOOLS: ReadonlySet<string> = new Set([
-  'read_workspace_file',
-  'read_document_file',
-  'grep_workspace',
-  'glob_workspace',
-  'list_workspace_directory',
-]);
+/** 可重取、纯文本输出的只读工具（与微压缩共享同一份白名单）。 */
+export { RE_RETRIEVABLE_TOOLS };
 
-/** 重取提示（按工具特点给出更具体的做法）。 */
+/** 重取提示（按工具特点给出更具体的做法，参数名必须与工具 schema 一致）。 */
 function reRetrieveHint(toolName: string, originalLength: number): string {
   const byTool: Record<string, string> = {
-    read_workspace_file: '用 offset / limit 分段读取，或只看需要的那一段',
-    read_document_file: '减少 max_pages，或指定页码范围',
-    grep_workspace: '收紧 pattern，或降低 max_results',
+    read_workspace_file:
+      '用 start_line / end_line 分段读取，或只看需要的那一段',
+    read_document_file: '用 start_page / max_pages 分页读取（PDF）',
+    grep_workspace: '收紧 pattern，或缩小 path / glob_pattern 范围',
     glob_workspace: '收窄 glob_pattern',
     list_workspace_directory: '进入具体子目录后再列',
   };

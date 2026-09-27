@@ -575,6 +575,62 @@ describe('Assist 循环：2.2 循环内 microcompact', () => {
       '较早的工具结果已清理',
     );
   });
+
+  it('请求预算可启用软线清理（环境默认关闭）', async () => {
+    const { fetchImpl, requestBodies } = makeFetch([{ text: '完成' }]);
+    await collect(
+      streamAssist({
+        ...baseParams,
+        contextBudgetTokens: 10,
+        settings: {
+          ...DEFAULT_AGENT_SETTINGS,
+          microCompactKeepRecentToolResults: 0,
+        },
+        llm: makeClient(fetchImpl),
+        messages: longHistory(),
+        toolSpecs: [],
+        toolSet: new Set<string>(),
+      }),
+    );
+    expect(JSON.stringify(requestBodies()[0])).toContain(
+      '较早的工具结果已清理',
+    );
+  });
+
+  it('清理后仍超硬线时主动压缩一次并继续', async () => {
+    const { fetchImpl, requestBodies } = makeFetch([
+      { nonStream: true, text: '这是历史摘要。' },
+      { text: '压缩后的回答' },
+    ]);
+    const messages = Array.from({ length: 10 }, (_, i) => ({
+      role: 'user' as const,
+      content: `消息${i}`,
+    }));
+    const events = await collect(
+      streamAssist({
+        ...baseParams,
+        contextBudgetTokens: 10,
+        settings: {
+          ...DEFAULT_AGENT_SETTINGS,
+          proactiveCompactRatio: 0.5,
+        },
+        llm: makeClient(fetchImpl),
+        messages,
+        toolSpecs: [],
+        toolSet: new Set<string>(),
+      }),
+    );
+    expect(
+      events.filter((e) => e.type === 'preparing').map((e) => e.stage),
+    ).toEqual(['streaming', 'compact']);
+    expect(
+      events.some(
+        (e) => e.type === 'text_delta' && e.content === '压缩后的回答',
+      ),
+    ).toBe(true);
+    // 第二次请求（重试）已带上压缩摘要
+    expect(JSON.stringify(requestBodies()[1])).toContain('此前对话摘要');
+  });
 });
 
 describe('Assist 循环：3 流式并行只读工具', () => {

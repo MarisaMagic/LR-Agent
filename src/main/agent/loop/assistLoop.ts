@@ -26,7 +26,7 @@ import {
 import { reactiveCompact } from './compact';
 import { StreamingToolExecutor } from './streamingToolExecutor';
 import { repairOrphanToolCalls } from '../context/orphanRepair';
-import { estimateMessagesTokens } from '../context/tokenEstimate';
+import { estimateConversationTokens } from '../context/tokenEstimate';
 import { microCompactMessages } from '../context/microCompact';
 import { maybePreviewLargeResult } from '../tools/resultOffload';
 import {
@@ -204,6 +204,12 @@ export interface AssistLoopParams {
   providerIsVision: boolean;
   userContent: string;
   clientToolResults?: ClientToolResultInput[];
+  /**
+   * 本次请求的会话预算（tokens，对话区不含 system 消息）。
+   *
+   * 渲染层发请求前级联管线传入；缺省/非法时回落 `settings.contextTokenBudget`。
+   */
+  contextBudgetTokens?: number | null;
   taskPhaseContext: TaskPhaseContext | null;
   isCancelled: () => boolean;
   signal?: AbortSignal;
@@ -337,23 +343,55 @@ async function* streamAssistInner(
     microCompacted: false,
   };
 
+  // 会话预算：渲染层传入优先，缺省回落到运行时环境配置（0 = 关闭）
+  const budgetTokens =
+    params.contextBudgetTokens && params.contextBudgetTokens > 0
+      ? params.contextBudgetTokens
+      : settings.contextTokenBudget;
+
   for (let roundIdx = 0; roundIdx <= settings.maxToolRounds; roundIdx += 1) {
     if (isCancelled()) return;
 
     // 1.3 修复孤立 tool_use：历史里「已声明但未应答」的调用会让 API 直接拒收
     repairOrphanToolCalls(messages);
 
-    // 2.2 循环内上下文治理：超预算时本地清理旧的可重取工具结果（零 API、只清一次）
+    // 2.2 软线本地清理：超预算时把可重取工具结果占位符化（零 API、只清一次）
     if (
-      settings.contextTokenBudget > 0 &&
+      budgetTokens > 0 &&
       !loopState.microCompacted &&
-      estimateMessagesTokens(messages) >
-        settings.contextTokenBudget * settings.contextCompactRatio
+      estimateConversationTokens(messages) >
+        budgetTokens * settings.contextCompactRatio
     ) {
       microCompactMessages(messages, {
         keepRecent: settings.microCompactKeepRecentToolResults,
       });
       loopState.microCompacted = true;
+    }
+
+    // 2.3 主动压缩：本地清理后仍逼近硬线时，按用户边界摘要压缩一次
+    // （与 413 兜底共用标记，同一请求最多压缩一次）
+    if (
+      budgetTokens > 0 &&
+      settings.reactiveCompactEnabled &&
+      !loopState.hasAttemptedReactiveCompact &&
+      estimateConversationTokens(messages) >
+        budgetTokens * settings.proactiveCompactRatio
+    ) {
+      loopState.hasAttemptedReactiveCompact = true;
+      yield sse.preparing('compact');
+      let compacted: ChatMessage[] = messages;
+      try {
+        compacted = await reactiveCompact({ messages, llm, settings, signal });
+      } catch (compactErr) {
+        console.warn(
+          '[agentRuntime] 主动压缩失败，继续原上下文:',
+          describeError(compactErr),
+        );
+      }
+      if (compacted !== messages) {
+        messages.length = 0;
+        messages.push(...compacted);
+      }
     }
 
     const accumulator = new ToolCallAccumulator();

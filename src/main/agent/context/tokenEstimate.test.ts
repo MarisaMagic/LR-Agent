@@ -2,7 +2,10 @@
  * @jest-environment node
  */
 import { describe, expect, it } from '@jest/globals';
-import { estimateMessagesTokens } from './tokenEstimate';
+import {
+  estimateConversationTokens,
+  estimateMessagesTokens,
+} from './tokenEstimate';
 import type { ChatMessage } from '../llm/client';
 
 describe('estimateMessagesTokens', () => {
@@ -34,5 +37,17 @@ describe('estimateMessagesTokens', () => {
 
   it('空消息为 0', () => {
     expect(estimateMessagesTokens([])).toBe(0);
+  });
+});
+
+describe('estimateConversationTokens', () => {
+  it('不计入 system 消息（会话预算只覆盖对话区）', () => {
+    const messages: ChatMessage[] = [
+      { role: 'system', content: '很长的系统提示词'.repeat(100) },
+      { role: 'user', content: 'abcdef' },
+    ];
+    expect(estimateConversationTokens(messages)).toBe(
+      estimateMessagesTokens([{ role: 'user', content: 'abcdef' }]),
+    );
   });
 });

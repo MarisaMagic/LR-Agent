@@ -37,6 +37,8 @@ export interface BackendChatRequest {
   clientContext?: ClientContextPayload;
   /** 上轮客户端工具执行结果，resume 时携带 */
   clientToolResults?: ClientToolResult[];
+  /** 会话预算（tokens，对话区不含 system）；运行时据此做软线清理与主动压缩 */
+  contextBudgetTokens?: number | null;
   // Stateless backend fields (provider config from frontend)
   apiKey: string;
   baseUrl: string;
@@ -251,6 +253,9 @@ export async function* streamChatViaBackend(
   if (request.context.summaryUpToMessageId) {
     body.context_summary_up_to_message_id =
       request.context.summaryUpToMessageId;
+  }
+  if (request.contextBudgetTokens && request.contextBudgetTokens > 0) {
+    body.context_budget_tokens = request.contextBudgetTokens;
   }
   if (request.clientContext) {
     body.client_context = buildApiClientContext(request.clientContext);

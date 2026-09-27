@@ -33,7 +33,27 @@ describe('maybePreviewLargeResult', () => {
     expect(out).not.toBe(result);
     expect(out.startsWith('x'.repeat(20))).toBe(true);
     expect(out).toContain('结果过大已截断');
-    expect(out).toContain('offset / limit');
+    expect(out).toContain('start_line / end_line');
+  });
+
+  it('文档工具提示分页参数', () => {
+    const out = maybePreviewLargeResult({
+      toolName: 'read_document_file',
+      result: 'd'.repeat(500),
+      settings,
+    });
+    expect(out).toContain('start_page / max_pages');
+    expect(out).not.toContain('max_results');
+  });
+
+  it('grep 提示真实可调参数', () => {
+    const out = maybePreviewLargeResult({
+      toolName: 'grep_workspace',
+      result: 'g'.repeat(500),
+      settings,
+    });
+    expect(out).toContain('pattern');
+    expect(out).not.toContain('max_results');
   });
 
   it('不可重取工具即使很大也不折叠', () => {

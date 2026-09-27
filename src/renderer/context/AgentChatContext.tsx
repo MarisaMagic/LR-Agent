@@ -119,8 +119,9 @@ import type { AnnotationProjectSnapshot } from '../../shared/annotationAgentType
 import type { AnnotationProject } from '../types/annotation';
 import type { PretrainedModelConfig } from '../types/pretrainedModel';
 import { usePretrainedModels } from './PretrainedModelsContext';
-import { shouldClearSummaryOnEdit } from '../services/chatContextUtils';
+import { resolveSummaryOnEdit } from '../services/chatContextUtils';
 import { prepareChatContext } from '../services/contextPreparer';
+import type { BackendChatMessage } from '../services/backendChatClient';
 import { summarizeConversation } from '../services/contextSummarizer';
 import { loadProjectInstructions } from '../services/projectInstructions';
 import {
@@ -1761,7 +1762,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             });
           }
           truncateFromMessageId = editMessageId;
-          const clearSummary = shouldClearSummaryOnEdit(
+          const summaryResolution = resolveSummaryOnEdit(
             session,
             messageIds,
             editMessageId,
@@ -1780,11 +1781,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
             blocks: [{ type: 'text', content: trimmed }],
             updatedAt: now,
           };
-          if (clearSummary) {
+          if (summaryResolution.changed) {
             sessionForContext = {
               ...sessionForContext,
-              contextSummary: undefined,
-              summaryUpToMessageId: undefined,
+              contextSummary: summaryResolution.contextSummary,
+              summaryUpToMessageId: summaryResolution.summaryUpToMessageId,
             };
           }
         }
@@ -1996,9 +1997,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
       // Turn understanding removed — now handled locally or skipped
 
-      // ── 上下文准备：窗口裁剪 + 自动摘要（失败降级为纯裁剪，不阻塞发送） ──
+      // ── 上下文准备：窗口裁剪 + 级联压缩（软线本地清理 → 超线摘要） ──
       let sessionForJob: AgentSession = nextSession;
       let messageIdsForJob = messageIds;
+      let preparedMessagesForJob: BackendChatMessage[] | undefined;
+      let budgetTokensForJob: number | undefined;
       try {
         const prepared = await prepareChatContext({
           session: nextSession,
@@ -2033,6 +2036,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           },
         });
         messageIdsForJob = prepared.windowedMessageIds;
+        preparedMessagesForJob = prepared.messages;
+        budgetTokensForJob = prepared.budgetTokens;
         if (prepared.summarized && prepared.contextSummary) {
           sessionForJob = {
             ...nextSession,
@@ -2152,6 +2157,8 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
           assistantMessageId,
           userContent: trimmed,
           truncateFromMessageId,
+          priorMessages: preparedMessagesForJob,
+          contextBudgetTokens: budgetTokensForJob,
           clientContext,
           clientToolContext,
           // resume 前重建台账/结构化状态：提案确认状态在 job 启动后才会变化

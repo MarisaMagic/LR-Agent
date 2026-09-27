@@ -149,7 +149,7 @@ type ∈ { file_proposal_start, file_proposal_delta, file_proposal, document_pro
 | 字段 | 说明 |
 |---|---|
 | `type` | `"preparing"` |
-| `stage` | `"streaming"`（assist / chat 两条路径）；`"mcp"`（MCP 工具发现之前）；`"compact"`（上下文超长触发运行时压缩，重试前） |
+| `stage` | `"streaming"`（assist / chat 两条路径）；`"mcp"`（MCP 工具发现之前）；`"compact"`（上下文超预算触发主动压缩 / 上游报超长触发兜底压缩，压缩前） |
 
 语义：首 token 前的等待提示。TS 类型声明里还允许 `'summarize'` / `'build_messages'`，但运行时当前不发。
 
@@ -382,6 +382,7 @@ type ∈ { file_proposal_start, file_proposal_delta, file_proposal, document_pro
 | `system_prompt` | string? | 否 | `null` | **仅无工具（纯 chat）分支生效** |
 | `context_summary` | string? | 否 | `null` | 见 3.3 |
 | `context_summary_up_to_message_id` | string? | 否 | `null` | **运行时从不读取** |
+| `context_budget_tokens` | number? (≥1) | 否 | `null` | 会话预算（tokens，**对话区不含 system 消息**）；见 §6.8。非法值按 `null` 处理 |
 | `client_context` | `ClientContextInput?` | 否 | `null` | 见 3.4 |
 | `client_tool_results` | `ClientToolResult[]` | 否 | `[]` | resume 时携带，见 3.5 |
 | `client_job_id` | string(1..64) | 是 | | 取消与事件注册键 |
@@ -559,7 +560,7 @@ client_context 非空 AND (
 | `grep_workspace` | `pattern: string`、`path: string = ""`、`glob_pattern: string = "*"`、`case_insensitive: bool = false` | `path:line: content` 文本 |
 | `glob_workspace` | `glob_pattern: string`、`relative_dir: string = ""` | 文件路径列表 |
 | `list_workspace_directory` | `relative_dir: string = ""` | `name | kind | relativePath` |
-| `read_document_file` | `relative_path: string = ""` | PDF / DOCX 正文 |
+| `read_document_file` | `relative_path: string = ""`、`start_page: int? (≥1)`、`max_pages: int? (≥1)` | PDF / DOCX 正文；PDF 支持分页，头部标注页范围 |
 | `read_file_annotation` | `relative_path: string`、`annotation_offset: int = 0`、`annotation_limit: int = 200` | 标注 JSON，超 40k 截断 |
 
 #### 视觉类（SYNC，1 个）
@@ -915,6 +916,22 @@ else:
 - 取消通过 `AbortSignal` 贯穿（Python 侧原为进程内 `asyncio.Event`）
 - 检查点：每轮开始、astream 中、每个工具执行前、子代理每轮与每次内层调用前
 - 取消后直接返回，不再产出业务事件
+
+### 6.8 上下文治理（软线清理与主动压缩）
+
+运行时每轮开始前按**对话区估算**（`estimateConversationTokens`，不含 system 消息）做两档治理。
+预算来源：请求体 `context_budget_tokens`；缺省或非法时回落环境配置
+`LR_AGENT_CONTEXT_TOKEN_BUDGET`（默认 0 = 关闭，此时两档均不触发，行为与既有基线一致）。
+
+| 档位 | 触发条件 | 动作 |
+|---|---|---|
+| 软线 | 估算 > `预算 × contextCompactRatio`（默认 0.70） | `microCompactMessages`：可重取工具结果占位符化（保留最近 N 条）；每请求只清理一次，零 API 开销 |
+| 硬线 | 软线后仍 > `预算 × proactiveCompactRatio`（默认 0.85） | `reactiveCompact`：按 user 边界摘要压缩较旧轮次后继续；与 413 兜底**共用**「每请求最多一次」标记，触发前发 `preparing(stage="compact")` |
+
+约束（不可破坏）：
+
+- microcompact 只清 `RE_RETRIEVABLE_TOOLS` 白名单内的旧结果，且保留 `tool_call / tool_result` 配对
+- 主动压缩失败时保留原上下文继续本轮（不中断请求）；413 兜底路径保持不变
 
 ---
 

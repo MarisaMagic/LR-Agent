@@ -36,3 +36,13 @@ export function estimateMessagesTokens(messages: ChatMessage[]): number {
   }
   return Math.ceil(chars / 3);
 }
+
+/**
+ * 估算对话区（不含 system 消息）的 token 数。
+ *
+ * 会话预算 `context_budget_tokens` 的语义是「对话区预算」：系统提示词随
+ * client_context 变化且由运行时自行组装，不应与历史对话争抢同一份额度。
+ */
+export function estimateConversationTokens(messages: ChatMessage[]): number {
+  return estimateMessagesTokens(messages.filter((m) => m.role !== 'system'));
+}
