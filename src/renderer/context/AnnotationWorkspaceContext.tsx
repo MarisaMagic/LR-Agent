@@ -55,6 +55,7 @@ import type {
 import { buildFileChangesFromProposal } from '../components/agent/agentAnnotationPreview';
 import { updateAnnotationWorkspaceAgentSnapshot } from '../services/annotationAgentBridge';
 import { syncWorkspaceFactMemory } from '../services/workspaceFactMemory';
+import { logExperimentEvent } from '../services/experimentLog';
 import {
   bumpLabelUsage,
   loadLabelUsage,
@@ -850,6 +851,13 @@ export function AnnotationWorkspaceProvider({
         await writeFileAnnotationDoc(dir, relPath, doc, hint ?? undefined);
         setLoadedDocMeta(meta);
         setDirty(false);
+        if (activeProjectRef.current?.modality === 'image') {
+          logExperimentEvent('image_save', {
+            projectId: activeProjectRef.current?.id ?? null,
+            relativePath: relPath,
+            annotationCount: ann.length,
+          });
+        }
         const projectForFacts = activeProjectRef.current;
         if (factMemorySyncTimerRef.current) {
           window.clearTimeout(factMemorySyncTimerRef.current);
@@ -1343,6 +1351,13 @@ export function AnnotationWorkspaceProvider({
           annotationsRef.current = ann;
           dirtyRef.current = false;
           currentPairRef.current = { rel, abs: activeFilePath };
+          if (projForMeta.modality === 'image') {
+            logExperimentEvent('image_open', {
+              projectId: projForMeta.id,
+              relativePath: rel,
+              annotationCount: ann.length,
+            });
+          }
           applyPendingAgentNavigation(rel, parsed, stats);
         } else {
           const meta = emptyDocMeta(projForMeta, rel, stats);
@@ -1355,6 +1370,13 @@ export function AnnotationWorkspaceProvider({
           annotationsRef.current = [];
           dirtyRef.current = false;
           currentPairRef.current = { rel, abs: activeFilePath };
+          if (projForMeta.modality === 'image') {
+            logExperimentEvent('image_open', {
+              projectId: projForMeta.id,
+              relativePath: rel,
+              annotationCount: 0,
+            });
+          }
           applyPendingAgentNavigation(rel, null, stats);
         }
       } catch (e) {

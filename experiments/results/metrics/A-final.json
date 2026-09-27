@@ -1,0 +1,32 @@
+{
+  "gt_file": "experiments/data/gt/instances_project.json",
+  "pred_file": "experiments/results/A/instances.json",
+  "gt_images": 10,
+  "gt_boxes": 49,
+  "pred_boxes": 39,
+  "known_category_predictions": 39,
+  "image_id_mapping": "by_file_name",
+  "unmapped_image_predictions": 0,
+  "coco": {
+    "mAP": 0.5010430447806685,
+    "AP50": 0.7353226989365603,
+    "AP75": 0.5090959095909591,
+    "AP_small": 0.016831683168316826,
+    "AP_medium": 0.273075907590759,
+    "AP_large": 0.7092857142857142
+  },
+  "detection_class_agnostic": {
+    "iou_threshold": 0.5,
+    "tp": 32,
+    "fp": 7,
+    "fn": 17,
+    "precision": 0.8205128205128205,
+    "recall": 0.6530612244897959,
+    "f1": 0.7272727272727272,
+    "matched": 32,
+    "correct_label": 32,
+    "label_accuracy": 1.0,
+    "unknown_category_predictions": 0
+  },
+  "per_class_AP50": {}
+}

@@ -1,0 +1,513 @@
+{
+  "generatedAt": "2026-09-27T06:51:16.013Z",
+  "excluded": [
+    "A"
+  ],
+  "runs": [
+    {
+      "run": "B",
+      "firstTs": "2026-09-27T06:25:07.191Z",
+      "lastTs": "2026-09-27T06:28:56.132Z",
+      "imagesOpened": 10,
+      "imagesTimed": 10,
+      "durationsMs": [
+        9457,
+        11274,
+        40806,
+        23615,
+        48807,
+        23706,
+        5155,
+        4936,
+        22794,
+        26955
+      ],
+      "durationsByImage": {
+        "images/000000144784.jpg": 9457,
+        "images/000000210299.jpg": 11274,
+        "images/000000213605.jpg": 40806,
+        "images/000000243867.jpg": 23615,
+        "images/000000290592.jpg": 48807,
+        "images/000000332901.jpg": 23706,
+        "images/000000383339.jpg": 5155,
+        "images/000000466339.jpg": 4936,
+        "images/000000521052.jpg": 22794,
+        "images/000000570834.jpg": 26955
+      },
+      "durationMs": {
+        "n": 10,
+        "median": 23204.5,
+        "p25": 9911.25,
+        "p75": 26142.75,
+        "mean": 21750.5
+      },
+      "aiGenerateCount": 0,
+      "aiGenerateOk": 0,
+      "aiTimingMs": {
+        "total": {
+          "n": 0,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "mean": null
+        },
+        "detect": {
+          "n": 0,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "mean": null
+        },
+        "map": {
+          "n": 0,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "mean": null
+        }
+      },
+      "aiReasons": {},
+      "preannotRuns": 10,
+      "preannotBoxes": 50,
+      "llmCalls": 0,
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "sessionSpanMs": 228941,
+      "avgSpanPerImageMs": 22894,
+      "aiBatchWallMs": null,
+      "aiGenerateSumMs": null,
+      "concurrencyFactor": null,
+      "humanSpanMs": 228941,
+      "humanAvgPerImageMs": 22894,
+      "reviewMsByImage": {
+        "images/000000144784.jpg": {
+          "totalMs": 10106,
+          "visits": 1,
+          "inBatchVisits": 0
+        },
+        "images/000000210299.jpg": {
+          "totalMs": 12316,
+          "visits": 1,
+          "inBatchVisits": 0
+        },
+        "images/000000213605.jpg": {
+          "totalMs": 42360,
+          "visits": 1,
+          "inBatchVisits": 0
+        },
+        "images/000000243867.jpg": {
+          "totalMs": 24420,
+          "visits": 1,
+          "inBatchVisits": 0
+        },
+        "images/000000290592.jpg": {
+          "totalMs": 50431,
+          "visits": 1,
+          "inBatchVisits": 0
+        },
+        "images/000000332901.jpg": {
+          "totalMs": 25702,
+          "visits": 1,
+          "inBatchVisits": 0
+        },
+        "images/000000383339.jpg": {
+          "totalMs": 6781,
+          "visits": 1,
+          "inBatchVisits": 0
+        },
+        "images/000000466339.jpg": {
+          "totalMs": 5663,
+          "visits": 1,
+          "inBatchVisits": 0
+        },
+        "images/000000521052.jpg": {
+          "totalMs": 23257,
+          "visits": 1,
+          "inBatchVisits": 0
+        },
+        "images/000000570834.jpg": {
+          "totalMs": 27905,
+          "visits": 1,
+          "inBatchVisits": 0
+        }
+      },
+      "reviewDwellMs": {
+        "n": 10,
+        "median": 23838.5,
+        "p25": 10658.5,
+        "p75": 27354.25,
+        "mean": 22894.1
+      }
+    },
+    {
+      "run": "C",
+      "firstTs": "2026-09-27T06:31:08.782Z",
+      "lastTs": "2026-09-27T06:36:49.960Z",
+      "imagesOpened": 10,
+      "imagesTimed": 10,
+      "durationsMs": [
+        309825,
+        72954,
+        467,
+        74945,
+        465,
+        76936,
+        467,
+        90091,
+        471,
+        10403
+      ],
+      "durationsByImage": {
+        "images/000000144784.jpg": 309825,
+        "images/000000210299.jpg": 72954,
+        "images/000000213605.jpg": 467,
+        "images/000000243867.jpg": 74945,
+        "images/000000290592.jpg": 465,
+        "images/000000332901.jpg": 76936,
+        "images/000000521052.jpg": 467,
+        "images/000000570834.jpg": 90091,
+        "images/000000466339.jpg": 471,
+        "images/000000383339.jpg": 10403
+      },
+      "durationMs": {
+        "n": 10,
+        "median": 41678.5,
+        "p25": 468,
+        "p75": 76438.25,
+        "mean": 63702.4
+      },
+      "aiGenerateCount": 10,
+      "aiGenerateOk": 8,
+      "aiTimingMs": {
+        "total": {
+          "n": 10,
+          "median": 50167,
+          "p25": 35010,
+          "p75": 69473,
+          "mean": 51878.2
+        },
+        "detect": {
+          "n": 10,
+          "median": 38.5,
+          "p25": 30.5,
+          "p75": 3325,
+          "mean": 1356.1
+        },
+        "map": {
+          "n": 10,
+          "median": 48505,
+          "p25": 34150.75,
+          "p75": 66923.5,
+          "mean": 50520.8
+        }
+      },
+      "aiReasons": {
+        "无有效 label_id 映射": 2
+      },
+      "preannotRuns": 0,
+      "preannotBoxes": 0,
+      "llmCalls": 61,
+      "promptTokens": 47043,
+      "completionTokens": 43118,
+      "totalTokens": 90161,
+      "sessionSpanMs": 341178,
+      "avgSpanPerImageMs": 34118,
+      "aiBatchWallMs": 100677,
+      "aiGenerateSumMs": 518782,
+      "concurrencyFactor": 5.152934632537719,
+      "humanSpanMs": 240501,
+      "humanAvgPerImageMs": 24050,
+      "reviewMsByImage": {
+        "images/000000144784.jpg": {
+          "totalMs": 245290,
+          "visits": 3,
+          "inBatchVisits": 0
+        },
+        "images/000000210299.jpg": {
+          "totalMs": 4303,
+          "visits": 2,
+          "inBatchVisits": 0
+        },
+        "images/000000213605.jpg": {
+          "totalMs": 3017,
+          "visits": 2,
+          "inBatchVisits": 0
+        },
+        "images/000000243867.jpg": {
+          "totalMs": 6584,
+          "visits": 2,
+          "inBatchVisits": 0
+        },
+        "images/000000290592.jpg": {
+          "totalMs": 2766,
+          "visits": 2,
+          "inBatchVisits": 0
+        },
+        "images/000000332901.jpg": {
+          "totalMs": 7497,
+          "visits": 2,
+          "inBatchVisits": 0
+        },
+        "images/000000521052.jpg": {
+          "totalMs": 1977,
+          "visits": 2,
+          "inBatchVisits": 0
+        },
+        "images/000000570834.jpg": {
+          "totalMs": 4953,
+          "visits": 3,
+          "inBatchVisits": 0
+        },
+        "images/000000466339.jpg": {
+          "totalMs": 54147,
+          "visits": 2,
+          "inBatchVisits": 0
+        },
+        "images/000000383339.jpg": {
+          "totalMs": 10644,
+          "visits": 1,
+          "inBatchVisits": 0
+        }
+      },
+      "reviewDwellMs": {
+        "n": 21,
+        "median": 1851,
+        "p25": 1067,
+        "p75": 4750,
+        "mean": 16246.57142857143
+      }
+    }
+  ],
+  "metrics": [
+    {
+      "file": "B-final.json",
+      "data": {
+        "gt_file": "experiments/data/gt/instances_project.json",
+        "pred_file": "experiments/results/B/instances.json",
+        "gt_images": 10,
+        "gt_boxes": 49,
+        "pred_boxes": 48,
+        "known_category_predictions": 48,
+        "image_id_mapping": "by_file_name",
+        "unmapped_image_predictions": 0,
+        "coco": {
+          "mAP": 0.5406233828511056,
+          "AP50": 0.7644540033978977,
+          "AP75": 0.565107573028365,
+          "AP_small": 0.03085808580858085,
+          "AP_medium": 0.3735643564356435,
+          "AP_large": 0.7793411126826968
+        },
+        "detection_class_agnostic": {
+          "iou_threshold": 0.5,
+          "tp": 37,
+          "fp": 11,
+          "fn": 12,
+          "precision": 0.7708333333333334,
+          "recall": 0.7551020408163265,
+          "f1": 0.7628865979381444,
+          "matched": 37,
+          "correct_label": 36,
+          "label_accuracy": 0.972972972972973,
+          "unknown_category_predictions": 0
+        },
+        "per_class_AP50": {}
+      }
+    },
+    {
+      "file": "C-corrections.json",
+      "data": {
+        "ai_snapshot": "experiments/runs/C/ai",
+        "final_snapshot": "experiments/runs/C/final",
+        "labels": {
+          "5c7ccd08-03ad-4ced-9afd-cf9538cd4bd5": "人",
+          "a149acf4-d403-4c5c-a3c1-390f8580ddd2": "自行车",
+          "a253eb9b-fdf9-4953-ba3b-4168972e3cdf": "汽车",
+          "c5e539af-3a76-44c9-9ccc-7d2392beb891": "摩托车",
+          "6ccaf7ed-b6b4-46b0-8ab4-677f832a0c70": "公交车",
+          "ba98e7be-d092-4a13-b146-6e9bb5ef7cb8": "卡车",
+          "fd61a94c-1b3f-42f3-a665-2d89928dd9fe": "猫",
+          "5f7ed20a-76e2-42ad-83d0-60a31056b06b": "狗",
+          "d51da947-4d0d-4f32-9d59-d28f42ed91b7": "鸟",
+          "11c0c431-31c7-492b-be75-ea1b51920851": "马",
+          "a8d32340-39b5-487d-a32e-80568adf08f8": "羊",
+          "1d4b73e1-9a6d-4832-a795-c799229054a3": "牛"
+        },
+        "totals": {
+          "ai_boxes": 48,
+          "final_boxes": 50,
+          "kept": 43,
+          "relabeled": 5,
+          "moved": 0,
+          "deleted": 0,
+          "added": 2,
+          "ai_labeled": 41,
+          "ai_unlabeled": 7,
+          "adoption_rate": 0.8958333333333334
+        },
+        "per_image": {
+          "images/000000144784.jpg": {
+            "moved": 0,
+            "deleted": 0,
+            "added": 1,
+            "ai_boxes": 0,
+            "final_boxes": 1,
+            "ai_labeled": 0,
+            "ai_unlabeled": 0
+          },
+          "images/000000210299.jpg": {
+            "kept": 1,
+            "relabeled": 1,
+            "moved": 0,
+            "deleted": 0,
+            "added": 0,
+            "ai_boxes": 2,
+            "final_boxes": 2,
+            "ai_labeled": 1,
+            "ai_unlabeled": 1
+          },
+          "images/000000213605.jpg": {
+            "kept": 5,
+            "moved": 0,
+            "deleted": 0,
+            "added": 0,
+            "ai_boxes": 5,
+            "final_boxes": 5,
+            "ai_labeled": 3,
+            "ai_unlabeled": 2
+          },
+          "images/000000243867.jpg": {
+            "relabeled": 1,
+            "kept": 3,
+            "moved": 0,
+            "deleted": 0,
+            "added": 0,
+            "ai_boxes": 4,
+            "final_boxes": 4,
+            "ai_labeled": 3,
+            "ai_unlabeled": 1
+          },
+          "images/000000290592.jpg": {
+            "kept": 19,
+            "moved": 0,
+            "deleted": 0,
+            "added": 0,
+            "ai_boxes": 19,
+            "final_boxes": 19,
+            "ai_labeled": 19,
+            "ai_unlabeled": 0
+          },
+          "images/000000332901.jpg": {
+            "kept": 3,
+            "relabeled": 2,
+            "moved": 0,
+            "deleted": 0,
+            "added": 0,
+            "ai_boxes": 5,
+            "final_boxes": 5,
+            "ai_labeled": 3,
+            "ai_unlabeled": 2
+          },
+          "images/000000383339.jpg": {
+            "moved": 0,
+            "deleted": 0,
+            "added": 1,
+            "ai_boxes": 0,
+            "final_boxes": 1,
+            "ai_labeled": 0,
+            "ai_unlabeled": 0
+          },
+          "images/000000466339.jpg": {
+            "kept": 1,
+            "moved": 0,
+            "deleted": 0,
+            "added": 0,
+            "ai_boxes": 1,
+            "final_boxes": 1,
+            "ai_labeled": 1,
+            "ai_unlabeled": 0
+          },
+          "images/000000521052.jpg": {
+            "kept": 4,
+            "moved": 0,
+            "deleted": 0,
+            "added": 0,
+            "ai_boxes": 4,
+            "final_boxes": 4,
+            "ai_labeled": 4,
+            "ai_unlabeled": 0
+          },
+          "images/000000570834.jpg": {
+            "kept": 7,
+            "relabeled": 1,
+            "moved": 0,
+            "deleted": 0,
+            "added": 0,
+            "ai_boxes": 8,
+            "final_boxes": 8,
+            "ai_labeled": 7,
+            "ai_unlabeled": 1
+          }
+        },
+        "gt_ai_stage": {
+          "tp": 35,
+          "fp": 13,
+          "fn": 14,
+          "precision": 0.7291666666666666,
+          "recall": 0.7142857142857143,
+          "f1": 0.7216494845360825,
+          "label_accuracy": 0.828125,
+          "gt_boxes": 49,
+          "pred_boxes": 48
+        },
+        "gt_final_stage": {
+          "tp": 36,
+          "fp": 14,
+          "fn": 13,
+          "precision": 0.72,
+          "recall": 0.7346938775510204,
+          "f1": 0.7272727272727273,
+          "label_accuracy": 1,
+          "gt_boxes": 49,
+          "pred_boxes": 50
+        }
+      }
+    },
+    {
+      "file": "C-final.json",
+      "data": {
+        "gt_file": "experiments/data/gt/instances_project.json",
+        "pred_file": "experiments/results/C/instances.json",
+        "gt_images": 10,
+        "gt_boxes": 49,
+        "pred_boxes": 48,
+        "known_category_predictions": 48,
+        "image_id_mapping": "by_file_name",
+        "unmapped_image_predictions": 0,
+        "coco": {
+          "mAP": 0.5439760990751089,
+          "AP50": 0.7697973948799031,
+          "AP75": 0.5683817099658683,
+          "AP_small": 0.03085808580858085,
+          "AP_medium": 0.40702970297029695,
+          "AP_large": 0.7793411126826968
+        },
+        "detection_class_agnostic": {
+          "iou_threshold": 0.5,
+          "tp": 36,
+          "fp": 12,
+          "fn": 13,
+          "precision": 0.75,
+          "recall": 0.7346938775510204,
+          "f1": 0.7422680412371135,
+          "matched": 36,
+          "correct_label": 36,
+          "label_accuracy": 1,
+          "unknown_category_predictions": 0
+        },
+        "per_class_AP50": {}
+      }
+    }
+  ]
+}

@@ -130,6 +130,22 @@
 ![](./assets/LR-Agent-imgs/annotate-quality-1.png)
 
 
+### 实验评估
+
+> 针对「AI 预标注质量与修正成本」设计了可复现的 bbox 对照实验：
+> 纯手工 / 仅预训练 / LR-Agent 全流程三条件、10 张 COCO 子集同图配对，
+> 自动采集单图耗时、阶段耗时、token 与修正成本，并用 pycocotools 对 GT 评测。
+> 快照与埋点全部可复跑（`exp:prepare` → `exp:snapshot` → `exp:to-coco` → `exp:eval`/`exp:diff` → `exp:summarize`）。
+
+- 实验协议：[`docs/experiments/bbox-eval-protocol.md`](./docs/experiments/bbox-eval-protocol.md)
+- 实验报告（B/C 部分，A 基线待重做）：[`docs/experiments/bbox-eval-report.md`](./docs/experiments/bbox-eval-report.md)
+- 运行脚本：[`scripts/experiments/`](./scripts/experiments/README.md)
+- 结果摘要：C 的 AI 阶段采纳率 **89.6%**、标签正确率 82.8% → 人工修正后 **100%**；
+  C 修正后 mAP@0.5:0.95 **0.544**、AP50 **0.770**（B 修正后 0.541 / 0.765）；
+  人工时段/图 B **22.9s** vs C **24.1s**（C 另含 AI 等待：批次墙钟 100.7s，并发 5.2×）；
+  成本：AI ≈ **¥0.21/图**（Qwen3.8-Max，9,016 token/图）与人工时间成本（¥0.20/图）相当，
+  换 Qwen3.5-Plus 可降至 ¥0.025/图。
+
 
 ---
 

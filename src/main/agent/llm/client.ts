@@ -75,6 +75,14 @@ export interface AssistantTurn {
   toolCalls: ChatToolCall[];
 }
 
+/** provider 返回的 token 用量（OpenAI 兼容字段，缺失时该字段不出现）。 */
+export interface LlmUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  reasoningTokens?: number;
+}
+
 export interface LlmClientOptions {
   apiKey: string;
   baseUrl: string;
@@ -89,6 +97,14 @@ export interface LlmClientOptions {
   maxRetries?: number;
   /** 重试退避基数（毫秒，默认 300）。 */
   retryBaseDelayMs?: number;
+  /**
+   * 实验埋点：每次调用拿到 provider 用量时回调（流式需开启 include_usage）。
+   * 未提供时不改变请求体，保持既有线上行为。
+   */
+  onUsage?: (
+    usage: LlmUsage,
+    context: { model: string; stream: boolean },
+  ) => void;
 }
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -166,6 +182,8 @@ export class LlmClient {
 
   private readonly fetchImpl: typeof fetch;
 
+  private readonly onUsage?: LlmClientOptions['onUsage'];
+
   constructor(options: LlmClientOptions) {
     this.options = {
       apiKey: options.apiKey,
@@ -178,6 +196,7 @@ export class LlmClient {
       retryBaseDelayMs: options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS,
     };
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.onUsage = options.onUsage;
   }
 
   /** 组装请求体。子类/测试可据此断言线格式。 */
@@ -200,6 +219,10 @@ export class LlmClient {
       if (params.toolChoice) body.tool_choice = params.toolChoice;
     }
     if (params.maxTokens != null) body.max_tokens = params.maxTokens;
+    // 仅在需要用量埋点时请求 usage，避免改变默认请求体（对拍基线敏感）。
+    if (params.stream && this.onUsage) {
+      body.stream_options = { include_usage: true };
+    }
     return body;
   }
 
@@ -305,6 +328,13 @@ export class LlmClient {
             // 与渲染层一致：畸形分片忽略
             continue;
           }
+          const usage = extractUsage(chunk);
+          if (usage) {
+            this.onUsage?.(usage, {
+              model: this.options.model,
+              stream: true,
+            });
+          }
           const delta = parseChunk(chunk);
           if (delta) yield delta;
         }
@@ -336,6 +366,10 @@ export class LlmClient {
     });
     const res = await this.post(body, params.signal);
     const json = (await res.json()) as unknown;
+    const usage = extractUsage(json);
+    if (usage) {
+      this.onUsage?.(usage, { model: this.options.model, stream: false });
+    }
     return parseCompletion(json);
   }
 }
@@ -386,6 +420,35 @@ function parseChunk(chunk: unknown): LlmDelta | null {
     }));
   }
   if (first.finish_reason != null) out.finishReason = first.finish_reason;
+  return out;
+}
+
+/** 从流式/非流式响应体提取 token 用量；缺失或全空时返回 null。 */
+function extractUsage(payload: unknown): LlmUsage | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const { usage } = payload as { usage?: unknown };
+  if (!usage || typeof usage !== 'object') return null;
+
+  const record = usage as Record<string, unknown>;
+  const num = (value: unknown): number | undefined =>
+    typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  const details = record.completion_tokens_details as
+    Record<string, unknown> | undefined;
+
+  const out: LlmUsage = {
+    promptTokens: num(record.prompt_tokens),
+    completionTokens: num(record.completion_tokens),
+    totalTokens: num(record.total_tokens),
+    reasoningTokens: num(details?.reasoning_tokens),
+  };
+  if (
+    out.promptTokens == null &&
+    out.completionTokens == null &&
+    out.totalTokens == null &&
+    out.reasoningTokens == null
+  ) {
+    return null;
+  }
   return out;
 }
 

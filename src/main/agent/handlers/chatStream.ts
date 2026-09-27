@@ -34,6 +34,10 @@ import {
   buildChatSystemPrompt,
 } from '../context/systemPrompt';
 import type { RouteHandler } from '../server';
+import {
+  appendExperimentEvent,
+  isExperimentLogEnabled,
+} from '../../experiments/logger';
 
 /** 运行中的任务：clientJobId → 取消控制器。 */
 const runningJobs = new Map<string, AbortController>();
@@ -126,6 +130,15 @@ async function* streamFrames(
       model: body.model,
       fetchImpl: deps.fetchImpl,
       timeoutMs: deps.llmTimeoutMs,
+      onUsage: isExperimentLogEnabled()
+        ? (usage) =>
+            appendExperimentEvent({
+              type: 'llm_usage',
+              source: 'agent_chat',
+              model: body.model,
+              ...usage,
+            })
+        : undefined,
     });
 
     const toolContext = hasToolContext(body.clientContext);

@@ -30,6 +30,8 @@ import {
   savePreAnnotModelId,
 } from '../../utils/preAnnotModelFilter';
 import { resolveLabelIdForPoseTemplate } from '../../utils/preAnnotLabelMapping';
+import { getRelativeProjectPath } from '../../utils/projectPaths';
+import { logExperimentEvent } from '../../services/experimentLog';
 import './PreAnnotToolbarSection.css';
 
 export interface PreAnnotToolbarSectionProps {
@@ -188,6 +190,14 @@ export default function PreAnnotToolbarSection({
         });
 
         const count = addPreAnnotBboxes(mapped);
+        logExperimentEvent('preannot_run', {
+          relativePath:
+            getRelativeProjectPath(activeProject.directoryPath, imagePath) ??
+            imagePath,
+          mode: 'bbox',
+          modelId: selectedModel.id,
+          boxCount: count,
+        });
         showToast(count > 0 ? `已生成 ${count} 条预标注` : '未检测到目标', {
           type: 'info',
         });

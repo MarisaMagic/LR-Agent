@@ -379,6 +379,14 @@ const electronHandler = {
     getRunPath: (projectDir: string, runId: string): Promise<string> =>
       ipcRenderer.invoke('quality:getRunPath', projectDir, runId),
   },
+  experiment: {
+    /** 追加一条实验埋点事件（未启用日志时主进程静默忽略）。 */
+    log: (event: Record<string, unknown>): Promise<void> =>
+      ipcRenderer.invoke('experiment:log', event),
+    /** 查询实验日志是否启用及其路径。 */
+    status: (): Promise<{ enabled: boolean; file: string | null }> =>
+      ipcRenderer.invoke('experiment:status'),
+  },
   workspace: {
     /** 开始监听工作区文件变化（chokidar） */
     startWatch: (rootPath: string): Promise<void> =>

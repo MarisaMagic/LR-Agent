@@ -47,7 +47,13 @@
     "baseline:selftest": "node scripts/agent-baseline/selftest.mjs",
     "baseline:capture": "node scripts/agent-baseline/captureSse.mjs",
     "baseline:diff": "node scripts/agent-baseline/diffSse.mjs",
-    "baseline:fork-smoke": "electron scripts/agent-baseline/electronForkSmoke.cjs"
+    "baseline:fork-smoke": "electron scripts/agent-baseline/electronForkSmoke.cjs",
+    "exp:prepare": "node scripts/experiments/prepareCocoSubset.mjs",
+    "exp:snapshot": "node scripts/experiments/snapshotAnnotations.mjs",
+    "exp:to-coco": "node scripts/experiments/snapshotToCoco.mjs",
+    "exp:eval": "python scripts/experiments/eval_bbox.py",
+    "exp:diff": "python scripts/experiments/diff_corrections.py",
+    "exp:summarize": "node scripts/experiments/summarize.mjs"
   },
   "browserslist": [
     "extends browserslist-config-erb"

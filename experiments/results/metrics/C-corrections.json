@@ -1,0 +1,156 @@
+{
+  "ai_snapshot": "experiments/runs/C/ai",
+  "final_snapshot": "experiments/runs/C/final",
+  "labels": {
+    "5c7ccd08-03ad-4ced-9afd-cf9538cd4bd5": "人",
+    "a149acf4-d403-4c5c-a3c1-390f8580ddd2": "自行车",
+    "a253eb9b-fdf9-4953-ba3b-4168972e3cdf": "汽车",
+    "c5e539af-3a76-44c9-9ccc-7d2392beb891": "摩托车",
+    "6ccaf7ed-b6b4-46b0-8ab4-677f832a0c70": "公交车",
+    "ba98e7be-d092-4a13-b146-6e9bb5ef7cb8": "卡车",
+    "fd61a94c-1b3f-42f3-a665-2d89928dd9fe": "猫",
+    "5f7ed20a-76e2-42ad-83d0-60a31056b06b": "狗",
+    "d51da947-4d0d-4f32-9d59-d28f42ed91b7": "鸟",
+    "11c0c431-31c7-492b-be75-ea1b51920851": "马",
+    "a8d32340-39b5-487d-a32e-80568adf08f8": "羊",
+    "1d4b73e1-9a6d-4832-a795-c799229054a3": "牛"
+  },
+  "totals": {
+    "ai_boxes": 48,
+    "final_boxes": 50,
+    "kept": 43,
+    "relabeled": 5,
+    "moved": 0,
+    "deleted": 0,
+    "added": 2,
+    "ai_labeled": 41,
+    "ai_unlabeled": 7,
+    "adoption_rate": 0.8958333333333334
+  },
+  "per_image": {
+    "images/000000144784.jpg": {
+      "moved": 0,
+      "deleted": 0,
+      "added": 1,
+      "ai_boxes": 0,
+      "final_boxes": 1,
+      "ai_labeled": 0,
+      "ai_unlabeled": 0
+    },
+    "images/000000210299.jpg": {
+      "kept": 1,
+      "relabeled": 1,
+      "moved": 0,
+      "deleted": 0,
+      "added": 0,
+      "ai_boxes": 2,
+      "final_boxes": 2,
+      "ai_labeled": 1,
+      "ai_unlabeled": 1
+    },
+    "images/000000213605.jpg": {
+      "kept": 5,
+      "moved": 0,
+      "deleted": 0,
+      "added": 0,
+      "ai_boxes": 5,
+      "final_boxes": 5,
+      "ai_labeled": 3,
+      "ai_unlabeled": 2
+    },
+    "images/000000243867.jpg": {
+      "relabeled": 1,
+      "kept": 3,
+      "moved": 0,
+      "deleted": 0,
+      "added": 0,
+      "ai_boxes": 4,
+      "final_boxes": 4,
+      "ai_labeled": 3,
+      "ai_unlabeled": 1
+    },
+    "images/000000290592.jpg": {
+      "kept": 19,
+      "moved": 0,
+      "deleted": 0,
+      "added": 0,
+      "ai_boxes": 19,
+      "final_boxes": 19,
+      "ai_labeled": 19,
+      "ai_unlabeled": 0
+    },
+    "images/000000332901.jpg": {
+      "kept": 3,
+      "relabeled": 2,
+      "moved": 0,
+      "deleted": 0,
+      "added": 0,
+      "ai_boxes": 5,
+      "final_boxes": 5,
+      "ai_labeled": 3,
+      "ai_unlabeled": 2
+    },
+    "images/000000383339.jpg": {
+      "moved": 0,
+      "deleted": 0,
+      "added": 1,
+      "ai_boxes": 0,
+      "final_boxes": 1,
+      "ai_labeled": 0,
+      "ai_unlabeled": 0
+    },
+    "images/000000466339.jpg": {
+      "kept": 1,
+      "moved": 0,
+      "deleted": 0,
+      "added": 0,
+      "ai_boxes": 1,
+      "final_boxes": 1,
+      "ai_labeled": 1,
+      "ai_unlabeled": 0
+    },
+    "images/000000521052.jpg": {
+      "kept": 4,
+      "moved": 0,
+      "deleted": 0,
+      "added": 0,
+      "ai_boxes": 4,
+      "final_boxes": 4,
+      "ai_labeled": 4,
+      "ai_unlabeled": 0
+    },
+    "images/000000570834.jpg": {
+      "kept": 7,
+      "relabeled": 1,
+      "moved": 0,
+      "deleted": 0,
+      "added": 0,
+      "ai_boxes": 8,
+      "final_boxes": 8,
+      "ai_labeled": 7,
+      "ai_unlabeled": 1
+    }
+  },
+  "gt_ai_stage": {
+    "tp": 35,
+    "fp": 13,
+    "fn": 14,
+    "precision": 0.7291666666666666,
+    "recall": 0.7142857142857143,
+    "f1": 0.7216494845360825,
+    "label_accuracy": 0.828125,
+    "gt_boxes": 49,
+    "pred_boxes": 48
+  },
+  "gt_final_stage": {
+    "tp": 36,
+    "fp": 14,
+    "fn": 13,
+    "precision": 0.72,
+    "recall": 0.7346938775510204,
+    "f1": 0.7272727272727273,
+    "label_accuracy": 1.0,
+    "gt_boxes": 49,
+    "pred_boxes": 50
+  }
+}

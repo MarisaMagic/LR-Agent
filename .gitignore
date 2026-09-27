@@ -92,6 +92,13 @@ __pycache__/
 # 文档目录默认不入库；仅 Agent 协议契约例外（它是代码必须遵循的单一真源）
 docs/*
 !docs/agent-protocol.md
+!docs/experiments/
+!docs/experiments/**
+
+# 实验结果：原始数据与运行快照不入库，评测汇总（results）入库
+experiments/data/
+experiments/runs/
+experiments/.cache/
 
 # Agent 协议基线：.baseline/python 是迁移前冻结的参考序列，必须入库
 # （vendor/local-agent 删除后无法重新生成），其余为可再生产物

@@ -33,6 +33,7 @@ import {
   attachRewriteDeletes,
   inferAnnotationWritePolicy,
 } from './annotationWritePolicy';
+import { logExperimentEvent } from '../experimentLog';
 
 type WorkerResult = FusionSubImageResult;
 
@@ -523,6 +524,21 @@ export async function* runGeometryPipeline(
 
   const cancelled = isCancelled();
   for (const result of workerResults) {
+    logExperimentEvent('ai_generate', {
+      relativePath: result.relativePath,
+      geometryType,
+      providerId,
+      ok: result.ok,
+      reason: result.reason,
+      rawCount: result.rawCount,
+      keptCount: result.keptCount,
+      mappedCount: result.mappedCount,
+      unmappedCount: result.unmappedCount,
+      method: result.method,
+      mapHint: result.mapHint,
+      elapsedMs: result.elapsedMs,
+      timing: result.timing,
+    });
     if (result.ok) {
       logAnnotationDebugImageResult(result.relativePath, {
         ok: true,

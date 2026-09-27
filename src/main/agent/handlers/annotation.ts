@@ -32,6 +32,10 @@ import {
   assertComposePayloadSize,
   streamQualityReportCompose,
 } from '../annotate/quality';
+import {
+  appendExperimentEvent,
+  isExperimentLogEnabled,
+} from '../../experiments/logger';
 import { resolveImageService, type RuntimeDeps } from './deps';
 
 /** 把路由层异常统一转成 `{detail}` 响应。 */
@@ -50,6 +54,8 @@ function makeLlm(params: {
   baseUrl: string;
   model: string;
   temperature: number;
+  /** 实验埋点来源标签（llm_usage 事件）。 */
+  source: string;
 }): LlmClient {
   return new LlmClient({
     apiKey: params.apiKey,
@@ -58,6 +64,15 @@ function makeLlm(params: {
     temperature: params.temperature,
     fetchImpl: params.deps.fetchImpl,
     timeoutMs: params.deps.llmTimeoutMs,
+    onUsage: isExperimentLogEnabled()
+      ? (usage) =>
+          appendExperimentEvent({
+            type: 'llm_usage',
+            source: params.source,
+            model: params.model,
+            ...usage,
+          })
+      : undefined,
   });
 }
 
@@ -84,6 +99,7 @@ export function createLlmGenerateHandler(deps: RuntimeDeps): RouteHandler {
         model: body.model,
         // 温度由请求体控制（生成类 pipeline 各自传值）
         temperature: body.temperature,
+        source: 'annotation_generate',
       });
       const content = await llmGenerate({
         llm,
@@ -131,6 +147,7 @@ export function createMutationPrepareHandler(deps: RuntimeDeps): RouteHandler {
         baseUrl: body.base_url,
         model: body.model,
         temperature: deps.settings.annotationPrepareTemperature,
+        source: 'annotation_mutation',
       });
 
       const result = await prepareMutationAnnotation({
@@ -202,6 +219,7 @@ export function createQualityComposeHandler(deps: RuntimeDeps): RouteHandler {
       model: body.model,
       // 报告撰写温度固定 0.2（对齐 Python）
       temperature: 0.2,
+      source: 'quality_compose',
     });
 
     return {
@@ -243,6 +261,7 @@ export function createMapDetectionBoxesHandler(
           baseUrl: body.base_url,
           model: body.model,
           temperature: deps.settings.annotationLlmTemperature,
+          source: 'annotation_map',
         });
       }
 

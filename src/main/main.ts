@@ -29,6 +29,7 @@ import { setActiveWorkspaceRoot } from './workspace/activeWorkspace';
 import { registerTerminalHandlers } from './terminal/terminalHandlers';
 import registerAnnotationAgentHandlers from './annotation/agent/handlers';
 import registerQualityReportHandlers from './annotation/quality/handlers';
+import { registerExperimentHandlers } from './experiments/handlers';
 import {
   startMcpServer,
   stopMcpServer,
@@ -927,6 +928,7 @@ app
     registerWorkspaceHandlers();
     registerAnnotationAgentHandlers();
     registerQualityReportHandlers();
+    registerExperimentHandlers();
     registerDbHandlers();
     registerMemoryHandlers();
     registerCheckpointHandlers();
